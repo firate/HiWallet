@@ -16,13 +16,16 @@ CREATE TABLE accounts (
     currency      char(3) NOT NULL,
     created_at    timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT ck_accounts_ownership CHECK (
-        (account_type = 'user_wallet'
-             AND owner_id IS NOT NULL AND owner_type IS NOT NULL AND provider IS NULL)
-        OR
-        (account_type <> 'user_wallet'
-             AND owner_id IS NULL AND owner_type IS NULL)
-    )
+    -- Kolon başına bir kural: "bu kolon TAM OLARAK şu tipte dolu".
+    -- İhlalde Postgres constraint adını söylediği için hangi kuralın bozulduğu belli olur.
+    CONSTRAINT ck_accounts_owner_id
+        CHECK ((account_type = 'user_wallet') = (owner_id IS NOT NULL)),
+    CONSTRAINT ck_accounts_owner_type
+        CHECK ((account_type = 'user_wallet') = (owner_type IS NOT NULL)),
+    CONSTRAINT ck_accounts_provider
+        CHECK ((account_type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)),
+    CONSTRAINT ck_accounts_provider_blank
+        CHECK (provider IS NULL OR btrim(provider) <> '')
 );
 
 CREATE INDEX ix_accounts_owner ON accounts (owner_id) WHERE owner_id IS NOT NULL;
@@ -55,6 +58,12 @@ compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
 Sistem hesapları seed migration ile oluşturulur: `revenue` currency başına bir tane,
 `clearing` / `nostro` / `provider_expense` ise **sağlayıcı × currency** başına bir tane.
 Birden fazla sağlayıcı varsa mutabakat ancak böyle ayrıştırılabilir.
+
+`ck_accounts_ownership`, `Account.UserWallet()` / `Account.System()` factory'lerinin DB
+tarafındaki eşidir — ikisi aynı kuralı söyler. Hesap yalnızca uygulamadan açılmıyor:
+seed migration, düzeltme script'i, ileride bir admin endpoint'i. Kural tek tarafta
+kalırsa diğer yoldan geçersiz satır giriyor ve hiçbir yerde hata görünmüyor
+(zero-sum bozulmadığı için trigger da susuyor).
 
 ### İşaret sezgisi (dikkat)
 

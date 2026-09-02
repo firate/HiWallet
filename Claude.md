@@ -66,4 +66,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Yeni bir katman/akış eklerken önce testi yaz, sonra implementasyonu.
 - Bir kural burada yazılıysa gerekçesini tartışma, uygula. Kural eksikse
   `docs/decisions.md`'ye bak; orada da yoksa varsayımını kodda yorum olarak belirt.
+- **Doküman koda uyar, kod dokümana değil.** `docs/` bilinçli olarak sade ve hafif
+  yazıldı; kod onun ilerisine geçebilir. Kod ile doküman çeliştiğinde önce kodu doğru
+  yaz, sonra dokümanı ona güncelle — dokümanı korumak için kodda taviz verme.
+  İstisna: bu dosyadaki pazarlıksız kurallar ve `decisions.md`'deki kararlar.
+  Onlardan sapılacaksa önce karar değiştirilir, gerekçesiyle.
 - Kapsam dışı: Vault, Kubernetes, gerçek ödeme sağlayıcısı, multi-tenancy, caching.
