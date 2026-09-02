@@ -1,12 +1,16 @@
-# wallet-distributed
+# HiWallet
 
 E-money cüzdan sistemi. Double-entry ledger + saga orchestration.
+Marka Hive, ürün HiWallet; `wallet-distributed` konsept dokümanlarının adıdır, kodda geçmez.
 Detaylı gerekçeler: `docs/decisions.md`. Şema: `docs/ledger-schema.md`.
 Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 
 ## Pazarlıksız kurallar
 
 **Stack**
+- `net10.0`, tek TFM. `TargetFramework` yalnızca `Directory.Build.props`'ta.
+- Paket versiyonları `Directory.Packages.props`'ta. `.csproj`'da `Version` attribute'u YOK.
+- Assembly ve namespace kökü `HiWallet.*`.
 - Controller-based ASP.NET Core Web API. Minimal API YOK.
 - Wolverine, yalnızca in-process handler/mediator olarak. MediatR YOK.
 - Wolverine'in RabbitMQ transport'u, durable inbox/outbox'ı ve `Saga` persistence'ı KULLANILMIYOR.
@@ -21,6 +25,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - İşaret konvansiyonu: credit `+`, debit `-`. Hiçbir yerde tersine çevrilmez.
 - Para: `numeric(19,4)` + ayrı `currency` kolonu. `float`/`double` YOK.
 - Bakiye asla ledger'a yazmadan güncellenmez.
+- Sistem hesapları `accounts.provider` ile ayrışır (`clearing`, `nostro`, `provider_expense`).
+  `user_wallet`'ta `provider` NULL, sistem hesabında `owner_id`/`owner_type` NULL.
+- `ledger_transactions.account_id` NOT NULL — iç işlemlerde de dolar (idempotency kapsamı).
+  Nullable YAPILMAZ: unique index'te NULL'lar eşleşmez, fatura iki kez yazılır.
 
 **Sağlayıcı ücretleri**
 - `provider_fees` tablosu ledger DEĞİL. `expected_amount` ledger'a asla yazılmaz.

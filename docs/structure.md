@@ -6,10 +6,10 @@ Kurallar için `CLAUDE.md`, gerekçeler için `docs/decisions.md`, şema için `
 ## Repo kökü
 
 ```
-wallet-distributed/
+HiWallet/
 ├── CLAUDE.md
 ├── README.md
-├── WalletDistributed.sln
+├── HiWallet.sln
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
@@ -30,15 +30,26 @@ dosyalarında `Version` attribute'u YAZILMAZ, yalnızca `PackageReference Includ
 
 ```
 docs/
-├── decisions.md            -- kararlar, gerekçeler, elenen alternatifler
-├── ledger-schema.md        -- DDL, invariant zorlaması, settlement kayıtları
-├── structure.md            -- bu dosya
-├── bolum-1-giris.md        -- kapsam ve harita
-├── bolum-2-baseline.md     -- 12 zorunlu katman
-└── bolum-3-wallet.md       -- servisler, akışlar, saga, çıkış kriteri
+├── decisions.md                          -- kararlar, gerekçeler, elenen alternatifler
+├── ledger-schema.md                      -- DDL, invariant zorlaması, settlement kayıtları
+├── structure.md                          -- bu dosya
+├── Bölüm 1 - Giriş ve Harita.md          -- kapsam ve harita
+├── Bölüm 2 — Baseline (ortak çatı).md    -- 12 zorunlu katman
+└── Bölüm 3 — Wallet Distributed.md       -- servisler, akışlar, saga, çıkış kriteri
 ```
 
 Bölüm dosyaları da repoda durur; kapsamı ve dominant temayı görmeden doğru karar verilemez.
+Adları Obsidian wiki-link'leriyle (`[[Bölüm 2 — Baseline (ortak çatı)]]`) eşleştiği için
+ASCII slug'a çevrilmez.
+
+## Adlandırma: ürün vs konsept
+
+Marka **Hive**, ürün **HiWallet**. Solution `HiWallet.sln`, assembly ve namespace kökü
+`HiWallet.*` → `HiWallet.WalletService`, `HiWallet.Shared.Contracts`.
+
+Bölüm dosyalarında geçen `wallet-distributed` referans uygulama setinin konsept adıdır,
+kodda kullanılmaz. Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix
+`.csproj` içindeki `RootNamespace`/`AssemblyName` ile verilir.
 
 ## src/
 
@@ -220,7 +231,8 @@ tests/
 ## Adlandırma
 
 - Klasör ve namespace çoğul (`Transfers`, `Accounts`), tip tekil (`Transfer`, `Account`).
-- Namespace dizin yolunu birebir izler: `WalletService.Application.Transfers`.
+- Namespace = `HiWallet.` + dizin yolu: `src/WalletService/Application/Transfers/` →
+  `HiWallet.WalletService.Application.Transfers`.
 - Command: `<Fiil><Nesne>Command` → `CreateTransferCommand`. Handler: `<Command adı>Handler`.
 - Event geçmiş zaman: `BankTransferSucceeded`, `TopupReceived`.
 - Tablo adları `snake_case` ve çoğul (`ledger_entries`), C# tarafı `PascalCase` tekil.

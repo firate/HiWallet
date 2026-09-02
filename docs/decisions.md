@@ -322,3 +322,66 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 5. Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (Bölüm 3 §10) karşılamalı.
+
+---
+
+## 14. Sistem hesaplarının ayrıştırılması: `accounts.provider`
+
+**Karar.** `accounts` tablosuna `provider text NULL` kolonu eklenir. Sistem hesaplarında
+sağlayıcıyı taşır (`nostro/garanti`, `provider_expense/stripe-fake`), `user_wallet`'ta NULL.
+Tekillik `(account_type, provider, currency)` üzerinde, yalnızca sistem hesapları için.
+
+**Gerekçe.** `ledger-schema.md` "`nostro` ve `provider_expense` sağlayıcı başına ayrı olabilir"
+diyordu ama bunu taşıyacak kolon yoktu — `owner_id` sistem hesaplarında NULL, `account_type`
+ise rolü söylüyor, sağlayıcıyı değil. Kolon olmadan iki `nostro` hesabı ayırt edilemez ve
+§11'deki fatura uyuşmazlığı analizi (hangi sağlayıcı, hangi fatura) yapılamaz. Mutabakat
+sağlayıcı bazında koştuğu için bu kolon opsiyonel bir kolaylık değil, ön koşul.
+
+**`clearing` de sağlayıcı bazında.** Bölüm 3 §3 clearing'i "yolda olan para" diye tanımlıyor;
+yolda olan paranın kimde olduğu bilinmezse settlement karşılaştırması yapılamaz. Aynı kolon
+clearing için de dolar.
+
+**Elenen alternatif.** Tek `code text UNIQUE` kolonu (`'nostro:garanti:TRY'`). Adresleme için
+yeterli ama sorgulanamıyor — "garanti'nin tüm hesapları" string parse etmeyi gerektirir.
+İşaret/`direction` kolonunda uygulanan tek-kaynak mantığının tersi: burada tek kolon,
+üç ayrı bilgiyi (`type`, `provider`, `currency`) içine gömüp erişilemez kılıyor.
+
+**Elenen alternatif.** `code` + `provider` birlikte. İki kaynak, tutarsızlaşır. `direction`
+kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
+
+---
+
+## 15. `ledger_transactions.account_id` iç işlemlerde ne olur
+
+**Karar.** Kolon NOT NULL kalır. Anlamı "isteği başlatan hesap" değil,
+**işlemin idempotency kapsamı olan hesap**:
+
+| `type`             | `account_id`                          | `idempotency_key`  |
+| ------------------ | ------------------------------------- | ------------------ |
+| transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i    |
+| `topup`            | alıcı `user_wallet`                   | webhook `event_id` |
+| `withdrawal`       | çeken `user_wallet`                   | client'ın key'i    |
+| `refund` (comp.)   | aynı `user_wallet`                    | saga id            |
+| settlement         | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref|
+| `provider_invoice` | ilgili `provider_expense`             | fatura numarası    |
+
+**Gerekçe.** Kolonu nullable yapmak ilk akla gelen çözümdü ve sessizce bozuyor:
+Postgres'te unique index içindeki NULL hiçbir NULL'a eşit sayılmaz, dolayısıyla
+`(NULL, 'INV-2026-03')` iki kez insert edilebilir. §11 fatura idempotency'sinin dayandığı
+tek mekanizma bu index — nullable `account_id` onu tam da en riskli akışta devre dışı bırakır.
+
+Sistem hesabını kapsam olarak kullanmak hem index'i canlı tutuyor hem de doğru soruyu
+soruyor: "bu fatura bu sağlayıcının gider hesabına daha önce yazıldı mı".
+
+**Sonuç.** `ledger-schema.md`'deki kolon yorumu güncellenir. Ayrı bir `scope_account_id`
+kolonu eklenmez — aynı bilgi, iki isim.
+
+---
+
+## 16. Platform: .NET 10
+
+**Karar.** Tek TFM `net10.0`, `Directory.Build.props`'ta merkezi. Servis `.csproj`'larında
+`TargetFramework` yazılmaz.
+
+**Gerekçe.** LTS, makinede kurulu (`10.0.201`), EF Tools 10.0.7 ile eşleşiyor. Çok TFM'li
+build bu projede hiçbir şey kazandırmaz, `#if` dallanması getirir.

@@ -12,40 +12,74 @@ CREATE TABLE accounts (
                     ('user_wallet','clearing','revenue','nostro','provider_expense')),
     owner_id      uuid NULL,          -- user_wallet için zorunlu, sistem hesaplarında NULL
     owner_type    text NULL CHECK (owner_type IN ('person','business')),
+    provider      text NULL,          -- sistem hesaplarında sağlayıcı ayrımı, user_wallet'ta NULL
     currency      char(3) NOT NULL,
-    created_at    timestamptz NOT NULL DEFAULT now()
+    created_at    timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT ck_accounts_ownership CHECK (
+        (account_type = 'user_wallet'
+             AND owner_id IS NOT NULL AND owner_type IS NOT NULL AND provider IS NULL)
+        OR
+        (account_type <> 'user_wallet'
+             AND owner_id IS NULL AND owner_type IS NULL)
+    )
 );
 
 CREATE INDEX ix_accounts_owner ON accounts (owner_id) WHERE owner_id IS NOT NULL;
+
+-- sistem hesabı tekilliği: aynı (tip, sağlayıcı, currency) ikinci kez açılamaz.
+-- provider NULL olabildiği için COALESCE ile normalize edilir — NULL'lar unique index'te
+-- birbirine eşit sayılmaz, o yüzden ham kolon yetmez.
+CREATE UNIQUE INDEX ux_accounts_system
+    ON accounts (account_type, COALESCE(provider, ''), currency)
+ WHERE owner_id IS NULL;
 ```
 
-| account_type       | owner_type       | Negatife düşebilir | Anlamı                                  |
-| ------------------ | ---------------- | ------------------ | --------------------------------------- |
-| `user_wallet`      | person / business | Hayır             | Müşteri cüzdanı                         |
-| `clearing`         | NULL             | Evet               | Yolda olan / settle olmamış para        |
-| `revenue`          | NULL             | Evet               | Müşteriden alınan komisyon (gelir)      |
-| `nostro`           | NULL             | Evet               | Kendi banka hesabımızdaki gerçek para   |
-| `provider_expense` | NULL             | Evet               | Sağlayıcıya ödenen ücret (gider)        |
+| account_type       | owner_type        | provider     | Negatife düşebilir | Anlamı                                |
+| ------------------ | ----------------- | ------------ | ------------------ | ------------------------------------- |
+| `user_wallet`      | person / business | NULL         | Hayır              | Müşteri cüzdanı                       |
+| `clearing`         | NULL              | sağlayıcı    | Evet               | Yolda olan / settle olmamış para      |
+| `revenue`          | NULL              | NULL         | Evet               | Müşteriden alınan komisyon (gelir)    |
+| `nostro`           | NULL              | banka        | Evet               | Kendi banka hesabımızdaki gerçek para |
+| `provider_expense` | NULL              | sağlayıcı    | Evet               | Sağlayıcıya ödenen ücret (gider)      |
 
-`account_type` hesabın ledger'daki rolü, `owner_type` sahibinin kim olduğu. Dik boyutlar,
-birleştirilmez: ledger çekirdeği owner_type'a bakmaz, policy katmanı bakar.
+`account_type` hesabın ledger'daki rolü, `owner_type` sahibinin kim olduğu, `provider`
+sistem hesabının hangi dış tarafa ait olduğu. Üçü de dik boyut, birleştirilmez:
+ledger çekirdeği yalnızca `account_type`'a bakar, policy katmanı `owner_type`'a,
+mutabakat `provider`'a. Gerekçe: `decisions.md` §14.
 
 `revenue` ve `provider_expense` ayrı tutulur, netleştirilmez. Biri gelir biri gider;
 compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
 (banka işlemi denediyse ücreti kesilmiştir).
 
-Sistem hesapları seed migration ile oluşturulur, currency başına birer tane.
-`nostro` ve `provider_expense` sağlayıcı başına ayrı olabilir
-(`nostro/garanti`, `provider_expense/stripe`) — birden fazla sağlayıcı varsa mutabakat
-ancak böyle ayrıştırılabilir.
+Sistem hesapları seed migration ile oluşturulur: `revenue` currency başına bir tane,
+`clearing` / `nostro` / `provider_expense` ise **sağlayıcı × currency** başına bir tane.
+Birden fazla sağlayıcı varsa mutabakat ancak böyle ayrıştırılabilir.
+
+### İşaret sezgisi (dikkat)
+
+Konvansiyon credit `+` / debit `-` olduğu için sistem hesaplarının "normal" bakiyesi
+sezgiye ters görünür — yükümlülük hesapları artıda, varlık hesapları eksidedir:
+
+| Hesap              | Muhasebe rolü | Para bizdeyken bakiye |
+| ------------------ | ------------- | --------------------- |
+| `user_wallet`      | yükümlülük    | `+` (müşteriye borç)  |
+| `revenue`          | gelir         | `+`                   |
+| `nostro`           | varlık        | `−` (bankada para var)|
+| `provider_expense` | gider         | `−`                   |
+| `clearing`         | duruma göre   | top-up'ta `−` (alacak), withdrawal'da `+` (borç) |
+
+`nostro` bakiyesinin `-97.1` olması "97.1 açık" değil, "bankada 97.1 var" demektir.
+Rapor katmanı işareti sunum için çevirir; ledger'da asla çevrilmez.
 
 ## ledger_transactions
 
 ```sql
 CREATE TABLE ledger_transactions (
     id               uuid PRIMARY KEY,
-    type             text NOT NULL,       -- p2p, p2b, b2p, b2b, payment, topup, withdrawal, refund
-    account_id       uuid NOT NULL REFERENCES accounts(id),  -- idempotency scope: isteği başlatan hesap
+    type             text NOT NULL,       -- p2p, p2b, b2p, b2b, payment, topup, withdrawal,
+                                          -- refund, settlement, provider_invoice
+    account_id       uuid NOT NULL REFERENCES accounts(id),  -- idempotency KAPSAMI (aşağıya bak)
     idempotency_key  text NULL,
     correlation_id   uuid NULL,           -- saga / webhook event ilişkisi
     created_at       timestamptz NOT NULL DEFAULT now()
@@ -56,7 +90,20 @@ CREATE UNIQUE INDEX ux_ledger_tx_idem
     WHERE idempotency_key IS NOT NULL;
 ```
 
-Partial unique index: idempotency key'siz iç işlemler (compensation, settlement) çakışmaz.
+Partial unique index: idempotency key'siz iç işlemler çakışmaz.
+
+`account_id` "isteği başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
+İç işlemlerde de doludur — nullable OLMAZ, çünkü unique index içindeki NULL hiçbir NULL'a
+eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` §15):
+
+| `type`             | `account_id`                          | `idempotency_key`   |
+| ------------------ | ------------------------------------- | ------------------- |
+| transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i     |
+| `topup`            | alıcı `user_wallet`                   | webhook `event_id`  |
+| `withdrawal`       | çeken `user_wallet`                   | client'ın key'i     |
+| `refund`           | aynı `user_wallet`                    | saga id             |
+| `settlement`       | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref |
+| `provider_invoice` | ilgili `provider_expense`             | fatura numarası     |
 
 ## ledger_entries
 
