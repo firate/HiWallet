@@ -37,7 +37,7 @@ public sealed class LedgerTransaction
 
     /// <summary>
     /// İşlemin idempotency KAPSAMI olan hesap — "isteği başlatan hesap" değil.
-    /// İç işlemlerde de dolar; nullable yapılmaz (decisions.md §15).
+    /// İç işlemlerde de dolar; nullable yapılmaz (decisions.md madde 15).
     /// </summary>
     public Guid AccountId { get; private set; }
 
@@ -61,7 +61,7 @@ public sealed class LedgerTransaction
         if (accountId == Guid.Empty)
         {
             throw new ArgumentException(
-                "Idempotency kapsamı boş olamaz (decisions.md §15).", nameof(accountId));
+                "Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(accountId));
         }
 
         return new LedgerTransaction(id, type, accountId, idempotencyKey, correlationId, createdAt);
@@ -79,7 +79,7 @@ public sealed class LedgerTransaction
 
     /// <summary>
     /// Zero-sum invariant'ı. DB tarafındaki deferred constraint trigger'ın kopyası değil,
-    /// ondan önce çalışan ve daha erken hata veren kontrol (decisions.md §5).
+    /// ondan önce çalışan ve daha erken hata veren kontrol (decisions.md madde 5).
     /// Trigger currency'ye bakmaz; burası bakar — farklı para birimleri ayrı ayrı sıfırlanmalı.
     /// </summary>
     public void AssertBalanced()

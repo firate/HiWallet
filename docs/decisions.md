@@ -118,7 +118,7 @@ ON CONFLICT (account_id, idempotency_key) DO NOTHING;
 **Neden composite.** Key'i client üretiyor. Yalnız `idempotency_key` UNIQUE olsaydı iki farklı
 kullanıcının aynı key'i üretmesi durumunda birinin isteği diğerininkiyle karışırdı.
 
-**Not.** Bu, Bölüm 3 §5'teki iki kademe idempotency'yi (inbox `event_id` UNIQUE +
+**Not.** Bu, Bölüm 3 madde 5'teki iki kademe idempotency'yi (inbox `event_id` UNIQUE +
 `processed_events`) değiştirmez. O hat mesajlaşma tarafı, bu hat API girişi.
 
 ---
@@ -166,7 +166,7 @@ karşılaştırarak yapılır.
 **`revenue` ve `provider_expense` netleştirilmez.** Müşteriden alınan komisyon gelir,
 sağlayıcıya ödenen ücret gider. Ayrı hesaplarda durur, net marj rapor seviyesinde hesaplanır.
 Ayrı durmalarının en net gerekçesi compensation: banka fail olduğunda `revenue` ters kayıtla
-iade edilir (Bölüm 3 §6 kuralı), `provider_expense` edilmez — banka işlemi denediyse ücreti
+iade edilir (Bölüm 3 madde 6 kuralı), `provider_expense` edilmez — banka işlemi denediyse ücreti
 kesilmiştir. Tek hesapta netleşselerdi bu ayrım yapılamazdı.
 
 ---
@@ -202,7 +202,7 @@ her denemede projeksiyon yeniden okunur ve komisyon/limit yeniden hesaplanır.
 **Gerekçe.** Eski `version` ile tekrar denemek sonsuza kadar başarısız olur —
 retry'ın anlamı yeni anlık görüntüyle yeniden denemek.
 
-**Ayrım.** Bu retry, saga'daki adım retry'ından (Bölüm 3 §6, transient banka hatası) ayrıdır.
+**Ayrım.** Bu retry, saga'daki adım retry'ından (Bölüm 3 madde 6, transient banka hatası) ayrıdır.
 Karıştırılmaz: buradaki DB içi çakışma, oradaki dış bağımlılık hatası.
 
 ---
@@ -271,7 +271,7 @@ değişmiş, konfigürasyon eski kalmış; fark sabit oranlıysa neredeyse kesin
 - Fatura hatalı → sağlayıcıya itiraz, düzeltilmiş fatura gelene kadar ledger'a yazılmaz.
 - Fark kabul ediliyor → yazılır, `note` alanına gerekçe düşülür.
 
-**Mutabakat job'ıyla ilişkisi.** Bölüm 3 §7'deki mutabakat raporunun ikinci ayağı bu.
+**Mutabakat job'ıyla ilişkisi.** Bölüm 3 madde 7'deki mutabakat raporunun ikinci ayağı bu.
 Birincisi clearing–settlement karşılaştırması (para tarafı), ikincisi expected–fatura
 karşılaştırması (ücret tarafı). Stuck saga taraması gibi bunun da çıktısı rapor;
 sistem düzeltmez, gösterir.
@@ -321,7 +321,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 4. Withdrawal saga + bank-service + compensation.
 5. Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 
-Her adım bir sonrakine geçmeden çıkış kriterini (Bölüm 3 §10) karşılamalı.
+Her adım bir sonrakine geçmeden çıkış kriterini (Bölüm 3 madde 10) karşılamalı.
 
 ---
 
@@ -334,10 +334,10 @@ Tekillik `(account_type, provider, currency)` üzerinde, yalnızca sistem hesapl
 **Gerekçe.** `ledger-schema.md` "`nostro` ve `provider_expense` sağlayıcı başına ayrı olabilir"
 diyordu ama bunu taşıyacak kolon yoktu — `owner_id` sistem hesaplarında NULL, `account_type`
 ise rolü söylüyor, sağlayıcıyı değil. Kolon olmadan iki `nostro` hesabı ayırt edilemez ve
-§11'deki fatura uyuşmazlığı analizi (hangi sağlayıcı, hangi fatura) yapılamaz. Mutabakat
+madde 11'deki fatura uyuşmazlığı analizi (hangi sağlayıcı, hangi fatura) yapılamaz. Mutabakat
 sağlayıcı bazında koştuğu için bu kolon opsiyonel bir kolaylık değil, ön koşul.
 
-**`clearing` de sağlayıcı bazında.** Bölüm 3 §3 clearing'i "yolda olan para" diye tanımlıyor;
+**`clearing` de sağlayıcı bazında.** Bölüm 3 madde 3 clearing'i "yolda olan para" diye tanımlıyor;
 yolda olan paranın kimde olduğu bilinmezse settlement karşılaştırması yapılamaz. Aynı kolon
 clearing için de dolar.
 
@@ -367,7 +367,7 @@ kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
 
 **Gerekçe.** Kolonu nullable yapmak ilk akla gelen çözümdü ve sessizce bozuyor:
 Postgres'te unique index içindeki NULL hiçbir NULL'a eşit sayılmaz, dolayısıyla
-`(NULL, 'INV-2026-03')` iki kez insert edilebilir. §11 fatura idempotency'sinin dayandığı
+`(NULL, 'INV-2026-03')` iki kez insert edilebilir. Madde 11 fatura idempotency'sinin dayandığı
 tek mekanizma bu index — nullable `account_id` onu tam da en riskli akışta devre dışı bırakır.
 
 Sistem hesabını kapsam olarak kullanmak hem index'i canlı tutuyor hem de doğru soruyu

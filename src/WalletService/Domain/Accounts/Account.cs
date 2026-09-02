@@ -42,7 +42,7 @@ public sealed class Account
     public OwnerType? OwnerType { get; private set; }
 
     /// <summary>
-    /// Sistem hesabının hangi dış tarafa ait olduğu (decisions.md §14).
+    /// Sistem hesabının hangi dış tarafa ait olduğu (decisions.md madde 14).
     /// Cüzdanlarda NULL. <see cref="AccountType.Revenue"/> kendi paramızın hesabı
     /// olduğu için onda da NULL.
     /// </summary>
@@ -55,7 +55,7 @@ public sealed class Account
     /// <summary>
     /// Sistem hesapları negatife düşebilir, cüzdanlar düşemez.
     /// CHECK constraint DEĞİL, uygulama kuralı — clearing tasarımı gereği negatif durur
-    /// (decisions.md §6).
+    /// (decisions.md madde 6).
     /// </summary>
     public bool CanGoNegative => Type is not AccountType.UserWallet;
 
@@ -77,7 +77,7 @@ public sealed class Account
     /// <summary>
     /// Sistem hesabı. <paramref name="provider"/> yalnızca
     /// <see cref="AccountType.Revenue"/>'da NULL olabilir — diğerlerinde mutabakat
-    /// sağlayıcı bazında koştuğu için zorunlu (decisions.md §14).
+    /// sağlayıcı bazında koştuğu için zorunlu (decisions.md madde 14).
     /// </summary>
     public static Account System(
         Guid id,

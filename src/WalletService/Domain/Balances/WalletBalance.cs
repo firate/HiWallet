@@ -9,7 +9,7 @@ namespace HiWallet.WalletService.Domain.Balances;
 /// (docs/ledger-schema.md "wallet_balances").
 ///
 /// Optimistic lock buradadır — projede concurrency token taşıyan TEK entity
-/// (decisions.md §2).
+/// (decisions.md madde 2).
 /// </summary>
 public sealed class WalletBalance
 {
@@ -51,7 +51,7 @@ public sealed class WalletBalance
     /// </summary>
     /// <param name="canGoNegative">
     /// <see cref="Domain.Accounts.Account.CanGoNegative"/>. Sistem hesapları negatife düşebilir,
-    /// cüzdanlar düşemez; CHECK constraint değil uygulama kuralı (decisions.md §6).
+    /// cüzdanlar düşemez; CHECK constraint değil uygulama kuralı (decisions.md madde 6).
     /// </param>
     public void Apply(Money delta, bool canGoNegative, DateTimeOffset now)
     {

@@ -20,7 +20,7 @@ HiWallet/
 └── tests/
 ```
 
-Tek repo. Servisler ayrı veritabanı kullanır (`decisions.md` §7) ama repo bölünmez —
+Tek repo. Servisler ayrı veritabanı kullanır (`decisions.md` madde 7) ama repo bölünmez —
 bu aşamada repo ayrımı yalnızca koordinasyon maliyeti getirir.
 
 Paket versiyonları `Directory.Packages.props`'ta merkezi. Servislerin `.csproj`

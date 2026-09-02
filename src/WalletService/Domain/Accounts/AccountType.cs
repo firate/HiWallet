@@ -2,7 +2,7 @@ namespace HiWallet.WalletService.Domain.Accounts;
 
 /// <summary>
 ///     Hesabın ledger'daki rolü. <see cref="OwnerType" /> ile dik boyut — birleştirilmez
-///     (decisions.md §6). DB'de snake_case text; eşleme
+///     (decisions.md madde 6). DB'de snake_case text; eşleme
 ///     <c>Infrastructure/Persistence/Configurations/AccountConfiguration.cs</c>'de açıkça yazılır.
 /// </summary>
 public enum AccountType

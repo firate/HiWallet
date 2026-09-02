@@ -4,7 +4,7 @@ namespace HiWallet.WalletService.Domain.Errors;
 
 /// <summary>
 /// Limit aşımı. Transfer'den ÖNCE, aynı transaction'ın parçası olarak yakalanır;
-/// hiç para hareketi olmaz (Bölüm 3 §4). İş kuralı reddi → <c>422</c>.
+/// hiç para hareketi olmaz (Bölüm 3 madde 4). İş kuralı reddi → <c>422</c>.
 /// </summary>
 public sealed class LimitExceededException : DomainException
 {

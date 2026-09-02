@@ -46,7 +46,7 @@ CREATE UNIQUE INDEX ux_accounts_system
 `account_type` hesabın ledger'daki rolü, `owner_type` sahibinin kim olduğu, `provider`
 sistem hesabının hangi dış tarafa ait olduğu. Üçü de dik boyut, birleştirilmez:
 ledger çekirdeği yalnızca `account_type`'a bakar, policy katmanı `owner_type`'a,
-mutabakat `provider`'a. Gerekçe: `decisions.md` §14.
+mutabakat `provider`'a. Gerekçe: `decisions.md` madde 14.
 
 `revenue` ve `provider_expense` ayrı tutulur, netleştirilmez. Biri gelir biri gider;
 compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
@@ -94,7 +94,7 @@ Partial unique index: idempotency key'siz iç işlemler çakışmaz.
 
 `account_id` "isteği başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
 İç işlemlerde de doludur — nullable OLMAZ, çünkü unique index içindeki NULL hiçbir NULL'a
-eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` §15):
+eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` madde 15):
 
 | `type`             | `account_id`                          | `idempotency_key`   |
 | ------------------ | ------------------------------------- | ------------------- |

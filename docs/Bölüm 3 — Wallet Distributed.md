@@ -79,7 +79,7 @@ Dış sağlayıcı (provider-fake)
   → relay (background worker):
        inbox'taki "unpublished" satırları RabbitMQ'ya publish eder
        (publisher confirms ile), sonra "published" işaretler.
-  → RabbitMQ (cüzdan-bazlı partitioning — bkz. §8)
+  → RabbitMQ (cüzdan-bazlı partitioning — bkz. madde 8)
   → topup-consumer:
        event_id daha önce işlendi mi? (processed_events tablosu)
        Hayırsa: (processed_events + ledger yazımı) TEK ACID transaction:

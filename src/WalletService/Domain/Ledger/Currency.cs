@@ -2,7 +2,7 @@ namespace HiWallet.WalletService.Domain.Ledger;
 
 /// <summary>
 /// ISO 4217 kodu. DB'de <c>char(3)</c>.
-/// Tek para birimi kullanılsa bile tip baştan durur (decisions.md §6).
+/// Tek para birimi kullanılsa bile tip baştan durur (decisions.md madde 6).
 /// </summary>
 public readonly record struct Currency
 {
