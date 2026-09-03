@@ -140,10 +140,14 @@ Dış sağlayıcı (provider-fake)
 Para çekme, saga'nın evidir: çekirdekte ACID düşme + dış banka adımı eventual + banka fail olursa compensation. State machine `withdrawal-orchestrator`'da, tek yerde okunur.
 
 ```
+X = çekilen tutar, k = müşteriden alınan komisyon (yoksa k = 0).
+
 [Initiated]
+  → Girdi doğrulaması: IBAN mod-97 checksum'ı SINIRDA kontrol edilir (baseline.md
+    madde 6). Geçersizse 400; saga başlamaz, bankaya istek gitmez, ücret doğmaz.
   → Limit/kural kontrolü (günlük çekim limiti, KYC vb.). Aşılırsa → [Rejected] (hiç para hareketi olmaz).
-  → wallet-service: cüzdandan X düş (lokal ACID)
-       cüzdan -X, clearing +X  (para "yolda")
+  → wallet-service: cüzdandan X+k düş (lokal ACID)
+       cüzdan -(X+k), clearing +X, revenue +k    (para "yolda", komisyon tahakkuk etti)
   → [Debited]
 
 [Debited]
@@ -158,12 +162,37 @@ Para çekme, saga'nın evidir: çekirdekte ACID düşme + dış banka adımı ev
        → [Compensating]
 
 [Compensating]
-  → wallet-service: cüzdana X geri yaz (dengeleyen ters kayıt, SİLME değil)
-       clearing -X, cüzdan +X
+  → wallet-service: TAM ters kayıt (dengeleyen kayıt, SİLME değil)
+       cüzdan +(X+k), clearing -X, revenue -k
   + RefundSucceeded → [Failed]
 ```
 
-**Komisyon (withdrawal):** Çekme işleminde komisyon varsa, debit anında aynı transaction içinde kesilir (cüzdan `-(X+komisyon)`, clearing `+X`, komisyon geliri `+komisyon`). Compensation durumunda komisyonun iade edilip edilmeyeceği bir iş kuralıdır — kural: banka fail olursa komisyon da iade edilir (tam reversal).
+**Komisyon müşteriye koşulsuz iade edilir.** Yukarıdaki compensation üç bacaklı; `revenue -k`
+bacağını atlamak iki bacakla da dengeli bir kayıt üretir (toplam yine sıfır, trigger susar) ama
+müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş olur ve `revenue`'da vermediğimiz bir
+hizmetin geliri kalır. Sessiz ve müşteri parası kaybettiren bir kusur — o yüzden bacak
+opsiyonel değil.
+
+Koşulsuz olmasının gerekçesi: **başarısızlığın sebebi ya bizde ya bankadadır.** Müşteri
+kaynaklı tek gerçekçi senaryo yanlış IBAN'dır, o da `[Initiated]` adımındaki mod-97
+doğrulamasıyla saga başlamadan eleniyor. Geriye kalan (yapısal olarak geçerli ama kapalı
+hesap) o kadar nadir ki bir konfigürasyon kolunu hak etmiyor. Bu yüzden IBAN doğrulaması
+"olsa iyi olur" bir validation değil, bu kuralın taşıyıcısı — kalkarsa kural yalan olur.
+
+**Sağlayıcı ücreti ayrı bir hesaptır, müşteriye yansımaz.** Banka başarısız denemeye ücret
+kesmişse bu bizimle banka arasındaki bir meseledir; `revenue` ters kayıtla iade edilir,
+`provider_expense` edilmez (`decisions.md` madde 6). İki hesabın ayrı durmasının en net
+gerekçesi bu.
+
+Ücreti kimin yüklendiği sağlayıcı bazında konfigüre edilir — `FeeOnFailure: Charged | Waived`
+(`decisions.md` madde 18):
+
+- `Charged` — banka başarısız denemeye de ücret kesiyor, maliyeti biz üstleniyoruz.
+- `Waived` — sözleşme gereği kesmiyor, banka üstleniyor.
+
+**`provider_fees` satırı denemeye bağlı yazılır, başarıya değil** (yalnızca `Charged`
+sağlayıcılarda). Yazılmazsa mutabakat faturadaki kalemi "faturada var/sende yok" diye
+kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 11).
 
 **Idempotency (saga):**
 

@@ -91,10 +91,12 @@ WalletService/
 │   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
 ├── Domain/
 │   ├── Accounts/              -- Account, AccountType, OwnerType
-│   ├── Ledger/                -- LedgerTransaction, LedgerEntry, Money
+│   ├── Ledger/                -- Money, Currency, LedgerTransaction, LedgerEntry,
+│   │                             LedgerTransactionType
 │   ├── Balances/              -- WalletBalance
-│   ├── Policies/              -- LimitPolicy, CommissionPolicy, TransferType
-│   └── Errors/                -- InsufficientFundsException, LimitExceededException
+│   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy
+│   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,
+│                                 UnbalancedLedgerTransaction
 ├── Infrastructure/
 │   ├── Persistence/
 │   │   ├── WalletDbContext.cs

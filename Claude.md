@@ -35,6 +35,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Ücret kolonları `ledger_transactions` veya `ledger_entries` üzerine EKLENMEZ.
 - `revenue` (gelir) ve `provider_expense` (gider) ayrı hesaplardır, netleştirilmez.
 - Compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez.
+  `revenue` iadesi KOŞULSUZ — konfigüre edilmez, atlanamaz. Başarısız denemenin
+  sağlayıcı ücretini kimin yüklendiği ise sağlayıcı bazında konfigüre edilir:
+  `FeeOnFailure: Charged | Waived`. `Charged`'da `provider_fees` satırı denemeye
+  bağlı yazılır, başarıya değil.
 - Fatura ile `expected_amount` toplamı tolerans dışı sapıyorsa ledger'a HİÇBİR ŞEY yazılmaz.
 
 **Concurrency**

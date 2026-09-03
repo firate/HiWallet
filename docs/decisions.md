@@ -452,3 +452,71 @@ composite FK hedefi olarak kabul ediliyor — `CREATE UNIQUE INDEX` yerine const
 yazılması bu yüzden şart, (b) karışık para birimli "toplamı sıfır" işlem artık `P0001`
 ile reddediliyor. Ayrıca hareket görmüş bir hesabın `currency`'sini değiştirme denemesi
 FK tarafından engellendi — yukarıda "bedava gelen" denen davranış gerçekten geliyor.
+---
+
+## 18. Başarısız transferin sağlayıcı ücreti: `FeeOnFailure`
+
+**Karar.** Müşteri komisyonu compensation'da **koşulsuz** iade edilir — konfigüre edilmez.
+Konfigüre edilen şey başarısız denemenin **sağlayıcı ücretini kimin yüklendiği**, ve bu
+sağlayıcı bazındadır: `FeeOnFailure: Charged | Waived`.
+
+- `Charged` — banka başarısız denemeye de ücret kesiyor, maliyeti biz üstleniyoruz.
+  Deneme anında `provider_fees` satırı yazılır; ücret settlement'ta netleşerek ya da
+  faturayla gelir ve `provider_expense` bacağı olarak ledger'a girer.
+- `Waived` — sözleşme gereği kesmiyor. `provider_fees` satırı yazılmaz.
+
+**Neden müşteri komisyonu konfigüre edilmiyor.** Başarısızlığın sebebi ya bizde ya
+bankadadır. Müşteri kaynaklı tek gerçekçi senaryo yanlış IBAN, o da mod-97 checksum'ı ile
+sınırda eleniyor — saga başlamıyor, bankaya istek gitmiyor, ücret doğmuyor. Geriye kalan
+(yapısal olarak geçerli ama kapalı hesap) nadir; kalıcı bir konfigürasyon kolunu hak etmiyor.
+Gerçekleşmemiş bir hizmet için komisyon almak zaten ödeme kurumlarının pratiği değil.
+
+**Bağımlılık.** Bu kural IBAN doğrulamasının sınırda gerçekten yapılmasına yaslanıyor.
+Kalkarsa müşteri yazım hataları bankaya ulaşır, gerçek ücret doğurur ve "başarısızlık asla
+müşterinin suçu değil" cümlesi yalan olur. `overview.md` madde 6'da da yazılı.
+
+**Neden sağlayıcı bazında, global değil.** Bu bir sözleşme şartı; iki bankayla farklı
+şartlarda çalışmak gerçekçi. Madde 10'daki `FeeSettlement` ile aynı yerde, aynı kalıpta.
+
+**Yan fayda: mutabakat akıllanıyor.** `Waived` bir sağlayıcının faturasında başarısız
+transfer ücreti belirirse beklenen satır olmadığı için madde 11'in "faturada var/sende yok"
+dalına düşer. Bu artık gürültü değil, **sözleşmeye aykırı bir kalem** — itiraz sinyali.
+`Charged`'da ise beklenen satır zaten var, eşleşir, alarm çalmaz.
+
+**Elenen alternatif.** Müşteri komisyonunu da bayrakla konfigüre etmek. Nadir bir durumu
+kalıcı karmaşıklıkla ödemek olurdu; ayrıca `CLAUDE.md`'deki koşulsuz kuralı delerdi.
+
+**Elenen alternatif.** Başarısızlık sebebine göre karar vermek (`BankRejected` → iade,
+`InvalidBeneficiary` → iade etme). Gerçeğe daha yakın ama bank-service'in güvenilir sebep
+kodu üretmesini ve saga'nın bunu taşımasını gerektiriyor. Fake sağlayıcıyla üretilen sebep
+kodu üzerine iş kuralı kurmak, doğrulanmamış bir varsayımı şemaya gömmek olur.
+
+---
+
+## 19. Ledger tutarları minor unit'te, oranlar serbest
+
+**Karar.** `Money` her zaman para biriminin minor unit'ine oturur (`Currency.MinorUnit`,
+TRY için 2). Oranlar (komisyon oranı, sağlayıcı ücret oranı) `Money` değil, düz `decimal` —
+basamak sınırı yok.
+
+**Gerekçe.** Wallet'ta birim fiyat kavramı yok; satır kalemi yok, her değer bir tutar.
+Ledger'a yazılan her tutar müşterinin gerçekten tutabileceği ve çekebileceği bir şey olmalı.
+Komisyon 4 haneye yuvarlanırsa (`33,33 × %2,9 = 0,966570 → 0,9666`) cüzdanda çekilemeyen
+bakiye oluşuyor: banka 2 haneden fazlasını kabul etmiyor, aradaki kalıntı ne ödenebiliyor ne
+de ledger'dan çıkarılabiliyor. "Tam bakiyeyi çek" dendiğinde ya kalıntı kalıyor ya zero-sum
+bozuluyor.
+
+Oran bir çarpan, para değil — kimseye ödenmiyor, ledger'a yazılmıyor, yalnızca hesap
+sırasında yaşıyor. Hassasiyeti kısıtlamak için sebep yok.
+
+**Şema değişmiyor.** Kolon `numeric(19,4)` kalıyor (madde 6). Kolonun 4 tutabilmesi
+uygulamanın 4 yazması gerektiği anlamına gelmiyor; 2 fazla hane emniyet payı. Kısıt tipte,
+şemada değil.
+
+**Kabul edilen sonuç.** Yuvarlama farkı kaybolmuyor, yeri değişiyor: `0,966570 → 0,97`
+yazınca kurum lehine 0,00343 yuvarlanmış oluyor ve binlerce işlemde birikiyor. Madde 11 bu
+farkı zaten öngörmüş ("kuruş farkı kaçınılmaz, eşik oransal"), sistem bunu bekliyor.
+
+**Yuvarlama yönü `AwayFromZero`.** Banker's rounding kurum lehine sistematik sapma üretmiyor
+ama "yarımı aşağı yuvarladık" tartışması açıyor; `AwayFromZero` müşteri açısından
+öngörülebilir.

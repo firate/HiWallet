@@ -275,8 +275,8 @@ CREATE INDEX ix_provider_fees_tx ON provider_fees (transaction_id);
 
 ```json
 "Providers": {
-  "stripe-fake": { "FeeSettlement": "Net" },
-  "bank-fake":   { "FeeSettlement": "Invoiced" }
+  "stripe-fake": { "FeeSettlement": "Net",      "FeeOnFailure": "Charged" },
+  "bank-fake":   { "FeeSettlement": "Invoiced", "FeeOnFailure": "Waived"  }
 }
 ```
 
