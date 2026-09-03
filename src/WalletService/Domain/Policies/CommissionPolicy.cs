@@ -17,7 +17,7 @@ public sealed record CommissionRate(decimal Rate, decimal? Minimum = null, decim
 /// <summary>
 /// Komisyon hesabı. Saf hesaplama — DB'ye dokunmaz.
 ///
-/// Komisyon ayrı bir transfer değil, aynı atomik işlemin ek bacağıdır (Bölüm 3 madde 4):
+/// Komisyon ayrı bir transfer değil, aynı atomik işlemin ek bacağıdır (overview.md madde 4):
 /// gönderenden düşülür, <c>revenue</c> hesabına credit yazılır.
 /// </summary>
 public sealed class CommissionPolicy

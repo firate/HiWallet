@@ -1,4 +1,12 @@
-Her uygulama aşağıdaki 12 zorunlu katmanı içerir. Dominant tema bunun üstüne eklenir.
+# Baseline — zorunlu katmanlar
+
+Bu dosya HiWallet'ın **ne yaptığından bağımsız** olan kısmı anlatır.
+Double-entry ledger, saga, idempotency — bunlar sistemin konusu ve `overview.md`'de.
+Aşağıdaki 12 katman ise sistem ne olursa olsun aynı şekilde durur: her serviste,
+her akışta beklenen production hijyeni.
+
+Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yerine değil.
+
 ## Zorunlu Katmanlar
 
 ### 1. Configuration & Secrets
@@ -45,14 +53,14 @@ Her uygulama aşağıdaki 12 zorunlu katmanı içerir. Dominant tema bunun üst�
 
 - ASP.NET Core built-in rate limiting middleware (fixed/sliding window veya token bucket).
 - Limit aşımında `429` + `Retry-After`.
-- **Kapsam:** In-memory limiter yeterli. (Dağıtık/çok-instance senaryoda Redis tabanlı limiter gerekir; bu uygulamalarda şart değil.)
+- **Kapsam:** In-memory limiter yeterli. Çok instance'ta efektif limit instance başına düşer; dağıtık limiter Redis gerektirir ve bu sistemin konusu değil (`decisions.md` madde 12).
 
 ### 8. Data Layer Discipline
 
 - Migration ile şema versiyonlama (EF Core migrations).
 - Connection pooling (Npgsql default).
 - Net transaction sınırları.
-- Concurrency stratejisi açık (örn. optimistic lock — dominant temaysa).
+- Concurrency stratejisi açık — burada optimistic lock, çünkü dominant temanın parçası (`decisions.md` madde 2).
 - Unbounded query yok; liste dönen endpoint'lerde pagination.
 - **Kapsam:** Repository soyutlaması değer katıyorsa eklenir, yoksa doğrudan DbContext.
 
@@ -80,19 +88,19 @@ Her uygulama aşağıdaki 12 zorunlu katmanı içerir. Dominant tema bunun üst�
 
 - Yazma işlemlerinde idempotency key; at-least-once mesajlaşmada dedup; gerektiğinde Outbox.
 - Aynı isteğin/aynı mesajın iki kez işlenmesi engellenir.
-- **Kapsam:** Idempotency key store için Redis ya da tek tablo yeterli. Outbox sadece async yayın yapanlarda devreye girer.
-- **Not:** Bu katman bazılarının _dominant teması_ olduğunda baseline'dan çıkıp ana konu olur (ör. Wallet — Distributed: idempotency + Outbox + saga consistency).
+- **Kapsam:** Idempotency key ilgili tablonun kolonu, ayrı store yok (`decisions.md` madde 4). Outbox sadece async yayın yapanlarda devreye girer.
+- **Not.** Bu katman burada baseline'dan çıkıp **ana konu** oluyor: idempotency + inbox/outbox/relay + saga consistency dominant temanın kendisi. Ayrıntı `overview.md` madde 5 ve 6.
 
 ## Opsiyonel Katman
 
 ### A. Authentication & Authorization (katman olarak)
 
 - Authn (kim) ve authz (ne yapabilir) ayrımı, token validation.
-- **Neden opsiyonel:** Bir uygulamanın dominant teması güvenlik değilse, endpoint'leri açık bırakıp odakta kalmak odakta kalmak için daha temiz. İhtiyaç olursa diğerlerine eklenir.
-- **Eklenirse:** JWT bearer + policy yeterli; token üretimi için merkezi IdP (Keycloak) ya da Auth uygulaması kullanılır.
-- **Not:** Bu katmanın kendisi (JWT/RS256, permission-based authz, multi-tenancy, revocation) **Auth uygulamasının** dominant temasıdır; orada baseline'dan çıkıp ana konu olur.
+- **Neden opsiyonel:** Dominant tema güvenlik olmadığında endpoint'leri açık bırakıp odakta kalmak daha temiz.
+- **Eklenirse:** JWT bearer + policy yeterli; token üretimi için merkezi IdP (Keycloak) kullanılır.
+- **Kapsam:** HiWallet'ta yok (`decisions.md` madde 12). Bu katmanın kendisi — JWT/RS256+JWKS, permission-based authz, multi-tenancy, revocation — başlı başına bir konu ve burada baseline'ın da dışında.
 
-## Genel Çıkış Kriteri (her uygulama)
+## Çıkış kriteri
 
 - Zorunlu katmanların hepsi görünür şekilde var (gerçekten çalışıyor, mock değil).
 - Dominant tema en az bir senaryoda gösterilebiliyor.

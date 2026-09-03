@@ -17,7 +17,7 @@ public sealed record TransferLimit(decimal? PerTransaction = null, decimal? Dail
 /// Limit kontrolü. Saf hesaplama — günlük harcamayı DB'den okumak çağıranın işi.
 ///
 /// Transfer'den ÖNCE, aynı transaction'ın parçası olarak çalışır; aşılırsa transfer
-/// hiç başlamaz. Limit aşımı bir iş kuralı reddidir, hata değil → <c>422</c> (Bölüm 3 madde 4).
+/// hiç başlamaz. Limit aşımı bir iş kuralı reddidir, hata değil → <c>422</c> (overview.md madde 4).
 /// </summary>
 public sealed class LimitPolicy
 {

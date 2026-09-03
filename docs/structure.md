@@ -30,26 +30,28 @@ dosyalarında `Version` attribute'u YAZILMAZ, yalnızca `PackageReference Includ
 
 ```
 docs/
-├── decisions.md                          -- kararlar, gerekçeler, elenen alternatifler
-├── ledger-schema.md                      -- DDL, invariant zorlaması, settlement kayıtları
-├── structure.md                          -- bu dosya
-├── Bölüm 1 - Giriş ve Harita.md          -- kapsam ve harita
-├── Bölüm 2 — Baseline (ortak çatı).md    -- 12 zorunlu katman
-└── Bölüm 3 — Wallet Distributed.md       -- servisler, akışlar, saga, çıkış kriteri
+├── overview.md          -- sistem: kapsam, servisler, akışlar, saga, çıkış kriteri
+├── baseline.md          -- uygulamadan bağımsız 12 zorunlu katman
+├── decisions.md         -- kararlar, gerekçeler, elenen alternatifler
+├── ledger-schema.md     -- DDL, invariant zorlaması, settlement kayıtları
+└── structure.md         -- bu dosya
 ```
 
-Bölüm dosyaları da repoda durur; kapsamı ve dominant temayı görmeden doğru karar verilemez.
-Adları Obsidian wiki-link'leriyle (`[[Bölüm 2 — Baseline (ortak çatı)]]`) eşleştiği için
-ASCII slug'a çevrilmez.
+**`overview.md` ile `baseline.md` ayrımı:** birincisi sistemin ne yaptığı, ikincisi ne
+yaptığından bağımsız olarak her serviste beklenen production hijyeni. Bir şey "wallet
+olduğu için" böyleyse `overview.md`'ye, "her serviste böyle olur" diyorsan `baseline.md`'ye.
+
+`overview.md`'nin numaralı başlıkları (madde 1–10) `decisions.md` ve kod yorumlarından
+atıf alıyor. Numaralandırma değiştirilmez; yeni bölüm sona eklenir.
 
 ## Adlandırma: ürün vs konsept
 
 Marka **Hive**, ürün **HiWallet**. Solution `HiWallet.sln`, assembly ve namespace kökü
 `HiWallet.*` → `HiWallet.WalletService`, `HiWallet.Shared.Contracts`.
 
-Bölüm dosyalarında geçen `wallet-distributed` referans uygulama setinin konsept adıdır,
-kodda kullanılmaz. Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix
-`.csproj` içindeki `RootNamespace`/`AssemblyName` ile verilir.
+Dokümanların ilk halinde geçen `wallet-distributed` bir konsept adıydı, kodda kullanılmaz.
+Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj` içindeki
+`RootNamespace`/`AssemblyName` ile verilir.
 
 ## src/
 

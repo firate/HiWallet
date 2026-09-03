@@ -5,7 +5,7 @@ namespace HiWallet.WalletService.Domain.Policies;
 
 /// <summary>
 /// Beş transfer tipi. Hepsi aynı çekirdekten geçer; tip yalnızca policy katmanını
-/// (limit + komisyon) değiştirir, çekirdeği değil (Bölüm 3 madde 4).
+/// (limit + komisyon) değiştirir, çekirdeği değil (overview.md madde 4).
 /// </summary>
 public enum TransferType
 {

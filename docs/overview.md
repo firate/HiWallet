@@ -1,4 +1,51 @@
-**E-money cüzdan sistemi.** Topoloji: bölünmüş servisler, asenkron koordinasyon, **saga orchestration**. 
+# HiWallet — sistem
+
+E-money cüzdan sistemi. Topoloji: bölünmüş servisler, asenkron koordinasyon,
+**saga orchestration**.
+
+Bu dosya sistemin ne olduğunu ve nasıl çalıştığını anlatır. Uygulamadan bağımsız
+production katmanları `baseline.md`'de, kararların gerekçesi `decisions.md`'de,
+şema `ledger-schema.md`'de, dosya yerleşimi `structure.md`'de.
+
+**Dominant tema:** in-process consistency + optimistic lock + double-entry ledger.
+Üstüne servisler arası consistency, saga orchestration, webhook delivery ve
+scheduled raporlar.
+
+**Teknik baz:** .NET controller-based Web API, PostgreSQL, RabbitMQ, Docker Compose.
+Redis yok — bakiye tek Postgres'te ve korunacak kaynak tek transactional sınırın
+içinde (`decisions.md` madde 3).
+
+## Felsefe: mimari production seviyesi, kapsam sınırlı
+
+Amaç, mimari ve yaklaşımları gerçekte nasıl yapılıyorsa öyle kurmak: katman ayrımı,
+transaction sınırları, idempotency, concurrency stratejisi, error handling,
+double-entry invariant'ı, saga compensation, observability — bunlarda taviz yok,
+production kalitesinde.
+
+Sınırlı olması yalnızca **kapsamı ve dış bağımlılıkları** kısaltır, mimariyi değil:
+
+- Dış servisler simüle edilir (KYC `true` döner, fraud-check fake, Stripe/banka
+  `provider-fake`). Ama her fake bir **interface arkasında** durur (`IKycService`,
+  `IPaymentProvider`) — yarın gerçek implementasyon takılınca üst akış değişmez.
+  Fake bile production mimarisine uygun (geçici hack değil, interface'li stub).
+- Kapsam daraltılır: tek para birimi, tek tenant, tek instance yeter.
+- Her katman "gösterilebilir en sade hali" ile alınır — ama varlığı ve doğru kurgusu görünür.
+
+## Kapsam dışı
+
+- **Webhook delivery ayrı bir uygulama değil**; top-up akışının içinde yaşıyor (madde 5).
+- **Background job'lar** (mutabakat, business özeti, stuck saga taraması) buraya
+  iliştirilmiştir, ayrı servis değildir (madde 7).
+- **Distributed lock ve CQRS yok.** Bakiye tek Postgres'te; üstüne Redis lock koymak
+  aynı garantiyi daha zayıf bir mekanizmayla tekrarlamak olurdu (`decisions.md` madde 3).
+- **Multi-tenancy yok.** Sistem tek-tenant: bir e-money şirketinin iç sistemi.
+  İçindeki person/business ayrımı tenancy değil, hesap tipidir.
+- **Caching yok.** Bakiye projeksiyonu cache değil, kalıcı bir read tablosudur.
+
+Bilinçli olarak eksik bırakılanların tam listesi ve gerekçeleri: `decisions.md` madde 12.
+
+---
+
 ## 1. Sistem Karakteri
 
 Elektronik para şirketinin cüzdan altyapısı. Kullanıcılar (person) ve işletmeler (business) cüzdan sahibidir; aralarında para hareketi olur. Para sisteme dışarıdan girer (kart yükleme, banka transferi) ve dışarıya çıkar (para çekme).
@@ -138,7 +185,7 @@ Para çekme, saga'nın evidir: çekirdekte ACID düşme + dış banka adımı ev
 - **Business günlük özeti:** Her business için günlük işlem hacmi, işlem sayısı, kesilen komisyon toplamı.
 - **Stuck saga taraması:** Belirli süredir `BankTransferPending`/`Compensating` durumunda takılı kalmış withdrawal saga'larını bulup raporlar.
 
-Graceful shutdown ile uyumlu: job'lar `CancellationToken`'a saygı duyar, SIGTERM'de yarıda kalan iş temiz biter (baseline madde 10).
+Graceful shutdown ile uyumlu: job'lar `CancellationToken`'a saygı duyar, SIGTERM'de yarıda kalan iş temiz biter (`baseline.md` madde 10).
 
 ## 8. Sıralama (Ordering)
 

@@ -77,8 +77,9 @@ Redis lock'un doğruluğu TTL'e dayanıyor: TTL dolarsa lock başkasına geçer,
 transaction içindedir, iki taraf birden yazar. Optimistic lock'ta bu kırılma yok çünkü kontrol
 kaynağın kendisinde.
 
-**Kapsam notu.** Distributed lock bu referans uygulama setinde Biletleme'nin konusu
-(seat hold senaryosu). Wallet'ın teması in-process consistency.
+**Kapsam notu.** Distributed lock'un gerçekten gerektiği senaryo başka: korunacak kaynağın
+tek transactional sınırın dışında olduğu durumlar (klasik örnek koltuk rezervasyonu —
+seat hold). Buranın teması in-process consistency, o yüzden kapsam dışı.
 
 **İstisna — background job tekilliği.** Projedeki tek gerçek koordinasyon ihtiyacı.
 Çok instance'ta relay worker aynı satırı birden fazla kez publish etmemeli.
@@ -118,7 +119,7 @@ ON CONFLICT (account_id, idempotency_key) DO NOTHING;
 **Neden composite.** Key'i client üretiyor. Yalnız `idempotency_key` UNIQUE olsaydı iki farklı
 kullanıcının aynı key'i üretmesi durumunda birinin isteği diğerininkiyle karışırdı.
 
-**Not.** Bu, Bölüm 3 madde 5'teki iki kademe idempotency'yi (inbox `event_id` UNIQUE +
+**Not.** Bu, `overview.md` madde 5'teki iki kademe idempotency'yi (inbox `event_id` UNIQUE +
 `processed_events`) değiştirmez. O hat mesajlaşma tarafı, bu hat API girişi.
 
 ---
@@ -158,7 +159,7 @@ Tek kolonda birleştirilmez: ledger çekirdeğinin sorduğu soru "bu hesap negat
 cevabı person ve business için aynı. Transfer tipi (`p2p`/`p2b`/`b2p`/`b2b`) owner_type'a bakar,
 ama bu policy katmanının işi, çekirdeğin değil.
 
-**`nostro` neden gerekli.** Bölüm 3 "settlement geldiğinde clearing sıfıra çekilir" diyor ama
+**`nostro` neden gerekli.** `overview.md` "settlement geldiğinde clearing sıfıra çekilir" diyor ama
 neye karşı dengelendiğini söylemiyor. Cevap bu hesap: `clearing` yolda olan para,
 `nostro` bankada duran gerçek para. Mutabakat, `nostro` bakiyesini banka ekstresiyle
 karşılaştırarak yapılır.
@@ -166,7 +167,7 @@ karşılaştırarak yapılır.
 **`revenue` ve `provider_expense` netleştirilmez.** Müşteriden alınan komisyon gelir,
 sağlayıcıya ödenen ücret gider. Ayrı hesaplarda durur, net marj rapor seviyesinde hesaplanır.
 Ayrı durmalarının en net gerekçesi compensation: banka fail olduğunda `revenue` ters kayıtla
-iade edilir (Bölüm 3 madde 6 kuralı), `provider_expense` edilmez — banka işlemi denediyse ücreti
+iade edilir (`overview.md` madde 6 kuralı), `provider_expense` edilmez — banka işlemi denediyse ücreti
 kesilmiştir. Tek hesapta netleşselerdi bu ayrım yapılamazdı.
 
 ---
@@ -178,7 +179,7 @@ Orchestrator wallet tablolarına doğrudan yazmaz.
 
 **Gerekçe.** Aynı DB paylaşıldığında saga'nın anlamı kalmıyor; orchestrator er ya da geç
 wallet tablolarına doğrudan yazmaya başlıyor ve compensation gereksizleşiyor.
-Bölüm 3'ün "çekirdeği tek boundary'de ACID tut, sadece kenarı dağıt" mesajı ancak sınır
+`overview.md`'nin "çekirdeği tek boundary'de ACID tut, sadece kenarı dağıt" mesajı ancak sınır
 gerçekten varsa gösterilebilir.
 
 ---
@@ -202,7 +203,7 @@ her denemede projeksiyon yeniden okunur ve komisyon/limit yeniden hesaplanır.
 **Gerekçe.** Eski `version` ile tekrar denemek sonsuza kadar başarısız olur —
 retry'ın anlamı yeni anlık görüntüyle yeniden denemek.
 
-**Ayrım.** Bu retry, saga'daki adım retry'ından (Bölüm 3 madde 6, transient banka hatası) ayrıdır.
+**Ayrım.** Bu retry, saga'daki adım retry'ından (`overview.md` madde 6, transient banka hatası) ayrıdır.
 Karıştırılmaz: buradaki DB içi çakışma, oradaki dış bağımlılık hatası.
 
 ---
@@ -271,7 +272,7 @@ değişmiş, konfigürasyon eski kalmış; fark sabit oranlıysa neredeyse kesin
 - Fatura hatalı → sağlayıcıya itiraz, düzeltilmiş fatura gelene kadar ledger'a yazılmaz.
 - Fark kabul ediliyor → yazılır, `note` alanına gerekçe düşülür.
 
-**Mutabakat job'ıyla ilişkisi.** Bölüm 3 madde 7'deki mutabakat raporunun ikinci ayağı bu.
+**Mutabakat job'ıyla ilişkisi.** `overview.md` madde 7'deki mutabakat raporunun ikinci ayağı bu.
 Birincisi clearing–settlement karşılaştırması (para tarafı), ikincisi expected–fatura
 karşılaştırması (ücret tarafı). Stuck saga taraması gibi bunun da çıktısı rapor;
 sistem düzeltmez, gösterir.
@@ -289,7 +290,7 @@ Bilinçli olarak eksik bırakılanlar, README'de de yazılacak:
 - Rate limiting in-memory. Çok instance'ta efektif limit instance başınadır.
   (Dağıtık limiter Redis gerektirir; bu projenin konusu değil.)
 - Secret yönetimi `.env` + Docker Compose. Vault yok.
-- Authn/authz yok (baseline madde A opsiyonel; konusu Auth uygulaması).
+- Authn/authz yok (`baseline.md` madde A opsiyonel). Başlı başına bir konu; buranın teması değil.
 - Caching yok. Bakiye projeksiyonu cache değil, kalıcı read tablosu.
 - Multi-tenancy yok. Person/business ayrımı hesap tipidir, tenancy değil.
 
@@ -321,7 +322,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 4. Withdrawal saga + bank-service + compensation.
 5. Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 
-Her adım bir sonrakine geçmeden çıkış kriterini (Bölüm 3 madde 10) karşılamalı.
+Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
 
 ---
 
@@ -337,7 +338,7 @@ ise rolü söylüyor, sağlayıcıyı değil. Kolon olmadan iki `nostro` hesabı
 madde 11'deki fatura uyuşmazlığı analizi (hangi sağlayıcı, hangi fatura) yapılamaz. Mutabakat
 sağlayıcı bazında koştuğu için bu kolon opsiyonel bir kolaylık değil, ön koşul.
 
-**`clearing` de sağlayıcı bazında.** Bölüm 3 madde 3 clearing'i "yolda olan para" diye tanımlıyor;
+**`clearing` de sağlayıcı bazında.** `overview.md` madde 3 clearing'i "yolda olan para" diye tanımlıyor;
 yolda olan paranın kimde olduğu bilinmezse settlement karşılaştırması yapılamaz. Aynı kolon
 clearing için de dolar.
 

@@ -2,7 +2,7 @@ namespace HiWallet.WalletService.Domain.Ledger;
 
 /// <summary>
 /// Ledger transaction tipi. Beş transfer tipi aynı çekirdekten geçer, tip yalnızca
-/// policy katmanını değiştirir (Bölüm 3 madde 4).
+/// policy katmanını değiştirir (overview.md madde 4).
 /// </summary>
 public enum LedgerTransactionType
 {
@@ -27,7 +27,7 @@ public enum LedgerTransactionType
     /// <summary>Dışarıya para çıkışı. Cüzdan −, clearing +.</summary>
     Withdrawal = 7,
 
-    /// <summary>Compensation. Ters kayıt — silme değil (Bölüm 3 madde 6).</summary>
+    /// <summary>Compensation. Ters kayıt — silme değil (overview.md madde 6).</summary>
     Refund = 8,
 
     /// <summary>Sağlayıcı settlement'ı. Clearing kapanır, nostro hareket eder.</summary>
