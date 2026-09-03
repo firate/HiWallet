@@ -60,8 +60,7 @@ public sealed class LedgerTransaction
     {
         if (accountId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(accountId));
+            throw new ArgumentException("Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(accountId));
         }
 
         return new LedgerTransaction(id, type, accountId, idempotencyKey, correlationId, createdAt);
@@ -86,8 +85,7 @@ public sealed class LedgerTransaction
     {
         if (_entries.Count < 2)
         {
-            throw new UnbalancedLedgerTransactionException(
-                Id, $"En az iki bacak gerekir, {_entries.Count} var.");
+            throw new UnbalancedLedgerTransactionException(Id, $"En az iki bacak gerekir, {_entries.Count} var.");
         }
 
         foreach (var byCurrency in _entries.GroupBy(e => e.Currency))
@@ -96,8 +94,7 @@ public sealed class LedgerTransaction
 
             if (total != 0m)
             {
-                throw new UnbalancedLedgerTransactionException(
-                    Id, $"{byCurrency.Key} bacaklarının toplamı sıfır değil: {total}.");
+                throw new UnbalancedLedgerTransactionException(Id, $"{byCurrency.Key} bacaklarının toplamı sıfır değil: {total}.");
             }
         }
     }

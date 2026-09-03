@@ -15,8 +15,7 @@ public sealed class LedgerEntry
     {
         if (amount.IsZero)
         {
-            throw new ArgumentException(
-                "Sıfır tutarlı entry yazılmaz — hiçbir şey ifade etmiyor.", nameof(amount));
+            throw new ArgumentException("Sıfır tutarlı entry yazılmaz — hiçbir şey ifade etmiyor.", nameof(amount));
         }
 
         TransactionId = transactionId;

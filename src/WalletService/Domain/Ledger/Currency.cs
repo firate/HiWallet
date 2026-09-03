@@ -15,8 +15,7 @@ public readonly record struct Currency
         _minorUnit = minorUnit;
     }
 
-    public string Code => _code ?? throw new InvalidOperationException(
-        "Currency initialize edilmemiş. default(Currency) kullanılamaz.");
+    public string Code => _code ?? throw new InvalidOperationException("Currency initialize edilmemiş. default(Currency) kullanılamaz.");
 
     /// <summary>
     /// Tutarların oturmak zorunda olduğu ondalık basamak sayısı. TRY için 2 (kuruş),

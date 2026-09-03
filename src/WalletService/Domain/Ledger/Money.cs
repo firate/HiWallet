@@ -9,9 +9,7 @@ public readonly record struct Money : IComparable<Money>
     public Money(decimal amount, Currency currency)
     {
         if (decimal.Round(amount, currency.MinorUnit) != amount)
-            throw new ArgumentException(
-                $"{currency} tutarı en fazla {currency.MinorUnit} ondalık basamak taşıyabilir: {amount}. " +
-                "Yuvarlama kararı çağıranın işi, sessizce yapılmaz.", nameof(amount));
+            throw new ArgumentException($"{currency} tutarı en fazla {currency.MinorUnit} ondalık basamak taşıyabilir: {amount}. Yuvarlama kararı çağıranın işi, sessizce yapılmaz.", nameof(amount));
 
         Amount = amount;
         Currency = currency;
@@ -82,8 +80,9 @@ public readonly record struct Money : IComparable<Money>
     private static void AssertSameCurrency(Money left, Money right)
     {
         if (left.Currency != right.Currency)
-            throw new InvalidOperationException(
-                $"Farklı para birimleri toplanamaz: {left.Currency} / {right.Currency}.");
+        {
+            throw new InvalidOperationException($"Farklı para birimleri toplanamaz: {left.Currency} / {right.Currency}.");
+        }
     }
 
     public override string ToString()
