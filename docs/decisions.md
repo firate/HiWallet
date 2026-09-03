@@ -445,3 +445,10 @@ duvar DB'de olmalı.
 ihmal edilebilir. Sıcak yolda değişen bir şey yok: `ledger_entries` INSERT'ünde FK
 kontrolü zaten `accounts_pkey`'e bir index probe yapıyordu, artık
 `uq_accounts_id_currency`'ye yapıyor — aynı sayıda probe.
+
+**Doğrulandı.** DDL homelab'daki Postgres 17'de koşturuldu, 11 senaryonun hepsi beklendiği
+gibi davrandı. Özellikle iki şüpheli nokta teyit edildi: (a) `CONSTRAINT ... UNIQUE`
+composite FK hedefi olarak kabul ediliyor — `CREATE UNIQUE INDEX` yerine constraint
+yazılması bu yüzden şart, (b) karışık para birimli "toplamı sıfır" işlem artık `P0001`
+ile reddediliyor. Ayrıca hareket görmüş bir hesabın `currency`'sini değiştirme denemesi
+FK tarafından engellendi — yukarıda "bedava gelen" denen davranış gerçekten geliyor.
