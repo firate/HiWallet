@@ -386,3 +386,62 @@ kolonu eklenmez — aynı bilgi, iki isim.
 
 **Gerekçe.** LTS, makinede kurulu (`10.0.201`), EF Tools 10.0.7 ile eşleşiyor. Çok TFM'li
 build bu projede hiçbir şey kazandırmaz, `#if` dallanması getirir.
+
+---
+
+## 17. Para birimi bütünlüğü: composite FK + currency başına zero-sum
+
+**Karar.** İki değişiklik birlikte:
+
+1. `ledger_entries` ve `wallet_balances`, `accounts`'a `(account_id, currency)` composite
+   FK ile bağlanır. Hedef `uq_accounts_id_currency UNIQUE (id, currency)`.
+2. Zero-sum trigger'ı `GROUP BY currency` ile çalışır; her para birimi kendi içinde
+   sıfırlanmalıdır.
+
+**Problem.** `currency` iki yerde duruyordu — `accounts` ve `ledger_entries` — ve senkron
+tutan hiçbir şey yoktu. `account_id` sadece `REFERENCES accounts(id)` idi: "böyle bir hesap
+var mı" diye soruyor, "bu hesap bu para biriminde mi" diye sormuyordu. Trigger da
+`SUM(amount)` yapıp para birimine bakmıyordu. İkisi birleşince:
+
+```sql
+INSERT INTO ledger_entries VALUES
+  (@tx, cüzdan,   +100, 'TRY'),
+  (@tx, clearing, -100, 'USD');
+-- SUM = 0. Trigger "dengeli" deyip geçiriyor.
+```
+
+100 TRY yoktan var oluyor, karşılığında 100 USD borç yazılıyor. Ne kadar para basıldığı
+kura bağlı. Sistemin tüm iddiası "para yoktan var olmaz, taşınır" — bu tam onu deliyordu,
+üstelik en sessiz şekilde: hata yok, log yok, trigger susuyor.
+
+**Neden FK, neden trigger değil.** FK declarative ve index'e dayanıyor; plpgsql
+çalıştırmıyor. Trigger yalnızca FK'nın ifade edemediği şey için kullanılır — zero-sum
+gibi. Currency eşleşmesi FK'nın tam olarak ifade edebildiği bir şey.
+
+**FK'ya kasten gereksiz kolon.** `account_id` tek başına hesabı zaten buluyor.
+`currency`'yi FK'ya eklemek DB'ye "bu iki değer o satırda BİRLİKTE bulunsun" dedirtiyor.
+Yani soru "hesap var mı" değil, "entry'nin söylediği para birimi hesabın söylediğiyle
+aynı mı". `uq_accounts_id_currency` de bu yüzden var — tekillik amacı yok (`id` zaten PK),
+tek işi FK hedefi olabilmek.
+
+**Bedava gelen.** FK varsayılan `ON UPDATE NO ACTION` ile geliyor: bir hesabın
+`currency`'sini değiştirmek, o hesapta entry varsa reddediliyor. Yani hesap ilk hareketi
+gördükten sonra para birimi donuyor. Ayrı kural yazmaya gerek kalmıyor —
+`UPDATE accounts SET currency='USD'` gibi tek satırlık bir "düzeltme" geçmişteki tüm TRY
+kayıtlarını sessizce çeviremiyor.
+
+**Elenen alternatif.** `ledger_entries.currency`'yi tamamen kaldırmak (normalize et,
+hesaptan oku). Tek kaynak olurdu ama her ledger sorgusu sırf para birimini bilmek için
+`accounts`'a join olurdu. Kolon işe yarıyor; klasik cevap "denormalize et, constraint ile
+zorla".
+
+**Elenen alternatif.** Eşleşmeyi yalnızca uygulamada kontrol etmek. Uygulama tarafı zaten
+doğru (`Money` farklı para birimlerini toplamıyor, `LedgerTransaction.AssertBalanced()`
+currency başına ayrı topluyor) — ama ledger'a yazan tek yol uygulama değil: migration,
+düzeltme script'i, ileride bir admin aracı. Madde 5'in mantığı burada da geçerli, asıl
+duvar DB'de olmalı.
+
+**Maliyet.** `accounts` üzerinde ikinci bir btree index; tablo küçük ve yazma nadir,
+ihmal edilebilir. Sıcak yolda değişen bir şey yok: `ledger_entries` INSERT'ünde FK
+kontrolü zaten `accounts_pkey`'e bir index probe yapıyordu, artık
+`uq_accounts_id_currency`'ye yapıyor — aynı sayıda probe.

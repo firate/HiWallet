@@ -25,7 +25,13 @@ CREATE TABLE accounts (
     CONSTRAINT ck_accounts_provider
         CHECK ((account_type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)),
     CONSTRAINT ck_accounts_provider_blank
-        CHECK (provider IS NULL OR btrim(provider) <> '')
+        CHECK (provider IS NULL OR btrim(provider) <> ''),
+
+    -- Tekillik amacı YOK: id zaten PK, currency eklemek hiçbir yeni kısıt getirmiyor.
+    -- Tek işi ledger_entries ve wallet_balances'ın composite FK hedefi olabilmek —
+    -- Postgres FK'nın referans verdiği kolonların unique olmasını şart koşuyor.
+    -- Gerekçe: decisions.md madde 17.
+    CONSTRAINT uq_accounts_id_currency UNIQUE (id, currency)
 );
 
 CREATE INDEX ix_accounts_owner ON accounts (owner_id) WHERE owner_id IS NOT NULL;
@@ -120,10 +126,17 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 CREATE TABLE ledger_entries (
     id              bigserial PRIMARY KEY,
     transaction_id  uuid NOT NULL REFERENCES ledger_transactions(id),
-    account_id      uuid NOT NULL REFERENCES accounts(id),
+    account_id      uuid NOT NULL,
     amount          numeric(19,4) NOT NULL CHECK (amount <> 0),
     currency        char(3) NOT NULL,
-    created_at      timestamptz NOT NULL DEFAULT now()
+    created_at      timestamptz NOT NULL DEFAULT now(),
+
+    -- Composite FK, tek kolonluğun yerine geçer: hesabın var olduğunu da garantiler,
+    -- entry'nin currency'sinin hesabınkiyle aynı olduğunu da. currency FK'ya KASTEN
+    -- gereksiz kolon olarak konuyor — soru "hesap var mı" değil, "ikisi aynı satırda
+    -- birlikte mi duruyor" (decisions.md madde 17).
+    CONSTRAINT fk_ledger_entries_account
+        FOREIGN KEY (account_id, currency) REFERENCES accounts (id, currency)
 );
 
 CREATE INDEX ix_ledger_entries_account ON ledger_entries (account_id, id);
@@ -132,6 +145,10 @@ CREATE INDEX ix_ledger_entries_tx ON ledger_entries (transaction_id);
 
 `amount` işareti yönü taşır: credit `+`, debit `-`. Ayrı `direction` kolonu yok —
 iki kaynak (işaret + direction) tutarsızlaşabilir, tek kaynak bırakıldı.
+
+`currency` hesapta da duruyor, burada da — bilinçli tekrar, ledger sorgularının para
+birimini öğrenmek için `accounts`'a join olmasını engelliyor. Tekrarı güvenli kılan şey
+yukarıdaki composite FK; onsuz iki kolon zamanla ayrışırdı.
 
 ### Append-only zorlaması
 
@@ -146,14 +163,22 @@ REVOKE UPDATE, DELETE ON ledger_entries FROM wallet_app;
 ```sql
 CREATE OR REPLACE FUNCTION assert_ledger_balanced() RETURNS trigger AS $$
 DECLARE
-    total numeric(19,4);
+    bad_currency char(3);
+    bad_total    numeric(19,4);
 BEGIN
-    SELECT COALESCE(SUM(amount), 0) INTO total
+    -- Toplam para birimi BAŞINA sıfır olmalı. Tek SUM yetmez: +100 TRY ile -100 USD
+    -- toplamı sıfır çıkar ve dengesiz bir işlem dengeli sayılırdı.
+    SELECT currency, SUM(amount)
+      INTO bad_currency, bad_total
       FROM ledger_entries
-     WHERE transaction_id = NEW.transaction_id;
+     WHERE transaction_id = NEW.transaction_id
+     GROUP BY currency
+    HAVING SUM(amount) <> 0
+     LIMIT 1;
 
-    IF total <> 0 THEN
-        RAISE EXCEPTION 'Ledger transaction % is unbalanced: %', NEW.transaction_id, total;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Ledger transaction % is unbalanced in %: %',
+            NEW.transaction_id, bad_currency, bad_total;
     END IF;
 
     RETURN NULL;
@@ -169,15 +194,25 @@ CREATE CONSTRAINT TRIGGER trg_ledger_balanced
 `DEFERRABLE INITIALLY DEFERRED` şart: satırlar tek tek insert edilirken ara durumda
 toplam sıfır değil, kontrol commit anında çalışmalı.
 
+`FOR EACH ROW` de şart — Postgres `CONSTRAINT TRIGGER`'ı statement seviyesinde deferred
+yapamıyor. Bedeli: 3 bacaklı bir transfer'de bu aggregate 3 kez koşuyor, hep aynı sonucu
+bularak. `ix_ledger_entries_tx` tam bunun için var; sorgu birkaç satır okuyor. Kabul
+edilen maliyet — alternatifi invariant'ı tamamen uygulamaya bırakmak ki `decisions.md`
+madde 5 bunu açıkça reddediyor.
+
 ## wallet_balances
 
 ```sql
 CREATE TABLE wallet_balances (
-    account_id  uuid PRIMARY KEY REFERENCES accounts(id),
+    account_id  uuid PRIMARY KEY,
     balance     numeric(19,4) NOT NULL DEFAULT 0,
     currency    char(3) NOT NULL,
     version     bigint NOT NULL DEFAULT 0,
-    updated_at  timestamptz NOT NULL DEFAULT now()
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+
+    -- ledger_entries ile aynı gerekçe: projeksiyonun para birimi hesabınkinden sapamaz.
+    CONSTRAINT fk_wallet_balances_account
+        FOREIGN KEY (account_id, currency) REFERENCES accounts (id, currency)
 );
 ```
 
@@ -189,12 +224,18 @@ EF Core: `version` üzerinde `IsConcurrencyToken()`. Başka hiçbir entity'de co
 ### Doğrulama sorgusu (mutabakat job'ı bunu koşar)
 
 ```sql
-SELECT b.account_id, b.balance, COALESCE(SUM(e.amount), 0) AS derived
+SELECT b.account_id, b.currency, b.balance, COALESCE(SUM(e.amount), 0) AS derived
   FROM wallet_balances b
-  LEFT JOIN ledger_entries e ON e.account_id = b.account_id
- GROUP BY b.account_id, b.balance
+  LEFT JOIN ledger_entries e
+    ON e.account_id = b.account_id
+   AND e.currency   = b.currency
+ GROUP BY b.account_id, b.currency, b.balance
 HAVING b.balance <> COALESCE(SUM(e.amount), 0);
 ```
+
+Join'de `currency` de var: FK ikisinin sapmasını zaten engelliyor, ama sorgu bu
+varsayıma yaslanmıyor. Bozuk bir durumda sessizce yanlış bir `derived` üretmek yerine
+sapmayı satır olarak gösteriyor — mutabakat job'ının işi bunu yakalamak.
 
 Boş dönmeli. Satır dönerse projeksiyon sapmış — alarm.
 
