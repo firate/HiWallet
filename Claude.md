@@ -26,7 +26,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Para: `numeric(19,4)` + ayrı `currency` kolonu. `float`/`double` YOK.
 - Bakiye asla ledger'a yazmadan güncellenmez.
 - Sistem hesapları `accounts.provider` ile ayrışır (`clearing`, `nostro`, `provider_expense`).
-  `user_wallet`'ta `provider` NULL, sistem hesabında `owner_id`/`owner_type` NULL.
+  `user_wallet`'ta `provider` NULL, sistem hesabında `owner_id`/`owner_type`/`name` NULL.
+- Bir sahibin aynı para biriminde birden fazla cüzdanı olabilir; `(owner_id, currency)`
+  UNIQUE YOK. Bu yüzden **günlük limit sahip bazında uygulanır, cüzdan bazında DEĞİL** —
+  aksi halde ikinci cüzdan açarak aşılır.
+- `owner_type` hem `owners`'ta hem `accounts`'ta durur, `(owner_id, owner_type)` composite
+  FK ile bağlıdır. Cüzdanlar arasında sapamaz.
 - `ledger_transactions.account_id` NOT NULL — iç işlemlerde de dolar (idempotency kapsamı).
   Nullable YAPILMAZ: unique index'te NULL'lar eşleşmez, fatura iki kez yazılır.
 

@@ -520,3 +520,52 @@ farkı zaten öngörmüş ("kuruş farkı kaçınılmaz, eşik oransal"), sistem
 **Yuvarlama yönü `AwayFromZero`.** Banker's rounding kurum lehine sistematik sapma üretmiyor
 ama "yarımı aşağı yuvarladık" tartışması açıyor; `AwayFromZero` müşteri açısından
 öngörülebilir.
+
+---
+
+## 20. Bir sahibin aynı para biriminde birden fazla cüzdanı olabilir
+
+**Karar.** `(owner_id, currency)` üzerinde tekillik kısıtı YOK. Bir sahip aynı para biriminde
+istediği kadar cüzdan açabilir ("Birikim", "Günlük", "Kira"). Bunun üç sonucu var ve üçü de
+kısıtın kendisinden daha önemli.
+
+**1. Günlük limit sahip bazında uygulanır, cüzdan bazında değil.** Cüzdan bazında olsaydı
+limit hiçbir şey korumazdı: günlük 10.000 limiti olan biri beş cüzdan açıp 50.000 gönderirdi.
+Kural teknik olarak çalışır, iş olarak boşa çıkardı. `LimitPolicy` sahip kimliğini alır ve
+`spentToday` o sahibin **tüm cüzdanlarından** toplanır. Aynısı KYC eşikleri için de geçerli.
+
+Bedeli: `ix_accounts_owner` artık sıcak yolda — her transfer'de sahibin cüzdanları
+toplanıyor. Tek cüzdan varsayımında bu sorgu hiç olmayacaktı.
+
+**2. `owners` tablosu eklendi.** `owner_type` cüzdanda duruyordu; tek cüzdan varken sorunsuzdu,
+N cüzdan olunca aynı bilgi N satıra kopyalanıyor ve senkron tutan hiçbir şey kalmıyor. Bir
+cüzdan `person`, diğeri `business` olabilirdi — transfer tipi (`p2p`/`p2b`) buna baktığı için
+aynı müşteri hangi cüzdanını kullandığına göre farklı politikaya tabi olurdu.
+
+Madde 17'deki delikle **birebir aynı sınıf**, aynı çözüm: `owner_type` kolonu cüzdanda kalıyor
+(join'siz sorgulanabilsin diye) ama `(owner_id, owner_type)` composite FK ile `owners`'a
+bağlanıyor, sapamıyor.
+
+`owners` bir müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi yok, olmayacak. İki
+kolonluk bir tablo, tek işi `owner_type`'ın tek bir cevabı olması.
+
+**3. Cüzdanın `name`'i var, `user_wallet`'ta zorunlu.** Aynı sahibin üç TRY cüzdanı uuid
+dışında ayırt edilemezdi. Ledger için gerekli değil, ürün için gerekli.
+
+**Adlandırma.** "account" kelimesi ledger tarafına ayrıldı: `accounts` tablosu cüzdanları VE
+sistem hesaplarını tutuyor, hepsi double-entry anlamında birer hesap. Müşteri `owner`.
+Elenen alternatif: `owner_accounts` + `ledger_accounts` diye yeniden adlandırmak — konuşma
+diline daha yakın ama `clearing`/`revenue`/`nostro`'yu "ledger account" diye nitelemek
+gereksiz, onlar zaten muhasebe hesabı. Elenen alternatif: kolonu `owner_account_id` yapmak —
+`accounts` tablosu dururken okuyucuyu yanlış tabloya yönlendirirdi.
+
+**Açık bırakılan.** `(owner_id, name)` üzerinde tekillik yok; aynı sahip iki cüzdanına da
+"Birikim" diyebilir. İsim ayırt etmek için varsa bu onu boşa çıkarıyor, ama bir ürün kararı
+ve şimdi verilmedi.
+
+**Doğrulandı.** Homelab'daki Postgres 17'de 17 senaryo koşturuldu, hepsi geçti. Bu maddenin
+kendi testleri: aynı sahip + aynı currency ile ikinci cüzdan **açılabiliyor**; aynı sahibin
+ikinci cüzdanını farklı `owner_type` ile açmak `fk_accounts_owner` tarafından **engelleniyor**;
+cüzdanı olan bir sahibin `owners.owner_type`'ını değiştirmek de aynı FK ile engelleniyor
+(currency'de olduğu gibi, ilk cüzdandan sonra tip donuyor); adsız cüzdan ve adlı sistem hesabı
+`ck_accounts_name` ile reddediliyor.

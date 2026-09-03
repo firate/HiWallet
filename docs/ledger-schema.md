@@ -3,6 +3,29 @@
 Referans DDL. EF Core migration'ları bu şemayı üretmeli.
 Gerekçeler: `docs/decisions.md`.
 
+## owners
+
+Cüzdan sahibi. Müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi burada durmaz;
+onlar bu sistemin kapsamı dışında. Tek işi `owner_type`'ın tek bir cevabı olması
+(`decisions.md` madde 20).
+
+```sql
+CREATE TABLE owners (
+    id          uuid PRIMARY KEY,
+    owner_type  text NOT NULL CHECK (owner_type IN ('person','business')),
+    created_at  timestamptz NOT NULL DEFAULT now(),
+
+    -- accounts'ın composite FK hedefi. Tekillik amacı yok, id zaten PK
+    -- (aynı kalıp: uq_accounts_id_currency, madde 17).
+    CONSTRAINT uq_owners_id_type UNIQUE (id, owner_type)
+);
+```
+
+Bir sahibin **aynı para biriminde birden fazla cüzdanı olabilir** — `(owner_id, currency)`
+üzerinde tekillik kısıtı bilinçli olarak YOKTUR. Sonucu: günlük limitler cüzdan bazında
+değil **sahip bazında** uygulanır, yoksa müşteri ikinci cüzdan açarak limiti aşar
+(`decisions.md` madde 20).
+
 ## accounts
 
 ```sql
@@ -12,6 +35,7 @@ CREATE TABLE accounts (
                     ('user_wallet','clearing','revenue','nostro','provider_expense')),
     owner_id      uuid NULL,          -- user_wallet için zorunlu, sistem hesaplarında NULL
     owner_type    text NULL CHECK (owner_type IN ('person','business')),
+    name          text NULL,          -- cüzdan adı ("Birikim"), sistem hesaplarında NULL
     provider      text NULL,          -- sistem hesaplarında sağlayıcı ayrımı, user_wallet'ta NULL
     currency      char(3) NOT NULL,
     created_at    timestamptz NOT NULL DEFAULT now(),
@@ -26,6 +50,18 @@ CREATE TABLE accounts (
         CHECK ((account_type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)),
     CONSTRAINT ck_accounts_provider_blank
         CHECK (provider IS NULL OR btrim(provider) <> ''),
+    CONSTRAINT ck_accounts_name
+        CHECK ((account_type = 'user_wallet') = (name IS NOT NULL)),
+    CONSTRAINT ck_accounts_name_blank
+        CHECK (name IS NULL OR btrim(name) <> ''),
+
+    -- owner_type cüzdanda da duruyor (join'siz sorgulanabilsin diye) ama sahibinkinden
+    -- sapamıyor. Bir sahibin birden fazla cüzdanı olduğu için aynı bilgi N satıra
+    -- kopyalanıyor; composite FK olmadan biri 'person' biri 'business' olabilirdi.
+    -- Aynı kalıp: fk_ledger_entries_account (madde 17), gerekçe madde 20.
+    -- Sistem hesaplarında iki kolon da NULL, MATCH SIMPLE gereği FK devre dışı kalıyor.
+    CONSTRAINT fk_accounts_owner
+        FOREIGN KEY (owner_id, owner_type) REFERENCES owners (id, owner_type),
 
     -- Tekillik amacı YOK: id zaten PK, currency eklemek hiçbir yeni kısıt getirmiyor.
     -- Tek işi ledger_entries ve wallet_balances'ın composite FK hedefi olabilmek —
@@ -34,7 +70,12 @@ CREATE TABLE accounts (
     CONSTRAINT uq_accounts_id_currency UNIQUE (id, currency)
 );
 
+-- Bir sahibin cüzdanlarını listelemek ve günlük limitini toplamak için. Limit sahip
+-- bazında uygulandığı için bu index sıcak yolda: her transfer'de çalışıyor.
 CREATE INDEX ix_accounts_owner ON accounts (owner_id) WHERE owner_id IS NOT NULL;
+
+-- (owner_id, currency) üzerinde tekillik YOK — bilinçli. Bir sahip aynı para biriminde
+-- birden fazla cüzdan açabilir (madde 20).
 
 -- sistem hesabı tekilliği: aynı (tip, sağlayıcı, currency) ikinci kez açılamaz.
 -- provider NULL olabildiği için COALESCE ile normalize edilir — NULL'lar unique index'te
@@ -44,13 +85,13 @@ CREATE UNIQUE INDEX ux_accounts_system
  WHERE owner_id IS NULL;
 ```
 
-| account_type       | owner_type        | provider     | Negatife düşebilir | Anlamı                                |
-| ------------------ | ----------------- | ------------ | ------------------ | ------------------------------------- |
-| `user_wallet`      | person / business | NULL         | Hayır              | Müşteri cüzdanı                       |
-| `clearing`         | NULL              | sağlayıcı    | Evet               | Yolda olan / settle olmamış para      |
-| `revenue`          | NULL              | NULL         | Evet               | Müşteriden alınan komisyon (gelir)    |
-| `nostro`           | NULL              | banka        | Evet               | Kendi banka hesabımızdaki gerçek para |
-| `provider_expense` | NULL              | sağlayıcı    | Evet               | Sağlayıcıya ödenen ücret (gider)      |
+| account_type       | owner_id / owner_type | name  | provider  | Negatife düşebilir | Anlamı                                |
+| ------------------ | --------------------- | ----- | --------- | ------------------ | ------------------------------------- |
+| `user_wallet`      | **dolu**              | dolu  | NULL      | Hayır              | Müşteri cüzdanı                       |
+| `clearing`         | NULL                  | NULL  | sağlayıcı | Evet               | Yolda olan / settle olmamış para      |
+| `revenue`          | NULL                  | NULL  | NULL      | Evet               | Müşteriden alınan komisyon (gelir)    |
+| `nostro`           | NULL                  | NULL  | banka     | Evet               | Kendi banka hesabımızdaki gerçek para |
+| `provider_expense` | NULL                  | NULL  | sağlayıcı | Evet               | Sağlayıcıya ödenen ücret (gider)      |
 
 `account_type` hesabın ledger'daki rolü, `owner_type` sahibinin kim olduğu, `provider`
 sistem hesabının hangi dış tarafa ait olduğu. Üçü de dik boyut, birleştirilmez:

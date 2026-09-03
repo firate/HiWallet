@@ -18,6 +18,7 @@ public sealed class Account
         AccountType type,
         Guid? ownerId,
         OwnerType? ownerType,
+        string? name,
         string? provider,
         Currency currency,
         DateTimeOffset createdAt)
@@ -26,6 +27,7 @@ public sealed class Account
         Type = type;
         OwnerId = ownerId;
         OwnerType = ownerType;
+        Name = name;
         Provider = provider;
         Currency = currency;
         CreatedAt = createdAt;
@@ -35,11 +37,24 @@ public sealed class Account
 
     public AccountType Type { get; private set; }
 
-    /// <summary>Cüzdanlarda zorunlu, sistem hesaplarında NULL.</summary>
+    /// <summary>
+    /// Cüzdanlarda zorunlu, sistem hesaplarında NULL. Bir sahibin aynı para biriminde
+    /// birden fazla cüzdanı olabilir (decisions.md madde 20) — bu yüzden limitler
+    /// cüzdan değil SAHİP bazında uygulanır.
+    /// </summary>
     public Guid? OwnerId { get; private set; }
 
-    /// <summary>Cüzdanlarda zorunlu, sistem hesaplarında NULL.</summary>
+    /// <summary>
+    /// Cüzdanlarda zorunlu, sistem hesaplarında NULL. Aynı sahibin cüzdanları arasında
+    /// sapamaz — DB'de <c>(owner_id, owner_type)</c> composite FK ile <c>owners</c>'a bağlı.
+    /// </summary>
     public OwnerType? OwnerType { get; private set; }
+
+    /// <summary>
+    /// Cüzdan adı ("Birikim"). Cüzdanlarda zorunlu, sistem hesaplarında NULL.
+    /// Aynı sahibin aynı para birimindeki cüzdanları başka türlü ayırt edilemiyor.
+    /// </summary>
+    public string? Name { get; private set; }
 
     /// <summary>
     /// Sistem hesabının hangi dış tarafa ait olduğu (decisions.md madde 14).
@@ -63,6 +78,7 @@ public sealed class Account
         Guid id,
         Guid ownerId,
         OwnerType ownerType,
+        string name,
         Currency currency,
         DateTimeOffset createdAt)
     {
@@ -71,7 +87,14 @@ public sealed class Account
             throw new ArgumentException("Cüzdanın sahibi olmalı.", nameof(ownerId));
         }
 
-        return new Account(id, AccountType.UserWallet, ownerId, ownerType, provider: null, currency, createdAt);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException(
+                "Cüzdanın adı olmalı — aynı sahibin aynı para birimindeki cüzdanları " +
+                "başka türlü ayırt edilemiyor (decisions.md madde 20).", nameof(name));
+        }
+
+        return new Account(id, AccountType.UserWallet, ownerId, ownerType, name, provider: null, currency, createdAt);
     }
 
     /// <summary>
@@ -107,6 +130,7 @@ public sealed class Account
                 $"{type} hesabı sağlayıcı bazında açılır, provider zorunlu.", nameof(provider));
         }
 
-        return new Account(id, type, ownerId: null, ownerType: null, provider, currency, createdAt);
+        return new Account(
+            id, type, ownerId: null, ownerType: null, name: null, provider, currency, createdAt);
     }
 }
