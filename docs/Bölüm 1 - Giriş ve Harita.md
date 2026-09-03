@@ -1,10 +1,8 @@
 Bir .NET backend developer'ın işte/mülakatta karşılaşacağı konseptleri gösteren referans uygulamalar (reference implementations). Hepsi ortak bir **baseline** üstüne kurulur; her biri bir **dominant teknik temayı** öne çıkarır.
 
 İçindekiler:
-- [[Bölüm 2 — Baseline (ortak çatı)]]
-- [[Bölüm 3 — Wallet Distributed]]
-- [[Bölüm 4 — Biletleme]]
-- [[Bölüm 5 — Auth]]
+- Bölüm 2 — Baseline (ortak çatı)
+- Bölüm 3 — Wallet Distributed
 
 Teknik baz: .NET controller-based Web API, PostgreSQL, Redis (gerekirse), RabbitMQ (dağıtık olanlarda), Docker Compose.
 
@@ -21,8 +19,6 @@ Sınırlı olması yalnızca **kapsamı ve dış bağımlılıkları** kısaltı
 | Uygulama             | Baseline                   | Dominant tema                                                                                                                                            |
 | -------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Wallet — Distributed | 1–12                       | In-process consistency + optimistic lock + double-entry ledger.<br>Servisler arası consistency, saga orchestration, webhook delivery, scheduled raporlar |
-| Biletleme            | 1–12                       | CQRS (read projeksiyonu) + distributed lock (seat hold), contention altında                                                                              |
-| Auth                 | 1–12 (+A, konunun kendisi) | JWT (RS256+JWKS), permission-based authz, multi-tenancy, token revocation                                                                                |
 
 **Notlar:**
 
