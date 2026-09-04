@@ -22,14 +22,19 @@ services:
       # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
       # volume'u düşürmek gerekiyor: docker compose down -v
       - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
-      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql:ro
+      # .sql initdb.d DIŞINDA: postgres o dizindeki .sql dosyalarını da kendisi
+      # çalıştırıyor, script iki kez koşardı (ikincisinde parola değişkenleri
+      # tanımsız olduğu için hata vererek).
+      - ./docker/postgres-init.sql:/opt/hiwallet/postgres-init.sql:ro
       - postgres-data:/var/lib/postgresql/data
     ports:
       # Host'tan pgAdmin/psql ile bakabilmek için. 5432 homelab ile çakışmasın diye 5433.
       - "5433:5432"
     healthcheck:
-      # migrator ve app bunu bekliyor; hazır olmadan bağlanmaları anlamsız retry üretir.
-      test: ["CMD-SHELL", "pg_isready -U postgres -d hiwallet_wallet"]
+      # migrator ve app bunu bekliyor. pg_isready YETMEZ: gerçekten bağlanmıyor,
+      # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
+      # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor.
+      test: ["CMD-SHELL", "psql -U postgres -d hiwallet_wallet -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 2s
       timeout: 3s
       retries: 30
