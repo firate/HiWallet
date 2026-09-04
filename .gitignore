@@ -5,6 +5,13 @@
 
 # dotenv files
 .env
+.env.local
+.env.*.local
+!.env.example
+
+# User Secrets normalde repo dışında (~/.microsoft/usersecrets/) durur;
+# bu satır elle kopyalanmış bir örneğin kazara commit'lenmesine karşı.
+secrets.json
 
 # User-specific files
 *.rsuser

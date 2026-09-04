@@ -1,0 +1,58 @@
+# HiWallet — ortak format kuralları.
+# Rider, `dotnet format` ve editörler bu dosyayı okur; elle yapılan satır sarma
+# kaydetmede geri alınmasın diye var.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+[*.{md,markdown}]
+# Markdown'da satır sonundaki iki boşluk <br> anlamına geliyor, kırpılmaz.
+trim_trailing_whitespace = false
+max_line_length = off
+
+[*.{json,yml,yaml,csproj,props,targets,config,xml}]
+indent_size = 2
+
+[*.sql]
+indent_size = 4
+max_line_length = off
+
+[*.cs]
+indent_size = 4
+max_line_length = 120
+
+# EF Core migration'ları araç tarafından üretiliyor ve elle düzenlenmiyor
+# (structure.md "Migration komutları"). Stil kuralları burada uygulanmaz — aksi halde
+# her `dotnet ef migrations add` build'i kırar ve üretilen dosyayı elle düzeltmek gerekir.
+# migrationBuilder.Sql(...) blokları bunun istisnası değil; onlar da aynı dosyada.
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+max_line_length = off
+
+# --- Kod stili -------------------------------------------------------------
+# Yalnızca projede fiilen uyguladığımız kararlar. IDE varsayılanıyla aynı olan
+# her ayarı buraya kopyalamıyoruz; dosya kural listesi değil, anlaşmazlık listesi.
+
+csharp_new_line_before_open_brace = all
+csharp_style_namespace_declarations = file_scoped:warning
+
+# Tek satırlık `if (x) return;` parantezsiz yazılabilir; gövde satıra taşıyorsa
+# parantez zorunlu. Kaçınılan şey, parantezsiz bir if'in altına ikinci satır
+# eklenince o satırın sessizce if'in DIŞINDA kalması.
+csharp_prefer_braces = when_multiline:warning
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Domain'de entity'ler private setter kullanıyor; readonly alan önerisi
+# bunlarla çakışmasın diye suggestion seviyesinde.
+dotnet_style_readonly_field = true:suggestion

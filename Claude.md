@@ -1,12 +1,16 @@
-# wallet-distributed
+# HiWallet
 
 E-money cüzdan sistemi. Double-entry ledger + saga orchestration.
+Marka Hive, ürün HiWallet; `wallet-distributed` konsept dokümanlarının adıdır, kodda geçmez.
 Detaylı gerekçeler: `docs/decisions.md`. Şema: `docs/ledger-schema.md`.
 Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 
 ## Pazarlıksız kurallar
 
 **Stack**
+- `net10.0`, tek TFM. `TargetFramework` yalnızca `Directory.Build.props`'ta.
+- Paket versiyonları `Directory.Packages.props`'ta. `.csproj`'da `Version` attribute'u YOK.
+- Assembly ve namespace kökü `HiWallet.*`.
 - Controller-based ASP.NET Core Web API. Minimal API YOK.
 - Wolverine, yalnızca in-process handler/mediator olarak. MediatR YOK.
 - Wolverine'in RabbitMQ transport'u, durable inbox/outbox'ı ve `Saga` persistence'ı KULLANILMIYOR.
@@ -21,12 +25,27 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - İşaret konvansiyonu: credit `+`, debit `-`. Hiçbir yerde tersine çevrilmez.
 - Para: `numeric(19,4)` + ayrı `currency` kolonu. `float`/`double` YOK.
 - Bakiye asla ledger'a yazmadan güncellenmez.
+- İki seviye: `accounts` müşteri hesabı, `ledger_accounts` bakiye tutabilen her şey
+  (cüzdanlar + sistem hesapları). Cüzdan = `ledger_accounts.type = 'user_wallet'`.
+  Ledger tarafı ayrı tablolara BÖLÜNMEZ — `ledger_entries` tek FK hedefi istiyor.
+- Sistem hesapları `ledger_accounts.provider` ile ayrışır (`clearing`, `nostro`,
+  `provider_expense`). Cüzdanda `provider` NULL, sistem hesabında `account_id`/`name` NULL.
+- Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir; `(account_id, currency)`
+  UNIQUE YOK. Bu yüzden **günlük limit hesap bazında uygulanır, cüzdan bazında DEĞİL** —
+  aksi halde ikinci cüzdan açarak aşılır.
+- person/business yalnızca `accounts.type`'ta durur, cüzdana kopyalanmaz.
+- `ledger_transactions.account_id` NOT NULL — iç işlemlerde de dolar (idempotency kapsamı).
+  Nullable YAPILMAZ: unique index'te NULL'lar eşleşmez, fatura iki kez yazılır.
 
 **Sağlayıcı ücretleri**
 - `provider_fees` tablosu ledger DEĞİL. `expected_amount` ledger'a asla yazılmaz.
 - Ücret kolonları `ledger_transactions` veya `ledger_entries` üzerine EKLENMEZ.
 - `revenue` (gelir) ve `provider_expense` (gider) ayrı hesaplardır, netleştirilmez.
 - Compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez.
+  `revenue` iadesi KOŞULSUZ — konfigüre edilmez, atlanamaz. Başarısız denemenin
+  sağlayıcı ücretini kimin yüklendiği ise sağlayıcı bazında konfigüre edilir:
+  `FeeOnFailure: Charged | Waived`. `Charged`'da `provider_fees` satırı denemeye
+  bağlı yazılır, başarıya değil.
 - Fatura ile `expected_amount` toplamı tolerans dışı sapıyorsa ledger'a HİÇBİR ŞEY yazılmaz.
 
 **Concurrency**
@@ -58,4 +77,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Yeni bir katman/akış eklerken önce testi yaz, sonra implementasyonu.
 - Bir kural burada yazılıysa gerekçesini tartışma, uygula. Kural eksikse
   `docs/decisions.md`'ye bak; orada da yoksa varsayımını kodda yorum olarak belirt.
+- **Doküman koda uyar, kod dokümana değil.** `docs/` bilinçli olarak sade ve hafif
+  yazıldı; kod onun ilerisine geçebilir. Kod ile doküman çeliştiğinde önce kodu doğru
+  yaz, sonra dokümanı ona güncelle — dokümanı korumak için kodda taviz verme.
+  İstisna: bu dosyadaki pazarlıksız kurallar ve `decisions.md`'deki kararlar.
+  Onlardan sapılacaksa önce karar değiştirilir, gerekçesiyle.
 - Kapsam dışı: Vault, Kubernetes, gerçek ödeme sağlayıcısı, multi-tenancy, caching.

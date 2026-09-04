@@ -1,0 +1,22 @@
+<Project>
+
+    <!-- Tek TFM, tek yerde. decisions.md §16 -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <!-- Assembly ve namespace kökü HiWallet.*; klasör adı kökü tekrar etmez.
+         structure.md "Adlandırma: ürün vs konsept". -->
+    <PropertyGroup>
+        <RootNamespace>HiWallet.$(MSBuildProjectName)</RootNamespace>
+        <AssemblyName>HiWallet.$(MSBuildProjectName)</AssemblyName>
+    </PropertyGroup>
+
+</Project>

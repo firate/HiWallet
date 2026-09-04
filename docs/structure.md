@@ -6,10 +6,10 @@ Kurallar için `CLAUDE.md`, gerekçeler için `docs/decisions.md`, şema için `
 ## Repo kökü
 
 ```
-wallet-distributed/
+HiWallet/
 ├── CLAUDE.md
 ├── README.md
-├── WalletDistributed.sln
+├── HiWallet.sln
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
@@ -20,7 +20,7 @@ wallet-distributed/
 └── tests/
 ```
 
-Tek repo. Servisler ayrı veritabanı kullanır (`decisions.md` §7) ama repo bölünmez —
+Tek repo. Servisler ayrı veritabanı kullanır (`decisions.md` madde 7) ama repo bölünmez —
 bu aşamada repo ayrımı yalnızca koordinasyon maliyeti getirir.
 
 Paket versiyonları `Directory.Packages.props`'ta merkezi. Servislerin `.csproj`
@@ -30,15 +30,28 @@ dosyalarında `Version` attribute'u YAZILMAZ, yalnızca `PackageReference Includ
 
 ```
 docs/
-├── decisions.md            -- kararlar, gerekçeler, elenen alternatifler
-├── ledger-schema.md        -- DDL, invariant zorlaması, settlement kayıtları
-├── structure.md            -- bu dosya
-├── bolum-1-giris.md        -- kapsam ve harita
-├── bolum-2-baseline.md     -- 12 zorunlu katman
-└── bolum-3-wallet.md       -- servisler, akışlar, saga, çıkış kriteri
+├── overview.md          -- sistem: kapsam, servisler, akışlar, saga, çıkış kriteri
+├── baseline.md          -- uygulamadan bağımsız 12 zorunlu katman
+├── decisions.md         -- kararlar, gerekçeler, elenen alternatifler
+├── ledger-schema.md     -- DDL, invariant zorlaması, settlement kayıtları
+└── structure.md         -- bu dosya
 ```
 
-Bölüm dosyaları da repoda durur; kapsamı ve dominant temayı görmeden doğru karar verilemez.
+**`overview.md` ile `baseline.md` ayrımı:** birincisi sistemin ne yaptığı, ikincisi ne
+yaptığından bağımsız olarak her serviste beklenen production hijyeni. Bir şey "wallet
+olduğu için" böyleyse `overview.md`'ye, "her serviste böyle olur" diyorsan `baseline.md`'ye.
+
+`overview.md`'nin numaralı başlıkları (madde 1–10) `decisions.md` ve kod yorumlarından
+atıf alıyor. Numaralandırma değiştirilmez; yeni bölüm sona eklenir.
+
+## Adlandırma: ürün vs konsept
+
+Marka **Hive**, ürün **HiWallet**. Solution `HiWallet.sln`, assembly ve namespace kökü
+`HiWallet.*` → `HiWallet.WalletService`, `HiWallet.Shared.Contracts`.
+
+Dokümanların ilk halinde geçen `wallet-distributed` bir konsept adıydı, kodda kullanılmaz.
+Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj` içindeki
+`RootNamespace`/`AssemblyName` ile verilir.
 
 ## src/
 
@@ -77,11 +90,13 @@ WalletService/
 │   ├── Topups/
 │   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
 ├── Domain/
-│   ├── Accounts/              -- Account, AccountType, OwnerType
-│   ├── Ledger/                -- LedgerTransaction, LedgerEntry, Money
+│   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
+│   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
+│   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- WalletBalance
-│   ├── Policies/              -- LimitPolicy, CommissionPolicy, TransferType
-│   └── Errors/                -- InsufficientFundsException, LimitExceededException
+│   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy
+│   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,
+│                                 UnbalancedLedgerTransaction
 ├── Infrastructure/
 │   ├── Persistence/
 │   │   ├── WalletDbContext.cs
@@ -220,7 +235,8 @@ tests/
 ## Adlandırma
 
 - Klasör ve namespace çoğul (`Transfers`, `Accounts`), tip tekil (`Transfer`, `Account`).
-- Namespace dizin yolunu birebir izler: `WalletService.Application.Transfers`.
+- Namespace = `HiWallet.` + dizin yolu: `src/WalletService/Application/Transfers/` →
+  `HiWallet.WalletService.Application.Transfers`.
 - Command: `<Fiil><Nesne>Command` → `CreateTransferCommand`. Handler: `<Command adı>Handler`.
 - Event geçmiş zaman: `BankTransferSucceeded`, `TopupReceived`.
 - Tablo adları `snake_case` ve çoğul (`ledger_entries`), C# tarafı `PascalCase` tekil.
