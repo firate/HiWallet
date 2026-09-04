@@ -54,14 +54,10 @@ Host portlarının varsayılanı homelab'a göre seçildi (`8091`, `5433`); orad
 Keycloak'ta, `8090` dolu ve `5432` ana Postgres'te. Başka bir makinede `.env`'den
 `WALLET_HOST_PORT` ve `POSTGRES_HOST_PORT` ile değiştirilebilir.
 
-> **Compose henüz gerçek bir koşuda doğrulanmadı.** Yapılandırma
-> `docker compose config` ile sözdizimi ve servis grafiği düzeyinde kontrol edildi, ama
-> imajlar build edilmedi ve stack ayağa kaldırılmadı.
->
-> Uygulamanın kendisi doğrulandı — `dotnet run` ile gerçek Postgres'e karşı çalıştı ve
-> 75 test geçiyor. Doğrulanmamış olan yalnızca konteyner paketlemesi ve orkestrasyonu.
->
-> Adım adım doğrulama: **[docs/verify-compose.md](docs/verify-compose.md)**
+Stack gerçek bir koşuda doğrulandı: migration'lar uygulandı, sistem hesapları seed
+edildi, sağlık ucu `Healthy` döndü ve `wallet_app` konteyner içinde de
+`ledger_entries`'i güncelleyemedi. Ölçülen çıktılar:
+**[docs/verify-compose.md](docs/verify-compose.md)**
 
 ### İki veritabanı rolü
 

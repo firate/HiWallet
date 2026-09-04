@@ -1,13 +1,14 @@
 # Compose'u doğrulama
 
 Bu dosya `docker compose` kurulumunun gerçekten çalıştığını kanıtlamak için var.
-Kurulum yazıldı ama **hiç koşturulmadı** — geliştirme makinesinde Docker yok.
-Docker'ı olan biri aşağıdakileri koşturup sonucu bildirene kadar doğrulanmamış sayılır.
+Geliştirme makinesinde Docker yok; stack **homelab'da koşturuldu ve aşağıdaki
+adımların tamamı doğrulandı** (bkz. "Doğrulama kaydı"). Başka bir makinede
+tekrarlamak için adımlar olduğu gibi duruyor.
 
 ## 1. Kodu Docker'ı olan makineye al
 
 ```bash
-git clone -b chore/baseline-closeout git@github.com:firate/HiWallet.git && cd HiWallet
+git clone git@github.com:firate/HiWallet.git && cd HiWallet
 ```
 
 ## 2. `.env` hazırla
@@ -83,19 +84,45 @@ docker compose down -v
 `-v` volume'u da siler; roller ve parolalar yalnızca veri dizini boşken kurulduğu
 için, parola değiştirdiğinde bu şart.
 
-## Nerelerde patlama bekliyorum
+## Doğrulama kaydı
 
-Doğrulanmamış varsayımlar — hata alırsan büyük ihtimalle bunlardan biri:
+Homelab'da (`docker compose up --build`) koşturuldu. Riskli görülen varsayımların
+her biri ve nasıl kanıtlandığı:
 
-| varsayım | patlarsa belirtisi |
+| varsayım | durum | kanıt |
+| --- | --- | --- |
+| `dotnet ef migrations bundle` alpine SDK'da çalışır | ✅ | bir hata çıktı, düzeltildi (aşağıda) |
+| `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | ✅ | dört migration uygulandı, seed satırları yerinde |
+| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | ✅ | wallet-service başladı ve istek karşılıyor |
+| init script'i tam olarak bir kez koşar | ✅ | roller kuruldu, "role already exists" yok |
+| `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied` alındı |
+
+Ölçülen çıktılar:
+
+```
+$ curl -s localhost:8091/health/ready
+{"status":"Healthy","durationMs":1.3747,"checks":[{"name":"postgres","status":"Healthy",...}]}
+
+$ ... psql -U postgres -c "SELECT type, provider, currency FROM ledger_accounts WHERE account_id IS NULL"
+ clearing         | stripe-fake | TRY
+ clearing         | bank-fake   | TRY
+ nostro           | bank-fake   | TRY
+ provider_expense | stripe-fake | TRY
+ provider_expense | bank-fake   | TRY
+ revenue          |             | TRY
+
+$ ... psql -U wallet_app -c "UPDATE ledger_entries SET amount = amount + 1;"
+ERROR:  permission denied for table ledger_entries
+```
+
+Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:8091`).
+
+### Hâlâ doğrulanmadı
+
+| ne | nasıl bakılır |
 | --- | --- |
-| ~~`dotnet ef migrations bundle` alpine SDK'da çalışır~~ | ✅ doğrulandı (bir hata çıktı ve düzeltildi) |
-| `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | migrator container'ı hemen exit 1 |
-| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | wallet-service "unable to find user app" |
-| alpine'de `wget` var (healthcheck) | wallet-service sürekli `unhealthy` |
-| init script'i tam olarak bir kez koşar | postgres log'unda "role already exists" |
-
-Hata çıktısını olduğu gibi paylaş, düzeltilir.
+| compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — `wallet-service` `healthy` mi, `unhealthy` mi |
+| konteynerlenmiş uygulamadan uçtan uca transfer | hesap/cüzdan endpoint'i yok; cüzdanları DB'den kurmak gerekiyor |
 
 ## Host'ta .NET gerekmiyor
 
