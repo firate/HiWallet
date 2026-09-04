@@ -9,6 +9,12 @@
   <ItemGroup Label="Data">
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <!-- Npgsql 10.0.3 EF Core 10.0.4'ü, Design 10.0.11'i çekiyor; ikisi çakışıp
+         MSB3277 üretiyordu. Transitive pinning açık olduğu için burada sabitlemek
+         her ikisini de aynı sürüme çekiyor. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
     <PackageVersion Include="Npgsql.OpenTelemetry" Version="10.0.3" />
   </ItemGroup>
 
@@ -20,8 +26,11 @@
   </ItemGroup>
 
   <ItemGroup Label="Messaging">
-    <!-- Yalnızca in-process mediator olarak. decisions.md §1 -->
+    <!-- Yalnızca in-process mediator olarak. decisions.md madde 1 -->
     <PackageVersion Include="WolverineFx" Version="6.32.0" />
+    <!-- Wolverine 6'da runtime code generation ayrı pakete taşındı; olmadan
+         TypeLoadMode.Dynamic ile uygulama ayağa kalkmıyor. -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.32.0" />
   </ItemGroup>
 
   <ItemGroup Label="Observability">

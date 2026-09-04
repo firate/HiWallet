@@ -24,9 +24,9 @@ tamamen kaldırılır, karma bırakılmaz.
 
 ---
 
-## 2. Optimistic lock `wallet_balances` üzerinde
+## 2. Optimistic lock `ledger_balances` üzerinde
 
-**Karar.** Concurrency token `wallet_balances.version`. `ledger_entries` üzerinde
+**Karar.** Concurrency token `ledger_balances.version`. `ledger_entries` üzerinde
 hiçbir lock veya version kolonu yok.
 
 **Gerekçe.** `ledger_entries` append-only. Optimistic lock "okuduğumdan beri bu satır değişti mi"
@@ -38,7 +38,7 @@ aynı gönderen için 500 okuyup ikisi de 400 yazmaya çalışır (lost update).
 
 ```sql
 -- 1. oku
-SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;   -- 500, v7
+SELECT balance, version FROM ledger_balances WHERE ledger_account_id = @from;   -- 500, v7
 
 -- 2. uygulama: yeterli bakiye mi, limit aşılıyor mu, komisyon kaç
 
@@ -46,7 +46,7 @@ SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;   
 INSERT INTO ledger_entries (...) VALUES (@tx, @from, -100), (@tx, @to, +100);
 
 -- 4. projeksiyonu güncelle
-UPDATE wallet_balances
+UPDATE ledger_balances
    SET balance = balance - 100, version = version + 1
  WHERE ledger_account_id = @from AND version = 7;
 -- 0 satır → DbUpdateConcurrencyException → rollback → retry
@@ -63,6 +63,14 @@ hesaplanıyor, hangi anlık görüntüye dayandığı sabitlenemiyor; (b) 0 sat�
 
 **Elenen alternatif.** `SELECT ... FOR UPDATE` (pessimistic). Çakışma nadir olduğu için
 gereksiz bekleme üretir.
+
+**Adlandırma.** Tablo önce `wallet_balances` idi; yanlıştı, çünkü yalnızca cüzdanların
+değil TÜM ledger hesaplarının bakiyesini tutuyor — mutabakat `clearing`'e, rapor
+`nostro`'ya bakıyor. `ledger_accounts` ile 1:1 olmasına rağmen ayrı tablo olarak kalıyor:
+orası neredeyse hiç yazılmayan referans verisi, burası her transfer'de yazılan projeksiyon.
+Birleşselerdi her transfer geniş satırı ve onun unique index'lerini güncellerdi (HOT update
+ihtimali düşer, index şişer); ayrıca projeksiyonu ledger'dan yeniden inşa etmek
+(`TRUNCATE` + replay) mümkün olmazdı.
 
 ---
 
@@ -186,7 +194,7 @@ gerçekten varsa gösterilebilir.
 
 ## 8. Deadlock önleme: satır güncelleme sırası
 
-**Karar.** Bir transaction içinde birden fazla `wallet_balances` satırı güncelleniyorsa
+**Karar.** Bir transaction içinde birden fazla `ledger_balances` satırı güncelleniyorsa
 her zaman `ledger_account_id` artan sırayla.
 
 **Gerekçe.** Transfer iki satıra dokunuyor, komisyonluysa üçe. A→B ve B→A eşzamanlı gelir ve
@@ -315,7 +323,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 ## 13. Uygulama sırası
 
 1. wallet-service çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
-   `wallet_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
+   `ledger_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
 2. Baseline'ın 12 maddesi bu tek servis üstünde (OTel, health, ProblemDetails,
    rate limiting, migration, graceful shutdown).
 3. Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk burada.
@@ -393,7 +401,7 @@ build bu projede hiçbir şey kazandırmaz, `#if` dallanması getirir.
 
 **Karar.** İki değişiklik birlikte:
 
-1. `ledger_entries` ve `wallet_balances`, `accounts`'a `(ledger_account_id, currency)` composite
+1. `ledger_entries` ve `ledger_balances`, `ledger_accounts`'a `(ledger_account_id, currency)` composite
    FK ile bağlanır. Hedef `uq_ledger_accounts_id_currency UNIQUE (id, currency)`.
 2. Zero-sum trigger'ı `GROUP BY currency` ile çalışır; her para birimi kendi içinde
    sıfırlanmalıdır.
@@ -579,3 +587,61 @@ hesabına `account_id` verilemiyor (T13, `ck_ledger_accounts_account`); var olma
 cüzdan bağlanamıyor (T14); adsız cüzdan ve adlı sistem hesabı reddediliyor (T15/T16);
 cüzdanı olan bir hesap silinemiyor (T17). Madde 17'nin para birimi testleri de yeni
 kolon adlarıyla geçiyor.
+
+---
+
+## 21. Idempotency kapısı policy'den ÖNCE
+
+**Karar.** Transfer akışında `idempotency_key` kontrolü limit ve komisyon
+hesaplamasından ÖNCE yapılır. `ledger-schema.md`'deki referans akış bunu sonra
+gösteriyordu; o sıralama bozuk.
+
+**Gerekçe.** Tekrar eden bir istek hiçbir kuralı yeniden değerlendirmemeli, sadece
+mevcut işlemi dönmeli. Policy önce koşarsa şu senaryo kırılıyor: günlük limit 10.000,
+müşteri 10.000 gönderiyor, ağ kopuyor, client aynı `Idempotency-Key` ile tekrar
+deniyor. İkinci istekte `spentToday` artık 10.000 — limit aşımı görünüyor ve `422`
+dönüyor. Oysa doğru cevap ilk transferin kimliği.
+
+Hata sessiz değil ama yanlış: client "limit doldu" sanıyor, gerçekte işlemi başarılı.
+
+**Sonuç.** `ledger-schema.md`'deki referans akış düzeltildi. Test:
+`Transfer_LimitAsimindanSonraTekrar_LimitDegilMevcutIslemiDoner`.
+
+---
+
+## 22. Limit cüzdandan çıkan TOPLAMA uygulanır (komisyon dahil)
+
+**Karar.** Günlük ve işlem limiti `amount + komisyon` üzerinden değerlendirilir.
+
+**Gerekçe.** Limitin koruduğu şey "bu hesaptan bugün ne kadar para çıktı". Cüzdandan
+çıkan tutar komisyon dahil olan; müşterinin bakiyesinden eksilen de o.
+
+Ayrıca ölçülebilir olmalı: `spentToday` ledger'daki debit bacaklarının toplamı, tek
+sorgu. Komisyon hariç tutulsaydı her işlem için debit bacağından `revenue` bacağını
+çıkarmak gerekirdi — aynı sorgu, gereksiz karmaşıklık, ve iki hesaplama yolu
+(uygulama ile rapor) ayrışma riski.
+
+**Not.** Bu, kodda daha önce ters yönde bir varsayım olarak duruyordu ("limit
+müşterinin gönderdiği tutara uygulanır, kurumun kestiği komisyona değil"). İkisi de
+savunulabilir; ölçülebilirlik terazi bu tarafa yattı.
+
+---
+
+## 23. Bilinen darboğaz: `revenue` hesabı komisyonlu akışlarda hotspot
+
+**Durum.** Komisyon kesilen her transfer tek bir `revenue` bakiye satırını güncelliyor.
+Optimistic lock o satırda olduğu için, eşzamanlı komisyonlu transferler birbirini
+çakıştırıp retry'a düşürüyor — cüzdanları farklı olsa bile.
+
+**Şu an sorun değil.** Komisyon yalnızca `payment` ve `b2b`'de var, hacmin çoğunluğu
+`p2p` ve orada `revenue` bacağı hiç yazılmıyor. 500 eşzamanlı transfer testi p2p
+olduğu için bu yolu hiç zorlamıyor.
+
+**Sorun olursa çözümü.** `revenue`'yu tek satır olmaktan çıkarmak: gün veya shard
+bazında bölmek (`revenue` bakiyesi bunların toplamı), ya da komisyonu ledger'a anında
+yazıp bakiye projeksiyonunu periyodik toplamaya bırakmak. İkincisi "bakiye ledger'dan
+türetilir" ilkesiyle zaten uyumlu.
+
+**Neden şimdi yapılmıyor.** Ölçülmemiş bir darboğaz için tasarım karmaşıklığı eklemek;
+sorunun gerçekten var olduğunu gösteren bir test yok. Buraya yazılıyor ki komisyonlu
+akışlarda yavaşlama görülürse ilk bakılacak yer belli olsun.

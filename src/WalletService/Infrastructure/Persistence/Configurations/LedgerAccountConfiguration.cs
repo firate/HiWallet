@@ -70,7 +70,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             .HasColumnType("text")
             .HasComputedColumnSql("COALESCE(provider, '')", stored: true);
 
-        // Tekillik amacı YOK: id zaten PK. Tek işi ledger_entries ve wallet_balances'ın
+        // Tekillik amacı YOK: id zaten PK. Tek işi ledger_entries ve ledger_balances'ın
         // composite FK hedefi olabilmek (decisions.md madde 17).
         builder.HasAlternateKey(a => new { a.Id, a.Currency })
             .HasName("uq_ledger_accounts_id_currency");
@@ -94,5 +94,31 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
 
         // (account_id, currency) üzerinde tekillik YOK — bilinçli. Bir hesabın aynı para
         // biriminde birden fazla cüzdanı olabilir (decisions.md madde 20).
+
+        SeedSystemAccounts(builder);
+    }
+
+    /// <summary>
+    /// Sistem hesapları seed migration ile gelir (docs/ledger-schema.md "ledger_accounts").
+    /// Anonim nesne kullanılıyor çünkü <see cref="LedgerAccount"/>'un public ctor'u yok —
+    /// factory'ler zorunlu alanları doğruluyor, HasData ise doğrudan kolon değeri yazıyor.
+    /// Kolonlar burada da eksiksiz verilmeli, aksi halde CHECK'lere takılır.
+    /// </summary>
+    private static void SeedSystemAccounts(EntityTypeBuilder<LedgerAccount> builder)
+    {
+        var seed = SystemAccounts.All
+            .Select(a => new
+            {
+                Id = a.Id,
+                Type = a.Type,
+                AccountId = (Guid?)null,
+                Name = (string?)null,
+                Provider = a.Provider,
+                Currency = SystemAccounts.DefaultCurrency,
+                CreatedAt = SystemAccounts.SeededAt
+            })
+            .ToArray();
+
+        builder.HasData(seed);
     }
 }

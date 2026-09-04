@@ -3,6 +3,7 @@ using System;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WalletDbContext))]
-    partial class WalletDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904063508_SeedSystemAccounts")]
+    partial class SeedSystemAccounts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -49,7 +52,7 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.WalletBalance", b =>
                 {
                     b.Property<Guid>("LedgerAccountId")
                         .HasColumnType("uuid")
@@ -80,12 +83,12 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnName("version");
 
                     b.HasKey("LedgerAccountId")
-                        .HasName("pk_ledger_balances");
+                        .HasName("pk_wallet_balances");
 
                     b.HasIndex("LedgerAccountId", "Currency")
-                        .HasDatabaseName("ix_ledger_balances_ledger_account_currency");
+                        .HasDatabaseName("ix_wallet_balances_ledger_account_currency");
 
-                    b.ToTable("ledger_balances", (string)null);
+                    b.ToTable("wallet_balances", (string)null);
 
                     b.HasData(
                         new
@@ -349,7 +352,7 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.ToTable("ledger_transactions", (string)null);
                 });
 
-            modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.WalletBalance", b =>
                 {
                     b.HasOne("HiWallet.WalletService.Domain.Ledger.LedgerAccount", null)
                         .WithMany()
@@ -357,7 +360,7 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("Id", "Currency")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_ledger_balances_ledger_account");
+                        .HasConstraintName("fk_wallet_balances_ledger_account");
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Ledger.LedgerAccount", b =>
