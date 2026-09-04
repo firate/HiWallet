@@ -26,8 +26,11 @@
   </ItemGroup>
 
   <ItemGroup Label="Messaging">
-    <!-- Yalnızca in-process mediator olarak. decisions.md §1 -->
+    <!-- Yalnızca in-process mediator olarak. decisions.md madde 1 -->
     <PackageVersion Include="WolverineFx" Version="6.32.0" />
+    <!-- Wolverine 6'da runtime code generation ayrı pakete taşındı; olmadan
+         TypeLoadMode.Dynamic ile uygulama ayağa kalkmıyor. -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.32.0" />
   </ItemGroup>
 
   <ItemGroup Label="Observability">
