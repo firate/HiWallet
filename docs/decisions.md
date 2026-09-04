@@ -645,3 +645,41 @@ türetilir" ilkesiyle zaten uyumlu.
 **Neden şimdi yapılmıyor.** Ölçülmemiş bir darboğaz için tasarım karmaşıklığı eklemek;
 sorunun gerçekten var olduğunu gösteren bir test yok. Buraya yazılıyor ki komisyonlu
 akışlarda yavaşlama görülürse ilk bakılacak yer belli olsun.
+
+---
+
+## 24. `wallet_app` yetkileri migration'da, elle kurulum adımında değil
+
+**Karar.** `GRANT`'ler de `REVOKE` gibi migration içinde. Şema adı sabit değil,
+`current_schema()` ile dinamik.
+
+**Gerekçe.** Yetkiler elle çalıştırılan bir kurulum adımı olarak bırakılmıştı ve ilk
+gerçek çalıştırmada uygulama `permission denied for table ledger_accounts` ile karşılandı.
+Her yeni ortamda aynı hata çıkardı. `REVOKE` zaten migration'daydı; `GRANT`'in ayrı yerde
+durması ikisinin ayrışmasına ve "REVOKE var ama GRANT yok" gibi yarım durumlara yol açıyor.
+
+Migration `wallet_owner` ile koşuyor ve tabloların sahibi o; sahip kendi tablolarında
+GRANT verebiliyor, superuser gerekmiyor.
+
+**Sıra önemli.** Toplu `GRANT ... ON ALL TABLES` `ledger_entries`'e de UPDATE/DELETE
+veriyor; `REVOKE` en sonda, onu geri alıyor.
+
+**Şema adı neden dinamik.** Önce `public` yazılmıştı. Integration testler koşu başına ayrı
+schema'da migrate ettiği için yetkiler yanlış şemaya verilirdi — ve test bunu FARK ETMEZDİ,
+çünkü testler `wallet_owner` ile bağlanıyor.
+
+**Doğrulandı (deneysel).** `ledger_entries` üzerinde iki rol denendi:
+
+| rol | SELECT | UPDATE | DELETE |
+| --- | --- | --- | --- |
+| `wallet_app` | izin var | `42501` reddedildi | `42501` reddedildi |
+| `wallet_owner` | izin var | **izin var** | **izin var** |
+
+Alt satır madde 5'in gerekçesinin ispatı: sahip rolüne `REVOKE` işlemiyor. Tek rol
+kullanılsaydı append-only kuralı tamamen süs olurdu.
+
+**AÇIK GAP.** Integration testler `wallet_owner` ile bağlanıyor, yani yetki
+regresyonlarını yakalayamıyorlar — bu bölümdeki tablo elle üretildi, testle değil.
+Kapatmak için testlere ikinci bir bağlantı (`wallet_app`) eklenmeli ve en az iki senaryo
+yazılmalı: uygulama rolü `ledger_entries` güncelleyemez, uygulama rolü normal transfer
+yapabilir. Yapılmadı.
