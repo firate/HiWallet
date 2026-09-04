@@ -21,7 +21,7 @@ RUN dotnet publish src/WalletService/WalletService.csproj \
 # migrate etmesi bu ayrımı bozardı.
 # ---------------------------------------------------------------------------
 FROM build AS migrator-build
-RUN dotnet tool install --global dotnet-ef --version 10.0.7
+RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
         --project src/WalletService \

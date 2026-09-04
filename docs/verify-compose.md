@@ -89,10 +89,27 @@ Doğrulanmamış varsayımlar — hata alırsan büyük ihtimalle bunlardan biri
 
 | varsayım | patlarsa belirtisi |
 | --- | --- |
-| `dotnet ef migrations bundle` alpine SDK'da çalışır | build `migrator-build` aşamasında durur |
+| ~~`dotnet ef migrations bundle` alpine SDK'da çalışır~~ | ✅ doğrulandı (bir hata çıktı ve düzeltildi) |
 | `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | migrator container'ı hemen exit 1 |
 | `aspnet:10.0-alpine` imajında `app` kullanıcısı var | wallet-service "unable to find user app" |
 | alpine'de `wget` var (healthcheck) | wallet-service sürekli `unhealthy` |
 | init script'i tam olarak bir kez koşar | postgres log'unda "role already exists" |
 
 Hata çıktısını olduğu gibi paylaş, düzeltilir.
+
+## Host'ta .NET gerekmiyor
+
+`docker compose up --build` için host'un .NET sürümü kullanılmıyor; SDK ve runtime
+imajın içinden geliyor. Homelab'da .NET 9 olması sorun değil, yalnızca Docker yeterli.
+Doğrudan `dotnet test` / `dotnet run` çalıştıracaksan .NET 10 SDK gerekir.
+
+## Çözülmüş hatalar
+
+Doğrulama sırasında çıkıp düzeltilenler, tekrar görülürse diye:
+
+**`Unable to create a 'DbContext' ... ConnectionStrings__WalletOwner ortamda yok`**
+build sırasında. Design-time factory bağlantı dizesini ZORUNLU tutuyordu; oysa
+`migrations bundle` yalnızca modele bakıyor, hiçbir yere bağlanmıyor ve build sırasında
+ortamda `.env` yok. Factory artık yer tutucu bir dizeye düşüyor. `database update`
+gerçekten bağlandığı için orada hâlâ gerçek bir dize gerekiyor — yer tutucunun host adı
+(`connection-string-not-configured`) hatayı kendi kendini açıklar yapıyor.
