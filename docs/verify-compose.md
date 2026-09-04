@@ -24,13 +24,21 @@ WALLET_OWNER_PASSWORD=...
 WALLET_APP_PASSWORD=...
 ```
 
-Homelab'da koşturuyorsan portları da değiştir; **8080 Keycloak'ta, 5432 ana
-Postgres'te**:
+Portların varsayılanı **homelab'a göre** seçildi, dokunmana gerek yok:
 
 ```
-WALLET_HTTP_PORT=8090
-POSTGRES_HTTP_PORT=5433
+WALLET_HOST_PORT=8091      # 8080 Keycloak'ta, 8090 dolu
+POSTGRES_HOST_PORT=5433    # 5432 ana Postgres'te
 ```
+
+Telemetriyi homelab Collector'ına göndereceksen `.env`'de şunu değiştir — container
+içinde `homelab` adı çözülmez, collector host tarafında:
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317
+```
+
+Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 
 ## 3. Ayağa kaldır
 
@@ -44,7 +52,7 @@ Beklenen sıra: `postgres` sağlıklı olur → `migrator` dört migration'ı uy
 ## 4. Doğrula
 
 ```bash
-curl -s localhost:8090/health/ready
+curl -s localhost:8091/health/ready
 ```
 
 Beklenen: `{"status":"Healthy", ... "checks":[{"name":"postgres","status":"Healthy" ...`

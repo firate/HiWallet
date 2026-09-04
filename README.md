@@ -45,10 +45,14 @@ Sırayla: Postgres ayağa kalkar ve roller kurulur → `migrator` şemayı uygul
 `wallet-service` başlar.
 
 ```bash
-curl http://localhost:8080/health/ready
+curl http://localhost:8091/health/ready
 ```
 
-Swagger: <http://localhost:8080/swagger> (Development'ta).
+Swagger: <http://localhost:8091/swagger> (Development'ta).
+
+Host portlarının varsayılanı homelab'a göre seçildi (`8091`, `5433`); orada `8080`
+Keycloak'ta, `8090` dolu ve `5432` ana Postgres'te. Başka bir makinede `.env`'den
+`WALLET_HOST_PORT` ve `POSTGRES_HOST_PORT` ile değiştirilebilir.
 
 > **Compose henüz gerçek bir koşuda doğrulanmadı.** Yapılandırma
 > `docker compose config` ile sözdizimi ve servis grafiği düzeyinde kontrol edildi, ama
@@ -78,7 +82,7 @@ append-only kuralı tamamen süs olurdu.
 **Komisyonlu ödeme.** Komisyon ayrı bir transfer değil, aynı atomik işlemin ek bacağı:
 
 ```bash
-curl -X POST http://localhost:8080/v1/transfers \
+curl -X POST http://localhost:8091/v1/transfers \
   -H 'Content-Type: application/json' \
   -d '{"fromWalletId":"...","toWalletId":"...","amount":200,"currency":"TRY","type":"Payment"}'
 ```
@@ -88,7 +92,7 @@ Ledger'a üç satır düşer: gönderen `-204`, alan `+200`, `revenue` `+4`. Top
 **Idempotency.** Aynı `Idempotency-Key` ile ikinci istek yeni transfer yapmaz:
 
 ```bash
-curl -X POST http://localhost:8080/v1/transfers \
+curl -X POST http://localhost:8091/v1/transfers \
   -H 'Idempotency-Key: ayni-istek' -H 'Content-Type: application/json' -d '{...}'
 ```
 
