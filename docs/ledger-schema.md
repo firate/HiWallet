@@ -1,7 +1,28 @@
 # Ledger şeması
 
-Referans DDL. EF Core migration'ları bu şemayı üretmeli.
+**Bu dosya kaynak değil, açıklamadır.** Şemanın tek kaynağı EF Core migration'ları
+(`src/WalletService/Infrastructure/Persistence/`): tablolar Fluent API konfigürasyonlarından,
+zero-sum trigger'ı ve `REVOKE` ise migration içindeki `migrationBuilder.Sql(...)`
+bloklarından geliyor. Ayrı bir `.sql` dosyası tutulmuyor.
+
+Buradaki DDL, o konfigürasyonun okunabilir karşılığı — neyin neden öyle olduğunu anlatıyor.
+Kod ile burası çeliştiğinde kod haklıdır, bu dosya güncellenir (`CLAUDE.md` "Çalışma tarzı").
+
 Gerekçeler: `docs/decisions.md`.
+
+## EF ile ifade EDİLEMEYEN iki şey
+
+Geri kalan her şey — tablo, kolon, PK, composite FK, unique constraint, partial index,
+CHECK constraint — Fluent API'de duruyor. İki istisna var:
+
+| şey | neden model'e girmiyor | nerede duruyor |
+| --- | --- | --- |
+| zero-sum PL/pgSQL trigger'ı | EF'in trigger fonksiyonu karşılığı yok | migration içinde `Sql(...)` |
+| `REVOKE UPDATE, DELETE` | şema değil yetki; EF yetki modellemez | migration içinde `Sql(...)` |
+
+`COALESCE(provider,'')` üzerindeki ifade index'i **istisna değil**: `provider_key` diye
+STORED generated column eklenip index onun üstüne kuruldu, böylece EF modelinin parçası
+kaldı. Kolon türetilmiş olduğu için sapma riski yok.
 
 ## İki seviye
 
@@ -78,11 +99,13 @@ CREATE INDEX ix_ledger_accounts_account
 -- (account_id, currency) üzerinde tekillik YOK — bilinçli. Bir hesabın aynı para
 -- biriminde birden fazla cüzdanı olabilir (madde 20).
 
--- sistem hesabı tekilliği: aynı (tip, sağlayıcı, currency) ikinci kez açılamaz.
--- provider NULL olabildiği için COALESCE ile normalize edilir — NULL'lar unique index'te
--- birbirine eşit sayılmaz, o yüzden ham kolon yetmez.
+-- Sistem hesabı tekilliği: aynı (tip, sağlayıcı, currency) ikinci kez açılamaz.
+-- provider NULL olabildiği için normalize edilir — NULL'lar unique index'te birbirine
+-- eşit sayılmaz, ham kolon yetmez. EF ifade index'i modelleyemediğinden normalizasyon
+-- STORED generated column ile yapılıyor, böylece index EF modelinde kalıyor:
+--   provider_key text GENERATED ALWAYS AS (COALESCE(provider, '')) STORED
 CREATE UNIQUE INDEX ux_ledger_accounts_system
-    ON ledger_accounts (type, COALESCE(provider, ''), currency)
+    ON ledger_accounts (type, provider_key, currency)
  WHERE account_id IS NULL;
 ```
 

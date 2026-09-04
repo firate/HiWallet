@@ -29,6 +29,15 @@ max_line_length = off
 indent_size = 4
 max_line_length = 120
 
+# EF Core migration'ları araç tarafından üretiliyor ve elle düzenlenmiyor
+# (structure.md "Migration komutları"). Stil kuralları burada uygulanmaz — aksi halde
+# her `dotnet ef migrations add` build'i kırar ve üretilen dosyayı elle düzeltmek gerekir.
+# migrationBuilder.Sql(...) blokları bunun istisnası değil; onlar da aynı dosyada.
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+max_line_length = off
+
 # --- Kod stili -------------------------------------------------------------
 # Yalnızca projede fiilen uyguladığımız kararlar. IDE varsayılanıyla aynı olan
 # her ayarı buraya kopyalamıyoruz; dosya kural listesi değil, anlaşmazlık listesi.
