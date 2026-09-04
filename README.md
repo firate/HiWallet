@@ -50,9 +50,11 @@ curl http://localhost:8080/health/ready
 
 Swagger: <http://localhost:8080/swagger> (Development'ta).
 
-> **Compose henüz gerçek bir koşuda doğrulanmadı.** Yapılandırma `docker compose config`
-> ile sözdizimi ve servis grafiği düzeyinde kontrol edildi, ama imajlar build edilmedi
-> ve stack ayağa kaldırılmadı. Uygulamanın kendisi doğrulandı — `dotnet run` ile gerçek
+> **Compose henüz gerçek bir koşuda doğrulanmadı.** Adım adım doğrulama:
+> [docs/verify-compose.md](docs/verify-compose.md). Yapılandırma `docker compose config`
+>
+> Yapılandırma `docker compose config` ile sözdizimi ve servis grafiği düzeyinde
+> kontrol edildi, ama imajlar build edilmedi ve stack ayağa kaldırılmadı. Uygulamanın kendisi doğrulandı — `dotnet run` ile gerçek
 > Postgres'e karşı çalıştı ve 75 test geçiyor; doğrulanmamış olan yalnızca konteyner
 > paketlemesi ve orkestrasyonu.
 

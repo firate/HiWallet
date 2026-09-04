@@ -28,8 +28,8 @@ services:
       - ./docker/postgres-init.sql:/opt/hiwallet/postgres-init.sql:ro
       - postgres-data:/var/lib/postgresql/data
     ports:
-      # Host'tan pgAdmin/psql ile bakabilmek için. 5432 homelab ile çakışmasın diye 5433.
-      - "5433:5432"
+      # Host'tan pgAdmin/psql ile bakabilmek için. Homelab'da 5432 zaten dolu.
+      - "${POSTGRES_HTTP_PORT:-5433}:5432"
     healthcheck:
       # migrator ve app bunu bekliyor. pg_isready YETMEZ: gerçekten bağlanmıyor,
       # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
@@ -72,7 +72,8 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-hiwallet-wallet-service}
     ports:
-      - "8080:8080"
+      # Homelab'da 8080 Keycloak'ta; orada koşturacaksan .env'de değiştir.
+      - "${WALLET_HTTP_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
       interval: 5s
