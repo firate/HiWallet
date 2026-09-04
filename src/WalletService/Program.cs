@@ -1,7 +1,12 @@
 using System.Text.Json.Serialization;
+using HiWallet.Shared.Infrastructure.HealthChecks;
+using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.WalletService.Setup;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
+
+const string ServiceName = "hiwallet-wallet-service";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,13 +15,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<HostOptions>(options =>
     options.ShutdownTimeout = TimeSpan.FromSeconds(15));
 
-builder.AddHiWalletObservability();
+builder.AddHiWalletObservability(ServiceName);
 
 // Wolverine YALNIZCA in-process mediator olarak: RabbitMQ transport'u, durable
 // inbox/outbox'ı ve Saga persistence'ı kullanılmıyor (decisions.md madde 1).
 builder.Host.UseWolverine();
 
 builder.Services.AddHiWalletPersistence();
+builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
+builder.Services.AddHiWalletTopupConsumer();
 builder.Services.AddHiWalletPolicies(builder.Configuration);
 builder.Services.AddHiWalletValidation();
 builder.Services.AddHiWalletProblemDetails();

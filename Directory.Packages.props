@@ -31,6 +31,9 @@
     <!-- Wolverine 6'da runtime code generation ayrı pakete taşındı; olmadan
          TypeLoadMode.Dynamic ile uygulama ayağa kalkmıyor. -->
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.32.0" />
+    <!-- Broker istemcisi doğrudan kullanılıyor: Wolverine'in RabbitMQ transport'u
+         kapsam dışı (decisions.md madde 1), topoloji ve ack elle yönetiliyor. -->
+    <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
   </ItemGroup>
 
   <ItemGroup Label="Observability">
