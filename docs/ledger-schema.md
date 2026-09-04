@@ -418,12 +418,18 @@ işlenmesi manuel tetiklenen job'larda gerçek bir risk.
 
 ```
 BEGIN;
-  SELECT balance, version FROM ledger_balances WHERE ledger_account_id = @from;
-  -- policy: limit kontrolü, komisyon hesabı  → ihlal varsa 422, hiç yazma
+  -- 1) İdempotency kapısı ÖNCE (decisions.md madde 21). Policy'den sonra olsaydı,
+  --    ilk transfer limiti doldurduğunda aynı isteğin tekrarı 422 alırdı.
+  SELECT id FROM ledger_transactions
+   WHERE ledger_account_id = @from AND idempotency_key = @key;
+  -- satır varsa → onu dön, hiçbir kuralı yeniden değerlendirme
 
-  INSERT INTO ledger_transactions (id, type, ledger_account_id, idempotency_key) VALUES (...)
-    ON CONFLICT (ledger_account_id, idempotency_key) DO NOTHING;
-  -- 0 satır → mevcut tx'i oku ve dön, yeni transfer YAPMA
+  -- 2) Bakiye ve policy
+  SELECT balance, version FROM ledger_balances WHERE ledger_account_id = @from;
+  -- limit kontrolü (komisyon DAHİL tutara, madde 22), komisyon hesabı
+  --   → ihlal varsa 422, hiç yazma
+
+  INSERT INTO ledger_transactions (id, type, ledger_account_id, idempotency_key) VALUES (...);
 
   INSERT INTO ledger_entries (transaction_id, ledger_account_id, amount, currency) VALUES
     (@tx, @from,    -102, 'TRY'),

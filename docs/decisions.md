@@ -587,3 +587,61 @@ hesabına `account_id` verilemiyor (T13, `ck_ledger_accounts_account`); var olma
 cüzdan bağlanamıyor (T14); adsız cüzdan ve adlı sistem hesabı reddediliyor (T15/T16);
 cüzdanı olan bir hesap silinemiyor (T17). Madde 17'nin para birimi testleri de yeni
 kolon adlarıyla geçiyor.
+
+---
+
+## 21. Idempotency kapısı policy'den ÖNCE
+
+**Karar.** Transfer akışında `idempotency_key` kontrolü limit ve komisyon
+hesaplamasından ÖNCE yapılır. `ledger-schema.md`'deki referans akış bunu sonra
+gösteriyordu; o sıralama bozuk.
+
+**Gerekçe.** Tekrar eden bir istek hiçbir kuralı yeniden değerlendirmemeli, sadece
+mevcut işlemi dönmeli. Policy önce koşarsa şu senaryo kırılıyor: günlük limit 10.000,
+müşteri 10.000 gönderiyor, ağ kopuyor, client aynı `Idempotency-Key` ile tekrar
+deniyor. İkinci istekte `spentToday` artık 10.000 — limit aşımı görünüyor ve `422`
+dönüyor. Oysa doğru cevap ilk transferin kimliği.
+
+Hata sessiz değil ama yanlış: client "limit doldu" sanıyor, gerçekte işlemi başarılı.
+
+**Sonuç.** `ledger-schema.md`'deki referans akış düzeltildi. Test:
+`Transfer_LimitAsimindanSonraTekrar_LimitDegilMevcutIslemiDoner`.
+
+---
+
+## 22. Limit cüzdandan çıkan TOPLAMA uygulanır (komisyon dahil)
+
+**Karar.** Günlük ve işlem limiti `amount + komisyon` üzerinden değerlendirilir.
+
+**Gerekçe.** Limitin koruduğu şey "bu hesaptan bugün ne kadar para çıktı". Cüzdandan
+çıkan tutar komisyon dahil olan; müşterinin bakiyesinden eksilen de o.
+
+Ayrıca ölçülebilir olmalı: `spentToday` ledger'daki debit bacaklarının toplamı, tek
+sorgu. Komisyon hariç tutulsaydı her işlem için debit bacağından `revenue` bacağını
+çıkarmak gerekirdi — aynı sorgu, gereksiz karmaşıklık, ve iki hesaplama yolu
+(uygulama ile rapor) ayrışma riski.
+
+**Not.** Bu, kodda daha önce ters yönde bir varsayım olarak duruyordu ("limit
+müşterinin gönderdiği tutara uygulanır, kurumun kestiği komisyona değil"). İkisi de
+savunulabilir; ölçülebilirlik terazi bu tarafa yattı.
+
+---
+
+## 23. Bilinen darboğaz: `revenue` hesabı komisyonlu akışlarda hotspot
+
+**Durum.** Komisyon kesilen her transfer tek bir `revenue` bakiye satırını güncelliyor.
+Optimistic lock o satırda olduğu için, eşzamanlı komisyonlu transferler birbirini
+çakıştırıp retry'a düşürüyor — cüzdanları farklı olsa bile.
+
+**Şu an sorun değil.** Komisyon yalnızca `payment` ve `b2b`'de var, hacmin çoğunluğu
+`p2p` ve orada `revenue` bacağı hiç yazılmıyor. 500 eşzamanlı transfer testi p2p
+olduğu için bu yolu hiç zorlamıyor.
+
+**Sorun olursa çözümü.** `revenue`'yu tek satır olmaktan çıkarmak: gün veya shard
+bazında bölmek (`revenue` bakiyesi bunların toplamı), ya da komisyonu ledger'a anında
+yazıp bakiye projeksiyonunu periyodik toplamaya bırakmak. İkincisi "bakiye ledger'dan
+türetilir" ilkesiyle zaten uyumlu.
+
+**Neden şimdi yapılmıyor.** Ölçülmemiş bir darboğaz için tasarım karmaşıklığı eklemek;
+sorunun gerçekten var olduğunu gösteren bir test yok. Buraya yazılıyor ki komisyonlu
+akışlarda yavaşlama görülürse ilk bakılacak yer belli olsun.

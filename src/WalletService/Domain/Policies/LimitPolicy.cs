@@ -37,8 +37,8 @@ public sealed class LimitPolicy
     /// Aşım varsa <see cref="LimitExceededException"/> fırlatır, yoksa sessizce döner.
     /// </summary>
     /// <param name="amount">
-    /// Kontrol edilen tutar. Komisyon DAHİL değil — limit müşterinin gönderdiği tutara
-    /// uygulanır, kurumun kestiği komisyona değil. (Varsayım: kural docs'ta yok.)
+    /// Kontrol edilen tutar. Komisyon DAHİL — limitin koruduğu şey cüzdandan çıkan
+    /// toplam (decisions.md madde 22).
     /// </param>
     /// <param name="accountId">
     /// Gönderen cüzdanın bağlı olduğu müşteri hesabı. Cüzdan id'si DEĞİL.

@@ -34,7 +34,13 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         ConnectionString = new NpgsqlConnectionStringBuilder(_adminConnectionString)
         {
-            SearchPath = Schema
+            SearchPath = Schema,
+
+            // Concurrency testi yüzlerce transfer'i aynı anda başlatıyor. Havuz sınırsız
+            // olsaydı her biri kendi bağlantısını açmaya çalışır ve sunucunun slot'ları
+            // tükenirdi (53300) — bu testin ölçmek istediği şey değil. Sınırlı havuz
+            // gerçek servisin davranışı: fazla istek bağlantı bekler, hata almaz.
+            MaxPoolSize = 20
         }.ConnectionString;
     }
 
@@ -76,6 +82,21 @@ public sealed class PostgresFixture : IAsyncLifetime
             .Options;
 
         return new WalletDbContext(options);
+    }
+
+    /// <summary>
+    /// Handler her retry denemesinde TAZE context ister — eski deneme başarısız olduğunda
+    /// change tracker'da bayat entity'ler kalıyor ve yeniden okunması gerekiyor
+    /// (decisions.md madde 9).
+    /// </summary>
+    public IDbContextFactory<WalletDbContext> ContextFactory => new Factory(this);
+
+    private sealed class Factory(PostgresFixture fixture) : IDbContextFactory<WalletDbContext>
+    {
+        public WalletDbContext CreateDbContext()
+        {
+            return fixture.CreateContext();
+        }
     }
 }
 
