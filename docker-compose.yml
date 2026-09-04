@@ -1,0 +1,82 @@
+# baseline.md çıkış kriteri: `docker compose up` ile ayağa kalkıyor.
+#
+# Kendine yeterli: homelab'a bağlı değil. Telemetriyi homelab Collector'ına
+# göndermek istersen .env'de OTEL_EXPORTER_OTLP_ENDPOINT tanımla — tanımlı değilse
+# exporter hiç eklenmiyor ve uygulama sessizce çalışıyor.
+#
+# Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
+# otomatik okur.
+
+name: hiwallet
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env'de tanımlı değil}
+      POSTGRES_DB: postgres
+      WALLET_OWNER_PASSWORD: ${WALLET_OWNER_PASSWORD:?WALLET_OWNER_PASSWORD .env'de tanımlı değil}
+      WALLET_APP_PASSWORD: ${WALLET_APP_PASSWORD:?WALLET_APP_PASSWORD .env'de tanımlı değil}
+    volumes:
+      # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
+      # volume'u düşürmek gerekiyor: docker compose down -v
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql:ro
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      # Host'tan pgAdmin/psql ile bakabilmek için. 5432 homelab ile çakışmasın diye 5433.
+      - "5433:5432"
+    healthcheck:
+      # migrator ve app bunu bekliyor; hazır olmadan bağlanmaları anlamsız retry üretir.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hiwallet_wallet"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Şemayı uygulayan tek seferlik iş. wallet_owner ile koşuyor — uygulama
+  # wallet_app ile bağlanacak ve ledger_entries üzerindeki REVOKE ancak sahip
+  # OLMAYAN bir role işliyor (decisions.md madde 5).
+  migrator:
+    build:
+      context: .
+      dockerfile: src/WalletService/Dockerfile
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_owner;Password=${WALLET_OWNER_PASSWORD}
+    restart: "no"
+
+  wallet-service:
+    build:
+      context: .
+      dockerfile: src/WalletService/Dockerfile
+      target: final
+    depends_on:
+      # Migration BİTMEDEN başlamamalı; yoksa ilk istek "relation does not exist" alır.
+      migrator:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD}
+      # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-hiwallet-wallet-service}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # SIGTERM'de in-flight işlerin bitmesi için. Uygulamanın ShutdownTimeout'u 15 sn;
+    # compose bundan önce SIGKILL göndermemeli (baseline.md madde 10).
+    stop_grace_period: 20s
+
+volumes:
+  postgres-data:

@@ -42,12 +42,29 @@ public sealed class PostgresFixture : IAsyncLifetime
             // gerçek servisin davranışı: fazla istek bağlantı bekler, hata almaz.
             MaxPoolSize = 20
         }.ConnectionString;
+
+        AppConnectionString = BuildAppConnectionString(_adminConnectionString, Schema);
     }
 
     public string Schema { get; }
 
-    /// <summary>Bu koşunun schema'sına bağlanan connection string.</summary>
+    /// <summary>
+    /// Bu koşunun schema'sına <c>wallet_owner</c> ile bağlanan connection string.
+    /// Testlerin çoğu bunu kullanıyor — veri kurmak için DDL/DML yetkisi gerekiyor.
+    /// </summary>
     public string ConnectionString { get; }
+
+    /// <summary>
+    /// Aynı schema'ya UYGULAMA rolüyle (<c>wallet_app</c>) bağlanan connection string.
+    ///
+    /// Neden var: diğer her test <c>wallet_owner</c> ile bağlanıyor ve sahip rolüne
+    /// <c>REVOKE</c> işlemediği için append-only kuralı o yoldan hiç sınanmıyordu.
+    /// Yetki regresyonu ancak uygulamanın gerçekte kullandığı rolle yakalanır.
+    ///
+    /// Kimlik bilgisi ayrı bir ortam değişkeninden değil, uygulamanın kendi bağlantı
+    /// dizesinden alınıyor; test DB'sinin host/veritabanı ile birleştiriliyor.
+    /// </summary>
+    public string AppConnectionString { get; }
 
     public async ValueTask InitializeAsync()
     {
@@ -71,6 +88,30 @@ public sealed class PostgresFixture : IAsyncLifetime
         await using var cmd = admin.CreateCommand();
         cmd.CommandText = $"DROP SCHEMA IF EXISTS \"{Schema}\" CASCADE;";
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Uygulama rolünün kimliğini <c>ConnectionStrings:Wallet</c>'tan, hedef veritabanını
+    /// test bağlantısından alır. Ayrı bir ortam değişkeni istememesi bilinçli: üçüncü bir
+    /// parola daha dolaşıma sokmadan aynı rolü kullanıyor.
+    /// </summary>
+    private static string BuildAppConnectionString(string adminConnectionString, string schema)
+    {
+        var appCredentials = Environment.GetEnvironmentVariable("ConnectionStrings__Wallet")
+                             ?? throw new InvalidOperationException(
+                                 "ConnectionStrings__Wallet ortamda yok; uygulama rolüyle " +
+                                 "koşan testler bu bağlantıdan kimlik alıyor.");
+
+        var app = new NpgsqlConnectionStringBuilder(appCredentials);
+        var target = new NpgsqlConnectionStringBuilder(adminConnectionString)
+        {
+            Username = app.Username,
+            Password = app.Password,
+            SearchPath = schema,
+            MaxPoolSize = 5
+        };
+
+        return target.ConnectionString;
     }
 
     public WalletDbContext CreateContext()
