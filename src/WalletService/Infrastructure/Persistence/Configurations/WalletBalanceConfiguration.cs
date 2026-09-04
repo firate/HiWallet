@@ -61,5 +61,28 @@ internal sealed class WalletBalanceConfiguration : IEntityTypeConfiguration<Wall
         // Adı verilmezse şemada PascalCase kalıyor.
         builder.HasIndex(b => new { b.LedgerAccountId, b.Currency })
             .HasDatabaseName("ix_wallet_balances_ledger_account_currency");
+
+        SeedSystemAccountBalances(builder);
+    }
+
+    /// <summary>
+    /// Sistem hesaplarının bakiye satırları da seed ile gelir. Tembel yaratılsaydı ilk
+    /// ledger yazımı satırı bulamaz ve mutabakat sorgusu (LEFT JOIN) o hesabı hiç
+    /// göremezdi — sapma varsa görünmezdi.
+    /// </summary>
+    private static void SeedSystemAccountBalances(EntityTypeBuilder<WalletBalance> builder)
+    {
+        var seed = SystemAccounts.All
+            .Select(a => new
+            {
+                LedgerAccountId = a.Id,
+                Balance = 0m,
+                Currency = SystemAccounts.DefaultCurrency,
+                Version = 0L,
+                UpdatedAt = SystemAccounts.SeededAt
+            })
+            .ToArray();
+
+        builder.HasData(seed);
     }
 }
