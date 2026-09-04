@@ -25,13 +25,15 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - İşaret konvansiyonu: credit `+`, debit `-`. Hiçbir yerde tersine çevrilmez.
 - Para: `numeric(19,4)` + ayrı `currency` kolonu. `float`/`double` YOK.
 - Bakiye asla ledger'a yazmadan güncellenmez.
-- Sistem hesapları `accounts.provider` ile ayrışır (`clearing`, `nostro`, `provider_expense`).
-  `user_wallet`'ta `provider` NULL, sistem hesabında `owner_id`/`owner_type`/`name` NULL.
-- Bir sahibin aynı para biriminde birden fazla cüzdanı olabilir; `(owner_id, currency)`
-  UNIQUE YOK. Bu yüzden **günlük limit sahip bazında uygulanır, cüzdan bazında DEĞİL** —
+- İki seviye: `accounts` müşteri hesabı, `ledger_accounts` bakiye tutabilen her şey
+  (cüzdanlar + sistem hesapları). Cüzdan = `ledger_accounts.type = 'user_wallet'`.
+  Ledger tarafı ayrı tablolara BÖLÜNMEZ — `ledger_entries` tek FK hedefi istiyor.
+- Sistem hesapları `ledger_accounts.provider` ile ayrışır (`clearing`, `nostro`,
+  `provider_expense`). Cüzdanda `provider` NULL, sistem hesabında `account_id`/`name` NULL.
+- Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir; `(account_id, currency)`
+  UNIQUE YOK. Bu yüzden **günlük limit hesap bazında uygulanır, cüzdan bazında DEĞİL** —
   aksi halde ikinci cüzdan açarak aşılır.
-- `owner_type` hem `owners`'ta hem `accounts`'ta durur, `(owner_id, owner_type)` composite
-  FK ile bağlıdır. Cüzdanlar arasında sapamaz.
+- person/business yalnızca `accounts.type`'ta durur, cüzdana kopyalanmaz.
 - `ledger_transactions.account_id` NOT NULL — iç işlemlerde de dolar (idempotency kapsamı).
   Nullable YAPILMAZ: unique index'te NULL'lar eşleşmez, fatura iki kez yazılır.
 

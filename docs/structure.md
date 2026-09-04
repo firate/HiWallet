@@ -90,9 +90,9 @@ WalletService/
 │   ├── Topups/
 │   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
 ├── Domain/
-│   ├── Accounts/              -- Account, AccountType, OwnerType
-│   ├── Ledger/                -- Money, Currency, LedgerTransaction, LedgerEntry,
-│   │                             LedgerTransactionType
+│   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
+│   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
+│   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- WalletBalance
 │   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy
 │   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,

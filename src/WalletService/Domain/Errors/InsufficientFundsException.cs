@@ -8,15 +8,15 @@ namespace HiWallet.WalletService.Domain.Errors;
 /// </summary>
 public sealed class InsufficientFundsException : DomainException
 {
-    public InsufficientFundsException(Guid accountId, Money available, Money requested)
-        : base($"Hesap {accountId} için bakiye yetersiz: {available} var, {requested} isteniyor.")
+    public InsufficientFundsException(Guid ledgerAccountId, Money available, Money requested)
+        : base($"Hesap {ledgerAccountId} için bakiye yetersiz: {available} var, {requested} isteniyor.")
     {
-        AccountId = accountId;
+        LedgerAccountId = ledgerAccountId;
         Available = available;
         Requested = requested;
     }
 
-    public Guid AccountId { get; }
+    public Guid LedgerAccountId { get; }
 
     public Money Available { get; }
 

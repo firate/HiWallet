@@ -3,100 +3,105 @@
 Referans DDL. EF Core migration'ları bu şemayı üretmeli.
 Gerekçeler: `docs/decisions.md`.
 
-## owners
+## İki seviye
 
-Cüzdan sahibi. Müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi burada durmaz;
-onlar bu sistemin kapsamı dışında. Tek işi `owner_type`'ın tek bir cevabı olması
-(`decisions.md` madde 20).
-
-```sql
-CREATE TABLE owners (
-    id          uuid PRIMARY KEY,
-    owner_type  text NOT NULL CHECK (owner_type IN ('person','business')),
-    created_at  timestamptz NOT NULL DEFAULT now(),
-
-    -- accounts'ın composite FK hedefi. Tekillik amacı yok, id zaten PK
-    -- (aynı kalıp: uq_accounts_id_currency, madde 17).
-    CONSTRAINT uq_owners_id_type UNIQUE (id, owner_type)
-);
+```
+accounts          müşteri hesabı        (1)
+   └── ledger_accounts                  (n)   -- cüzdanlar VE sistem hesapları
 ```
 
-Bir sahibin **aynı para biriminde birden fazla cüzdanı olabilir** — `(owner_id, currency)`
-üzerinde tekillik kısıtı bilinçli olarak YOKTUR. Sonucu: günlük limitler cüzdan bazında
-değil **sahip bazında** uygulanır, yoksa müşteri ikinci cüzdan açarak limiti aşar
-(`decisions.md` madde 20).
+`ledger_accounts` "bakiye tutabilen her şey"i tutar. Ayrı `wallets` / `system_accounts`
+tablolarına bölünemez çünkü `ledger_entries` **tek bir FK hedefine** işaret etmek zorunda —
+bir transfer'in bacakları hem cüzdan hem `revenue` olabiliyor. Bölünseydi polimorfik FK
+gerekirdi ve referential integrity çökerdi.
+
+**Cüzdan** = `ledger_accounts` içinde `type = 'user_wallet'` olan satır; `account_id`'si
+dolu olan tek tip odur.
 
 ## accounts
 
+Müşteri hesabı. Müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi burada durmaz,
+onlar bu sistemin kapsamı dışında. İki iş yapar: sahipliğin kimliği olmak ve
+kişi/işletme ayrımını tek yerde tutmak (`decisions.md` madde 20).
+
 ```sql
 CREATE TABLE accounts (
-    id            uuid PRIMARY KEY,
-    account_type  text NOT NULL CHECK (account_type IN
-                    ('user_wallet','clearing','revenue','nostro','provider_expense')),
-    owner_id      uuid NULL,          -- user_wallet için zorunlu, sistem hesaplarında NULL
-    owner_type    text NULL CHECK (owner_type IN ('person','business')),
-    name          text NULL,          -- cüzdan adı ("Birikim"), sistem hesaplarında NULL
-    provider      text NULL,          -- sistem hesaplarında sağlayıcı ayrımı, user_wallet'ta NULL
-    currency      char(3) NOT NULL,
-    created_at    timestamptz NOT NULL DEFAULT now(),
+    id          uuid PRIMARY KEY,
+    type        text NOT NULL CHECK (type IN ('person','business')),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+```
+
+Bir hesabın **aynı para biriminde birden fazla cüzdanı olabilir** —
+`ledger_accounts (account_id, currency)` üzerinde tekillik kısıtı bilinçli olarak YOKTUR.
+Sonucu: günlük limitler cüzdan bazında değil **hesap bazında** uygulanır, yoksa müşteri
+ikinci cüzdan açarak limiti aşar.
+
+## ledger_accounts
+
+```sql
+CREATE TABLE ledger_accounts (
+    id          uuid PRIMARY KEY,
+    type        text NOT NULL CHECK (type IN
+                  ('user_wallet','clearing','revenue','nostro','provider_expense')),
+    account_id  uuid NULL REFERENCES accounts(id),  -- cüzdanda zorunlu, sistem hesabında NULL
+    name        text NULL,          -- cüzdan adı ("Birikim"), sistem hesaplarında NULL
+    provider    text NULL,          -- sistem hesaplarında sağlayıcı ayrımı, cüzdanda NULL
+    currency    char(3) NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
 
     -- Kolon başına bir kural: "bu kolon TAM OLARAK şu tipte dolu".
     -- İhlalde Postgres constraint adını söylediği için hangi kuralın bozulduğu belli olur.
-    CONSTRAINT ck_accounts_owner_id
-        CHECK ((account_type = 'user_wallet') = (owner_id IS NOT NULL)),
-    CONSTRAINT ck_accounts_owner_type
-        CHECK ((account_type = 'user_wallet') = (owner_type IS NOT NULL)),
-    CONSTRAINT ck_accounts_provider
-        CHECK ((account_type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)),
-    CONSTRAINT ck_accounts_provider_blank
-        CHECK (provider IS NULL OR btrim(provider) <> ''),
-    CONSTRAINT ck_accounts_name
-        CHECK ((account_type = 'user_wallet') = (name IS NOT NULL)),
-    CONSTRAINT ck_accounts_name_blank
+    CONSTRAINT ck_ledger_accounts_account
+        CHECK ((type = 'user_wallet') = (account_id IS NOT NULL)),
+    CONSTRAINT ck_ledger_accounts_name
+        CHECK ((type = 'user_wallet') = (name IS NOT NULL)),
+    CONSTRAINT ck_ledger_accounts_name_blank
         CHECK (name IS NULL OR btrim(name) <> ''),
-
-    -- owner_type cüzdanda da duruyor (join'siz sorgulanabilsin diye) ama sahibinkinden
-    -- sapamıyor. Bir sahibin birden fazla cüzdanı olduğu için aynı bilgi N satıra
-    -- kopyalanıyor; composite FK olmadan biri 'person' biri 'business' olabilirdi.
-    -- Aynı kalıp: fk_ledger_entries_account (madde 17), gerekçe madde 20.
-    -- Sistem hesaplarında iki kolon da NULL, MATCH SIMPLE gereği FK devre dışı kalıyor.
-    CONSTRAINT fk_accounts_owner
-        FOREIGN KEY (owner_id, owner_type) REFERENCES owners (id, owner_type),
+    CONSTRAINT ck_ledger_accounts_provider
+        CHECK ((type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)),
+    CONSTRAINT ck_ledger_accounts_provider_blank
+        CHECK (provider IS NULL OR btrim(provider) <> ''),
 
     -- Tekillik amacı YOK: id zaten PK, currency eklemek hiçbir yeni kısıt getirmiyor.
     -- Tek işi ledger_entries ve wallet_balances'ın composite FK hedefi olabilmek —
     -- Postgres FK'nın referans verdiği kolonların unique olmasını şart koşuyor.
     -- Gerekçe: decisions.md madde 17.
-    CONSTRAINT uq_accounts_id_currency UNIQUE (id, currency)
+    CONSTRAINT uq_ledger_accounts_id_currency UNIQUE (id, currency)
 );
 
--- Bir sahibin cüzdanlarını listelemek ve günlük limitini toplamak için. Limit sahip
+-- Bir hesabın cüzdanlarını listelemek ve günlük limitini toplamak için. Limit hesap
 -- bazında uygulandığı için bu index sıcak yolda: her transfer'de çalışıyor.
-CREATE INDEX ix_accounts_owner ON accounts (owner_id) WHERE owner_id IS NOT NULL;
+CREATE INDEX ix_ledger_accounts_account
+    ON ledger_accounts (account_id) WHERE account_id IS NOT NULL;
 
--- (owner_id, currency) üzerinde tekillik YOK — bilinçli. Bir sahip aynı para biriminde
--- birden fazla cüzdan açabilir (madde 20).
+-- (account_id, currency) üzerinde tekillik YOK — bilinçli. Bir hesabın aynı para
+-- biriminde birden fazla cüzdanı olabilir (madde 20).
 
 -- sistem hesabı tekilliği: aynı (tip, sağlayıcı, currency) ikinci kez açılamaz.
 -- provider NULL olabildiği için COALESCE ile normalize edilir — NULL'lar unique index'te
 -- birbirine eşit sayılmaz, o yüzden ham kolon yetmez.
-CREATE UNIQUE INDEX ux_accounts_system
-    ON accounts (account_type, COALESCE(provider, ''), currency)
- WHERE owner_id IS NULL;
+CREATE UNIQUE INDEX ux_ledger_accounts_system
+    ON ledger_accounts (type, COALESCE(provider, ''), currency)
+ WHERE account_id IS NULL;
 ```
 
-| account_type       | owner_id / owner_type | name  | provider  | Negatife düşebilir | Anlamı                                |
-| ------------------ | --------------------- | ----- | --------- | ------------------ | ------------------------------------- |
-| `user_wallet`      | **dolu**              | dolu  | NULL      | Hayır              | Müşteri cüzdanı                       |
-| `clearing`         | NULL                  | NULL  | sağlayıcı | Evet               | Yolda olan / settle olmamış para      |
-| `revenue`          | NULL                  | NULL  | NULL      | Evet               | Müşteriden alınan komisyon (gelir)    |
-| `nostro`           | NULL                  | NULL  | banka     | Evet               | Kendi banka hesabımızdaki gerçek para |
-| `provider_expense` | NULL                  | NULL  | sağlayıcı | Evet               | Sağlayıcıya ödenen ücret (gider)      |
+`type` (ledger rolü) ile `accounts.type` (person/business) **farklı sorular**: birincisi
+bu hesabın ledger'da ne işe yaradığı, ikincisi sahibinin kim olduğu. Dik boyutlar,
+birleştirilmez (`decisions.md` madde 6). Ledger çekirdeği yalnızca `ledger_accounts.type`'a
+bakar; policy katmanı transfer tipi için `accounts.type`'a, mutabakat `provider`'a.
 
-`account_type` hesabın ledger'daki rolü, `owner_type` sahibinin kim olduğu, `provider`
-sistem hesabının hangi dış tarafa ait olduğu. Üçü de dik boyut, birleştirilmez:
-ledger çekirdeği yalnızca `account_type`'a bakar, policy katmanı `owner_type`'a,
-mutabakat `provider`'a. Gerekçe: `decisions.md` madde 14.
+`accounts.type` **yalnızca `accounts`'ta duruyor**, cüzdana kopyalanmıyor. Tek kaynak
+olduğu için sapması mümkün değil ve composite FK'ya gerek kalmıyor; policy katmanı
+person/business bilgisini `accounts`'a bakarak alır (PK araması).
+
+| `type`             | `account_id` | `name` | `provider` | Negatife düşebilir | Anlamı                                |
+| ------------------ | ------------ | ------ | ---------- | ------------------ | ------------------------------------- |
+| `user_wallet`      | **dolu**     | dolu   | NULL       | Hayır              | Müşteri cüzdanı                       |
+| `clearing`         | NULL         | NULL   | sağlayıcı  | Evet               | Yolda olan / settle olmamış para      |
+| `revenue`          | NULL         | NULL   | NULL       | Evet               | Müşteriden alınan komisyon (gelir)    |
+| `nostro`           | NULL         | NULL   | banka      | Evet               | Kendi banka hesabımızdaki gerçek para |
+| `provider_expense` | NULL         | NULL   | sağlayıcı  | Evet               | Sağlayıcıya ödenen ücret (gider)      |
 
 `revenue` ve `provider_expense` ayrı tutulur, netleştirilmez. Biri gelir biri gider;
 compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
@@ -106,11 +111,11 @@ Sistem hesapları seed migration ile oluşturulur: `revenue` currency başına b
 `clearing` / `nostro` / `provider_expense` ise **sağlayıcı × currency** başına bir tane.
 Birden fazla sağlayıcı varsa mutabakat ancak böyle ayrıştırılabilir.
 
-`ck_accounts_ownership`, `Account.UserWallet()` / `Account.System()` factory'lerinin DB
-tarafındaki eşidir — ikisi aynı kuralı söyler. Hesap yalnızca uygulamadan açılmıyor:
-seed migration, düzeltme script'i, ileride bir admin endpoint'i. Kural tek tarafta
-kalırsa diğer yoldan geçersiz satır giriyor ve hiçbir yerde hata görünmüyor
-(zero-sum bozulmadığı için trigger da susuyor).
+`ck_ledger_accounts_*` kısıtları, `LedgerAccount.Wallet()` / `LedgerAccount.System()`
+factory'lerinin DB tarafındaki eşidir — ikisi aynı kuralı söyler. Hesap yalnızca
+uygulamadan açılmıyor: seed migration, düzeltme script'i, ileride bir admin endpoint'i.
+Kural tek tarafta kalırsa diğer yoldan geçersiz satır giriyor ve hiçbir yerde hata
+görünmüyor (zero-sum bozulmadığı için trigger da susuyor).
 
 ### İşaret sezgisi (dikkat)
 
@@ -135,24 +140,24 @@ CREATE TABLE ledger_transactions (
     id               uuid PRIMARY KEY,
     type             text NOT NULL,       -- p2p, p2b, b2p, b2b, payment, topup, withdrawal,
                                           -- refund, settlement, provider_invoice
-    account_id       uuid NOT NULL REFERENCES accounts(id),  -- idempotency KAPSAMI (aşağıya bak)
+    ledger_account_id uuid NOT NULL REFERENCES ledger_accounts(id),  -- idempotency KAPSAMI
     idempotency_key  text NULL,
     correlation_id   uuid NULL,           -- saga / webhook event ilişkisi
     created_at       timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX ux_ledger_tx_idem
-    ON ledger_transactions (account_id, idempotency_key)
+    ON ledger_transactions (ledger_account_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 ```
 
 Partial unique index: idempotency key'siz iç işlemler çakışmaz.
 
-`account_id` "isteği başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
+`ledger_account_id` "isteği başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
 İç işlemlerde de doludur — nullable OLMAZ, çünkü unique index içindeki NULL hiçbir NULL'a
 eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` madde 15):
 
-| `type`             | `account_id`                          | `idempotency_key`   |
+| `type`             | `ledger_account_id`                          | `idempotency_key`   |
 | ------------------ | ------------------------------------- | ------------------- |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i     |
 | `topup`            | alıcı `user_wallet`                   | webhook `event_id`  |
@@ -167,7 +172,7 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 CREATE TABLE ledger_entries (
     id              bigserial PRIMARY KEY,
     transaction_id  uuid NOT NULL REFERENCES ledger_transactions(id),
-    account_id      uuid NOT NULL,
+    ledger_account_id      uuid NOT NULL,
     amount          numeric(19,4) NOT NULL CHECK (amount <> 0),
     currency        char(3) NOT NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
@@ -176,19 +181,19 @@ CREATE TABLE ledger_entries (
     -- entry'nin currency'sinin hesabınkiyle aynı olduğunu da. currency FK'ya KASTEN
     -- gereksiz kolon olarak konuyor — soru "hesap var mı" değil, "ikisi aynı satırda
     -- birlikte mi duruyor" (decisions.md madde 17).
-    CONSTRAINT fk_ledger_entries_account
-        FOREIGN KEY (account_id, currency) REFERENCES accounts (id, currency)
+    CONSTRAINT fk_ledger_entries_ledger_account
+        FOREIGN KEY (ledger_account_id, currency) REFERENCES ledger_accounts (id, currency)
 );
 
-CREATE INDEX ix_ledger_entries_account ON ledger_entries (account_id, id);
+CREATE INDEX ix_ledger_entries_ledger_account ON ledger_entries (ledger_account_id, id);
 CREATE INDEX ix_ledger_entries_tx ON ledger_entries (transaction_id);
 ```
 
 `amount` işareti yönü taşır: credit `+`, debit `-`. Ayrı `direction` kolonu yok —
 iki kaynak (işaret + direction) tutarsızlaşabilir, tek kaynak bırakıldı.
 
-`currency` hesapta da duruyor, burada da — bilinçli tekrar, ledger sorgularının para
-birimini öğrenmek için `accounts`'a join olmasını engelliyor. Tekrarı güvenli kılan şey
+`currency` ledger hesabında da duruyor, burada da — bilinçli tekrar, ledger sorgularının
+para birimini öğrenmek için `ledger_accounts`'a join olmasını engelliyor. Tekrarı güvenli kılan şey
 yukarıdaki composite FK; onsuz iki kolon zamanla ayrışırdı.
 
 ### Append-only zorlaması
@@ -245,15 +250,15 @@ madde 5 bunu açıkça reddediyor.
 
 ```sql
 CREATE TABLE wallet_balances (
-    account_id  uuid PRIMARY KEY,
+    ledger_account_id  uuid PRIMARY KEY,
     balance     numeric(19,4) NOT NULL DEFAULT 0,
     currency    char(3) NOT NULL,
     version     bigint NOT NULL DEFAULT 0,
     updated_at  timestamptz NOT NULL DEFAULT now(),
 
     -- ledger_entries ile aynı gerekçe: projeksiyonun para birimi hesabınkinden sapamaz.
-    CONSTRAINT fk_wallet_balances_account
-        FOREIGN KEY (account_id, currency) REFERENCES accounts (id, currency)
+    CONSTRAINT fk_wallet_balances_ledger_account
+        FOREIGN KEY (ledger_account_id, currency) REFERENCES ledger_accounts (id, currency)
 );
 ```
 
@@ -265,12 +270,12 @@ EF Core: `version` üzerinde `IsConcurrencyToken()`. Başka hiçbir entity'de co
 ### Doğrulama sorgusu (mutabakat job'ı bunu koşar)
 
 ```sql
-SELECT b.account_id, b.currency, b.balance, COALESCE(SUM(e.amount), 0) AS derived
+SELECT b.ledger_account_id, b.currency, b.balance, COALESCE(SUM(e.amount), 0) AS derived
   FROM wallet_balances b
   LEFT JOIN ledger_entries e
-    ON e.account_id = b.account_id
+    ON e.ledger_account_id = b.ledger_account_id
    AND e.currency   = b.currency
- GROUP BY b.account_id, b.currency, b.balance
+ GROUP BY b.ledger_account_id, b.currency, b.balance
 HAVING b.balance <> COALESCE(SUM(e.amount), 0);
 ```
 
@@ -390,22 +395,22 @@ işlenmesi manuel tetiklenen job'larda gerçek bir risk.
 
 ```
 BEGIN;
-  SELECT balance, version FROM wallet_balances WHERE account_id = @from;
+  SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;
   -- policy: limit kontrolü, komisyon hesabı  → ihlal varsa 422, hiç yazma
 
-  INSERT INTO ledger_transactions (id, type, account_id, idempotency_key) VALUES (...)
-    ON CONFLICT (account_id, idempotency_key) DO NOTHING;
+  INSERT INTO ledger_transactions (id, type, ledger_account_id, idempotency_key) VALUES (...)
+    ON CONFLICT (ledger_account_id, idempotency_key) DO NOTHING;
   -- 0 satır → mevcut tx'i oku ve dön, yeni transfer YAPMA
 
-  INSERT INTO ledger_entries (transaction_id, account_id, amount, currency) VALUES
+  INSERT INTO ledger_entries (transaction_id, ledger_account_id, amount, currency) VALUES
     (@tx, @from,    -102, 'TRY'),
     (@tx, @to,      +100, 'TRY'),
     (@tx, @revenue,   +2, 'TRY');
 
-  -- account_id ARTAN SIRAYLA (deadlock önleme)
+  -- ledger_account_id ARTAN SIRAYLA (deadlock önleme)
   UPDATE wallet_balances SET balance = balance + @delta, version = version + 1,
          updated_at = now()
-   WHERE account_id = @acc AND version = @readVersion;
+   WHERE ledger_account_id = @acc AND version = @readVersion;
   -- 0 satır → DbUpdateConcurrencyException → rollback → retry (max 3)
 COMMIT;
 ```

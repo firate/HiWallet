@@ -8,20 +8,20 @@ namespace HiWallet.WalletService.Domain.Errors;
 /// </summary>
 public sealed class LimitExceededException : DomainException
 {
-    public LimitExceededException(Guid ownerId, string limitName, Money limit, Money attempted)
-        : base($"Sahip {ownerId} için '{limitName}' limiti aşıldı: limit {limit}, denenen {attempted}.")
+    public LimitExceededException(Guid accountId, string limitName, Money limit, Money attempted)
+        : base($"Hesap {accountId} için '{limitName}' limiti aşıldı: limit {limit}, denenen {attempted}.")
     {
-        OwnerId = ownerId;
+        AccountId = accountId;
         LimitName = limitName;
         Limit = limit;
         Attempted = attempted;
     }
 
     /// <summary>
-    /// Cüzdan değil SAHİP. Limitler sahip bazında uygulanıyor (decisions.md madde 20);
-    /// <see cref="InsufficientFundsException.AccountId"/> ise gerçekten cüzdan bazında.
+    /// Cüzdan değil müşteri HESABI. Limitler hesap bazında uygulanıyor (decisions.md madde 20);
+    /// <see cref="InsufficientFundsException.LedgerAccountId"/> ise gerçekten cüzdan bazında.
     /// </summary>
-    public Guid OwnerId { get; }
+    public Guid AccountId { get; }
 
     public string LimitName { get; }
 

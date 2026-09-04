@@ -11,7 +11,7 @@ public sealed class LedgerEntry
         // EF Core materialization.
     }
 
-    internal LedgerEntry(Guid transactionId, Guid accountId, Money amount, DateTimeOffset createdAt)
+    internal LedgerEntry(Guid transactionId, Guid ledgerAccountId, Money amount, DateTimeOffset createdAt)
     {
         if (amount.IsZero)
         {
@@ -19,7 +19,7 @@ public sealed class LedgerEntry
         }
 
         TransactionId = transactionId;
-        AccountId = accountId;
+        LedgerAccountId = ledgerAccountId;
         Amount = amount.Amount;
         Currency = amount.Currency;
         CreatedAt = createdAt;
@@ -30,7 +30,7 @@ public sealed class LedgerEntry
 
     public Guid TransactionId { get; private set; }
 
-    public Guid AccountId { get; private set; }
+    public Guid LedgerAccountId { get; private set; }
 
     /// <summary>İşaret yönü taşır: credit <c>+</c>, debit <c>-</c>. Ayrı direction kolonu YOK.</summary>
     public decimal Amount { get; private set; }

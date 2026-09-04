@@ -18,14 +18,14 @@ public sealed class LedgerTransaction
     private LedgerTransaction(
         Guid id,
         LedgerTransactionType type,
-        Guid accountId,
+        Guid ledgerAccountId,
         string? idempotencyKey,
         Guid? correlationId,
         DateTimeOffset createdAt)
     {
         Id = id;
         Type = type;
-        AccountId = accountId;
+        LedgerAccountId = ledgerAccountId;
         IdempotencyKey = idempotencyKey;
         CorrelationId = correlationId;
         CreatedAt = createdAt;
@@ -39,7 +39,7 @@ public sealed class LedgerTransaction
     /// İşlemin idempotency KAPSAMI olan hesap — "isteği başlatan hesap" değil.
     /// İç işlemlerde de dolar; nullable yapılmaz (decisions.md madde 15).
     /// </summary>
-    public Guid AccountId { get; private set; }
+    public Guid LedgerAccountId { get; private set; }
 
     public string? IdempotencyKey { get; private set; }
 
@@ -53,26 +53,26 @@ public sealed class LedgerTransaction
     public static LedgerTransaction Create(
         Guid id,
         LedgerTransactionType type,
-        Guid accountId,
+        Guid ledgerAccountId,
         DateTimeOffset createdAt,
         string? idempotencyKey = null,
         Guid? correlationId = null)
     {
-        if (accountId == Guid.Empty)
+        if (ledgerAccountId == Guid.Empty)
         {
-            throw new ArgumentException("Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(accountId));
+            throw new ArgumentException("Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(ledgerAccountId));
         }
 
-        return new LedgerTransaction(id, type, accountId, idempotencyKey, correlationId, createdAt);
+        return new LedgerTransaction(id, type, ledgerAccountId, idempotencyKey, correlationId, createdAt);
     }
 
     /// <summary>
     /// Bacak ekler. İşaret çağıranda: credit <c>+</c>, debit <c>-</c>.
     /// Tutar sıfırsa reddedilir.
     /// </summary>
-    public LedgerTransaction AddEntry(Guid accountId, Money amount)
+    public LedgerTransaction AddEntry(Guid ledgerAccountId, Money amount)
     {
-        _entries.Add(new LedgerEntry(Id, accountId, amount, CreatedAt));
+        _entries.Add(new LedgerEntry(Id, ledgerAccountId, amount, CreatedAt));
         return this;
     }
 

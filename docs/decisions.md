@@ -38,7 +38,7 @@ aynı gönderen için 500 okuyup ikisi de 400 yazmaya çalışır (lost update).
 
 ```sql
 -- 1. oku
-SELECT balance, version FROM wallet_balances WHERE account_id = @from;   -- 500, v7
+SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;   -- 500, v7
 
 -- 2. uygulama: yeterli bakiye mi, limit aşılıyor mu, komisyon kaç
 
@@ -48,7 +48,7 @@ INSERT INTO ledger_entries (...) VALUES (@tx, @from, -100), (@tx, @to, +100);
 -- 4. projeksiyonu güncelle
 UPDATE wallet_balances
    SET balance = balance - 100, version = version + 1
- WHERE account_id = @from AND version = 7;
+ WHERE ledger_account_id = @from AND version = 7;
 -- 0 satır → DbUpdateConcurrencyException → rollback → retry
 ```
 
@@ -97,7 +97,7 @@ Aynı DB'de olduğu için TTL sorunu yok; bağlantı koparsa advisory lock otoma
 ## 4. Idempotency key ilgili tablonun kolonudur
 
 **Karar.** `ledger_transactions` ve `withdrawal_sagas` tablolarında
-`(account_id, idempotency_key)` UNIQUE. Ayrı bir idempotency store yok.
+`(ledger_account_id, idempotency_key)` UNIQUE. Ayrı bir idempotency store yok.
 
 **Gerekçe.** Transfer senkron ve atomik: ledger yazımı ile idempotency kaydı aynı satırda,
 aynı transaction'da. Ayrı bir tablo ikinci yazma ve ikinci tutarlılık noktası demek olurdu.
@@ -108,9 +108,9 @@ replay'de saklanmış response gövdesi de gerekmiyor — saga id + güncel stat
 **Kalıp.**
 
 ```sql
-INSERT INTO withdrawal_sagas (..., account_id, idempotency_key)
+INSERT INTO withdrawal_sagas (..., ledger_account_id, idempotency_key)
 VALUES (...)
-ON CONFLICT (account_id, idempotency_key) DO NOTHING;
+ON CONFLICT (ledger_account_id, idempotency_key) DO NOTHING;
 -- 0 satır → mevcut kaydı oku, state'ini dön (yeni saga BAŞLATMA)
 ```
 
@@ -146,18 +146,18 @@ Tek para birimi kullanılsa bile kolon baştan durur.
 **Gerekçe.** Sonradan currency eklemek tüm ledger'ı dolaşan bir migration demek.
 `float`/`double` para için hiçbir koşulda kullanılmaz.
 
-**Hesap tipleri.** Tek `accounts` tablosunda `account_type`:
+**Hesap tipleri.** Tek `ledger_accounts` tablosunda `type`:
 `user_wallet`, `clearing`, `revenue`, `nostro`, `provider_expense`.
 
 **Kural.** Sistem hesapları negatife düşebilir; `user_wallet` düşemez.
 Bu bir CHECK constraint değil, uygulama kuralı — çünkü clearing tasarımı gereği negatif duruyor
 (yükleme akışında cüzdan `+100`, clearing `-100`).
 
-**`account_type` ile `owner_type` dik boyutlardır.** Birincisi hesabın ledger'daki rolü,
-ikincisi sahibinin kim olduğu (`person` / `business`, sistem hesaplarında NULL).
-Tek kolonda birleştirilmez: ledger çekirdeğinin sorduğu soru "bu hesap negatife düşebilir mi",
-cevabı person ve business için aynı. Transfer tipi (`p2p`/`p2b`/`b2p`/`b2b`) owner_type'a bakar,
-ama bu policy katmanının işi, çekirdeğin değil.
+**`ledger_accounts.type` ile `accounts.type` dik boyutlardır.** Birincisi hesabın ledger'daki
+rolü, ikincisi sahibinin kim olduğu (`person` / `business`). Tek kolonda birleştirilmez:
+ledger çekirdeğinin sorduğu soru "bu hesap negatife düşebilir mi", cevabı person ve business
+için aynı. Transfer tipi (`p2p`/`p2b`/`b2p`/`b2b`) `accounts.type`'a bakar, ama bu policy
+katmanının işi, çekirdeğin değil. (Adlandırma: madde 20.)
 
 **`nostro` neden gerekli.** `overview.md` "settlement geldiğinde clearing sıfıra çekilir" diyor ama
 neye karşı dengelendiğini söylemiyor. Cevap bu hesap: `clearing` yolda olan para,
@@ -187,7 +187,7 @@ gerçekten varsa gösterilebilir.
 ## 8. Deadlock önleme: satır güncelleme sırası
 
 **Karar.** Bir transaction içinde birden fazla `wallet_balances` satırı güncelleniyorsa
-her zaman `account_id` artan sırayla.
+her zaman `ledger_account_id` artan sırayla.
 
 **Gerekçe.** Transfer iki satıra dokunuyor, komisyonluysa üçe. A→B ve B→A eşzamanlı gelir ve
 satırlar farklı sırayla güncellenirse Postgres deadlock verir. Tek instance'ta düşük yükte
@@ -326,15 +326,15 @@ Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) k
 
 ---
 
-## 14. Sistem hesaplarının ayrıştırılması: `accounts.provider`
+## 14. Sistem hesaplarının ayrıştırılması: `ledger_accounts.provider`
 
-**Karar.** `accounts` tablosuna `provider text NULL` kolonu eklenir. Sistem hesaplarında
+**Karar.** `ledger_accounts` tablosuna `provider text NULL` kolonu eklenir. Sistem hesaplarında
 sağlayıcıyı taşır (`nostro/garanti`, `provider_expense/stripe-fake`), `user_wallet`'ta NULL.
-Tekillik `(account_type, provider, currency)` üzerinde, yalnızca sistem hesapları için.
+Tekillik `(type, provider, currency)` üzerinde, yalnızca sistem hesapları için.
 
 **Gerekçe.** `ledger-schema.md` "`nostro` ve `provider_expense` sağlayıcı başına ayrı olabilir"
-diyordu ama bunu taşıyacak kolon yoktu — `owner_id` sistem hesaplarında NULL, `account_type`
-ise rolü söylüyor, sağlayıcıyı değil. Kolon olmadan iki `nostro` hesabı ayırt edilemez ve
+diyordu ama bunu taşıyacak kolon yoktu — `account_id` sistem hesaplarında NULL, `type` ise
+rolü söylüyor, sağlayıcıyı değil. Kolon olmadan iki `nostro` hesabı ayırt edilemez ve
 madde 11'deki fatura uyuşmazlığı analizi (hangi sağlayıcı, hangi fatura) yapılamaz. Mutabakat
 sağlayıcı bazında koştuğu için bu kolon opsiyonel bir kolaylık değil, ön koşul.
 
@@ -352,12 +352,12 @@ kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
 
 ---
 
-## 15. `ledger_transactions.account_id` iç işlemlerde ne olur
+## 15. `ledger_transactions.ledger_account_id` iç işlemlerde ne olur
 
 **Karar.** Kolon NOT NULL kalır. Anlamı "isteği başlatan hesap" değil,
 **işlemin idempotency kapsamı olan hesap**:
 
-| `type`             | `account_id`                          | `idempotency_key`  |
+| `type`             | `ledger_account_id`                          | `idempotency_key`  |
 | ------------------ | ------------------------------------- | ------------------ |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i    |
 | `topup`            | alıcı `user_wallet`                   | webhook `event_id` |
@@ -369,7 +369,7 @@ kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
 **Gerekçe.** Kolonu nullable yapmak ilk akla gelen çözümdü ve sessizce bozuyor:
 Postgres'te unique index içindeki NULL hiçbir NULL'a eşit sayılmaz, dolayısıyla
 `(NULL, 'INV-2026-03')` iki kez insert edilebilir. Madde 11 fatura idempotency'sinin dayandığı
-tek mekanizma bu index — nullable `account_id` onu tam da en riskli akışta devre dışı bırakır.
+tek mekanizma bu index — nullable `ledger_account_id` onu tam da en riskli akışta devre dışı bırakır.
 
 Sistem hesabını kapsam olarak kullanmak hem index'i canlı tutuyor hem de doğru soruyu
 soruyor: "bu fatura bu sağlayıcının gider hesabına daha önce yazıldı mı".
@@ -393,13 +393,13 @@ build bu projede hiçbir şey kazandırmaz, `#if` dallanması getirir.
 
 **Karar.** İki değişiklik birlikte:
 
-1. `ledger_entries` ve `wallet_balances`, `accounts`'a `(account_id, currency)` composite
-   FK ile bağlanır. Hedef `uq_accounts_id_currency UNIQUE (id, currency)`.
+1. `ledger_entries` ve `wallet_balances`, `accounts`'a `(ledger_account_id, currency)` composite
+   FK ile bağlanır. Hedef `uq_ledger_accounts_id_currency UNIQUE (id, currency)`.
 2. Zero-sum trigger'ı `GROUP BY currency` ile çalışır; her para birimi kendi içinde
    sıfırlanmalıdır.
 
 **Problem.** `currency` iki yerde duruyordu — `accounts` ve `ledger_entries` — ve senkron
-tutan hiçbir şey yoktu. `account_id` sadece `REFERENCES accounts(id)` idi: "böyle bir hesap
+tutan hiçbir şey yoktu. `ledger_account_id` sadece `REFERENCES accounts(id)` idi: "böyle bir hesap
 var mı" diye soruyor, "bu hesap bu para biriminde mi" diye sormuyordu. Trigger da
 `SUM(amount)` yapıp para birimine bakmıyordu. İkisi birleşince:
 
@@ -418,10 +418,10 @@ kura bağlı. Sistemin tüm iddiası "para yoktan var olmaz, taşınır" — bu 
 çalıştırmıyor. Trigger yalnızca FK'nın ifade edemediği şey için kullanılır — zero-sum
 gibi. Currency eşleşmesi FK'nın tam olarak ifade edebildiği bir şey.
 
-**FK'ya kasten gereksiz kolon.** `account_id` tek başına hesabı zaten buluyor.
+**FK'ya kasten gereksiz kolon.** `ledger_account_id` tek başına hesabı zaten buluyor.
 `currency`'yi FK'ya eklemek DB'ye "bu iki değer o satırda BİRLİKTE bulunsun" dedirtiyor.
 Yani soru "hesap var mı" değil, "entry'nin söylediği para birimi hesabın söylediğiyle
-aynı mı". `uq_accounts_id_currency` de bu yüzden var — tekillik amacı yok (`id` zaten PK),
+aynı mı". `uq_ledger_accounts_id_currency` de bu yüzden var — tekillik amacı yok (`id` zaten PK),
 tek işi FK hedefi olabilmek.
 
 **Bedava gelen.** FK varsayılan `ON UPDATE NO ACTION` ile geliyor: bir hesabın
@@ -444,7 +444,7 @@ duvar DB'de olmalı.
 **Maliyet.** `accounts` üzerinde ikinci bir btree index; tablo küçük ve yazma nadir,
 ihmal edilebilir. Sıcak yolda değişen bir şey yok: `ledger_entries` INSERT'ünde FK
 kontrolü zaten `accounts_pkey`'e bir index probe yapıyordu, artık
-`uq_accounts_id_currency`'ye yapıyor — aynı sayıda probe.
+`uq_ledger_accounts_id_currency`'ye yapıyor — aynı sayıda probe.
 
 **Doğrulandı.** DDL homelab'daki Postgres 17'de koşturuldu, 11 senaryonun hepsi beklendiği
 gibi davrandı. Özellikle iki şüpheli nokta teyit edildi: (a) `CONSTRAINT ... UNIQUE`
@@ -523,49 +523,52 @@ ama "yarımı aşağı yuvarladık" tartışması açıyor; `AwayFromZero` müş
 
 ---
 
-## 20. Bir sahibin aynı para biriminde birden fazla cüzdanı olabilir
+## 20. Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir
 
-**Karar.** `(owner_id, currency)` üzerinde tekillik kısıtı YOK. Bir sahip aynı para biriminde
-istediği kadar cüzdan açabilir ("Birikim", "Günlük", "Kira"). Bunun üç sonucu var ve üçü de
-kısıtın kendisinden daha önemli.
+**Karar.** İki seviye: `accounts` (müşteri hesabı) ve `ledger_accounts` (bakiye tutabilen
+her şey). Bir hesabın altında istediği kadar cüzdan durabilir ("Birikim", "Günlük", "Kira"),
+aynı para biriminde bile — `ledger_accounts (account_id, currency)` üzerinde tekillik YOK.
 
-**1. Günlük limit sahip bazında uygulanır, cüzdan bazında değil.** Cüzdan bazında olsaydı
+**Neden ledger tarafı tek tablo.** `ledger_entries` tek bir FK hedefine işaret etmek zorunda:
+bir transfer'in bacakları hem cüzdan hem `revenue` olabiliyor. Cüzdanlar ve sistem hesapları
+ayrı tablolarda olsaydı polimorfik FK gerekirdi ve referential integrity çökerdi — madde
+17'de kapattığımız delik sınıfının aynısı. Bu yüzden "bakiye tutabilen her şey" tek tabloda;
+cüzdan onun `type = 'user_wallet'` olan alt kümesi.
+
+**1. Günlük limit hesap bazında uygulanır, cüzdan bazında değil.** Cüzdan bazında olsaydı
 limit hiçbir şey korumazdı: günlük 10.000 limiti olan biri beş cüzdan açıp 50.000 gönderirdi.
-Kural teknik olarak çalışır, iş olarak boşa çıkardı. `LimitPolicy` sahip kimliğini alır ve
-`spentToday` o sahibin **tüm cüzdanlarından** toplanır. Aynısı KYC eşikleri için de geçerli.
+Kural teknik olarak çalışır, iş olarak boşa çıkardı. `LimitPolicy` hesap kimliğini alır ve
+`spentToday` o hesabın **tüm cüzdanlarından** toplanır. Aynısı KYC eşikleri için de geçerli.
 
-Bedeli: `ix_accounts_owner` artık sıcak yolda — her transfer'de sahibin cüzdanları
+Bedeli: `ix_ledger_accounts_account` artık sıcak yolda — her transfer'de hesabın cüzdanları
 toplanıyor. Tek cüzdan varsayımında bu sorgu hiç olmayacaktı.
 
-**2. `owners` tablosu eklendi.** `owner_type` cüzdanda duruyordu; tek cüzdan varken sorunsuzdu,
-N cüzdan olunca aynı bilgi N satıra kopyalanıyor ve senkron tutan hiçbir şey kalmıyor. Bir
-cüzdan `person`, diğeri `business` olabilirdi — transfer tipi (`p2p`/`p2b`) buna baktığı için
-aynı müşteri hangi cüzdanını kullandığına göre farklı politikaya tabi olurdu.
+**2. person/business ayrımı `accounts.type`'ta, tek yerde.** Önceden cüzdanın üstündeydi; tek
+cüzdan varken sorunsuzdu, N cüzdan olunca aynı bilgi N satıra kopyalanacaktı ve senkron tutan
+hiçbir şey olmayacaktı. Bir cüzdan `person`, diğeri `business` olabilirdi — transfer tipi
+(`p2p`/`p2b`) buna baktığı için aynı müşteri hangi cüzdanını kullandığına göre farklı
+politikaya tabi olurdu.
 
-Madde 17'deki delikle **birebir aynı sınıf**, aynı çözüm: `owner_type` kolonu cüzdanda kalıyor
-(join'siz sorgulanabilsin diye) ama `(owner_id, owner_type)` composite FK ile `owners`'a
-bağlanıyor, sapamıyor.
+Çözüm denormalizasyon + composite FK DEĞİL, doğrudan normalizasyon: bilgi tek yerde durunca
+sapacak ikinci bir kopya kalmıyor ve FK numarasına gerek olmuyor. Policy katmanı person/business
+bilgisini `accounts`'a bakarak alır — PK araması, ucuz.
 
-`owners` bir müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi yok, olmayacak. İki
-kolonluk bir tablo, tek işi `owner_type`'ın tek bir cevabı olması.
-
-**3. Cüzdanın `name`'i var, `user_wallet`'ta zorunlu.** Aynı sahibin üç TRY cüzdanı uuid
+**3. Cüzdanın `name`'i var, `user_wallet`'ta zorunlu.** Aynı hesabın üç TRY cüzdanı uuid
 dışında ayırt edilemezdi. Ledger için gerekli değil, ürün için gerekli.
 
-**Adlandırma.** "account" kelimesi ledger tarafına ayrıldı: `accounts` tablosu cüzdanları VE
-sistem hesaplarını tutuyor, hepsi double-entry anlamında birer hesap. Müşteri `owner`.
-Elenen alternatif: `owner_accounts` + `ledger_accounts` diye yeniden adlandırmak — konuşma
-diline daha yakın ama `clearing`/`revenue`/`nostro`'yu "ledger account" diye nitelemek
-gereksiz, onlar zaten muhasebe hesabı. Elenen alternatif: kolonu `owner_account_id` yapmak —
-`accounts` tablosu dururken okuyucuyu yanlış tabloya yönlendirirdi.
+**Adlandırma.** "account" müşteri tarafına ayrıldı, ledger tarafı `ledger_accounts` oldu —
+`ledger_transactions` ve `ledger_entries` ile aynı önekte buluşuyor, üçü birlikte "ledger'ın
+tabloları" diye okunuyor. Kolon adları da buna uydu: `ledger_entries.ledger_account_id`,
+`ledger_transactions.ledger_account_id`.
 
-**Açık bırakılan.** `(owner_id, name)` üzerinde tekillik yok; aynı sahip iki cüzdanına da
+Elenen alternatif: `owners` + `accounts` (müşteri "owner", ledger tarafı "account"). Muhasebe
+dilinde doğru ama konuşma dilinde "account" müşteriyi gösteriyor ve çakışma üç ayrı tartışmada
+kafa karıştırdı. Elenen alternatif: `accounts` + `owner_account_id` kolonu — `accounts` tablosu
+ledger tarafını gösterirken `owner_account_id`'nin başka bir tabloya işaret etmesi okuyucuyu
+doğrudan yanlış yere yollardı. Elenen alternatif: üç tablo (`ledger_accounts` supertype +
+`wallets` + `system_accounts`). Integrity korunur, isimler tam konuşma dili — ama her cüzdan
+okumasında join, her cüzdan yaratmada iki insert. Bu ölçekte ağır.
+
+**Açık bırakılan.** `(account_id, name)` üzerinde tekillik yok; aynı hesap iki cüzdanına da
 "Birikim" diyebilir. İsim ayırt etmek için varsa bu onu boşa çıkarıyor, ama bir ürün kararı
 ve şimdi verilmedi.
-
-**Doğrulandı.** Homelab'daki Postgres 17'de 17 senaryo koşturuldu, hepsi geçti. Bu maddenin
-kendi testleri: aynı sahip + aynı currency ile ikinci cüzdan **açılabiliyor**; aynı sahibin
-ikinci cüzdanını farklı `owner_type` ile açmak `fk_accounts_owner` tarafından **engelleniyor**;
-cüzdanı olan bir sahibin `owners.owner_type`'ını değiştirmek de aynı FK ile engelleniyor
-(currency'de olduğu gibi, ilk cüzdandan sonra tip donuyor); adsız cüzdan ve adlı sistem hesabı
-`ck_accounts_name` ile reddediliyor.

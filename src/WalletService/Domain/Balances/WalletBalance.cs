@@ -18,16 +18,16 @@ public sealed class WalletBalance
         // EF Core materialization.
     }
 
-    private WalletBalance(Guid accountId, Currency currency, DateTimeOffset updatedAt)
+    private WalletBalance(Guid ledgerAccountId, Currency currency, DateTimeOffset updatedAt)
     {
-        AccountId = accountId;
+        LedgerAccountId = ledgerAccountId;
         Balance = 0m;
         Currency = currency;
         Version = 0;
         UpdatedAt = updatedAt;
     }
 
-    public Guid AccountId { get; private set; }
+    public Guid LedgerAccountId { get; private set; }
 
     public decimal Balance { get; private set; }
 
@@ -40,9 +40,9 @@ public sealed class WalletBalance
 
     public Money Money => new(Balance, Currency);
 
-    public static WalletBalance OpenFor(Guid accountId, Currency currency, DateTimeOffset createdAt)
+    public static WalletBalance OpenFor(Guid ledgerAccountId, Currency currency, DateTimeOffset createdAt)
     {
-        return new WalletBalance(accountId, currency, createdAt);
+        return new WalletBalance(ledgerAccountId, currency, createdAt);
     }
 
     /// <summary>
@@ -58,14 +58,14 @@ public sealed class WalletBalance
         if (delta.Currency != Currency)
         {
             throw new InvalidOperationException(
-                $"Hesap {AccountId} {Currency} tutuyor, {delta.Currency} uygulanamaz.");
+                $"Hesap {LedgerAccountId} {Currency} tutuyor, {delta.Currency} uygulanamaz.");
         }
 
         var next = Balance + delta.Amount;
 
         if (next < 0m && !canGoNegative)
         {
-            throw new InsufficientFundsException(AccountId, Money, delta.Abs);
+            throw new InsufficientFundsException(LedgerAccountId, Money, delta.Abs);
         }
 
         Balance = next;

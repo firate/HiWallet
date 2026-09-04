@@ -34,20 +34,21 @@ public static class TransferTypeExtensions
     }
 
     /// <summary>
-    /// Tipin taraflarla tutarlı olup olmadığı. Çekirdek owner_type'a bakmaz, policy bakar
+    /// Tipin taraflarla tutarlı olup olmadığı. Çekirdek hesabın person/business ayrımına
+    /// bakmaz, policy bakar
     /// (decisions.md madde 6) — bu kontrol de policy tarafında.
     /// </summary>
-    public static bool Matches(this TransferType type, OwnerType sender, OwnerType receiver)
+    public static bool Matches(this TransferType type, AccountType sender, AccountType receiver)
     {
         return type switch
         {
-            TransferType.P2P => sender is OwnerType.Person && receiver is OwnerType.Person,
-            TransferType.P2B => sender is OwnerType.Person && receiver is OwnerType.Business,
-            TransferType.B2P => sender is OwnerType.Business && receiver is OwnerType.Person,
-            TransferType.B2B => sender is OwnerType.Business && receiver is OwnerType.Business,
+            TransferType.P2P => sender is AccountType.Person && receiver is AccountType.Person,
+            TransferType.P2B => sender is AccountType.Person && receiver is AccountType.Business,
+            TransferType.B2P => sender is AccountType.Business && receiver is AccountType.Person,
+            TransferType.B2B => sender is AccountType.Business && receiver is AccountType.Business,
 
             // Ödemeyi kim yaparsa yapsın alan taraf işletmedir.
-            TransferType.Payment => receiver is OwnerType.Business,
+            TransferType.Payment => receiver is AccountType.Business,
 
             _ => false
         };
