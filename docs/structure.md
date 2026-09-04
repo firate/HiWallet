@@ -93,7 +93,7 @@ WalletService/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
 │   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
 │   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
-│   ├── Balances/              -- WalletBalance
+│   ├── Balances/              -- LedgerBalance
 │   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy
 │   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,
 │                                 UnbalancedLedgerTransaction

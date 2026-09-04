@@ -19,7 +19,7 @@ public sealed class WalletDbContext : DbContext
 
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
-    public DbSet<WalletBalance> WalletBalances => Set<WalletBalance>();
+    public DbSet<LedgerBalance> LedgerBalances => Set<LedgerBalance>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

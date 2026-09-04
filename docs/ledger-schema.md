@@ -85,7 +85,7 @@ CREATE TABLE ledger_accounts (
         CHECK (provider IS NULL OR btrim(provider) <> ''),
 
     -- Tekillik amacı YOK: id zaten PK, currency eklemek hiçbir yeni kısıt getirmiyor.
-    -- Tek işi ledger_entries ve wallet_balances'ın composite FK hedefi olabilmek —
+    -- Tek işi ledger_entries ve ledger_balances'ın composite FK hedefi olabilmek —
     -- Postgres FK'nın referans verdiği kolonların unique olmasını şart koşuyor.
     -- Gerekçe: decisions.md madde 17.
     CONSTRAINT uq_ledger_accounts_id_currency UNIQUE (id, currency)
@@ -269,10 +269,10 @@ bularak. `ix_ledger_entries_tx` tam bunun için var; sorgu birkaç satır okuyor
 edilen maliyet — alternatifi invariant'ı tamamen uygulamaya bırakmak ki `decisions.md`
 madde 5 bunu açıkça reddediyor.
 
-## wallet_balances
+## ledger_balances
 
 ```sql
-CREATE TABLE wallet_balances (
+CREATE TABLE ledger_balances (
     ledger_account_id  uuid PRIMARY KEY,
     balance     numeric(19,4) NOT NULL DEFAULT 0,
     currency    char(3) NOT NULL,
@@ -280,7 +280,7 @@ CREATE TABLE wallet_balances (
     updated_at  timestamptz NOT NULL DEFAULT now(),
 
     -- ledger_entries ile aynı gerekçe: projeksiyonun para birimi hesabınkinden sapamaz.
-    CONSTRAINT fk_wallet_balances_ledger_account
+    CONSTRAINT fk_ledger_balances_ledger_account
         FOREIGN KEY (ledger_account_id, currency) REFERENCES ledger_accounts (id, currency)
 );
 ```
@@ -294,7 +294,7 @@ EF Core: `version` üzerinde `IsConcurrencyToken()`. Başka hiçbir entity'de co
 
 ```sql
 SELECT b.ledger_account_id, b.currency, b.balance, COALESCE(SUM(e.amount), 0) AS derived
-  FROM wallet_balances b
+  FROM ledger_balances b
   LEFT JOIN ledger_entries e
     ON e.ledger_account_id = b.ledger_account_id
    AND e.currency   = b.currency
@@ -418,7 +418,7 @@ işlenmesi manuel tetiklenen job'larda gerçek bir risk.
 
 ```
 BEGIN;
-  SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;
+  SELECT balance, version FROM ledger_balances WHERE ledger_account_id = @from;
   -- policy: limit kontrolü, komisyon hesabı  → ihlal varsa 422, hiç yazma
 
   INSERT INTO ledger_transactions (id, type, ledger_account_id, idempotency_key) VALUES (...)
@@ -431,7 +431,7 @@ BEGIN;
     (@tx, @revenue,   +2, 'TRY');
 
   -- ledger_account_id ARTAN SIRAYLA (deadlock önleme)
-  UPDATE wallet_balances SET balance = balance + @delta, version = version + 1,
+  UPDATE ledger_balances SET balance = balance + @delta, version = version + 1,
          updated_at = now()
    WHERE ledger_account_id = @acc AND version = @readVersion;
   -- 0 satır → DbUpdateConcurrencyException → rollback → retry (max 3)

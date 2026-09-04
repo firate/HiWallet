@@ -33,7 +33,7 @@ public sealed class SchemaTests(PostgresFixture postgres)
         // sorgusu LEFT JOIN olduğu için sapmayı hiç göremezdi.
         await using var db = postgres.CreateContext();
 
-        var balances = await db.WalletBalances
+        var balances = await db.LedgerBalances
             .Where(b => SystemAccounts.All.Select(a => a.Id).Contains(b.LedgerAccountId))
             .ToListAsync(TestContext.Current.CancellationToken);
 

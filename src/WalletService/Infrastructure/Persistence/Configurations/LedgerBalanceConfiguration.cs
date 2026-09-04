@@ -6,19 +6,22 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace HiWallet.WalletService.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// Ledger'dan türetilmiş projeksiyon. Şema: docs/ledger-schema.md "wallet_balances".
+/// Ledger'dan türetilmiş projeksiyon. Şema: docs/ledger-schema.md "ledger_balances".
 ///
-/// Not: tablo adı "wallet" diyor ama sistem hesaplarının bakiyelerini de tutuyor —
-/// mutabakat clearing bakiyesine bakıyor. Adı ledger_balances olmalı; yeniden
-/// adlandırma yapılmadı, ayrı bir karar.
+/// Yalnızca cüzdanların değil TÜM ledger hesaplarının bakiyesi burada — mutabakat
+/// clearing'e, rapor nostro'ya bakıyor. `ledger_accounts` ile 1:1 ama ayrı tablo:
+/// orası neredeyse hiç yazılmayan referans verisi, burası her transfer'de yazılan
+/// projeksiyon. Birleşselerdi her transfer geniş satırı ve onun unique index'lerini
+/// güncellerdi; ayrıca projeksiyonu ledger'dan yeniden inşa etmek (TRUNCATE + replay)
+/// mümkün olmazdı.
 /// </summary>
-internal sealed class WalletBalanceConfiguration : IEntityTypeConfiguration<WalletBalance>
+internal sealed class LedgerBalanceConfiguration : IEntityTypeConfiguration<LedgerBalance>
 {
-    public void Configure(EntityTypeBuilder<WalletBalance> builder)
+    public void Configure(EntityTypeBuilder<LedgerBalance> builder)
     {
-        builder.ToTable("wallet_balances");
+        builder.ToTable("ledger_balances");
 
-        builder.HasKey(b => b.LedgerAccountId).HasName("pk_wallet_balances");
+        builder.HasKey(b => b.LedgerAccountId).HasName("pk_ledger_balances");
 
         builder.Property(b => b.LedgerAccountId).HasColumnName("ledger_account_id");
 
@@ -53,14 +56,14 @@ internal sealed class WalletBalanceConfiguration : IEntityTypeConfiguration<Wall
             .WithMany()
             .HasForeignKey(b => new { b.LedgerAccountId, b.Currency })
             .HasPrincipalKey(a => new { a.Id, a.Currency })
-            .HasConstraintName("fk_wallet_balances_ledger_account")
+            .HasConstraintName("fk_ledger_balances_ledger_account")
             .OnDelete(DeleteBehavior.Restrict);
 
         // Composite FK'nın index'i. PK zaten ledger_account_id üzerinde olduğu için bu
         // index fiilen gereksiz, ama EF composite FK'ya index üretmeden geçmiyor.
         // Adı verilmezse şemada PascalCase kalıyor.
         builder.HasIndex(b => new { b.LedgerAccountId, b.Currency })
-            .HasDatabaseName("ix_wallet_balances_ledger_account_currency");
+            .HasDatabaseName("ix_ledger_balances_ledger_account_currency");
 
         SeedSystemAccountBalances(builder);
     }
@@ -70,7 +73,7 @@ internal sealed class WalletBalanceConfiguration : IEntityTypeConfiguration<Wall
     /// ledger yazımı satırı bulamaz ve mutabakat sorgusu (LEFT JOIN) o hesabı hiç
     /// göremezdi — sapma varsa görünmezdi.
     /// </summary>
-    private static void SeedSystemAccountBalances(EntityTypeBuilder<WalletBalance> builder)
+    private static void SeedSystemAccountBalances(EntityTypeBuilder<LedgerBalance> builder)
     {
         var seed = SystemAccounts.All
             .Select(a => new

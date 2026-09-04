@@ -70,7 +70,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             .HasColumnType("text")
             .HasComputedColumnSql("COALESCE(provider, '')", stored: true);
 
-        // Tekillik amacı YOK: id zaten PK. Tek işi ledger_entries ve wallet_balances'ın
+        // Tekillik amacı YOK: id zaten PK. Tek işi ledger_entries ve ledger_balances'ın
         // composite FK hedefi olabilmek (decisions.md madde 17).
         builder.HasAlternateKey(a => new { a.Id, a.Currency })
             .HasName("uq_ledger_accounts_id_currency");

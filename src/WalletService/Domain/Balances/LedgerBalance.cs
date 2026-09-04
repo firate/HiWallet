@@ -6,19 +6,19 @@ namespace HiWallet.WalletService.Domain.Balances;
 /// <summary>
 /// Ledger'dan türetilmiş projeksiyon. Source of truth <c>ledger_entries</c>;
 /// bu tablo her zaman yeniden inşa edilebilir, tersi geçerli değil
-/// (docs/ledger-schema.md "wallet_balances").
+/// (docs/ledger-schema.md "ledger_balances").
 ///
 /// Optimistic lock buradadır — projede concurrency token taşıyan TEK entity
 /// (decisions.md madde 2).
 /// </summary>
-public sealed class WalletBalance
+public sealed class LedgerBalance
 {
-    private WalletBalance()
+    private LedgerBalance()
     {
         // EF Core materialization.
     }
 
-    private WalletBalance(Guid ledgerAccountId, Currency currency, DateTimeOffset updatedAt)
+    private LedgerBalance(Guid ledgerAccountId, Currency currency, DateTimeOffset updatedAt)
     {
         LedgerAccountId = ledgerAccountId;
         Balance = 0m;
@@ -40,9 +40,9 @@ public sealed class WalletBalance
 
     public Money Money => new(Balance, Currency);
 
-    public static WalletBalance OpenFor(Guid ledgerAccountId, Currency currency, DateTimeOffset createdAt)
+    public static LedgerBalance OpenFor(Guid ledgerAccountId, Currency currency, DateTimeOffset createdAt)
     {
-        return new WalletBalance(ledgerAccountId, currency, createdAt);
+        return new LedgerBalance(ledgerAccountId, currency, createdAt);
     }
 
     /// <summary>

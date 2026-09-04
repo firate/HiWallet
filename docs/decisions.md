@@ -24,9 +24,9 @@ tamamen kaldırılır, karma bırakılmaz.
 
 ---
 
-## 2. Optimistic lock `wallet_balances` üzerinde
+## 2. Optimistic lock `ledger_balances` üzerinde
 
-**Karar.** Concurrency token `wallet_balances.version`. `ledger_entries` üzerinde
+**Karar.** Concurrency token `ledger_balances.version`. `ledger_entries` üzerinde
 hiçbir lock veya version kolonu yok.
 
 **Gerekçe.** `ledger_entries` append-only. Optimistic lock "okuduğumdan beri bu satır değişti mi"
@@ -38,7 +38,7 @@ aynı gönderen için 500 okuyup ikisi de 400 yazmaya çalışır (lost update).
 
 ```sql
 -- 1. oku
-SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;   -- 500, v7
+SELECT balance, version FROM ledger_balances WHERE ledger_account_id = @from;   -- 500, v7
 
 -- 2. uygulama: yeterli bakiye mi, limit aşılıyor mu, komisyon kaç
 
@@ -46,7 +46,7 @@ SELECT balance, version FROM wallet_balances WHERE ledger_account_id = @from;   
 INSERT INTO ledger_entries (...) VALUES (@tx, @from, -100), (@tx, @to, +100);
 
 -- 4. projeksiyonu güncelle
-UPDATE wallet_balances
+UPDATE ledger_balances
    SET balance = balance - 100, version = version + 1
  WHERE ledger_account_id = @from AND version = 7;
 -- 0 satır → DbUpdateConcurrencyException → rollback → retry
@@ -63,6 +63,14 @@ hesaplanıyor, hangi anlık görüntüye dayandığı sabitlenemiyor; (b) 0 sat�
 
 **Elenen alternatif.** `SELECT ... FOR UPDATE` (pessimistic). Çakışma nadir olduğu için
 gereksiz bekleme üretir.
+
+**Adlandırma.** Tablo önce `wallet_balances` idi; yanlıştı, çünkü yalnızca cüzdanların
+değil TÜM ledger hesaplarının bakiyesini tutuyor — mutabakat `clearing`'e, rapor
+`nostro`'ya bakıyor. `ledger_accounts` ile 1:1 olmasına rağmen ayrı tablo olarak kalıyor:
+orası neredeyse hiç yazılmayan referans verisi, burası her transfer'de yazılan projeksiyon.
+Birleşselerdi her transfer geniş satırı ve onun unique index'lerini güncellerdi (HOT update
+ihtimali düşer, index şişer); ayrıca projeksiyonu ledger'dan yeniden inşa etmek
+(`TRUNCATE` + replay) mümkün olmazdı.
 
 ---
 
@@ -186,7 +194,7 @@ gerçekten varsa gösterilebilir.
 
 ## 8. Deadlock önleme: satır güncelleme sırası
 
-**Karar.** Bir transaction içinde birden fazla `wallet_balances` satırı güncelleniyorsa
+**Karar.** Bir transaction içinde birden fazla `ledger_balances` satırı güncelleniyorsa
 her zaman `ledger_account_id` artan sırayla.
 
 **Gerekçe.** Transfer iki satıra dokunuyor, komisyonluysa üçe. A→B ve B→A eşzamanlı gelir ve
@@ -315,7 +323,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 ## 13. Uygulama sırası
 
 1. wallet-service çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
-   `wallet_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
+   `ledger_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
 2. Baseline'ın 12 maddesi bu tek servis üstünde (OTel, health, ProblemDetails,
    rate limiting, migration, graceful shutdown).
 3. Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk burada.
@@ -393,7 +401,7 @@ build bu projede hiçbir şey kazandırmaz, `#if` dallanması getirir.
 
 **Karar.** İki değişiklik birlikte:
 
-1. `ledger_entries` ve `wallet_balances`, `accounts`'a `(ledger_account_id, currency)` composite
+1. `ledger_entries` ve `ledger_balances`, `ledger_accounts`'a `(ledger_account_id, currency)` composite
    FK ile bağlanır. Hedef `uq_ledger_accounts_id_currency UNIQUE (id, currency)`.
 2. Zero-sum trigger'ı `GROUP BY currency` ile çalışır; her para birimi kendi içinde
    sıfırlanmalıdır.
