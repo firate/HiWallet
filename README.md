@@ -32,7 +32,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Withdrawal saga + compensation | ⬜ adım 4 |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-72 test: 44 unit (DB'siz), 28 integration (gerçek Postgres).
+75 test: 44 unit (DB'siz), 31 integration (gerçek Postgres).
 
 ## Çalıştırma
 
@@ -50,13 +50,14 @@ curl http://localhost:8080/health/ready
 
 Swagger: <http://localhost:8080/swagger> (Development'ta).
 
-> **Compose henüz gerçek bir koşuda doğrulanmadı.** Adım adım doğrulama:
-> [docs/verify-compose.md](docs/verify-compose.md). Yapılandırma `docker compose config`
+> **Compose henüz gerçek bir koşuda doğrulanmadı.** Yapılandırma
+> `docker compose config` ile sözdizimi ve servis grafiği düzeyinde kontrol edildi, ama
+> imajlar build edilmedi ve stack ayağa kaldırılmadı.
 >
-> Yapılandırma `docker compose config` ile sözdizimi ve servis grafiği düzeyinde
-> kontrol edildi, ama imajlar build edilmedi ve stack ayağa kaldırılmadı. Uygulamanın kendisi doğrulandı — `dotnet run` ile gerçek
-> Postgres'e karşı çalıştı ve 75 test geçiyor; doğrulanmamış olan yalnızca konteyner
-> paketlemesi ve orkestrasyonu.
+> Uygulamanın kendisi doğrulandı — `dotnet run` ile gerçek Postgres'e karşı çalıştı ve
+> 75 test geçiyor. Doğrulanmamış olan yalnızca konteyner paketlemesi ve orkestrasyonu.
+>
+> Adım adım doğrulama: **[docs/verify-compose.md](docs/verify-compose.md)**
 
 ### İki veritabanı rolü
 
