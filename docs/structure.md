@@ -197,7 +197,7 @@ tests/
 │   ├── Policies/              -- limit, komisyon hesapları
 │   └── Ledger/                -- zero-sum, işaret konvansiyonu
 ├── WalletService.IntegrationTests/
-│   ├── Fixtures/              -- PostgresFixture (Testcontainers)
+│   ├── Fixtures/              -- PostgresFixture (koşu başına schema)
 │   ├── Transfers/             -- concurrency, idempotency replay
 │   └── Ledger/                -- invariant, projeksiyon tutarlılığı
 ├── WithdrawalOrchestrator.IntegrationTests/
@@ -207,7 +207,16 @@ tests/
 ```
 
 **Ayrım.** Unit test DB'ye dokunmaz, saf hesaplama. Integration test gerçek Postgres
-(Testcontainers) kullanır, mock DB yok. E2E test `docker compose` ile tüm stack'i kaldırır.
+kullanır, mock DB yok. E2E test `docker compose` ile tüm stack'i kaldırır.
+
+**Integration test izolasyonu: koşu başına schema.** `PostgresFixture` her koşuda kendi
+schema'sını açar, migration'ı oraya uygular, sonunda `DROP SCHEMA ... CASCADE` ile düşürür.
+Bağlantı `ConnectionStrings__IntegrationTests`'ten gelir.
+
+Testcontainers elenmedi ama seçilmedi: aynı izolasyonu verir, karşılığında bir Docker
+daemon'a konuşmak zorunda. Schema yolu Docker'sız çalışıyor ve paralel koşuyu da
+engellemiyor (schema adları farklı). Bedeli: testler bir Postgres sunucusuna erişim
+istiyor, offline çalışmıyor.
 
 **İlk yazılacak test** — çekirdek koddan önce, `WalletService.IntegrationTests/Ledger/`:
 500 eşzamanlı transfer sonrası tüm hesapların `amount` toplamı sıfır ve hiçbir
