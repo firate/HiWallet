@@ -572,3 +572,10 @@ okumasında join, her cüzdan yaratmada iki insert. Bu ölçekte ağır.
 **Açık bırakılan.** `(account_id, name)` üzerinde tekillik yok; aynı hesap iki cüzdanına da
 "Birikim" diyebilir. İsim ayırt etmek için varsa bu onu boşa çıkarıyor, ama bir ürün kararı
 ve şimdi verilmedi.
+
+**Doğrulandı.** Homelab'daki Postgres 17'de 17 senaryo koşturuldu, hepsi geçti. Bu maddenin
+kendi testleri: aynı hesap + aynı currency ile ikinci cüzdan **açılabiliyor** (T12); sistem
+hesabına `account_id` verilemiyor (T13, `ck_ledger_accounts_account`); var olmayan hesaba
+cüzdan bağlanamıyor (T14); adsız cüzdan ve adlı sistem hesabı reddediliyor (T15/T16);
+cüzdanı olan bir hesap silinemiyor (T17). Madde 17'nin para birimi testleri de yeni
+kolon adlarıyla geçiyor.
