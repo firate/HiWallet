@@ -1,7 +1,7 @@
 using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 
-namespace HiWallet.WalletService.UnitTests.Ledger;
+namespace HiWallet.UnitTests.Ledger;
 
 public sealed class LedgerTransactionTests
 {

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 
 namespace HiWallet.Shared.Infrastructure.Messaging;
@@ -16,21 +17,27 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 ///   hiwallet.topups.dlx (fanout) ── hiwallet.topups.dead
 /// </code>
 /// </summary>
-public static class TopupTopology
+public sealed class TopupTopology(IOptions<RabbitMqOptions> options)
 {
-    public const string Exchange = "hiwallet.topups";
-    public const string DeadLetterExchange = "hiwallet.topups.dlx";
-    public const string DeadLetterQueue = "hiwallet.topups.dead";
-
     /// <summary>
     /// <c>x-consistent-hash</c> exchange'i <c>rabbitmq_consistent_hash_exchange</c>
-    /// eklentisiyle geliyor; imajda etkinleştirilmiş olmalı (docker/rabbitmq-plugins).
+    /// eklentisiyle geliyor; imajda etkinleştirilmiş olmalı (docker/rabbitmq/).
     /// </summary>
     private const string ConsistentHashExchangeType = "x-consistent-hash";
 
-    public static string PartitionQueue(int index) => $"hiwallet.topups.p{index}";
+    private readonly RabbitMqOptions _options = options.Value;
 
-    public static async Task DeclareAsync(IChannel channel, int partitionCount, CancellationToken ct)
+    public string Exchange => $"{_options.NamePrefix}hiwallet.topups";
+
+    public string DeadLetterExchange => $"{_options.NamePrefix}hiwallet.topups.dlx";
+
+    public string DeadLetterQueue => $"{_options.NamePrefix}hiwallet.topups.dead";
+
+    public int PartitionCount => _options.PartitionCount;
+
+    public string PartitionQueue(int index) => $"{Exchange}.p{index}";
+
+    public async Task DeclareAsync(IChannel channel, CancellationToken ct)
     {
         await channel.ExchangeDeclareAsync(
             DeadLetterExchange, ExchangeType.Fanout, durable: true, autoDelete: false,
@@ -60,7 +67,7 @@ public static class TopupTopology
             ["x-dead-letter-exchange"] = DeadLetterExchange
         };
 
-        for (var partition = 0; partition < partitionCount; partition++)
+        for (var partition = 0; partition < PartitionCount; partition++)
         {
             var queue = PartitionQueue(partition);
 

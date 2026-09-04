@@ -60,7 +60,6 @@ app.MapHiWalletHealthChecks();
 
 app.MapControllers().RequireRateLimiting(RateLimitingSetup.TransfersPolicy);
 
+// Integration testler WebApplicationFactory<WalletServiceApp> ile ayağa kaldırır;
+// gerekçe WalletServiceApp.cs'te.
 app.Run();
-
-// Integration testler WebApplicationFactory<Program> ile ayağa kaldırır.
-public partial class Program;

@@ -53,7 +53,6 @@ app.MapHiWalletHealthChecks();
 
 app.MapControllers().RequireRateLimiting(RateLimitingSetup.WebhookPolicy);
 
+// Integration testler WebApplicationFactory<TopupWebhookApp> ile ayağa kaldırır;
+// gerekçe TopupWebhookApp.cs'te.
 app.Run();
-
-// Integration testler WebApplicationFactory<Program> ile ayağa kaldırır.
-public partial class Program;

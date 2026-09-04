@@ -17,9 +17,11 @@
         <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <InternalsVisibleTo Include="HiWallet.TopupWebhook.UnitTests"/>
-        <InternalsVisibleTo Include="HiWallet.WalletService.IntegrationTests"/>
-    </ItemGroup>
+    <!-- InternalsVisibleTo YOK, bilerek. Üst düzey deyimlerin ürettiği Program tipi
+         global isim alanında ve internal; testlere açılsaydı wallet-service'in public
+         Program'ıyla çakışıp CS0433 verirdi. Testlerin ihtiyacı olan her şey zaten
+         public. -->
+
+
 
 </Project>

@@ -25,7 +25,7 @@
 
     <!-- Integration testler WebApplicationFactory ile Program'a erişir. -->
     <ItemGroup>
-        <InternalsVisibleTo Include="HiWallet.WalletService.IntegrationTests"/>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
     </ItemGroup>
 
 </Project>

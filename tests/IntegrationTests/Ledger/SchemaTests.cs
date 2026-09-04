@@ -1,9 +1,9 @@
 using HiWallet.WalletService.Domain.Ledger;
-using HiWallet.WalletService.IntegrationTests.Fixtures;
+using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace HiWallet.WalletService.IntegrationTests.Ledger;
+namespace HiWallet.IntegrationTests.Ledger;
 
 /// <summary>
 /// Migration'ın ürettiği şemanın beklenen garantileri verdiğini doğrular.

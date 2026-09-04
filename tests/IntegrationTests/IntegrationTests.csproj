@@ -10,12 +10,14 @@
         <PackageReference Include="xunit.v3"/>
         <PackageReference Include="xunit.runner.visualstudio"/>
         <PackageReference Include="Shouldly"/>
-        <PackageReference Include="Testcontainers.PostgreSql"/>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
     </ItemGroup>
 
+    <!-- Top-up hattı iki servise yayılıyor; uçtan uca test ikisini de ayağa
+         kaldırmak zorunda. Proje adı bu yüzden tek servise bağlı değil. -->
     <ItemGroup>
         <ProjectReference Include="../../src/WalletService/WalletService.csproj"/>
+        <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

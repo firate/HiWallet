@@ -2,7 +2,7 @@ using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-namespace HiWallet.WalletService.IntegrationTests.Fixtures;
+namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
 /// Gerçek Postgres. Mock DB yok (structure.md "Ayrım").
@@ -147,7 +147,8 @@ public sealed class PostgresFixture : IAsyncLifetime
 /// kendileri temizler.
 /// </summary>
 [CollectionDefinition(Name)]
-public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>
+public sealed class PostgresCollection
+    : ICollectionFixture<PostgresFixture>, ICollectionFixture<InboxFixture>
 {
     public const string Name = "postgres";
 }

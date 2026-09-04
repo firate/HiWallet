@@ -5,11 +5,11 @@ using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
-using HiWallet.WalletService.IntegrationTests.Fixtures;
+using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace HiWallet.WalletService.IntegrationTests.Transfers;
+namespace HiWallet.IntegrationTests.Transfers;
 
 [Collection(PostgresCollection.Name)]
 public sealed class TransferTests(PostgresFixture postgres)

@@ -1,7 +1,7 @@
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
 
-namespace HiWallet.WalletService.UnitTests.Policies;
+namespace HiWallet.UnitTests.Policies;
 
 public sealed class CommissionPolicyTests
 {

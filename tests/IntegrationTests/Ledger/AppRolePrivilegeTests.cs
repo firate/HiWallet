@@ -3,12 +3,12 @@ using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
-using HiWallet.WalletService.IntegrationTests.Fixtures;
+using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
-namespace HiWallet.WalletService.IntegrationTests.Ledger;
+namespace HiWallet.IntegrationTests.Ledger;
 
 /// <summary>
 /// UYGULAMA ROLÜYLE (<c>wallet_app</c>) koşan testler. Diğer her test

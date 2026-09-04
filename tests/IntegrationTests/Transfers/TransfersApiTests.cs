@@ -4,9 +4,9 @@ using System.Text.Json;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
-using HiWallet.WalletService.IntegrationTests.Fixtures;
+using HiWallet.IntegrationTests.Fixtures;
 
-namespace HiWallet.WalletService.IntegrationTests.Transfers;
+namespace HiWallet.IntegrationTests.Transfers;
 
 /// <summary>
 /// HTTP sınırı: validation, Wolverine dispatch'i ve ProblemDetails eşlemesi.

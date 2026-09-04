@@ -2,7 +2,6 @@ using System.Text.Json;
 using HiWallet.Shared.Contracts.Topups;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.WalletService.Application.Topups;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -24,7 +23,7 @@ namespace HiWallet.WalletService.Infrastructure.Messaging;
 /// </summary>
 internal sealed class TopupConsumer(
     RabbitMqConnection connection,
-    IOptions<RabbitMqOptions> options,
+    TopupTopology topology,
     IServiceScopeFactory scopeFactory,
     ILogger<TopupConsumer> logger) : BackgroundService
 {
@@ -37,7 +36,7 @@ internal sealed class TopupConsumer(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var partitionCount = options.Value.PartitionCount;
+        var partitionCount = topology.PartitionCount;
 
         // Broker uygulamadan sonra ayağa kalkabilir; bağlanana kadar denenir.
         // Başlangıçta patlamak container'ı restart döngüsüne sokardı.
@@ -69,12 +68,12 @@ internal sealed class TopupConsumer(
         // kurmuşsa bu çağrı sadece doğrulama yapıyor.
         await using (var setup = await current.CreateChannelAsync(cancellationToken: ct))
         {
-            await TopupTopology.DeclareAsync(setup, partitionCount, ct);
+            await topology.DeclareAsync(setup, ct);
         }
 
         for (var partition = 0; partition < partitionCount; partition++)
         {
-            var queue = TopupTopology.PartitionQueue(partition);
+            var queue = topology.PartitionQueue(partition);
 
             var channel = await current.CreateChannelAsync(
                 new CreateChannelOptions(

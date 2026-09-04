@@ -3,7 +3,7 @@ using HiWallet.WalletService.Domain.Balances;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Infrastructure.Persistence;
 
-namespace HiWallet.WalletService.IntegrationTests.Fixtures;
+namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
 /// Test verisi kurar. Para yaratmak için de ledger kullanılır — doğrudan bakiye yazmak

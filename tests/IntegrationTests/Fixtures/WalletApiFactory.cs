@@ -1,9 +1,10 @@
+using HiWallet.WalletService;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace HiWallet.WalletService.IntegrationTests.Fixtures;
+namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
 /// Gerçek uygulamayı ayağa kaldırır, yalnızca bağlantı dizesini bu koşunun schema'sına
@@ -11,17 +12,23 @@ namespace HiWallet.WalletService.IntegrationTests.Fixtures;
 /// ProblemDetails eşlemesi gerçekten çalışıyor mu görünür — handler'ı doğrudan
 /// çağıran testler bu katmanların hiçbirini kapsamıyor.
 /// </summary>
-public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationFactory<Program>
+public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationFactory<WalletServiceApp>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
 
         builder.ConfigureAppConfiguration((_, config) =>
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            var overrides = new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Wallet"] = postgres.ConnectionString
-            }));
+            };
+
+            BrokerSettings.ApplyFallbacks(overrides);
+
+            config.AddInMemoryCollection(overrides);
+        });
 
         // Sunucu tarafındaki istisnalar ProblemDetails'in arkasında kayboluyor;
         // test başarısız olduğunda sebebini görebilmek için yakalanıyor.

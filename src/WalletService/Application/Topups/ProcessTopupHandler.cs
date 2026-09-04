@@ -68,11 +68,11 @@ public sealed class ProcessTopupHandler(
         }
 
         // --- Ledger ----------------------------------------------------------------
-        // Idempotency kapsamı alıcı cüzdan, key ise webhook event_id (decisions.md
+        // Idempotency kapsamı alıcı cüzdan, key ise webhook event'i (decisions.md
         // madde 15). processed_events'e ek olarak buradaki unique index de aynı
         // event'in ikinci kez yazılmasını engelliyor — ikinci bir emniyet kemeri.
         var tx = LedgerTransaction.Create(
-            transactionId, LedgerTransactionType.Topup, wallet.Id, now, message.EventId);
+            transactionId, LedgerTransactionType.Topup, wallet.Id, now, IdempotencyKey(message));
 
         tx.AddEntry(wallet.Id, amount);
         tx.AddEntry(clearing.Id, amount.Negated);
@@ -112,6 +112,17 @@ public sealed class ProcessTopupHandler(
 
         return new ProcessTopupResult(transactionId, Replayed: false);
     }
+
+    /// <summary>
+    /// Ledger'a yazılan idempotency key. <c>event_id</c> TEK BAŞINA yetmiyor:
+    /// tekilliği sağlayıcı bazında (<c>(provider, event_id)</c>), oysa ledger'daki
+    /// unique index <c>(ledger_account_id, idempotency_key)</c> üzerinde ve sağlayıcıyı
+    /// tanımıyor. Yalnız event_id yazılsaydı, iki sağlayıcı aynı id'yi aynı cüzdan için
+    /// ürettiğinde ikinci yükleme sessizce reddedilir ve müşterinin parası kaybolurdu.
+    /// Bunu bir test yakaladı (<c>FarkliSaglayicilar_AyniEventId_AyriAyriIslenir</c>).
+    /// </summary>
+    public static string IdempotencyKey(TopupReceived message) =>
+        $"{message.Provider}:{message.EventId}";
 
     private static Currency ParseCurrency(TopupReceived message)
     {

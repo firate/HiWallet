@@ -1,6 +1,6 @@
 using HiWallet.WalletService.Domain.Ledger;
 
-namespace HiWallet.WalletService.UnitTests.Ledger;
+namespace HiWallet.UnitTests.Ledger;
 
 public sealed class MoneyTests
 {

@@ -17,11 +17,15 @@ public static class MessagingSetup
             .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
             .Configure(options => options.ClientName = clientName)
             .Validate(
-                options => !string.IsNullOrWhiteSpace(options.ConnectionString),
-                $"{RabbitMqOptions.SectionName}:ConnectionString boş. Container'da .env üzerinden verilir.")
+                options => !string.IsNullOrWhiteSpace(options.Host),
+                $"{RabbitMqOptions.SectionName}:Host boş. Container'da .env üzerinden verilir.")
             .Validate(
-                options => Uri.TryCreate(options.ConnectionString, UriKind.Absolute, out _),
-                $"{RabbitMqOptions.SectionName}:ConnectionString geçerli bir amqp:// adresi değil.")
+                options => !string.IsNullOrWhiteSpace(options.Username)
+                           && !string.IsNullOrWhiteSpace(options.Password),
+                $"{RabbitMqOptions.SectionName}:Username / Password boş.")
+            .Validate(
+                options => options.Port is > 0 and <= 65535,
+                $"{RabbitMqOptions.SectionName}:Port geçersiz.")
             .Validate(
                 options => options.PartitionCount is >= 1 and <= 64,
                 $"{RabbitMqOptions.SectionName}:PartitionCount 1-64 aralığında olmalı.")
@@ -29,6 +33,7 @@ public static class MessagingSetup
             .ValidateOnStart();
 
         services.AddSingleton<RabbitMqConnection>();
+        services.AddSingleton<TopupTopology>();
 
         return services;
     }

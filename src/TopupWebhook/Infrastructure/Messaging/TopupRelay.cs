@@ -2,7 +2,6 @@ using System.Text;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 
 namespace HiWallet.TopupWebhook.Infrastructure.Messaging;
@@ -24,7 +23,7 @@ namespace HiWallet.TopupWebhook.Infrastructure.Messaging;
 internal sealed class TopupRelay(
     IDbContextFactory<InboxDbContext> contextFactory,
     RabbitMqConnection connection,
-    IOptions<RabbitMqOptions> options,
+    TopupTopology topology,
     TimeProvider timeProvider,
     ILogger<TopupRelay> logger) : BackgroundService
 {
@@ -117,7 +116,7 @@ internal sealed class TopupRelay(
         return published;
     }
 
-    private static async Task PublishAsync(IChannel channel, InboxMessage message, CancellationToken ct)
+    private async Task PublishAsync(IChannel channel, InboxMessage message, CancellationToken ct)
     {
         var properties = new BasicProperties
         {
@@ -132,7 +131,7 @@ internal sealed class TopupRelay(
         // Routing key = cüzdan id. Consistent hash exchange bunu hash'leyip
         // partition seçiyor; aynı cüzdan hep aynı kuyruğa (overview.md madde 8).
         await channel.BasicPublishAsync(
-            exchange: TopupTopology.Exchange,
+            exchange: topology.Exchange,
             routingKey: message.LedgerAccountId.ToString(),
             mandatory: true,
             basicProperties: properties,
@@ -170,7 +169,7 @@ internal sealed class TopupRelay(
             return Task.CompletedTask;
         };
 
-        await TopupTopology.DeclareAsync(_channel, options.Value.PartitionCount, ct);
+        await topology.DeclareAsync(_channel, ct);
 
         return _channel;
     }

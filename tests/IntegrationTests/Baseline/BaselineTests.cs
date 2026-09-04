@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using HiWallet.WalletService.IntegrationTests.Fixtures;
+using HiWallet.IntegrationTests.Fixtures;
 
-namespace HiWallet.WalletService.IntegrationTests.Baseline;
+namespace HiWallet.IntegrationTests.Baseline;
 
 /// <summary>
 /// baseline.md'nin katmanları GERÇEKTEN çalışıyor mu (madde: "gerçekten çalışıyor,
@@ -55,10 +55,36 @@ public sealed class BaselineTests(PostgresFixture postgres) : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        body.GetProperty("status").GetString().ShouldBe("Healthy");
-
         var checks = body.GetProperty("checks").EnumerateArray().ToList();
-        checks.ShouldContain(c => c.GetProperty("name").GetString() == "postgres");
+
+        // Transfer çekirdeği Postgres'e bağlı; o sağlıklı olmadan servis hazır değil.
+        checks.Single(c => c.GetProperty("name").GetString() == "postgres")
+            .GetProperty("status").GetString().ShouldBe("Healthy");
+    }
+
+    [Fact]
+    public async Task Readiness_BrokerErisilemezse_ServisiTrafiktenCEKMEZ()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.GetAsync("/health/ready", ct);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var rabbit = body.GetProperty("checks").EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == "rabbitmq");
+
+        // Broker top-up hattı için gerekli, transfer çekirdeği için değil — o yol
+        // tek DB'de, ACID ve broker'a hiç dokunmuyor. Bu yüzden broker arızası
+        // Degraded üretiyor, Unhealthy değil: durum görünür oluyor ama uç 200
+        // dönmeye ve orchestrator trafiği yollamaya devam ediyor.
+        rabbit.GetProperty("status").GetString().ShouldBeOneOf("Healthy", "Degraded");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        if (!BrokerSettings.Configured)
+        {
+            rabbit.GetProperty("status").GetString().ShouldBe(
+                "Degraded", "broker tanımsızken kontrol Degraded olmalı");
+        }
     }
 
     [Fact]

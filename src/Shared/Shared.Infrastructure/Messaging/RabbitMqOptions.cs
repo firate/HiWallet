@@ -1,17 +1,24 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace HiWallet.Shared.Infrastructure.Messaging;
 
+/// <summary>
+/// Broker bağlantısı. Tek bir <c>amqp://kullanici:parola@host</c> dizesi yerine ayrı
+/// alanlar: parola URL'in içine gömülmüş olsaydı her log satırında, her hata
+/// mesajında ve her konfigürasyon dökümünde onunla birlikte dolaşırdı.
+/// </summary>
 public sealed class RabbitMqOptions
 {
     public const string SectionName = "RabbitMq";
 
-    /// <summary>
-    /// <c>amqp://kullanici:parola@host:5672/</c>. Parola içerdiği için konfigürasyondan
-    /// değil ortam değişkeninden gelmesi beklenir.
-    /// </summary>
-    [Required]
-    public string ConnectionString { get; init; } = string.Empty;
+    public string Host { get; init; } = string.Empty;
+
+    public int Port { get; init; } = 5672;
+
+    public string Username { get; init; } = string.Empty;
+
+    /// <summary>Konfigürasyondan değil, ortam değişkeni / User Secrets'tan gelir.</summary>
+    public string Password { get; init; } = string.Empty;
+
+    public string VirtualHost { get; init; } = "/";
 
     /// <summary>
     /// Kaç partition kuyruğu açılacağı. Aynı cüzdanın mesajları hep aynı kuyruğa
@@ -22,8 +29,17 @@ public sealed class RabbitMqOptions
     /// sıralama garantisi o cüzdan için tek seferlik bozulur. Artırmadan önce
     /// kuyrukların boşalması beklenir.
     /// </summary>
-    [Range(1, 64)]
     public int PartitionCount { get; init; } = 4;
+
+    /// <summary>
+    /// Exchange ve kuyruk adlarının önüne eklenir. Üretimde boş.
+    ///
+    /// Var olma sebebi test izolasyonu: aynı broker'a bakan iki koşu ön eksiz
+    /// çalışsaydı biri diğerinin kuyruğundan mesaj çeker ve testler birbirini
+    /// rastgele düşürürdü. Aynı mekanizma tek broker'ı paylaşan ortamlar için de
+    /// işe yarıyor.
+    /// </summary>
+    public string NamePrefix { get; set; } = string.Empty;
 
     /// <summary>
     /// Broker yönetim arayüzünde bağlantıyı kimin açtığını görebilmek için.

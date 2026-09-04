@@ -23,7 +23,11 @@ public sealed class RabbitMqConnection : IAsyncDisposable
 
         _factory = new ConnectionFactory
         {
-            Uri = new Uri(settings.ConnectionString),
+            HostName = settings.Host,
+            Port = settings.Port,
+            UserName = settings.Username,
+            Password = settings.Password,
+            VirtualHost = settings.VirtualHost,
             ClientProvidedName = settings.ClientName,
             // Kopan bağlantıyı ve üstündeki topolojiyi istemci kendisi geri kuruyor.
             // Kapalıysa her publish/consume noktasına elle yeniden bağlanma kodu
