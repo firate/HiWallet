@@ -13,8 +13,9 @@ yapılıyorsa öyle.
 double-entry, optimistic lock. Saga yok — dağıtık karmaşıklık tutarlılığın kritik
 olduğu yere taşınmıyor.
 
-**Kenar (eventual).** Dış dünyayla konuşan akışlar — top-up ve withdrawal. Asenkron,
-idempotent, gerektiğinde compensation'lı. *Henüz yazılmadı, sırada.*
+**Kenar (eventual).** Dış dünyayla konuşan akışlar. Top-up hattı çalışıyor: webhook
+ayrı bir serviste, kendi veritabanında; arada RabbitMQ; tüketici wallet-service içinde.
+Withdrawal saga *henüz yazılmadı, sırada.*
 
 Ana mesaj bu ayrımda: **tutarlılığın kritik olduğu çekirdeği tek boundary'de ACID tut,
 sadece dışarıyla konuşan kenarı dağıt.**
@@ -28,11 +29,13 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Optimistic lock, retry, idempotency | ✅ |
 | `POST /v1/transfers`, ProblemDetails | ✅ |
 | Baseline: OTel, health, rate limiting, validation | ✅ |
-| Top-up hattı (webhook → inbox → relay → consumer) | ⬜ adım 3 |
+| Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | ✅ |
+| HMAC imza, iki kademe idempotency, dead-letter | ✅ |
 | Withdrawal saga + compensation | ⬜ adım 4 |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-75 test: 44 unit (DB'siz), 31 integration (gerçek Postgres).
+112 test: 58 unit (DB'siz), 54 integration (gerçek Postgres). Uçtan uca top-up testleri
+bir RabbitMQ istiyor; erişilemezse atlanıyor (yeşil değil, "skipped").
 
 ## Çalıştırma
 
@@ -41,18 +44,20 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar ve roller kurulur → `migrator` şemayı uygular →
-`wallet-service` başlar.
+Sırayla: Postgres ayağa kalkar ve roller/veritabanları kurulur → `migrator` ve
+`topup-migrator` şemaları uygular → `wallet-service` ve `topup-webhook` başlar.
+RabbitMQ paralel kalkar; iki servis de onu BEKLEMEZ.
 
 ```bash
-curl http://localhost:8091/health/ready
+curl http://localhost:8091/health/ready   # wallet-service
+curl http://localhost:8092/health/ready   # topup-webhook
 ```
 
 Swagger: <http://localhost:8091/swagger> (Development'ta).
 
-Host portlarının varsayılanı homelab'a göre seçildi (`8091`, `5433`); orada `8080`
-Keycloak'ta, `8090` dolu ve `5432` ana Postgres'te. Başka bir makinede `.env`'den
-`WALLET_HOST_PORT` ve `POSTGRES_HOST_PORT` ile değiştirilebilir.
+Host portlarının varsayılanı homelab'a göre seçildi (`8091`, `8092`, `5433`, `5673`);
+orada `8080` Keycloak'ta, `8090` dolu, `5432` ana Postgres'te ve `5672` mevcut
+broker'da. Başka bir makinede `.env`'den değiştirilebilir.
 
 Stack gerçek bir koşuda doğrulandı: migration'lar uygulandı, sistem hesapları seed
 edildi, sağlık ucu `Healthy` döndü ve `wallet_app` konteyner içinde de
@@ -97,6 +102,25 @@ curl -X POST http://localhost:8091/v1/transfers \
 **Yetersiz bakiye / limit aşımı** → `422` + `rule` alanı.
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
+**Top-up (dışarıdan para girişi).** Sağlayıcı webhook'u imzalayarak gönderir; imza ham
+gövde baytları üzerinde HMAC-SHA256:
+
+```bash
+BODY='{"eventId":"evt_1","walletId":"...","amount":100.00,"currency":"TRY","reference":"pi_1","occurredAt":"2026-03-01T10:00:00+00:00"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
+curl -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
+```
+
+Yol: **200 (inbox'a yazıldıktan sonra) → relay → RabbitMQ → tüketici → ledger.**
+Ledger'a iki satır düşer: cüzdan `+100`, `clearing/stripe-fake` `-100` (sağlayıcıdan
+alacak). Toplam sıfır.
+
+Aynı webhook ikinci kez gelirse yine `200` döner ama `"duplicate": true` ve bakiye
+değişmez. İki kademe de devrede: inbox `(provider, event_id)` UNIQUE onu kuyruğa hiç
+koymaz, koysa bile tüketicideki `processed_events` yutar.
+
+İmza tutmazsa `401` ve inbox'a **hiçbir şey** yazılmaz.
+
 **Zero-sum, yük altında.** `EszamanliTransferler_ZeroSumKorunur_VeHicbirCuzdanNegatifDusmez`
 500 eşzamanlı transfer atıyor ve dört şeyi doğruluyor: her transaction'ın toplamı sıfır,
 sistem genelinde toplam sıfır, hiçbir cüzdan negatif değil, projeksiyon ledger'dan
@@ -112,7 +136,12 @@ dotnet test
 Integration testler bir Postgres sunucusu ister; bağlantı
 `ConnectionStrings__IntegrationTests`'ten gelir. Her koşu kendi schema'sını açar,
 migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyor, Docker
-gerekmiyor.
+gerekmiyor. topup-webhook'un inbox'ı için ikinci bir schema açılıyor: üretimdeki ayrı
+veritabanı sınırı testte de korunuyor.
+
+Uçtan uca top-up testleri ayrıca bir RabbitMQ ister (`RabbitMq__*`). Erişilemezse
+`Assert.SkipUnless` ile atlanıyor — kurulumu zorunlu kılmak yerine varsa doğrulanıyor,
+ve atlanan test yeşil değil "skipped" görünüyor.
 
 ```bash
 set -a; . ./.env; set +a

@@ -60,7 +60,6 @@ src/
 ├── WalletService/
 ├── WithdrawalOrchestrator/
 ├── TopupWebhook/
-├── TopupConsumer/
 ├── BankService.Fake/
 ├── ProviderFake/
 └── Shared/
@@ -87,7 +86,7 @@ WalletService/
 ├── Application/
 │   ├── Transfers/             -- TransferCommand + TransferHandler yan yana
 │   ├── Balances/
-│   ├── Topups/
+│   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
 │   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
@@ -102,7 +101,7 @@ WalletService/
 │   │   ├── WalletDbContext.cs
 │   │   ├── Configurations/    -- IEntityTypeConfiguration<T> başına bir dosya
 │   │   └── Migrations/        -- EF Core üretir, elle düzenlenmez
-│   ├── Messaging/             -- publisher, consumer, outbox relay
+│   ├── Messaging/             -- TopupConsumer (top-up kuyruklarını dinler)
 │   ├── Providers/             -- IPaymentProvider'ın HTTP implementasyonu
 │   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob
 └── Setup/
@@ -140,18 +139,12 @@ WithdrawalOrchestrator/
 └── Setup/
 
 TopupWebhook/
-├── Api/Controllers/           -- WebhookController
-├── Application/               -- imza doğrulama, inbox yazımı
+├── Api/Controllers/           -- TopupWebhookController
+├── Api/Requests/              -- TopupWebhookPayload
+├── Application/               -- WebhookSignature, WebhookSecrets, TopupInboxWriter
 ├── Infrastructure/
-│   ├── Persistence/           -- inbox tablosu
-│   └── Messaging/             -- relay worker
-└── Setup/
-
-TopupConsumer/
-├── Application/               -- topup handler
-├── Infrastructure/
-│   ├── Persistence/           -- processed_events
-│   └── Messaging/             -- consumer
+│   ├── Persistence/           -- InboxDbContext, topup_inbox, kendi migration'ları
+│   └── Messaging/             -- TopupRelay
 └── Setup/
 
 BankService.Fake/
@@ -177,11 +170,18 @@ Shared/
 │   ├── Events/                -- BankTransferSucceeded, TopupReceived, ...
 │   └── Envelope.cs            -- MessageId, CorrelationId, OccurredAt
 └── Shared.Infrastructure/
-    ├── Messaging/             -- RabbitMQ bağlantısı, publisher confirms, consistent hashing
-    ├── Idempotency/           -- ON CONFLICT kalıbı için ortak yardımcılar
+    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, sağlık kontrolü
     ├── Observability/         -- OTel ortak yapılandırması
-    └── ProblemDetails/        -- ortak exception → ProblemDetails eşlemesi
+    └── HealthChecks/          -- /health/live ve /health/ready uçları
 ```
+
+`Shared.Infrastructure` `FrameworkReference` ile `Microsoft.AspNetCore.App`'e bağlanıyor:
+tüketicilerinin hepsi zaten ASP.NET Core uygulaması, böylece Options/DI/Logging/HealthChecks
+için ayrı paket sürümü yönetmeye gerek kalmıyor.
+
+Topoloji neden burada: hem publish eden hem tüketen taraf aynı exchange/kuyruk adlarını
+ve argümanlarını kullanmak zorunda. İki yerde ayrı yazılsaydı ilk sapmada broker
+`PRECONDITION_FAILED` verirdi.
 
 **Shared kuralı:** yalnızca iki servis gerçekten aynı koda ihtiyaç duyduğunda buraya taşınır.
 "İleride lazım olur" diye önden konulmaz. Domain tipi, entity veya `DbContext`
@@ -193,21 +193,31 @@ Shared'a KONULMAZ — servis sınırını delen şey budur.
 
 ```
 tests/
-├── WalletService.UnitTests/
+├── UnitTests/
 │   ├── Policies/              -- limit, komisyon hesapları
-│   └── Ledger/                -- zero-sum, işaret konvansiyonu
-├── WalletService.IntegrationTests/
-│   ├── Fixtures/              -- PostgresFixture (koşu başına schema)
-│   ├── Transfers/             -- concurrency, idempotency replay
-│   └── Ledger/                -- invariant, projeksiyon tutarlılığı
-├── WithdrawalOrchestrator.IntegrationTests/
-│   └── Saga/                  -- happy path, compensation, retry
-└── EndToEnd.Tests/
-    └── Scenarios/             -- webhook → kuyruk → consumer → ledger
+│   ├── Ledger/                -- zero-sum, işaret konvansiyonu
+│   └── Topups/                -- webhook imzası
+└── IntegrationTests/
+    ├── Fixtures/              -- PostgresFixture, InboxFixture, API fabrikaları
+    ├── Baseline/              -- health, rate limiting
+    ├── Transfers/             -- concurrency, idempotency replay
+    ├── Ledger/                -- invariant, projeksiyon, rol yetkileri
+    └── Topups/                -- webhook→inbox, tüketici, uçtan uca hat
 ```
 
+**Test projesi adları servise bağlı DEĞİL.** Top-up hattı iki servise yayılıyor ve
+uçtan uca test ikisini birden ayağa kaldırıyor; `WalletService.IntegrationTests` adı
+yanıltıcı olurdu.
+
 **Ayrım.** Unit test DB'ye dokunmaz, saf hesaplama. Integration test gerçek Postgres
-kullanır, mock DB yok. E2E test `docker compose` ile tüm stack'i kaldırır.
+kullanır, mock DB yok — uçtan uca senaryolar da burada, ayrı bir E2E projesi yok:
+`WebApplicationFactory` iki servisi de aynı süreçte kaldırabiliyor ve aralarındaki
+gerçek sınır (ayrı veritabanı, ayrı uygulama, arada broker) korunuyor.
+
+**Dış bağımlılığı olan testler atlanabilir.** RabbitMQ erişilemiyorsa uçtan uca
+testler `Assert.SkipUnless` ile atlanıyor; rol kurulu değilse yetki testleri de öyle.
+Kurulumu zorunlu kılmak yerine varsa doğrulanıyor — atlanan test yeşil değil "skipped"
+görünüyor, hangi güvencenin ölçülmediği çıktıdan okunuyor.
 
 **Integration test izolasyonu: koşu başına schema.** `PostgresFixture` her koşuda kendi
 schema'sını açar, migration'ı oraya uygular, sonunda `DROP SCHEMA ... CASCADE` ile düşürür.
@@ -218,7 +228,7 @@ daemon'a konuşmak zorunda. Schema yolu Docker'sız çalışıyor ve paralel ko�
 engellemiyor (schema adları farklı). Bedeli: testler bir Postgres sunucusuna erişim
 istiyor, offline çalışmıyor.
 
-**İlk yazılacak test** — çekirdek koddan önce, `WalletService.IntegrationTests/Ledger/`:
+**İlk yazılacak test** — çekirdek koddan önce, `IntegrationTests/Ledger/`:
 500 eşzamanlı transfer sonrası tüm hesapların `amount` toplamı sıfır ve hiçbir
 `user_wallet` negatif değil.
 

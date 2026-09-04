@@ -17,19 +17,29 @@ git clone git@github.com:firate/HiWallet.git && cd HiWallet
 cp .env.example .env
 ```
 
-Doldurulması ZORUNLU üç değer — gerisi compose için gerekmiyor:
+Doldurulması ZORUNLU değerler:
 
 ```
 POSTGRES_PASSWORD=...
 WALLET_OWNER_PASSWORD=...
 WALLET_APP_PASSWORD=...
+TOPUP_APP_PASSWORD=...
+
+RabbitMq__Username=...          # compose'daki broker'ın ilk kullanıcısı olur
+RabbitMq__Password=...
+
+STRIPE_FAKE_WEBHOOK_SECRET=...  # uzun ve rastgele
+BANK_FAKE_WEBHOOK_SECRET=...
 ```
 
 Portların varsayılanı **homelab'a göre** seçildi, dokunmana gerek yok:
 
 ```
-WALLET_HOST_PORT=8091      # 8080 Keycloak'ta, 8090 dolu
-POSTGRES_HOST_PORT=5433    # 5432 ana Postgres'te
+WALLET_HOST_PORT=8091        # 8080 Keycloak'ta, 8090 dolu
+TOPUP_HOST_PORT=8092
+POSTGRES_HOST_PORT=5433      # 5432 ana Postgres'te
+RABBITMQ_HOST_PORT=5673      # 5672 mevcut broker'da
+RABBITMQ_MGMT_HOST_PORT=15673
 ```
 
 Telemetriyi homelab Collector'ına göndereceksen `.env`'de şunu değiştir — container
@@ -47,8 +57,9 @@ Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 docker compose up --build
 ```
 
-Beklenen sıra: `postgres` sağlıklı olur → `migrator` dört migration'ı uygulayıp
-`exit 0` ile biter → `wallet-service` başlar.
+Beklenen sıra: `postgres` sağlıklı olur → `migrator` ve `topup-migrator` şemaları
+uygulayıp `exit 0` ile biter → `wallet-service` ve `topup-webhook` başlar. `rabbitmq`
+paralel kalkar; iki servis de onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
 
 ## 4. Doğrula
 
@@ -121,8 +132,39 @@ Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:
 
 | ne | nasıl bakılır |
 | --- | --- |
-| compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — `wallet-service` `healthy` mi, `unhealthy` mi |
+| compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi, `unhealthy` mi |
 | konteynerlenmiş uygulamadan uçtan uca transfer | hesap/cüzdan endpoint'i yok; cüzdanları DB'den kurmak gerekiyor |
+| **top-up hattının tamamı compose içinde** | aşağıdaki adım |
+| `rabbitmq_consistent_hash_exchange` eklentisinin yüklendiği | `docker compose logs rabbitmq \| grep consistent_hash` |
+| `topup-migrator` çıkışı | `docker compose ps -a topup-migrator` — `exited (0)` olmalı |
+
+### Top-up hattını doğrulama
+
+Cüzdan kurulduktan sonra (transfer doğrulamasındaki `psql` komutu), webhook'u imzalayıp
+gönder:
+
+```bash
+BODY='{"eventId":"evt_manuel_1","walletId":"<CUZDAN_ID>","amount":100.00,"currency":"TRY","reference":"pi_1","occurredAt":"2026-03-01T10:00:00+00:00"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
+curl -s -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
+```
+
+Beklenen: `{"received":true,"duplicate":false}`.
+
+Birkaç saniye sonra bakiye artmış olmalı:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c "SELECT balance FROM ledger_balances WHERE ledger_account_id = '<CUZDAN_ID>';"
+```
+
+Aynı komutu ikinci kez çalıştır: `"duplicate":true` dönmeli ve bakiye DEĞİŞMEMELİ.
+
+İmzayı bozup dene (`SIG` sonuna bir karakter ekle): `401` dönmeli ve inbox'a hiçbir şey
+yazılmamalı:
+
+```bash
+docker compose exec postgres psql -U topup_app -d hiwallet_topup -c "SELECT event_id, published_at, publish_attempts FROM topup_inbox ORDER BY received_at;"
+```
 
 ## Host'ta .NET gerekmiyor
 

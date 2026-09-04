@@ -368,7 +368,7 @@ kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
 | `type`             | `ledger_account_id`                          | `idempotency_key`  |
 | ------------------ | ------------------------------------- | ------------------ |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i    |
-| `topup`            | alıcı `user_wallet`                   | webhook `event_id` |
+| `topup`            | alıcı `user_wallet`                   | `provider:event_id`|
 | `withdrawal`       | çeken `user_wallet`                   | client'ın key'i    |
 | `refund` (comp.)   | aynı `user_wallet`                    | saga id            |
 | settlement         | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref|
@@ -686,3 +686,63 @@ Kimlik ayrı bir ortam değişkeninden değil, `ConnectionStrings:Wallet`'tan al
 veritabanının host/adıyla birleştiriliyor — üçüncü bir parola dolaşıma sokmamak için.
 Rol kurulu değilse testler atlanıyor (`Assert.SkipUnless`): kurulumu zorunlu kılmak
 yerine, varsa doğrulanıyor.
+
+---
+
+## 25. Top-up tüketicisi ayrı bir uygulama değil, wallet-service içinde
+
+**Karar.** `topup-webhook` ayrı bir servis (kendi uygulaması, kendi veritabanı).
+Tüketici ise wallet-service'in içinde bir `BackgroundService`. `structure.md`'nin ilk
+taslağında ayrı bir `TopupConsumer/` uygulaması vardı; oradan sapılıyor.
+
+**Gerekçe.** Ledger'a yazan tek yer wallet-service olmalı. Ayrı bir tüketici
+uygulaması `ledger_transactions`, `ledger_entries` ve `ledger_balances`'a ikinci bir
+süreçten yazardı. CLAUDE.md bunu orchestrator için açıkça yasaklıyor ("wallet
+tablolarına doğrudan yazmaz, yalnızca komut gönderir"); gerekçe burada da aynı — iki
+yazar demek, invariant'ı zorlayan kodun iki kopyası ve iki ayrı migration geçmişi demek.
+
+**Dağıtık atlama kaybolmuyor.** Webhook gerçekten ayrı bir uygulama, gerçekten ayrı bir
+veritabanı ve arada gerçekten bir broker var. Gösterilmek istenen şey "kaç tane process
+var" değil, servis sınırı boyunca mesajın kaybolmadan ve bir kez işlenerek geçmesi.
+
+**Elenen alternatif.** Ayrı tüketici + wallet-service'e senkron HTTP çağrısı. Broker'ın
+sağladığı geri baskıyı ve tekrar denemeyi HTTP katmanında yeniden kurmayı gerektirirdi;
+kazancı yalnızca bir kutu daha olurdu.
+
+---
+
+## 26. Broker arızası wallet-service'i trafikten çekmez
+
+**Karar.** RabbitMQ sağlık kontrolü wallet-service'te `Degraded`, `Unhealthy` değil.
+topup-webhook'ta da `Degraded`. Postgres ikisinde de `Unhealthy`.
+
+**Gerekçe.** `Unhealthy` readiness'ı düşürür, orchestrator servisi trafikten çeker.
+Transfer çekirdeği broker'a hiç dokunmuyor — tek DB, tek transaction. Broker arızasında
+transferleri de kapatmak, arızayı olduğundan büyük yapmak olurdu. `Degraded` durumu
+sağlık çıktısında görünür kılıyor ama uç 200 dönmeye devam ediyor.
+
+topup-webhook'ta gerekçe daha da net: webhook'u kabul etmek yalnızca Postgres'e bağlı.
+Inbox'ın varlık sebebi zaten "broker yokken de kaybetme". Broker'ı readiness'a bağlamak
+inbox'ı anlamsız kılardı.
+
+**Testle doğrulandı.** `Readiness_BrokerErisilemezse_ServisiTrafiktenCEKMEZ`.
+
+---
+
+## 27. Top-up idempotency key'i sağlayıcıyı da taşır
+
+**Karar.** `ledger_transactions.idempotency_key` top-up'ta `event_id` değil,
+`provider:event_id`.
+
+**Gerekçe.** İki tekillik alanı var ve kapsamları farklı:
+
+- mesaj tarafı: `(provider, event_id)` — `event_id` yalnızca sağlayıcı içinde tekil,
+- ledger tarafı: `(ledger_account_id, idempotency_key)` — sağlayıcıyı hiç tanımıyor.
+
+Yalnız `event_id` yazılsaydı, iki sağlayıcı aynı id'yi aynı cüzdan için ürettiğinde
+ikinci yükleme unique index'e takılır ve **müşterinin parası sessizce kaybolurdu**.
+Sağlayıcılar birbirinden habersiz id ürettiği için bu uzak bir ihtimal değil; `evt_1`
+gibi sayaç tabanlı id'lerde neredeyse kaçınılmaz.
+
+**Nasıl bulundu.** Kod önce yalnızca `event_id` yazıyordu ve tek sağlayıcıyla yazılmış
+her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakaladı.

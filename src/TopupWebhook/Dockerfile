@@ -1,33 +1,33 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/WalletService/Dockerfile .
+#   docker build -f src/TopupWebhook/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/WalletService/WalletService.csproj src/WalletService/
+COPY src/TopupWebhook/TopupWebhook.csproj src/TopupWebhook/
 COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
 COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/WalletService/WalletService.csproj
+RUN dotnet restore src/TopupWebhook/TopupWebhook.csproj
 
 COPY src/ src/
-RUN dotnet publish src/WalletService/WalletService.csproj \
+RUN dotnet publish src/TopupWebhook/TopupWebhook.csproj \
         -c Release -o /app/publish --no-restore
 
 # ---------------------------------------------------------------------------
-# Migration bundle: şemayı uygulayan tek dosyalık çalıştırılabilir.
-# Ayrı bir servis olarak koşuyor çünkü migration wallet_owner ile, uygulama
-# wallet_app ile bağlanıyor (decisions.md madde 5). Uygulamanın kendi başlangıcında
-# migrate etmesi bu ayrımı bozardı.
+# Migration bundle. wallet-service'ten farklı olarak burada tek rol var
+# (append-only zorlanacak bir tablo yok), ama migration yine de AYRI bir servis
+# olarak koşuyor: uygulamanın kendi başlangıcında migrate etmesi çok instance'ta
+# aynı anda migrate denemesi demek olurdu.
 # ---------------------------------------------------------------------------
 FROM build AS migrator-build
 RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
-        --project src/WalletService \
-        --startup-project src/WalletService \
+        --project src/TopupWebhook \
+        --startup-project src/TopupWebhook \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 
@@ -50,4 +50,4 @@ COPY --from=build /app/publish .
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
 
-ENTRYPOINT ["dotnet", "HiWallet.WalletService.dll"]
+ENTRYPOINT ["dotnet", "HiWallet.TopupWebhook.dll"]

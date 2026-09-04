@@ -183,7 +183,7 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 | `type`             | `ledger_account_id`                          | `idempotency_key`   |
 | ------------------ | ------------------------------------- | ------------------- |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i     |
-| `topup`            | alıcı `user_wallet`                   | webhook `event_id`  |
+| `topup`            | alıcı `user_wallet`                   | `provider:event_id` |
 | `withdrawal`       | çeken `user_wallet`                   | client'ın key'i     |
 | `refund`           | aynı `user_wallet`                    | saga id             |
 | `settlement`       | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref |
