@@ -678,8 +678,11 @@ schema'da migrate ettiği için yetkiler yanlış şemaya verilirdi — ve test 
 Alt satır madde 5'in gerekçesinin ispatı: sahip rolüne `REVOKE` işlemiyor. Tek rol
 kullanılsaydı append-only kuralı tamamen süs olurdu.
 
-**AÇIK GAP.** Integration testler `wallet_owner` ile bağlanıyor, yani yetki
-regresyonlarını yakalayamıyorlar — bu bölümdeki tablo elle üretildi, testle değil.
-Kapatmak için testlere ikinci bir bağlantı (`wallet_app`) eklenmeli ve en az iki senaryo
-yazılmalı: uygulama rolü `ledger_entries` güncelleyemez, uygulama rolü normal transfer
-yapabilir. Yapılmadı.
+**Testle doğrulandı.** `AppRolePrivilegeTests` uygulama rolüyle bağlanıyor: `UPDATE` ve
+`DELETE` `42501` alıyor, `SELECT`/`INSERT` çalışıyor, ve normal bir transfer baştan sona
+geçiyor. Son test olmasaydı "her şeyi revoke et" de yeşil görünürdü.
+
+Kimlik ayrı bir ortam değişkeninden değil, `ConnectionStrings:Wallet`'tan alınıp test
+veritabanının host/adıyla birleştiriliyor — üçüncü bir parola dolaşıma sokmamak için.
+Rol kurulu değilse testler atlanıyor (`Assert.SkipUnless`): kurulumu zorunlu kılmak
+yerine, varsa doğrulanıyor.

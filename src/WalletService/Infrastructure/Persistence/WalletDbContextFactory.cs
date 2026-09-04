@@ -13,13 +13,25 @@ namespace HiWallet.WalletService.Infrastructure.Persistence;
 /// </summary>
 internal sealed class WalletDbContextFactory : IDesignTimeDbContextFactory<WalletDbContext>
 {
+    /// <summary>
+    /// Bağlantı dizesi yoksa kullanılan yer tutucu.
+    ///
+    /// <c>migrations add</c> ve <c>migrations bundle</c> yalnızca MODELE bakıyor, hiçbir
+    /// veritabanına bağlanmıyor — bunlar bağlantı dizesi olmadan da çalışmalı. Docker
+    /// imajı build edilirken ortamda <c>.env</c> yok ve bundle üretimi burada patlıyordu.
+    ///
+    /// <c>database update</c> ise gerçekten bağlanıyor; bağlantı verilmemişse bu host'a
+    /// bağlanmaya çalışıp hata veriyor. Host adı bilerek açıklayıcı seçildi, hata mesajı
+    /// tek başına neyin eksik olduğunu söylesin diye.
+    /// </summary>
+    private const string PlaceholderConnectionString =
+        "Host=connection-string-not-configured;Database=hiwallet_wallet;Username=wallet_owner";
+
     public WalletDbContext CreateDbContext(string[] args)
     {
         var connectionString =
             Environment.GetEnvironmentVariable("ConnectionStrings__WalletOwner")
-            ?? throw new InvalidOperationException(
-                "ConnectionStrings__WalletOwner ortamda yok. Kabuğa .env yükle: " +
-                "set -a; . ./.env; set +a");
+            ?? PlaceholderConnectionString;
 
         var options = new DbContextOptionsBuilder<WalletDbContext>()
             .UseNpgsql(connectionString)

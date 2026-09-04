@@ -1,0 +1,94 @@
+# baseline.md çıkış kriteri: `docker compose up` ile ayağa kalkıyor.
+#
+# Kendine yeterli: homelab'a bağlı değil. Telemetriyi homelab Collector'ına
+# göndermek istersen .env'de OTEL_EXPORTER_OTLP_ENDPOINT tanımla — tanımlı değilse
+# exporter hiç eklenmiyor ve uygulama sessizce çalışıyor.
+#
+# Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
+# otomatik okur.
+
+name: hiwallet
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env'de tanımlı değil}
+      POSTGRES_DB: postgres
+      WALLET_OWNER_PASSWORD: ${WALLET_OWNER_PASSWORD:?WALLET_OWNER_PASSWORD .env'de tanımlı değil}
+      WALLET_APP_PASSWORD: ${WALLET_APP_PASSWORD:?WALLET_APP_PASSWORD .env'de tanımlı değil}
+    volumes:
+      # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
+      # volume'u düşürmek gerekiyor: docker compose down -v
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+      # .sql initdb.d DIŞINDA: postgres o dizindeki .sql dosyalarını da kendisi
+      # çalıştırıyor, script iki kez koşardı (ikincisinde parola değişkenleri
+      # tanımsız olduğu için hata vererek).
+      - ./docker/postgres-init.sql:/opt/hiwallet/postgres-init.sql:ro
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      # Host'tan pgAdmin/psql ile bakabilmek için. Homelab'da 5432 ana Postgres'te.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    healthcheck:
+      # migrator ve app bunu bekliyor. pg_isready YETMEZ: gerçekten bağlanmıyor,
+      # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
+      # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor.
+      test: ["CMD-SHELL", "psql -U postgres -d hiwallet_wallet -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Şemayı uygulayan tek seferlik iş. wallet_owner ile koşuyor — uygulama
+  # wallet_app ile bağlanacak ve ledger_entries üzerindeki REVOKE ancak sahip
+  # OLMAYAN bir role işliyor (decisions.md madde 5).
+  migrator:
+    build:
+      context: .
+      dockerfile: src/WalletService/Dockerfile
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_owner;Password=${WALLET_OWNER_PASSWORD}
+    restart: "no"
+
+  wallet-service:
+    build:
+      context: .
+      dockerfile: src/WalletService/Dockerfile
+      target: final
+    depends_on:
+      # Migration BİTMEDEN başlamamalı; yoksa ilk istek "relation does not exist" alır.
+      migrator:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD}
+      # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-hiwallet-wallet-service}
+    extra_hosts:
+      # Collector container'ın DIŞINDA, Docker host'unda çalışıyor. "homelab" adı
+      # container içinde çözülmez; host-gateway ile host'un IP'sine takma ad veriliyor.
+      # Böylece OTLP endpoint'i http://host.docker.internal:4317 olarak yazılabiliyor.
+      - "host.docker.internal:host-gateway"
+    ports:
+      # Homelab'da 8080 Keycloak'ta, 8090 da dolu. Varsayılan 8091 (boş olduğu
+      # kontrol edildi); başka bir makinede koşturursan .env'den değiştir.
+      - "${WALLET_HOST_PORT:-8091}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # SIGTERM'de in-flight işlerin bitmesi için. Uygulamanın ShutdownTimeout'u 15 sn;
+    # compose bundan önce SIGKILL göndermemeli (baseline.md madde 10).
+    stop_grace_period: 20s
+
+volumes:
+  postgres-data:
