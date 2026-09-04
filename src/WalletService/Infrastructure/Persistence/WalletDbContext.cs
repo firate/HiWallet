@@ -21,6 +21,9 @@ public sealed class WalletDbContext : DbContext
 
     public DbSet<LedgerBalance> LedgerBalances => Set<LedgerBalance>();
 
+    /// <summary>Tüketici tarafı idempotency defteri (overview.md madde 5).</summary>
+    internal DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(WalletDbContext).Assembly);
