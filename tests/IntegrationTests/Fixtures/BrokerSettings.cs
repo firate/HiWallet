@@ -66,6 +66,31 @@ internal static class BrokerSettings
     };
 
     /// <summary>
+    /// Broker'a bağlanılabiliyor mu. Withdrawal topolojisi düz bir direct exchange
+    /// kullanıyor, eklenti istemiyor — o yüzden <see cref="IsUsableAsync"/>'in
+    /// eklenti kontrolü burada gereksiz ve atlama mesajını yanıltıcı yapardı.
+    /// </summary>
+    public static async Task<bool> IsReachableAsync(CancellationToken ct)
+    {
+        if (!Configured) return false;
+
+        try
+        {
+            await using var connection = new RabbitMqConnection(
+                Options.Create(BuildOptions("hiwallet-tests-probe")));
+
+            await using var channel = await (await connection.GetAsync(ct))
+                .CreateChannelAsync(cancellationToken: ct);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Broker uçtan uca testleri KOŞTURABİLECEK durumda mı. Uçtan uca testler bunu
     /// sorup değilse kendini atlıyor — kurulumu zorunlu kılmak yerine, varsa
     /// doğruluyor (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım).
