@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- Gerçek bankanın yerine geçen sahte servis. Varlık sebebi test edilebilirlik:
+         "banka reddetti" senaryosu gerçek bir bankayla üretilemez, oysa telafi
+         yolunun çalıştığını kanıtlamanın tek yolu onu tetikleyebilmek
+         (overview.md madde 9).
+
+         WALLET SINIRINI GÖRMÜYOR: WalletService.Core'a referansı yok, ledger'dan
+         haberi yok. Bildiği tek şey "şu tutarı şu IBAN'a gönder" komutu ve verdiği
+         cevap. Gerçek banka da bundan fazlasını bilmezdi. -->
+
+    <PropertyGroup>
+        <!-- Proje adındaki ".Fake" isim alanına taşınmıyor: tipler
+             HiWallet.BankService.* altında duruyor ve gerçek bir banka
+             entegrasyonu yazıldığında using satırları değişmesin. -->
+        <RootNamespace>HiWallet.BankService</RootNamespace>
+        <AssemblyName>HiWallet.BankService.Fake</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+
+        <PackageReference Include="FluentValidation"/>
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared\Shared.Contracts\Shared.Contracts.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+</Project>
