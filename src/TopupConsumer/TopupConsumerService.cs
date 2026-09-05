@@ -5,7 +5,7 @@ using HiWallet.WalletService.Application.Topups;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-namespace HiWallet.WalletService.Infrastructure.Messaging;
+namespace HiWallet.TopupConsumer;
 
 /// <summary>
 /// Top-up kuyruklarını dinler ve <see cref="ProcessTopupHandler"/>'a verir.
@@ -21,11 +21,11 @@ namespace HiWallet.WalletService.Infrastructure.Messaging;
 /// tam tersi — farklı cüzdanlar paralel aksın. Kanal başına <c>prefetch=1</c> ise
 /// aynı cüzdanın mesajlarının sırasını koruyor (overview.md madde 8).
 /// </summary>
-internal sealed class TopupConsumer(
+internal sealed class TopupConsumerService(
     RabbitMqConnection connection,
     TopupTopology topology,
     IServiceScopeFactory scopeFactory,
-    ILogger<TopupConsumer> logger) : BackgroundService
+    ILogger<TopupConsumerService> logger) : BackgroundService
 {
     /// <summary>Geçici hatada mesaj kuyruğa geri konmadan önce beklenen süre.</summary>
     private static readonly TimeSpan RequeueDelay = TimeSpan.FromSeconds(2);

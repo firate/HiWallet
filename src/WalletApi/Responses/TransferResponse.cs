@@ -1,6 +1,6 @@
 using HiWallet.WalletService.Application.Transfers;
 
-namespace HiWallet.WalletService.Api.Responses;
+namespace HiWallet.WalletApi.Responses;
 
 /// <param name="Replayed">
 /// <c>true</c> ise bu <c>Idempotency-Key</c> daha önce işlenmişti; yeni bir transfer

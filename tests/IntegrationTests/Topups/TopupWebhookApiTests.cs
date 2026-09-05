@@ -36,7 +36,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GecerliImza_InboxaYazilir_Ve200Doner()
+    public async Task GecerliImza_InboxaYazilir_Ve202Doner()
     {
         var ct = TestContext.Current.CancellationToken;
         var eventId = NewEventId();
@@ -44,7 +44,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
 
         var response = await PostAsync(Payload(eventId, walletId), ct: ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         result.GetProperty("duplicate").GetBoolean().ShouldBeFalse();
@@ -55,7 +55,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         row.Provider.ShouldBe(TopupWebhookApiFactory.StripeProvider);
         row.LedgerAccountId.ShouldBe(walletId);
 
-        // Yayınlanmamış olarak duruyor: 200 dönmek broker'a ulaşmakla ilgili değil,
+        // Yayınlanmamış olarak duruyor: 202 dönmek broker'a ulaşmakla ilgili değil,
         // kalıcı olmakla ilgili. Taşımak relay'in işi.
         row.PublishedAt.ShouldBeNull();
     }
@@ -76,7 +76,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
                     """;
 
         var response = await PostRawAsync(raw, TopupWebhookApiFactory.StripeSecret, ct: ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         await using var db = inbox.CreateContext();
         var row = await db.Inbox.SingleAsync(m => m.EventId == eventId, ct);
@@ -141,11 +141,11 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         var first = await PostAsync(payload, ct: ct);
         var second = await PostAsync(payload, ct: ct);
 
-        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        first.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         // Tekrar da başarı: sağlayıcı için yeniden gönderim beklenen davranış.
         // Hata dönmek onu sonsuz tekrara sokardı.
-        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+        second.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>(ct);
         var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -170,7 +170,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         var responses = await Task.WhenAll(
             Enumerable.Range(0, 8).Select(_ => PostAsync(payload, ct: ct)));
 
-        responses.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
+        responses.ShouldAllBe(r => r.StatusCode == HttpStatusCode.Accepted);
 
         await using var db = inbox.CreateContext();
         (await db.Inbox.CountAsync(m => m.EventId == eventId, ct)).ShouldBe(1);

@@ -1,7 +1,7 @@
 using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletService.Domain.Policies;
 
-namespace HiWallet.WalletService.Api.Requests;
+namespace HiWallet.WalletApi.Requests;
 
 /// <param name="Amount">
 /// Alıcıya geçecek tutar. Komisyon buna EK olarak gönderenden düşülür.

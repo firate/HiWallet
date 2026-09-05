@@ -13,11 +13,12 @@
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
     </ItemGroup>
 
-    <!-- Top-up hattı iki servise yayılıyor; uçtan uca test ikisini de ayağa
-         kaldırmak zorunda. Proje adı bu yüzden tek servise bağlı değil. -->
+    <!-- Üç deployable birden. Uçtan uca test hepsini ayrı ayrı ayağa kaldırıyor;
+         proje adı bu yüzden tek servise bağlı değil. -->
     <ItemGroup>
-        <ProjectReference Include="../../src/WalletService/WalletService.csproj"/>
+        <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
+        <ProjectReference Include="../../src/TopupConsumer/TopupConsumer.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

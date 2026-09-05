@@ -689,7 +689,13 @@ yerine, varsa doğrulanıyor.
 
 ---
 
-## 25. Top-up tüketicisi ayrı bir uygulama değil, wallet-service içinde
+## 25. Top-up tüketicisi wallet çekirdeğinin kodunu paylaşır
+
+> **Revize edildi (madde 28).** Aşağıdaki karar "tüketici wallet-service'in İÇİNDE bir
+> BackgroundService" diyordu. Tüketici artık ayrı bir deployable — sebep erişim
+> seviyesi. Ama bu maddenin ASIL gerekçesi (ledger'a yazan kodun tek kopya olması)
+> aynen geçerli ve madde 28 onu ortak kütüphaneyle karşılıyor. Değişen şey kaç
+> process olduğu, kaç kod tabanı olduğu değil.
 
 **Karar.** `topup-webhook` ayrı bir servis (kendi uygulaması, kendi veritabanı).
 Tüketici ise wallet-service'in içinde bir `BackgroundService`. `structure.md`'nin ilk
@@ -711,7 +717,13 @@ kazancı yalnızca bir kutu daha olurdu.
 
 ---
 
-## 26. Broker arızası wallet-service'i trafikten çekmez
+## 26. Broker arızası cüzdan API'sini trafikten çekmez
+
+> **Revize edildi (madde 28).** wallet-api'de artık RabbitMQ kontrolü YOK, çünkü
+> bağımlılığın kendisi yok — tüketici ayrı deployable'a taşındı. Aşağıdaki `Degraded`
+> tercihi bir tasarım kararıyken, şimdi yapısal bir gerçek. topup-webhook'ta hâlâ
+> geçerli; topup-consumer'da ise broker `Unhealthy`, çünkü orada broker olmadan
+> yapılacak iş yok.
 
 **Karar.** RabbitMQ sağlık kontrolü wallet-service'te `Degraded`, `Unhealthy` değil.
 topup-webhook'ta da `Degraded`. Postgres ikisinde de `Unhealthy`.
@@ -746,3 +758,77 @@ gibi sayaç tabanlı id'lerde neredeyse kaçınılmaz.
 
 **Nasıl bulundu.** Kod önce yalnızca `event_id` yazıyordu ve tek sağlayıcıyla yazılmış
 her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakaladı.
+
+---
+
+## 28. Üç deployable: erişim seviyesi ayrımı
+
+**Karar.** wallet çekirdeği tek uygulama değil, ortak bir kütüphane (`WalletService.Core`)
+üstünde iki host:
+
+| deployable | ingress | Postgres | RabbitMQ |
+| --- | --- | --- | --- |
+| `wallet-api` | **public** (mobil/web) | `hiwallet_wallet` / `wallet_app` | — |
+| `topup-webhook` | **IP kısıtlı** (sağlayıcı) | `hiwallet_topup` / `topup_app` | publish |
+| `topup-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
+
+**Birincil gerekçe: farklı ağ maruziyeti aynı process'te olamaz.** Banka webhook'u
+belirli IP bloklarına açılacak, cüzdan API'si herkese. IP kısıtı process seviyesinde
+uygulanamaz, yalnızca deployable seviyesinde. Bu tek başına webhook'un ayrılmasını
+gerektiriyor — o zaten ayrıydı.
+
+**Tüketicinin ayrılma gerekçesi farklı.** Onun hiç ingress'i yok; mesajları kendisi
+çekiyor. Ama wallet-api'nin İÇİNDE koştuğu sürece o uygulamanın maruziyetini ve blast
+radius'unu miras alıyordu: public ingress'i olan bir uygulamanın içinde ledger'a yazan
+bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen bir sürece taşındı.
+
+**Yan kazançlar.**
+
+- wallet-api'nin RabbitMQ bağımlılığı tamamen kalktı. Public yüzeydeki bağımlılık
+  sayısı azaldı ve madde 26'daki "broker arızası servisi trafikten çekmemeli" sorunu
+  bir tasarım tercihi olmaktan çıkıp yapısal gerçek oldu — kontrol de bağımlılık da yok.
+- Bağlantı havuzları ayrıldı. Kuyruk birikmesi artık HTTP'nin bağlantılarını yiyemiyor.
+  Tüketicinin dizesinde `Application Name` ayrı, `pg_stat_activity`'de yük kaynağı
+  görünüyor.
+- Tüketici tıkandığında kendi sağlık ucu var; wallet-api'nin sağlıklı görünmesi durumu
+  bitti.
+
+**Neden ortak kütüphane, ayrı kopya değil.** Madde 25'in gerekçesi aynen geçerli:
+cüzdanın negatife düşememesi, bakiye satırlarının artan id sırasıyla güncellenmesi ve
+`version`'ın birer artması hiçbir constraint tarafından zorlanmıyor. İki kopya kod =
+iki kopya invariant = ilk sapmada sessiz bozulma. Ayrı deployable olmak sorun değil;
+ayrı **kod** olmak sorun.
+
+**Kütüphane sınırı: `WalletService.Core`'a wallet dışından referans verilmez.**
+topup-webhook onu görmemeli. Görürse ayrı veritabanı sınırı yapısal bir gerçek olmaktan
+çıkıp nezaket kuralına döner. Bu, "db'ye ve rabbitmq'ya yazan her şeyi tek kütüphaneye
+koy" alternatifinin elenme sebebi: o sınır altyapı şeklinde çizilmiş olurdu, veri
+sahipliği şeklinde değil.
+
+**Ne kazandırmıyor.** Tüketici verimi artmıyor — `x-single-active-consumer` yüzünden
+aktif tüketici sayısı `PartitionCount` ile sınırlı, instance sayısıyla değil. Postgres
+de izole olmuyor; ayrılan yalnızca .NET tarafındaki havuz.
+
+**Maliyet.** wallet-api ve topup-consumer aynı şemayı paylaştığı için birlikte deploy
+edilmek zorundalar. Migration sahipliği değişmiyor (ayrı `migrator` job'ı, hiçbir
+uygulama startup'ta migrate etmiyor) ama koordine edilecek şey ikiye çıktı.
+
+---
+
+## 29. Webhook `202` döner, `200` değil
+
+**Karar.** `POST /v1/webhooks/topup/{provider}` başarıda `202 Accepted` dönüyor,
+gövde `{"accepted": true, "duplicate": false}`.
+
+**Gerekçe.** Yanıt döndüğünde para henüz cüzdanda değil: ledger'a yazan kod başka bir
+deployable'da, arada broker var. `200 OK` "istediğin işi yaptım" demek ve bu doğru
+değil. `202` tam olarak verilen sözü söylüyor — **kabul edildi ve kalıcı kaydedildi,
+işlenmesi sonra.**
+
+İşlevsel fark yok (sağlayıcıların çoğu 2xx'in hepsini başarı sayıyor); fark
+sözleşmenin dürüstlüğünde. Yanıtın anlamını olduğundan güçlü göstermek, ileride
+"200 aldım, neden bakiyem artmadı" tartışmasının kaynağı olur.
+
+**Tekrar eden event de `202`.** Sağlayıcı için yeniden gönderim beklenen bir davranış,
+hata değil; `4xx` dönmek onu sonsuz tekrara sokardı. Ayrım gövdedeki `duplicate`
+alanında.

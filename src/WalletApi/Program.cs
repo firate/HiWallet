@@ -1,12 +1,14 @@
 using System.Text.Json.Serialization;
 using HiWallet.Shared.Infrastructure.HealthChecks;
-using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
+using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Setup;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
 
-const string ServiceName = "hiwallet-wallet-service";
+// Public ingress. Mobil ve web istemciler buraya bağlanıyor; banka webhook'ları
+// BURAYA GELMİYOR — onlar IP kısıtlı topup-webhook'ta (decisions.md madde 28).
+const string ServiceName = "hiwallet-wallet-api";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,11 +21,16 @@ builder.AddHiWalletObservability(ServiceName);
 
 // Wolverine YALNIZCA in-process mediator olarak: RabbitMQ transport'u, durable
 // inbox/outbox'ı ve Saga persistence'ı kullanılmıyor (decisions.md madde 1).
-builder.Host.UseWolverine();
+builder.Host.UseWolverine(options =>
+    // Handler'lar WalletService.Core'da; Wolverine varsayılan olarak yalnızca
+    // giriş assembly'sini tarıyor. Bu satır olmadan dispatch çalışma anında
+    // IndeterminateRoutesException veriyor — derleme hatası DEĞİL, o yüzden
+    // ayrıştırmadan sonra ilk testte ortaya çıktı.
+    options.Discovery.IncludeAssembly(typeof(HiWallet.WalletService.Application.Transfers.CreateTransferHandler).Assembly));
 
+// AddHiWalletMessaging ÇAĞRILMIYOR: bu uygulamanın broker'a hiç işi yok. Top-up
+// tüketicisi ayrı bir host'a taşındıktan sonra burada tek bağımlılık Postgres kaldı.
 builder.Services.AddHiWalletPersistence();
-builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
-builder.Services.AddHiWalletTopupConsumer();
 builder.Services.AddHiWalletPolicies(builder.Configuration);
 builder.Services.AddHiWalletValidation();
 builder.Services.AddHiWalletProblemDetails();
@@ -60,6 +67,6 @@ app.MapHiWalletHealthChecks();
 
 app.MapControllers().RequireRateLimiting(RateLimitingSetup.TransfersPolicy);
 
-// Integration testler WebApplicationFactory<WalletServiceApp> ile ayağa kaldırır;
-// gerekçe WalletServiceApp.cs'te.
+// Integration testler WebApplicationFactory<WalletApiApp> ile ayağa kaldırır;
+// gerekçe WalletApiApp.cs'te.
 app.Run();

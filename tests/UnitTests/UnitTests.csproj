@@ -13,7 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../src/WalletService/WalletService.csproj"/>
+        <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
     </ItemGroup>
 

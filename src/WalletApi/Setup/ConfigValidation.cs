@@ -1,4 +1,6 @@
-namespace HiWallet.WalletService.Setup;
+using HiWallet.WalletService.Setup;
+
+namespace HiWallet.WalletApi.Setup;
 
 /// <summary>
 /// Fail fast: kritik config eksikse uygulama ayağa kalkmadan patlar (baseline.md madde 1).

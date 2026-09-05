@@ -63,16 +63,26 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Kalıp: `INSERT ... ON CONFLICT DO NOTHING`, 0 satır ise mevcut kaydı oku ve onu dön.
   "Önce SELECT sonra INSERT" YOK.
 
+**Deployable'lar**
+- Üç uygulama, üç erişim seviyesi (`decisions.md` madde 28):
+  `wallet-api` public, `topup-webhook` IP kısıtlı, `topup-consumer` ingress'siz.
+  Farklı ağ maruziyeti aynı process'te BİRLEŞTİRİLMEZ.
+- `wallet-api` ve `topup-consumer` ortak kütüphane `WalletService.Core` üstünde.
+  Ledger'a yazan kodun tek kopyası orada; ikinci bir kopya AÇILMAZ (madde 25).
+- **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
+  `topup-webhook` onu görmez.
+- `wallet-api`'nin RabbitMQ bağımlılığı YOK ve eklenmez.
+
 **Top-up hattı**
 - `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —
   append-only zorlanacak tablosu yok.
-- **Ledger'a yazan tek servis wallet-service.** Top-up tüketicisi onun içinde bir
-  `BackgroundService`; ayrı bir consumer uygulaması AÇILMAZ (`decisions.md` madde 25).
 - İmza: HAM gövde baytları üzerinde HMAC-SHA256, sabit zamanlı karşılaştırma.
   Gövde parse EDİLMEDEN önce doğrulanır. Geçersiz imza, eksik başlık ve tanınmayan
   sağlayıcı → `401`. Tanınmayan sağlayıcıya `404` DÖNÜLMEZ.
-- `200` ancak inbox commit'inden SONRA. Tekrar eden event de `200` — sağlayıcı için
-  yeniden gönderim başarılı sonuçtur.
+- Yanıt `202 Accepted`, `200` DEĞİL: verilen söz "işledim" değil "kalıcı kaydettim"
+  (`decisions.md` madde 29). Ve ancak inbox commit'inden SONRA. Tekrar eden event de
+  `202` — sağlayıcı için yeniden gönderim başarılı sonuçtur, ayrım gövdedeki
+  `duplicate` alanında.
 - İki kademe idempotency: inbox `(provider, event_id)` UNIQUE + tüketicide
   `processed_events`. Tüketicide kapı ile ledger AYNI transaction'da.
 - Top-up'ta `ledger_transactions.idempotency_key` = `provider:event_id`

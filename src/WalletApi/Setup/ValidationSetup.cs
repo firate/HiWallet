@@ -3,7 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace HiWallet.WalletService.Setup;
+namespace HiWallet.WalletApi.Setup;
 
 /// <summary>
 /// FluentValidation, sınırda (baseline.md madde 6). DataAnnotations YOK (CLAUDE.md).

@@ -1,8 +1,8 @@
 using FluentValidation;
-using HiWallet.WalletService.Api.Requests;
+using HiWallet.WalletApi.Requests;
 using HiWallet.WalletService.Domain.Ledger;
 
-namespace HiWallet.WalletService.Api.Validators;
+namespace HiWallet.WalletApi.Validators;
 
 /// <summary>
 /// Sınırda doğrulama (baseline.md madde 6). Geçersiz girdi domain'e ulaşmadan reddedilir.

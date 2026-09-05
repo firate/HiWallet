@@ -62,10 +62,11 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | Servis                  | Sorumluluk                                                              | Tutarlılık      |
 | ----------------------- | ----------------------------------------------------------------------- | --------------- |
 | wallet-service          | Cüzdanlar, double-entry ledger, transfer çekirdeği, bakiye projeksiyonu | Lokal ACID      |
+| ↳ wallet-api            | Yukarıdakinin public HTTP host'u (mobil/web)                            | —               |
+| ↳ topup-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
 | bank-service (fake)     | Dış banka transferini simüle eder                                       | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
-| topup-consumer          | Inbox/kuyruktan okuyup ledger'a yükleme işler                           | Idempotent      |
 | provider-fake           | Test için sahte dış sağlayıcı (Stripe/banka muadili)                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.

@@ -25,17 +25,23 @@ public sealed class TopupWebhookController(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Sağlayıcı webhook'u. Sıra: imza → parse → doğrulama → inbox → 200.
+    /// Sağlayıcı webhook'u. Sıra: imza → parse → doğrulama → inbox → 202.
     ///
     /// <b>İmza en başta</b>, parse'tan bile önce: doğrulanmamış gövdeyi parse etmek
     /// saldırganın kontrolündeki veriyi işlemeye başlamak olurdu.
     ///
-    /// <b>200 en sonda</b>, commit'ten sonra: sağlayıcıya "aldım" demek "kaybetmem"
-    /// sözü vermektir. Çoğu sağlayıcı 200 aldıktan sonra bir daha denemiyor.
+    /// <b>Yanıt en sonda</b>, commit'ten sonra: sağlayıcıya "aldım" demek "kaybetmem"
+    /// sözü vermektir. Çoğu sağlayıcı başarı yanıtından sonra bir daha denemiyor.
+    ///
+    /// <b>Neden 202, 200 değil.</b> Verilen söz "işledim" değil "kalıcı olarak
+    /// kaydettim". Para bu yanıt döndüğünde henüz cüzdanda değil; ledger'a yazan
+    /// kod başka bir serviste, arada broker var. 202 tam olarak bunu söylüyor:
+    /// kabul edildi, işlenmesi sonra. 200 dönmek yanıtın anlamını olduğundan
+    /// güçlü gösterirdi.
     /// </summary>
     [HttpPost("{provider}")]
     [RequestSizeLimit(MaxBodyBytes)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Receive(string provider, CancellationToken ct)
@@ -111,7 +117,7 @@ public sealed class TopupWebhookController(
 
         // Tekrar da başarı: sağlayıcının yeniden göndermesi beklenen bir davranış,
         // hata değil. Hata dönmek sağlayıcıyı sonsuz tekrara sokardı.
-        return Ok(new { received = true, duplicate });
+        return Accepted(new { accepted = true, duplicate });
     }
 
     private async Task<byte[]> ReadBodyAsync(CancellationToken ct)

@@ -15,8 +15,8 @@ namespace HiWallet.IntegrationTests.Topups;
 
 /// <summary>
 /// Uçtan uca: webhook → inbox → relay → RabbitMQ → tüketici → ledger.
-/// Zincirin tamamı gerçek; iki uygulama ayrı ayrı ayağa kalkıyor ve aralarında
-/// yalnızca broker var.
+/// Zincirin tamamı gerçek; topup-webhook ve topup-consumer ayrı ayrı ayağa
+/// kalkıyor (üretimdeki gibi ayrı deployable) ve aralarında yalnızca broker var.
 ///
 /// <b>Broker yoksa atlanıyor.</b> Kurulumu zorunlu kılmak yerine, varsa doğrulanıyor
 /// (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım). Atlanan test yeşil görünmüyor,
@@ -30,7 +30,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     private TopupWebhookApiFactory? _webhook;
-    private WalletApiFactory? _wallet;
+    private TopupConsumerFactory? _consumer;
     private HttpClient? _client;
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -40,7 +40,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
         _client?.Dispose();
 
         if (_webhook is not null) await _webhook.DisposeAsync();
-        if (_wallet is not null) await _wallet.DisposeAsync();
+        if (_consumer is not null) await _consumer.DisposeAsync();
 
         await DeleteTopologyAsync();
     }
@@ -61,7 +61,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
         var payload = Payload(eventId, walletId, 123.45m);
 
         var response = await PostSignedAsync(payload, ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         // Relay yayınlayana ve tüketici işleyene kadar bekle. Süre değil KOŞUL
         // bekleniyor: sabit bir Task.Delay ya yavaş makinede yetmez ya da hızlı
@@ -92,7 +92,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
         // İki kademe de devrede: inbox onu hiç kuyruğa koymuyor, koysaydı bile
         // processed_events yutardı.
         var replay = await PostSignedAsync(payload, ct);
-        replay.StatusCode.ShouldBe(HttpStatusCode.OK);
+        replay.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
 
@@ -118,7 +118,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
             var response = await PostSignedAsync(
                 Payload($"evt_{Guid.NewGuid():N}", walletId, 10.00m), ct);
 
-            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         }
 
         await WaitUntilAsync(
@@ -137,12 +137,13 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
     private async Task StartAsync()
     {
         _webhook = new TopupWebhookApiFactory(inbox);
-        _wallet = new WalletApiFactory(postgres);
+        _consumer = new TopupConsumerFactory(postgres);
 
         _client = _webhook.CreateClient();
 
-        // Tüketici hosted service; istemci oluşturmak host'u da başlatıyor.
-        _ = _wallet.CreateClient();
+        // Tüketici AYRI bir deployable; testte de ayrı ayağa kaldırılıyor.
+        // İstemci oluşturmak host'u başlatıyor, hosted service de onunla başlıyor.
+        _ = _consumer.CreateClient();
 
         // Tüketicinin kuyruklara abone olması bir tur alıyor; abone olmadan
         // yayınlanan mesaj kaybolmaz (kuyruk durable) ama beklemek testi

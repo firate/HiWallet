@@ -1,9 +1,10 @@
-using HiWallet.WalletService.Api.Requests;
-using HiWallet.WalletService.Api.Responses;
+using HiWallet.WalletApi.Requests;
+using HiWallet.WalletService.Application.Transfers;
+using HiWallet.WalletApi.Responses;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 
-namespace HiWallet.WalletService.Api.Controllers;
+namespace HiWallet.WalletApi.Controllers;
 
 [ApiController]
 [Route("v1/transfers")]
@@ -28,7 +29,7 @@ public sealed class TransfersController(IMessageBus bus) : ControllerBase
         CancellationToken ct)
     {
         // Wolverine yalnızca in-process mediator olarak (decisions.md madde 1).
-        var result = await bus.InvokeAsync<Application.Transfers.TransferResult>(
+        var result = await bus.InvokeAsync<TransferResult>(
             request.ToCommand(idempotencyKey), ct);
 
         var response = TransferResponse.From(result);

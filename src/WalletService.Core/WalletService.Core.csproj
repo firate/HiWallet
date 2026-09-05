@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Wallet sınırının TAMAMI: domain, uygulama akışları, ledger şeması ve
+         migration'lar. İki host bunu paylaşıyor — wallet-api (HTTP) ve
+         topup-consumer (AMQP). İkisi de aynı tablolara yazdığı için invariant'ı
+         zorlayan kodun tek kopyası olmak zorunda (decisions.md madde 25):
+         cüzdanın negatife düşememesi, bakiye satırlarının artan id sırasıyla
+         güncellenmesi ve version'ın birer artması hiçbir constraint tarafından
+         zorlanmıyor — yalnızca bu koddaki mantık tutuyor.
+
+         BU KÜTÜPHANEYE WALLET SINIRI DIŞINDAN REFERANS VERİLMEZ. topup-webhook
+         onu görmemeli; gördüğü an ayrı veritabanı sınırı yapısal bir gerçek
+         olmaktan çıkıp nezaket kuralına dönüşür. -->
+
+    <PropertyGroup>
+        <!-- Kök isim alanı BİLEREK proje adından türetilmiyor. HiWallet.WalletService
+             kalınca ayrıştırma sırasında tek bir using satırı değişmedi; "Core"
+             assembly adında duruyor, tip adlarında değil. -->
+        <RootNamespace>HiWallet.WalletService</RootNamespace>
+        <AssemblyName>HiWallet.WalletService.Core</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Host'ların hepsi ASP.NET Core uygulaması; Options/DI/Logging paylaşılan
+             framework'ten geliyor, ayrı paket sürümü yönetmeye gerek kalmıyor. -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+
+        <!-- Wolverine yalnızca in-process mediator (decisions.md madde 1); handler'lar
+             burada olduğu için referans da burada. -->
+        <PackageReference Include="WolverineFx"/>
+        <PackageReference Include="WolverineFx.RuntimeCompilation"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared\Shared.Contracts\Shared.Contracts.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+    <!-- Web SDK'sındaki örtük using'ler burada yok (bu bir kütüphane); Setup
+         sınıflarının ihtiyaç duyduğu ikisi elle ekleniyor. -->
+    <ItemGroup>
+        <Using Include="Microsoft.Extensions.DependencyInjection"/>
+        <Using Include="Microsoft.Extensions.Configuration"/>
+    </ItemGroup>
+
+</Project>

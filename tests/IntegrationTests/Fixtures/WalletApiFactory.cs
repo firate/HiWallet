@@ -1,4 +1,4 @@
-using HiWallet.WalletService;
+using HiWallet.WalletApi;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -12,7 +12,7 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// ProblemDetails eşlemesi gerçekten çalışıyor mu görünür — handler'ı doğrudan
 /// çağıran testler bu katmanların hiçbirini kapsamıyor.
 /// </summary>
-public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationFactory<WalletServiceApp>
+public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationFactory<WalletApiApp>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -20,14 +20,12 @@ public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationF
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
-            var overrides = new Dictionary<string, string?>
+            // Broker ayarı YOK: wallet-api'nin RabbitMQ ile hiç işi kalmadı,
+            // tüketici ayrı host'a taşındı.
+            config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Wallet"] = postgres.ConnectionString
-            };
-
-            BrokerSettings.ApplyFallbacks(overrides);
-
-            config.AddInMemoryCollection(overrides);
+            });
         });
 
         // Sunucu tarafındaki istisnalar ProblemDetails'in arkasında kayboluyor;

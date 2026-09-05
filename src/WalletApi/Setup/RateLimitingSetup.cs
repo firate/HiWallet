@@ -3,7 +3,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
-namespace HiWallet.WalletService.Setup;
+namespace HiWallet.WalletApi.Setup;
 
 /// <summary>
 /// ASP.NET Core built-in rate limiting (baseline.md madde 7). In-memory.

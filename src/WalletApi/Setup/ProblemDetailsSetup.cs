@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace HiWallet.WalletService.Setup;
+namespace HiWallet.WalletApi.Setup;
 
 /// <summary>
 /// Global hata yönetimi, RFC 7807 (baseline.md madde 5).

@@ -58,8 +58,9 @@ docker compose up --build
 ```
 
 Beklenen sıra: `postgres` sağlıklı olur → `migrator` ve `topup-migrator` şemaları
-uygulayıp `exit 0` ile biter → `wallet-service` ve `topup-webhook` başlar. `rabbitmq`
-paralel kalkar; iki servis de onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
+uygulayıp `exit 0` ile biter → `wallet-api`, `topup-webhook` ve `topup-consumer`
+başlar. `rabbitmq` paralel kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa
+kalkmalılar).
 
 ## 4. Doğrula
 
@@ -133,6 +134,7 @@ Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:
 | ne | nasıl bakılır |
 | --- | --- |
 | compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi, `unhealthy` mi |
+| `topup-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps topup-consumer` — `healthy` olmalı |
 | konteynerlenmiş uygulamadan uçtan uca transfer | hesap/cüzdan endpoint'i yok; cüzdanları DB'den kurmak gerekiyor |
 | **top-up hattının tamamı compose içinde** | aşağıdaki adım |
 | `rabbitmq_consistent_hash_exchange` eklentisinin yüklendiği | `docker compose logs rabbitmq \| grep consistent_hash` |
@@ -149,7 +151,7 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SEC
 curl -s -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Beklenen: `{"received":true,"duplicate":false}`.
+Beklenen: `202 Accepted` + `{"accepted":true,"duplicate":false}`.
 
 Birkaç saniye sonra bakiye artmış olmalı:
 
@@ -157,7 +159,8 @@ Birkaç saniye sonra bakiye artmış olmalı:
 docker compose exec postgres psql -U postgres -d hiwallet_wallet -c "SELECT balance FROM ledger_balances WHERE ledger_account_id = '<CUZDAN_ID>';"
 ```
 
-Aynı komutu ikinci kez çalıştır: `"duplicate":true` dönmeli ve bakiye DEĞİŞMEMELİ.
+Aynı komutu ikinci kez çalıştır: yine `202`, ama `"duplicate":true` ve bakiye
+DEĞİŞMEMELİ.
 
 İmzayı bozup dene (`SIG` sonuna bir karakter ekle): `401` dönmeli ve inbox'a hiçbir şey
 yazılmamalı:

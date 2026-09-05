@@ -63,28 +63,22 @@ public sealed class BaselineTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Readiness_BrokerErisilemezse_ServisiTrafiktenCEKMEZ()
+    public async Task Readiness_BrokerBagimliligiIcERMEZ()
     {
         var ct = TestContext.Current.CancellationToken;
 
         var response = await _client.GetAsync("/health/ready", ct);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        var rabbit = body.GetProperty("checks").EnumerateArray()
-            .Single(c => c.GetProperty("name").GetString() == "rabbitmq");
+        var checks = body.GetProperty("checks").EnumerateArray().ToList();
 
-        // Broker top-up hattı için gerekli, transfer çekirdeği için değil — o yol
-        // tek DB'de, ACID ve broker'a hiç dokunmuyor. Bu yüzden broker arızası
-        // Degraded üretiyor, Unhealthy değil: durum görünür oluyor ama uç 200
-        // dönmeye ve orchestrator trafiği yollamaya devam ediyor.
-        rabbit.GetProperty("status").GetString().ShouldBeOneOf("Healthy", "Degraded");
+        // wallet-api'nin RabbitMQ ile hiç işi yok: top-up tüketicisi ayrı bir
+        // deployable (decisions.md madde 28). Önceden burada Degraded dönen bir
+        // broker kontrolü vardı; artık kontrol de bağımlılık da yok — bir broker
+        // arızasının bu servise dokunamaması yapısal bir gerçek.
+        checks.ShouldNotContain(c => c.GetProperty("name").GetString() == "rabbitmq");
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        if (!BrokerSettings.Configured)
-        {
-            rabbit.GetProperty("status").GetString().ShouldBe(
-                "Degraded", "broker tanımsızken kontrol Degraded olmalı");
-        }
+        body.GetProperty("status").GetString().ShouldBe("Healthy");
     }
 
     [Fact]

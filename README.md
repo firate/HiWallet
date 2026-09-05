@@ -14,8 +14,28 @@ double-entry, optimistic lock. Saga yok — dağıtık karmaşıklık tutarlıl�
 olduğu yere taşınmıyor.
 
 **Kenar (eventual).** Dış dünyayla konuşan akışlar. Top-up hattı çalışıyor: webhook
-ayrı bir serviste, kendi veritabanında; arada RabbitMQ; tüketici wallet-service içinde.
+ayrı bir serviste kendi veritabanıyla, arada RabbitMQ, tüketici üçüncü bir uygulamada.
 Withdrawal saga *henüz yazılmadı, sırada.*
+
+## Üç uygulama, üç erişim seviyesi
+
+| deployable | ingress | Postgres | RabbitMQ |
+| --- | --- | --- | --- |
+| `wallet-api` | **public** — mobil/web | `hiwallet_wallet` / `wallet_app` | — |
+| `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
+| `topup-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
+
+Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
+API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
+
+`wallet-api` ve `topup-consumer` aynı şemayı yazıyor ve **aynı kütüphaneyi**
+(`WalletService.Core`) paylaşıyor. Ayrı deployable, tek kod tabanı — çünkü ledger
+invariant'larının bir kısmı hiçbir constraint tarafından zorlanmıyor (cüzdanın negatife
+düşememesi, bakiye satırlarının artan id sırasıyla güncellenmesi, `version`'ın birer
+artması). İkinci bir kopya, ilk sapmada sessizce bozulurdu.
+
+Public yüzeyin RabbitMQ bağımlılığı **yok**: tüketici ayrıldıktan sonra `wallet-api`
+yalnızca Postgres'e bağlı.
 
 Ana mesaj bu ayrımda: **tutarlılığın kritik olduğu çekirdeği tek boundary'de ACID tut,
 sadece dışarıyla konuşan kenarı dağıt.**
@@ -45,13 +65,17 @@ docker compose up --build
 ```
 
 Sırayla: Postgres ayağa kalkar ve roller/veritabanları kurulur → `migrator` ve
-`topup-migrator` şemaları uygular → `wallet-service` ve `topup-webhook` başlar.
-RabbitMQ paralel kalkar; iki servis de onu BEKLEMEZ.
+`topup-migrator` şemaları uygular → üç uygulama başlar. RabbitMQ paralel kalkar;
+hiçbiri onu BEKLEMEZ.
 
 ```bash
-curl http://localhost:8091/health/ready   # wallet-service
+curl http://localhost:8091/health/ready   # wallet-api
 curl http://localhost:8092/health/ready   # topup-webhook
 ```
+
+`topup-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
+koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
+açmasının sebebi olmazdı.
 
 Swagger: <http://localhost:8091/swagger> (Development'ta).
 
@@ -111,11 +135,14 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SEC
 curl -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Yol: **200 (inbox'a yazıldıktan sonra) → relay → RabbitMQ → tüketici → ledger.**
+Yanıt **`202 Accepted`** — `200` değil, bilerek: verilen söz "işledim" değil "kalıcı
+kaydettim". Para yanıt döndüğünde henüz cüzdanda değil.
+
+Yol: **202 (inbox commit'inden sonra) → relay → RabbitMQ → tüketici → ledger.**
 Ledger'a iki satır düşer: cüzdan `+100`, `clearing/stripe-fake` `-100` (sağlayıcıdan
 alacak). Toplam sıfır.
 
-Aynı webhook ikinci kez gelirse yine `200` döner ama `"duplicate": true` ve bakiye
+Aynı webhook ikinci kez gelirse yine `202` döner ama `"duplicate": true` ve bakiye
 değişmez. İki kademe de devrede: inbox `(provider, event_id)` UNIQUE onu kuyruğa hiç
 koymaz, koysa bile tüketicideki `processed_events` yutar.
 

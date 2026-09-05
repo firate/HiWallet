@@ -7,8 +7,14 @@
 # Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
 # otomatik okur.
 #
-# İki servis: wallet-service (transfer çekirdeği + top-up tüketicisi) ve
-# topup-webhook (webhook girişi + inbox + relay). Aralarında RabbitMQ var.
+# Üç uygulama, üç farklı erişim seviyesi (decisions.md madde 28):
+#
+#   wallet-api      public ingress   — mobil/web istemciler
+#   topup-webhook   kısıtlı ingress  — yalnızca sağlayıcı IP'leri (proxy/firewall işi)
+#   topup-consumer  ingress YOK      — mesajları kendisi kuyruktan çekiyor
+#
+# wallet-api ve topup-consumer aynı şemayı ve aynı kütüphaneyi (WalletService.Core)
+# paylaşıyor; ayrı deployable ama tek kod tabanı.
 
 name: hiwallet
 
@@ -67,13 +73,15 @@ services:
       timeout: 5s
       retries: 20
 
-  # Şemayı uygulayan tek seferlik iş. wallet_owner ile koşuyor — uygulama
-  # wallet_app ile bağlanacak ve ledger_entries üzerindeki REVOKE ancak sahip
-  # OLMAYAN bir role işliyor (decisions.md madde 5).
+  # Wallet şemasını uygulayan tek seferlik iş. wallet_owner ile koşuyor —
+  # uygulamalar wallet_app ile bağlanacak ve ledger_entries üzerindeki REVOKE ancak
+  # sahip OLMAYAN bir role işliyor (decisions.md madde 5).
+  #
+  # Dockerfile'ı Core'da: şema iki host'un da değil, kütüphanenin.
   migrator:
     build:
       context: .
-      dockerfile: src/WalletService/Dockerfile
+      dockerfile: src/WalletService.Core/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -98,34 +106,26 @@ services:
       - Host=postgres;Port=5432;Database=hiwallet_topup;Username=topup_app;Password=${TOPUP_APP_PASSWORD}
     restart: "no"
 
-  wallet-service:
+  # Public ingress. RabbitMQ ayarı YOK ve olmamalı: tüketici ayrı bir host'a
+  # taşındıktan sonra bu uygulamanın broker'a hiç işi kalmadı.
+  wallet-api:
     build:
       context: .
-      dockerfile: src/WalletService/Dockerfile
+      dockerfile: src/WalletApi/Dockerfile
       target: final
     depends_on:
       # Migration BİTMEDEN başlamamalı; yoksa ilk istek "relation does not exist" alır.
       migrator:
         condition: service_completed_successfully
-      # Broker BEKLENMİYOR (service_started yeterli): tüketici bağlanana kadar
-      # yeniden deniyor ve transfer çekirdeği broker'a hiç dokunmuyor. Broker'ı
-      # zorunlu tutmak, ona ihtiyacı olmayan bir yolu da bloke ederdi.
-      rabbitmq:
-        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD}
-      RabbitMq__Host: rabbitmq
-      RabbitMq__Port: "5672"
-      RabbitMq__Username: ${RabbitMq__Username}
-      RabbitMq__Password: ${RabbitMq__Password}
-      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       # Servis adı BİLEREK sabit, .env'den okunmuyor: tek bir OTEL_SERVICE_NAME
-      # değişkeni iki servisi de aynı isimle etiketlerdi.
-      OTEL_SERVICE_NAME: hiwallet-wallet-service
+      # değişkeni üç uygulamayı da aynı isimle etiketlerdi.
+      OTEL_SERVICE_NAME: hiwallet-wallet-api
     extra_hosts:
       # Collector container'ın DIŞINDA, Docker host'unda çalışıyor. "homelab" adı
       # container içinde çözülmez; host-gateway ile host'un IP'sine takma ad veriliyor.
@@ -184,6 +184,48 @@ services:
       start_period: 10s
     # Relay bir batch'i yayınlamış ama commit etmemişken kesilirse mesajlar iki kez
     # gider. Tüketici bunu deduplike ediyor ama süre tanımak nadirleştiriyor.
+    stop_grace_period: 20s
+
+  # Ingress'i YOK: ports tanımı yalnızca sağlık ucu için ve host'a AÇILMIYOR.
+  # Ledger'a yazan kod artık dışarıdan erişilebilen bir uygulamanın içinde değil.
+  topup-consumer:
+    build:
+      context: .
+      dockerfile: src/TopupConsumer/Dockerfile
+      target: final
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      # wallet-api'nin aksine broker BEKLENİYOR mu? Hayır — tüketici bağlanana
+      # kadar kendisi yeniden deniyor (5 sn aralıkla) ve broker'ın uygulamadan
+      # sonra kalkması normal bir durum. service_started yeterli.
+      rabbitmq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # wallet-api ile AYNI veritabanı ve AYNI rol. Application Name farklı:
+      # pg_stat_activity'de "bu yükü kim üretiyor" sorusu cevaplanabilsin diye.
+      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD};Application Name=hiwallet-topup-consumer;Maximum Pool Size=16
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: ${RabbitMq__Username}
+      RabbitMq__Password: ${RabbitMq__Password}
+      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-topup-consumer
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # Host'a port açmadan da çalışıyor: healthcheck container'ın İÇİNDEN koşuyor.
+      # Probe olmadan "process ayakta ama tüketici tıkanmış" durumu görünmezdi.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # İşlenmekte olan mesaj bitsin. Bitmezse ack'lenmiyor ve yeniden teslim
+    # ediliyor — kayıp değil, sadece gereksiz tekrar.
     stop_grace_period: 20s
 
 volumes:
