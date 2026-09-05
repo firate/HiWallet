@@ -118,6 +118,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   komisyonunu ödemiş kalır. Bacak opsiyonel DEĞİL.
 - IBAN sınırda mod-97 ile doğrulanır ve `Iban` tipine dönüşür. Bu kontrol
   "komisyon koşulsuz iade edilir" kuralının taşıyıcısı; zayıflatılamaz.
+  Sınırdan sonra akışta string IBAN DOLAŞMAZ. Yanıtta maskeli döner.
+- `POST /v1/withdrawals`'ta `Idempotency-Key` ZORUNLU — transfer'dekinin aksine
+  opsiyonel DEĞİL. Çekim çok adımlı ve dışarıya para çıkarıyor; anahtarsız bir
+  tekrar ikinci bir banka transferi başlatırdı.
+- Yanıt `202`: dönüldüğünde hiçbir para hareket etmedi. Tekrar eden istek de `202`,
+  ayrım gövdedeki `replayed` alanında.
 
 **API**
 - `/v1` prefix. Liste endpoint'lerinde pagination, unbounded query YOK.

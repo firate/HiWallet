@@ -358,11 +358,11 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.3 | Mesaj sözleşmeleri: üç komut, beş event | ✅ |
 | 4.4 | Withdrawal topolojisi + paylaşılan `MessagePublisher` | ✅ |
 | 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, `withdrawal_outbox`, migration (madde 32) | ✅ |
-| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ⬜ |
-| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ⬜ |
+| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
+| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
 | 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ⬜ |
 | 4.9 | `bank-service` (fake): komut tüketir, `processed_messages`, senaryo tetikleyicileriyle başarı/başarısızlık üretir | ⬜ |
-| 4.10 | Uçtan uca testler: mutlu yol, telafi yolu, çelişki, idempotency | ⬜ |
+| 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ⬜ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
 
 **4.8 en riskli adım.** Ters kayıt üç bacaklı olmak zorunda (cüzdan, clearing,
