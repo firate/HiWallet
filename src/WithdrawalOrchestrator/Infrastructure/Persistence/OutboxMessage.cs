@@ -1,3 +1,6 @@
+using System.Text.Json;
+using HiWallet.Shared.Infrastructure.Messaging;
+
 namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence;
 
 /// <summary>
@@ -54,4 +57,35 @@ public sealed class OutboxMessage
 
     /// <summary>Son denemenin hatası. Yalnızca teşhis için.</summary>
     public string? LastError { get; set; }
+
+    /// <summary>
+    /// Yayınlanacak komuttan satır üretir.
+    ///
+    /// Komutu ÇAĞIRAN yazmıyor, bu metot ürettiriyor: id önce oluşuyor ve komuta o
+    /// veriliyor. Böylece <see cref="Id"/> ile komutun <c>CommandId</c>'sinin
+    /// ayrışması mümkün değil — ayrışsalardı relay'in ikinci teslimi alıcı tarafta
+    /// yeni bir komut gibi görünür ve çift işlenirdi.
+    /// </summary>
+    /// <param name="command">Kendisine verilen id'yi <c>CommandId</c> olarak kullanmalı.</param>
+    public static OutboxMessage For<T>(Guid sagaId, Func<Guid, T> command, DateTimeOffset now)
+    {
+        var commandId = Guid.NewGuid();
+
+        return new OutboxMessage
+        {
+            Id = commandId,
+            SagaId = sagaId,
+            RoutingKey = WithdrawalTopology.RoutingKeyFor<T>(),
+            Payload = JsonSerializer.Serialize(command(commandId), PayloadJsonOptions),
+            CreatedAt = now
+        };
+    }
+
+    /// <summary>
+    /// Tüketicilerin okuduğu biçimle AYNI olmak zorunda
+    /// (<c>JsonSerializerDefaults.Web</c>, yani camelCase). Ayrışırsa mesaj
+    /// karşı tarafta boş alanlarla deserialize olur ve hata vermez.
+    /// </summary>
+    internal static readonly JsonSerializerOptions PayloadJsonOptions =
+        new(JsonSerializerDefaults.Web);
 }
