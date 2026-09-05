@@ -24,10 +24,11 @@ tamamen kaldırılır, karma bırakılmaz.
 
 ---
 
-## 2. Optimistic lock `ledger_balances` üzerinde
+## 2. Optimistic lock yalnızca güncellenen satırlarda
 
-**Karar.** Concurrency token `ledger_balances.version`. `ledger_entries` üzerinde
-hiçbir lock veya version kolonu yok.
+**Karar.** Concurrency token wallet-service'te `ledger_balances.version`,
+orchestrator'da `withdrawal_sagas.version`. Başka hiçbir tabloda yok — özellikle
+`ledger_entries` üzerinde hiçbir lock veya version kolonu yok.
 
 **Gerekçe.** `ledger_entries` append-only. Optimistic lock "okuduğumdan beri bu satır değişti mi"
 sorusunu sorar; hiç UPDATE edilmeyen bir satırda bu soru anlamsız. İki INSERT birbiriyle
@@ -55,6 +56,17 @@ UPDATE ledger_balances
 **Çok instance.** Davranış değişmez. Kontrol uygulamada değil DB'de. Postgres aynı satıra yazan
 transaction'ları seri hale getirir, ikinci transaction `WHERE` koşulunu güncel satır üstünde
 yeniden değerlendirir. `READ COMMITTED` yeterli, `SERIALIZABLE` gerekmez.
+
+**Orchestrator'daki ikinci token.** `withdrawal_sagas` satırı da aynı testi geçiyor:
+gerçekten UPDATE ediliyor ve birden fazla yazarı var. Aynı saga'ya banka cevabı ile
+stuck-saga taraması aynı anda gelebiliyor; ikisi de "oku, karar ver, yaz" yapıyor ve
+version olmasa ikincisi birincisinin geçişini sessizce ezerdi. Kayıp bakiye
+güncellemesiyle aynı hata sınıfı, farklı tablo.
+
+Kural şu, tablo listesi değil: **token yalnızca gerçekten UPDATE edilen ve birden fazla
+yazarı olan satırda olur.** `ledger_entries`'te yok çünkü append-only; `accounts`'ta yok
+çünkü tek yazarı var. "İleride lazım olur" diye eklenmez — her token bir retry yolu
+demek ve test edilmeyen retry yolu çalışmayan retry yoludur.
 
 **Elenen alternatif.** `UPDATE ... WHERE balance >= 100` (version'sız koşullu update).
 Atomik ve doğru bakiye korur ama iki sorunu var: (a) limit ve komisyon uygulama tarafında
@@ -345,12 +357,12 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.2 | Saga state machine: durumlar, geçişler, çelişki ayrımı (madde 31) | ✅ |
 | 4.3 | Mesaj sözleşmeleri: üç komut, beş event | ✅ |
 | 4.4 | Withdrawal topolojisi + paylaşılan `MessagePublisher` | ✅ |
-| 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, outbox, `processed_messages`, migration (madde 32) | ⬜ |
-| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ⬜ |
-| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ⬜ |
-| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt | ⬜ |
-| 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle başarı/başarısızlık üretir | ⬜ |
-| 4.10 | Uçtan uca testler: mutlu yol, telafi yolu, çelişki, idempotency | ⬜ |
+| 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, `withdrawal_outbox`, migration (madde 32) | ✅ |
+| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
+| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
+| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ⬜ |
+| 4.9 | `bank-service` (fake): komut tüketir, `processed_messages`, senaryo tetikleyicileriyle başarı/başarısızlık üretir | ⬜ |
+| 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ⬜ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
 
 **4.8 en riskli adım.** Ters kayıt üç bacaklı olmak zorunda (cüzdan, clearing,

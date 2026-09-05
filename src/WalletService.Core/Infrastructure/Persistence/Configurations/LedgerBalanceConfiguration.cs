@@ -37,7 +37,7 @@ internal sealed class LedgerBalanceConfiguration : IEntityTypeConfiguration<Ledg
             .HasColumnType("char(3)")
             .IsRequired();
 
-        // Projedeki TEK concurrency token (decisions.md madde 2). Elle artırılır,
+        // Wallet'taki TEK concurrency token (decisions.md madde 2). Elle artırılır,
         // DB üretmez — retry'da yeni anlık görüntüyle yeniden hesaplanması için.
         builder.Property(b => b.Version)
             .HasColumnName("version")

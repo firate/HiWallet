@@ -8,7 +8,7 @@ namespace HiWallet.WalletService.Domain.Balances;
 /// bu tablo her zaman yeniden inşa edilebilir, tersi geçerli değil
 /// (docs/ledger-schema.md "ledger_balances").
 ///
-/// Optimistic lock buradadır — projede concurrency token taşıyan TEK entity
+/// Optimistic lock buradadır — wallet sınırında concurrency token taşıyan TEK entity
 /// (decisions.md madde 2).
 /// </summary>
 public sealed class LedgerBalance

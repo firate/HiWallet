@@ -49,8 +49,11 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Fatura ile `expected_amount` toplamı tolerans dışı sapıyorsa ledger'a HİÇBİR ŞEY yazılmaz.
 
 **Concurrency**
-- Optimistic lock `ledger_balances.version` üzerinde. `ledger_entries` üzerinde lock YOK.
-- EF Core'da `IsConcurrencyToken()` yalnızca `LedgerBalance` entity'sinde.
+- wallet-service'te optimistic lock `ledger_balances.version` üzerinde.
+  `ledger_entries` üzerinde lock YOK.
+- `IsConcurrencyToken()` yalnızca GERÇEKTEN UPDATE edilen ve birden fazla yazarı olan
+  satırlarda: wallet'ta `LedgerBalance`, orchestrator'da `WithdrawalSaga`. Başka
+  entity'ye EKLENMEZ — append-only tabloda anlamsız (`decisions.md` madde 2).
 - Bir transaction içinde birden fazla `ledger_balances` satırı güncelleniyorsa
   her zaman `account_id` artan sırayla güncellenir (deadlock önleme).
 - Redis distributed lock YOK. Background job tekilliği `pg_try_advisory_lock`
@@ -102,6 +105,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `Conflict`'te saga durumu DEĞİŞMEZ, alarm üretilir.
 - Orchestrator'da outbox: saga geçişi ile komut gönderimi AYNI transaction'da
   (`decisions.md` madde 32). Broker'a taşımak relay'in işi.
+- `withdrawal_outbox.id` AYNI ZAMANDA komutun `CommandId`'si. İkinci bir yüzey id
+  üretilmez: relay aynı satırı iki kez yayınladığında alıcıya giden `CommandId` de
+  aynı kalmak zorunda, yoksa tekrar deduplike edilemez.
 - Komutu tüketen tarafta `CommandId` + `processed_messages`. Orchestrator'ın event
   tüketiminde ayrı tablo YOK — saga durumu zaten cevabı taşıyor.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
@@ -112,6 +118,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   komisyonunu ödemiş kalır. Bacak opsiyonel DEĞİL.
 - IBAN sınırda mod-97 ile doğrulanır ve `Iban` tipine dönüşür. Bu kontrol
   "komisyon koşulsuz iade edilir" kuralının taşıyıcısı; zayıflatılamaz.
+  Sınırdan sonra akışta string IBAN DOLAŞMAZ. Yanıtta maskeli döner.
+- `POST /v1/withdrawals`'ta `Idempotency-Key` ZORUNLU — transfer'dekinin aksine
+  opsiyonel DEĞİL. Çekim çok adımlı ve dışarıya para çıkarıyor; anahtarsız bir
+  tekrar ikinci bir banka transferi başlatırdı.
+- Yanıt `202`: dönüldüğünde hiçbir para hareket etmedi. Tekrar eden istek de `202`,
+  ayrım gövdedeki `replayed` alanında.
 
 **API**
 - `/v1` prefix. Liste endpoint'lerinde pagination, unbounded query YOK.
