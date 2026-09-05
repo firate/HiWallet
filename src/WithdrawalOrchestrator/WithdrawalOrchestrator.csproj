@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- Withdrawal saga'sının state machine'i. Kendi veritabanı; wallet tablolarına
+         DOKUNMAZ, yalnızca komut gönderir (CLAUDE.md "Servis sınırı"). -->
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared\Shared.Contracts\Shared.Contracts.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.UnitTests"/>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+</Project>
