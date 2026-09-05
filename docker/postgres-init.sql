@@ -2,8 +2,14 @@
 -- çalışır (postgres imajının davranışı); sonraki `docker compose up`'larda atlanır.
 --
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve
--- uygulamanın ihtiyaç duyduğu roller ve veritabanı var.
+-- uygulamaların ihtiyaç duyduğu roller ve veritabanları var.
+--
+-- İki servis, iki veritabanı: wallet-service ve topup-webhook birbirinin
+-- tablosunu göremiyor (CLAUDE.md "Servis sınırı").
 
+-- ---------------------------------------------------------------------------
+-- wallet-service
+-- ---------------------------------------------------------------------------
 -- İki rol, çünkü ledger_entries üzerindeki REVOKE yalnızca tablo sahibi OLMAYAN bir
 -- role işler; sahiplik yetkisi örtüktür ve revoke edilemez (decisions.md madde 5).
 -- Tek rol kullanılsaydı append-only kuralı tamamen süs olurdu.
@@ -12,7 +18,18 @@ CREATE ROLE wallet_app   LOGIN PASSWORD :'wallet_app_password';
 
 CREATE DATABASE hiwallet_wallet OWNER wallet_owner ENCODING 'UTF8';
 
--- wallet_app hiçbir yerde tablo yaratamasın.
+-- ---------------------------------------------------------------------------
+-- topup-webhook
+-- ---------------------------------------------------------------------------
+-- TEK rol, bilinçli. Wallet tarafındaki ikili kurulumun tek sebebi append-only
+-- garantisini zorlamaktı; burada öyle bir tablo yok — topup_inbox satırları
+-- yayınlandıkça güncelleniyor. Zorlanacak garanti olmayınca ikinci rol yalnızca
+-- tören olurdu.
+CREATE ROLE topup_app LOGIN PASSWORD :'topup_app_password';
+
+CREATE DATABASE hiwallet_topup OWNER topup_app ENCODING 'UTF8';
+
+-- Hiçbir rol postgres veritabanında tablo yaratamasın.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
 \connect hiwallet_wallet
@@ -23,3 +40,10 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 -- Tablo bazlı GRANT'ler burada DEĞİL: onlar migration'ın içinde
 -- (decisions.md madde 24). Elle kurulum adımı olarak bırakılsalardı her yeni
 -- ortamda unutulur ve uygulama "permission denied" ile karşılanırdı.
+
+\connect hiwallet_topup
+
+-- topup_app hem migration'ı koşuyor hem uygulama; sahip olduğu için ek GRANT
+-- gerekmiyor. wallet rollerine buraya erişim VERİLMİYOR.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT CREATE ON SCHEMA public TO topup_app;

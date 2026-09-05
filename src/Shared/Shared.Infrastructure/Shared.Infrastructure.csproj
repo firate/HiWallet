@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Birden fazla servisin paylaştığı altyapı. Şu an yalnızca RabbitMQ bağlantısı
+         ve topup topolojisi: hem publish eden (topup-webhook) hem tüketen
+         (wallet-service) aynı exchange/queue adlarını ve argümanlarını kullanmak
+         zorunda — iki yerde ayrı yazılsaydı ilk sapmada broker
+         PRECONDITION_FAILED verirdi. -->
+
+    <ItemGroup>
+        <!-- Tüketicilerin hepsi ASP.NET Core uygulaması. FrameworkReference ile
+             Options/Configuration/DI/Logging/HealthChecks paylaşılan framework'ten
+             geliyor; ayrı paket sürümü yönetmeye gerek kalmıyor. -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="RabbitMQ.Client"/>
+
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting"/>
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.Http"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime"/>
+        <PackageReference Include="Npgsql.OpenTelemetry"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared.Contracts\Shared.Contracts.csproj"/>
+    </ItemGroup>
+
+</Project>

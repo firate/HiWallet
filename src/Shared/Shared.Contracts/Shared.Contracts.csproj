@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Servisler arası mesaj sözleşmeleri. Bağımlılığı YOK ve olmamalı:
+         buraya bir paket girerse sözleşmeyi tüketen her servis onu da yüklemek
+         zorunda kalır. -->
+
+</Project>

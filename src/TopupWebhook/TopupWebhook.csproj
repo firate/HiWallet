@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <ItemGroup>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+
+        <PackageReference Include="FluentValidation"/>
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared\Shared.Contracts\Shared.Contracts.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <!-- InternalsVisibleTo YOK, bilerek. Üst düzey deyimlerin ürettiği Program tipi
+         global isim alanında ve internal; testlere açılsaydı wallet-service'in public
+         Program'ıyla çakışıp CS0433 verirdi. Testlerin ihtiyacı olan her şey zaten
+         public. -->
+
+
+
+</Project>

@@ -57,10 +57,11 @@ Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj
 
 ```
 src/
-├── WalletService/
+├── WalletService.Core/     -- kütüphane, host değil
+├── WalletApi/              -- host
+├── TopupConsumer/          -- host
+├── TopupWebhook/           -- host
 ├── WithdrawalOrchestrator/
-├── TopupWebhook/
-├── TopupConsumer/
 ├── BankService.Fake/
 ├── ProviderFake/
 └── Shared/
@@ -68,26 +69,34 @@ src/
     └── Shared.Infrastructure/
 ```
 
-Her servis kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
+Her **host** kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
 
-### WalletService (çekirdek, en katmanlı olan)
+**Servis ≠ deployable.** Wallet sınırının iki host'u var — `WalletApi` (public HTTP)
+ve `TopupConsumer` (ingress'siz worker) — ve ikisi de `WalletService.Core`'u
+kullanıyor. Ayrılma sebebi erişim seviyesi (`decisions.md` madde 28); ortak kütüphane
+sebebi ise ledger'a yazan kodun tek kopya olması zorunluluğu (madde 25).
+
+`WalletService.Core`'un `RootNamespace`'i `HiWallet.WalletService` olarak elle
+sabitlenmiş: "Core" assembly adında duruyor, tip adlarında değil.
+
+**`WalletService.Core`'a wallet sınırı DIŞINDAN referans verilmez.** `TopupWebhook`
+onu görmemeli — gördüğü an ayrı veritabanı sınırı yapısal bir gerçek olmaktan çıkıp
+nezaket kuralına döner. Kütüphane sınırı "altyapıya dokunuyor mu" ile değil, **veri
+sahipliği** ile çizilir.
+
+### WalletService.Core (çekirdek, en katmanlı olan)
+
+Kütüphane. `Program.cs` yok, sadece migrator'ı üreten bir `Dockerfile` var — şema
+host'ların değil, kütüphanenin.
 
 ```
-WalletService/
-├── WalletService.csproj
-├── Program.cs
-├── Dockerfile
-├── appsettings.json
-├── appsettings.Development.json
-├── Api/
-│   ├── Controllers/           -- TransfersController, WalletsController, ...
-│   ├── Requests/              -- CreateTransferRequest, ...
-│   ├── Responses/             -- TransferResponse, BalanceResponse, ...
-│   └── Validators/            -- CreateTransferRequestValidator, ...
+WalletService.Core/
+├── WalletService.Core.csproj
+├── Dockerfile                 -- yalnızca migration bundle
 ├── Application/
 │   ├── Transfers/             -- TransferCommand + TransferHandler yan yana
 │   ├── Balances/
-│   ├── Topups/
+│   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
 │   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
@@ -102,18 +111,56 @@ WalletService/
 │   │   ├── WalletDbContext.cs
 │   │   ├── Configurations/    -- IEntityTypeConfiguration<T> başına bir dosya
 │   │   └── Migrations/        -- EF Core üretir, elle düzenlenmez
-│   ├── Messaging/             -- publisher, consumer, outbox relay
 │   ├── Providers/             -- IPaymentProvider'ın HTTP implementasyonu
 │   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob
 └── Setup/
-    ├── ObservabilitySetup.cs  -- OTel traces/metrics/logs
-    ├── HealthChecksSetup.cs
-    ├── RateLimitingSetup.cs
-    ├── ProblemDetailsSetup.cs
-    └── ConfigValidation.cs    -- fail-fast startup kontrolü
+    ├── PersistenceSetup.cs    -- iki host da kullanıyor
+    └── PoliciesSetup.cs       -- iki host da kullanıyor
 ```
 
-**Bağımlılık yönü:** `Api → Application → Domain`, `Infrastructure → Application`.
+Host'a özel kurulum Core'a GİRMEZ: rate limiting, ProblemDetails, model doğrulama
+ve controller kaydı yalnızca `WalletApi`'de. Ölçü basit — iki host'un da ihtiyacı
+varsa Core'a, yoksa host'a.
+
+### WalletApi (public host)
+
+```
+WalletApi/
+├── WalletApi.csproj
+├── Program.cs
+├── Dockerfile
+├── appsettings.json
+├── Controllers/               -- TransfersController, ...
+├── Requests/                  -- CreateTransferRequest, ...
+├── Responses/                 -- TransferResponse, ...
+├── Validators/                -- CreateTransferRequestValidator, ...
+└── Setup/                     -- RateLimiting, ProblemDetails, Validation,
+                                  HealthChecks, ConfigValidation
+```
+
+`Api/` ara klasörü YOK: proje zaten API, ikinci kez söylemenin anlamı yok.
+
+RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
+
+### TopupConsumer (ingress'siz host)
+
+```
+TopupConsumer/
+├── TopupConsumer.csproj
+├── Program.cs                 -- controller yok, Swagger yok, rate limiter yok
+├── Dockerfile
+├── TopupConsumerService.cs    -- BackgroundService: kuyrukları dinler
+├── TopupConsumerSetup.cs      -- DI + sağlık kontrolleri
+└── TopupConsumerApp.cs        -- test giriş noktası işaretçisi
+```
+
+`Sdk.Web` kullanıyor ama tek HTTP yüzeyi sağlık ucu. Probe olmasaydı "process ayakta
+ama tüketici tıkanmış" durumu görünmezdi.
+
+Kuyruk plumbing'i (kanal, ack/nack, dead-letter kararı) burada; ledger'a yazan
+`ProcessTopupHandler` Core'da. Ayrım kasıtlı — biri taşıma, öbürü iş kuralı.
+
+**Bağımlılık yönü:** `Host → Application → Domain`, `Infrastructure → Application`.
 Domain hiçbir şeye referans vermez — EF Core attribute'u, `DbContext`, `HttpClient`,
 `ILogger` Domain'e girmez. EF yapılandırması `Configurations/` altında Fluent API ile yapılır.
 
@@ -140,18 +187,12 @@ WithdrawalOrchestrator/
 └── Setup/
 
 TopupWebhook/
-├── Api/Controllers/           -- WebhookController
-├── Application/               -- imza doğrulama, inbox yazımı
+├── Api/Controllers/           -- TopupWebhookController
+├── Api/Requests/              -- TopupWebhookPayload
+├── Application/               -- WebhookSignature, WebhookSecrets, TopupInboxWriter
 ├── Infrastructure/
-│   ├── Persistence/           -- inbox tablosu
-│   └── Messaging/             -- relay worker
-└── Setup/
-
-TopupConsumer/
-├── Application/               -- topup handler
-├── Infrastructure/
-│   ├── Persistence/           -- processed_events
-│   └── Messaging/             -- consumer
+│   ├── Persistence/           -- InboxDbContext, topup_inbox, kendi migration'ları
+│   └── Messaging/             -- TopupRelay
 └── Setup/
 
 BankService.Fake/
@@ -177,11 +218,18 @@ Shared/
 │   ├── Events/                -- BankTransferSucceeded, TopupReceived, ...
 │   └── Envelope.cs            -- MessageId, CorrelationId, OccurredAt
 └── Shared.Infrastructure/
-    ├── Messaging/             -- RabbitMQ bağlantısı, publisher confirms, consistent hashing
-    ├── Idempotency/           -- ON CONFLICT kalıbı için ortak yardımcılar
+    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, sağlık kontrolü
     ├── Observability/         -- OTel ortak yapılandırması
-    └── ProblemDetails/        -- ortak exception → ProblemDetails eşlemesi
+    └── HealthChecks/          -- /health/live ve /health/ready uçları
 ```
+
+`Shared.Infrastructure` `FrameworkReference` ile `Microsoft.AspNetCore.App`'e bağlanıyor:
+tüketicilerinin hepsi zaten ASP.NET Core uygulaması, böylece Options/DI/Logging/HealthChecks
+için ayrı paket sürümü yönetmeye gerek kalmıyor.
+
+Topoloji neden burada: hem publish eden hem tüketen taraf aynı exchange/kuyruk adlarını
+ve argümanlarını kullanmak zorunda. İki yerde ayrı yazılsaydı ilk sapmada broker
+`PRECONDITION_FAILED` verirdi.
 
 **Shared kuralı:** yalnızca iki servis gerçekten aynı koda ihtiyaç duyduğunda buraya taşınır.
 "İleride lazım olur" diye önden konulmaz. Domain tipi, entity veya `DbContext`
@@ -193,21 +241,31 @@ Shared'a KONULMAZ — servis sınırını delen şey budur.
 
 ```
 tests/
-├── WalletService.UnitTests/
+├── UnitTests/
 │   ├── Policies/              -- limit, komisyon hesapları
-│   └── Ledger/                -- zero-sum, işaret konvansiyonu
-├── WalletService.IntegrationTests/
-│   ├── Fixtures/              -- PostgresFixture (koşu başına schema)
-│   ├── Transfers/             -- concurrency, idempotency replay
-│   └── Ledger/                -- invariant, projeksiyon tutarlılığı
-├── WithdrawalOrchestrator.IntegrationTests/
-│   └── Saga/                  -- happy path, compensation, retry
-└── EndToEnd.Tests/
-    └── Scenarios/             -- webhook → kuyruk → consumer → ledger
+│   ├── Ledger/                -- zero-sum, işaret konvansiyonu
+│   └── Topups/                -- webhook imzası
+└── IntegrationTests/
+    ├── Fixtures/              -- PostgresFixture, InboxFixture, API fabrikaları
+    ├── Baseline/              -- health, rate limiting
+    ├── Transfers/             -- concurrency, idempotency replay
+    ├── Ledger/                -- invariant, projeksiyon, rol yetkileri
+    └── Topups/                -- webhook→inbox, tüketici, uçtan uca hat
 ```
 
+**Test projesi adları servise bağlı DEĞİL.** Top-up hattı iki servise yayılıyor ve
+uçtan uca test ikisini birden ayağa kaldırıyor; `WalletService.IntegrationTests` adı
+yanıltıcı olurdu.
+
 **Ayrım.** Unit test DB'ye dokunmaz, saf hesaplama. Integration test gerçek Postgres
-kullanır, mock DB yok. E2E test `docker compose` ile tüm stack'i kaldırır.
+kullanır, mock DB yok — uçtan uca senaryolar da burada, ayrı bir E2E projesi yok:
+`WebApplicationFactory` iki servisi de aynı süreçte kaldırabiliyor ve aralarındaki
+gerçek sınır (ayrı veritabanı, ayrı uygulama, arada broker) korunuyor.
+
+**Dış bağımlılığı olan testler atlanabilir.** RabbitMQ erişilemiyorsa uçtan uca
+testler `Assert.SkipUnless` ile atlanıyor; rol kurulu değilse yetki testleri de öyle.
+Kurulumu zorunlu kılmak yerine varsa doğrulanıyor — atlanan test yeşil değil "skipped"
+görünüyor, hangi güvencenin ölçülmediği çıktıdan okunuyor.
 
 **Integration test izolasyonu: koşu başına schema.** `PostgresFixture` her koşuda kendi
 schema'sını açar, migration'ı oraya uygular, sonunda `DROP SCHEMA ... CASCADE` ile düşürür.
@@ -218,7 +276,7 @@ daemon'a konuşmak zorunda. Schema yolu Docker'sız çalışıyor ve paralel ko�
 engellemiyor (schema adları farklı). Bedeli: testler bir Postgres sunucusuna erişim
 istiyor, offline çalışmıyor.
 
-**İlk yazılacak test** — çekirdek koddan önce, `WalletService.IntegrationTests/Ledger/`:
+**İlk yazılacak test** — çekirdek koddan önce, `IntegrationTests/Ledger/`:
 500 eşzamanlı transfer sonrası tüm hesapların `amount` toplamı sıfır ve hiçbir
 `user_wallet` negatif değil.
 
@@ -226,9 +284,9 @@ istiyor, offline çalışmıyor.
 
 | Yazdığın şey | Nereye |
 |---|---|
-| Yeni endpoint | ilgili servisin `Api/Controllers/` |
-| Request/response DTO | `Api/Requests/` veya `Api/Responses/` |
-| FluentValidation validator | `Api/Validators/`, DTO ile aynı isim + `Validator` |
+| Yeni endpoint | ilgili host'un `Controllers/` |
+| Request/response DTO | host'un `Requests/` veya `Responses/` |
+| FluentValidation validator | host'un `Validators/`, DTO ile aynı isim + `Validator` |
 | İş akışı (command + handler) | `Application/<Feature>/` |
 | Dış servis arayüzü | `Application/Abstractions/` |
 | Dış servis implementasyonu | `Infrastructure/Providers/` |
@@ -237,7 +295,7 @@ istiyor, offline çalışmıyor.
 | Migration | `Infrastructure/Persistence/Migrations/` (EF üretir) |
 | Background job | `Infrastructure/Jobs/` |
 | Servisler arası komut/event | `Shared.Contracts/Commands` veya `Events` |
-| Baseline katman kurulumu | `Setup/` |
+| Baseline katman kurulumu | host'un `Setup/`'ı; iki host da kullanıyorsa `WalletService.Core/Setup/` |
 | Karar ve gerekçe | `docs/decisions.md` |
 | Pazarlıksız kural | `CLAUDE.md` |
 

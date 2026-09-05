@@ -322,13 +322,15 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 
 ## 13. Uygulama sırası
 
-1. wallet-service çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
+1. ✅ wallet çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
    `ledger_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
-2. Baseline'ın 12 maddesi bu tek servis üstünde (OTel, health, ProblemDetails,
-   rate limiting, migration, graceful shutdown).
-3. Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk burada.
-4. Withdrawal saga + bank-service + compensation.
-5. Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
+2. ✅ Baseline'ın 12 maddesi (OTel, health, ProblemDetails, rate limiting, migration,
+   graceful shutdown). Polly / dış servis dayanıklılığı ertelendi — henüz dış HTTP
+   bağımlılığı yok.
+3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
+   burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
+4. ⬜ Withdrawal saga + bank-service + compensation.
+5. ⬜ Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
 
@@ -368,7 +370,7 @@ kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
 | `type`             | `ledger_account_id`                          | `idempotency_key`  |
 | ------------------ | ------------------------------------- | ------------------ |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i    |
-| `topup`            | alıcı `user_wallet`                   | webhook `event_id` |
+| `topup`            | alıcı `user_wallet`                   | `provider:event_id`|
 | `withdrawal`       | çeken `user_wallet`                   | client'ın key'i    |
 | `refund` (comp.)   | aynı `user_wallet`                    | saga id            |
 | settlement         | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref|
@@ -686,3 +688,206 @@ Kimlik ayrı bir ortam değişkeninden değil, `ConnectionStrings:Wallet`'tan al
 veritabanının host/adıyla birleştiriliyor — üçüncü bir parola dolaşıma sokmamak için.
 Rol kurulu değilse testler atlanıyor (`Assert.SkipUnless`): kurulumu zorunlu kılmak
 yerine, varsa doğrulanıyor.
+
+---
+
+## 25. Ledger'a yazan kodun tek kopyası olur
+
+**Karar.** `ledger_transactions`, `ledger_entries` ve `ledger_balances`'a yazan mantık
+tek yerde: `WalletService.Core`. Kaç process bu kütüphaneyi çalıştırırsa çalıştırsın
+(bugün `wallet-api` ve `topup-consumer`) yazan **kod** tek.
+
+**Gerekçe.** Veritabanı invariant'ların hepsini zorlamıyor. Zorladıkları:
+
+- `ledger_entries` append-only (`REVOKE`, sahip olmayan role)
+- transaction başına para birimi başına sıfır toplam (deferred trigger)
+- entry currency'si hesabınkiyle aynı (composite FK)
+- `(ledger_account_id, idempotency_key)` tekilliği
+
+Zorlamadıkları — ve tehlikeli olan bunlar:
+
+- **Cüzdan negatife düşemez.** CHECK değil, `LedgerBalance.Apply`'daki bir `if`
+  (madde 6: sistem hesapları düşebilmeli, o yüzden kolon üzerinde constraint olamıyor).
+- **Bakiye ledger'a yazmadan güncellenmez ve ledger'a yazıp bakiyeyi güncellemeden
+  bırakılamaz.** Bu ilişkiyi hiçbir şema nesnesi tutmuyor.
+- **Bakiye satırları `ledger_account_id` artan sırayla güncellenir** (madde 8).
+- **`version` her yazımda birer artar** — optimistic lock buna dayanıyor, DB üretmiyor.
+
+Somut kırılma: ikinci bir yazar ledger'a entry yazıp `ledger_balances`'ı güncellemeyi
+atlarsa DB'de hiçbir şey hata vermez. Zero-sum korunur, append-only korunur, FK
+korunur — ve müşteri parasını göremez. Fark edilmesi için bakiyelerin ledger'dan
+yeniden hesaplanması gerekir.
+
+**Sınır şema değil, kod.** Şema sınır olsaydı ("kim yazarsa yazsın DB tutar") çok
+yazarlı yapı sorunsuz olurdu. İnvariant'ların bir kısmı yalnızca kodda yaşadığı için
+o kodun ikinci kopyası olamaz.
+
+**Kaç deployable olduğu ayrı bir soru** ve cevabı madde 28'de. İki host aynı
+kütüphaneyi çalıştırdığı sürece bu madde ihlal edilmiş olmuyor.
+
+**Elenen alternatif.** Ayrı tüketici + wallet-api'ye senkron HTTP çağrısı. Broker'ın
+sağladığı geri baskıyı ve tekrar denemeyi HTTP katmanında yeniden kurmayı
+gerektirirdi; kazancı yalnızca bir kutu daha olurdu.
+
+---
+
+## 26. Sağlık kontrolünde `failureStatus` bağımlılığın kritikliğine göre seçilir
+
+**Karar.** Bir bağımlılık olmadan servis **hiçbir** iş yapamıyorsa `Unhealthy`;
+yalnızca bir yan akış duruyorsa `Degraded`.
+
+| deployable | Postgres | RabbitMQ |
+| --- | --- | --- |
+| `wallet-api` | `Unhealthy` | *kontrol yok — bağımlılık da yok* |
+| `topup-webhook` | `Unhealthy` | `Degraded` |
+| `topup-consumer` | `Unhealthy` | `Unhealthy` |
+
+**Gerekçe.** `Unhealthy` readiness'ı düşürür ve orchestrator servisi trafikten çeker.
+Bu, çalışmaya devam edebilecek yolları da kapatmak demek — arızayı olduğundan büyük
+yapar. `Degraded` durumu sağlık çıktısında görünür kılıyor ama uç `200` dönmeye devam
+ediyor.
+
+Satır satır:
+
+- **`topup-webhook` / RabbitMQ `Degraded`.** Webhook'u kabul etmek yalnızca Postgres'e
+  bağlı; inbox'ın varlık sebebi zaten "broker yokken de kaybetme". Broker'ı readiness'a
+  bağlamak inbox'ı anlamsız kılardı.
+- **`topup-consumer` / RabbitMQ `Unhealthy`.** Bu uygulamanın tek işi kuyruktan okuyup
+  ledger'a yazmak. Broker yoksa yapacak başka bir şey yok, `Degraded` demek yanıltıcı
+  olurdu.
+- **`wallet-api` / kontrol yok.** Tüketici ayrı deployable'a taşındıktan sonra bu
+  uygulamanın broker ile hiç işi kalmadı (madde 28). Önce `Degraded` bir kontrol
+  vardı; bağımlılık ortadan kalkınca kontrol de kalktı. Bir tasarım tercihiyken
+  yapısal gerçek oldu.
+
+**Testle doğrulandı.** `Readiness_BrokerBagimliligiIcERMEZ` sağlık çıktısında
+`rabbitmq` kaydının BULUNMADIĞINI doğruluyor.
+
+---
+
+## 27. Top-up idempotency key'i sağlayıcıyı da taşır
+
+**Karar.** `ledger_transactions.idempotency_key` top-up'ta `event_id` değil,
+`provider:event_id`.
+
+**Gerekçe.** İki tekillik alanı var ve kapsamları farklı:
+
+- mesaj tarafı: `(provider, event_id)` — `event_id` yalnızca sağlayıcı içinde tekil,
+- ledger tarafı: `(ledger_account_id, idempotency_key)` — sağlayıcıyı hiç tanımıyor.
+
+Yalnız `event_id` yazılsaydı, iki sağlayıcı aynı id'yi aynı cüzdan için ürettiğinde
+ikinci yükleme unique index'e takılır ve **müşterinin parası sessizce kaybolurdu**.
+Sağlayıcılar birbirinden habersiz id ürettiği için bu uzak bir ihtimal değil; `evt_1`
+gibi sayaç tabanlı id'lerde neredeyse kaçınılmaz.
+
+**Nasıl bulundu.** Kod önce yalnızca `event_id` yazıyordu ve tek sağlayıcıyla yazılmış
+her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakaladı.
+
+---
+
+## 28. Üç deployable: erişim seviyesi ayrımı
+
+**Karar.** wallet çekirdeği tek uygulama değil, ortak bir kütüphane (`WalletService.Core`)
+üstünde iki host:
+
+| deployable | ingress | Postgres | RabbitMQ |
+| --- | --- | --- | --- |
+| `wallet-api` | **public** (mobil/web) | `hiwallet_wallet` / `wallet_app` | — |
+| `topup-webhook` | **IP kısıtlı** (sağlayıcı) | `hiwallet_topup` / `topup_app` | publish |
+| `topup-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
+
+**Birincil gerekçe: farklı ağ maruziyeti aynı process'te olamaz.** Banka webhook'u
+belirli IP bloklarına açılacak, cüzdan API'si herkese. IP kısıtı process seviyesinde
+uygulanamaz, yalnızca deployable seviyesinde. Bu tek başına webhook'un ayrılmasını
+gerektiriyor — o zaten ayrıydı.
+
+**Tüketicinin ayrılma gerekçesi farklı.** Onun hiç ingress'i yok; mesajları kendisi
+çekiyor. Ama wallet-api'nin İÇİNDE koştuğu sürece o uygulamanın maruziyetini ve blast
+radius'unu miras alıyordu: public ingress'i olan bir uygulamanın içinde ledger'a yazan
+bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen bir sürece taşındı.
+
+**Yan kazançlar.**
+
+- wallet-api'nin RabbitMQ bağımlılığı tamamen kalktı; public yüzeydeki bağımlılık
+  sayısı azaldı (madde 26).
+- Bağlantı havuzları ayrıldı. Kuyruk birikmesi artık HTTP'nin bağlantılarını yiyemiyor.
+  Tüketicinin dizesinde `Application Name` ayrı, `pg_stat_activity`'de yük kaynağı
+  görünüyor.
+- Tüketici tıkandığında kendi sağlık ucu var; wallet-api'nin sağlıklı görünmesi durumu
+  bitti.
+
+**Neden ortak kütüphane, ayrı kopya değil.** Madde 25: ayrı deployable olmak sorun
+değil, ayrı **kod** olmak sorun.
+
+**Kütüphane sınırı: `WalletService.Core`'a wallet dışından referans verilmez.**
+topup-webhook onu görmemeli. Görürse ayrı veritabanı sınırı yapısal bir gerçek olmaktan
+çıkıp nezaket kuralına döner. Bu, "db'ye ve rabbitmq'ya yazan her şeyi tek kütüphaneye
+koy" alternatifinin elenme sebebi: o sınır altyapı şeklinde çizilmiş olurdu, veri
+sahipliği şeklinde değil.
+
+**Ne kazandırmıyor.** Tüketici verimi artmıyor — `x-single-active-consumer` yüzünden
+aktif tüketici sayısı `PartitionCount` ile sınırlı, instance sayısıyla değil. Postgres
+de izole olmuyor; ayrılan yalnızca .NET tarafındaki havuz.
+
+**Maliyet.** wallet-api ve topup-consumer aynı şemayı paylaştığı için birlikte deploy
+edilmek zorundalar. Migration sahipliği değişmiyor (ayrı `migrator` job'ı, hiçbir
+uygulama startup'ta migrate etmiyor) ama koordine edilecek şey ikiye çıktı.
+
+---
+
+## 29. Webhook `202` döner, `200` değil
+
+**Karar.** `POST /v1/webhooks/topup/{provider}` başarıda `202 Accepted` dönüyor,
+gövde `{"accepted": true, "duplicate": false}`.
+
+**Gerekçe.** Yanıt döndüğünde para henüz cüzdanda değil: ledger'a yazan kod başka bir
+deployable'da, arada broker var. `200 OK` "istediğin işi yaptım" demek ve bu doğru
+değil. `202` tam olarak verilen sözü söylüyor — **kabul edildi ve kalıcı kaydedildi,
+işlenmesi sonra.**
+
+İşlevsel fark yok (sağlayıcıların çoğu 2xx'in hepsini başarı sayıyor); fark
+sözleşmenin dürüstlüğünde. Yanıtın anlamını olduğundan güçlü göstermek, ileride
+"200 aldım, neden bakiyem artmadı" tartışmasının kaynağı olur.
+
+**Tekrar eden event de `202`.** Sağlayıcı için yeniden gönderim beklenen bir davranış,
+hata değil; `4xx` dönmek onu sonsuz tekrara sokardı. Ayrım gövdedeki `duplicate`
+alanında.
+
+---
+
+## 30. Bilinen açık: relay çok instance'ta sıralamayı bozuyor
+
+**Durum.** `overview.md` madde 8 "aynı cüzdanın mesajlarında sıra korunur" diyor.
+Broker tarafında bu doğru: consistent hash exchange aynı cüzdanı hep aynı kuyruğa
+düşürüyor ve `x-single-active-consumer` + `prefetch=1` o kuyruğu sırayla işletiyor.
+
+**Ama sıra broker'a VARMADAN önce bozulabiliyor.** Relay şöyle okuyor:
+
+```sql
+SELECT * FROM topup_inbox WHERE published_at IS NULL
+ORDER BY received_at LIMIT 50 FOR UPDATE SKIP LOCKED
+```
+
+İki relay instance'ı ayrı batch'ler kilitliyor. A 1-50'yi, B 51-100'ü aldıysa ve A
+yavaşsa, B önce publish ediyor. Aynı cüzdanın iki event'i farklı batch'lere düşerse
+exchange'e ters sırada varıyorlar.
+
+**Şu an sorun değil.** Relay tek instance koşuyor ve top-up'ların hepsi alacak kaydı —
+toplama işlemi, sıra sonucu değiştirmiyor. `+50` sonra `+30` ile `+30` sonra `+50`
+aynı bakiyeyi veriyor.
+
+**Ne zaman sorun olur.** Relay ölçeklendiğinde ve/veya aynı cüzdana sırası önemli
+olan farklı tipte mesajlar aktığında (withdrawal ile karışık akış).
+
+**Seçenekler.**
+
+1. Relay'i tek instance'a bağla (`pg_try_advisory_lock`, madde 3). Sıra gerçekten
+   korunur, verim tavanı `PartitionCount`. Basit ve dürüst.
+2. `x-single-active-consumer`'ı kaldır, sıra iddiasını da kaldır. Verim instance
+   sayısıyla ölçeklenir; top-up için yeterli ama withdrawal'da geri istemek zor.
+3. Cüzdan bazında sıra numarası taşı, tüketici sırasızları tamponlasın. Doğru çözüm,
+   bu projenin ağırlığının üstünde.
+
+**Karar ertelendi.** Ölçüm yok ve bugünkü kurulumda (tek relay) açık tetiklenmiyor.
+Buraya yazılıyor ki relay ölçeklenmeden önce bakılacak yer belli olsun. Kilit henüz
+KONULMADI — yani bugün relay'i iki instance koşturmak sessizce garantiyi kaldırır.

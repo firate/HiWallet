@@ -63,6 +63,38 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Kalıp: `INSERT ... ON CONFLICT DO NOTHING`, 0 satır ise mevcut kaydı oku ve onu dön.
   "Önce SELECT sonra INSERT" YOK.
 
+**Deployable'lar**
+- Üç uygulama, üç erişim seviyesi (`decisions.md` madde 28):
+  `wallet-api` public, `topup-webhook` IP kısıtlı, `topup-consumer` ingress'siz.
+  Farklı ağ maruziyeti aynı process'te BİRLEŞTİRİLMEZ.
+- `wallet-api` ve `topup-consumer` ortak kütüphane `WalletService.Core` üstünde.
+  Ledger'a yazan kodun tek kopyası orada; ikinci bir kopya AÇILMAZ (madde 25).
+- **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
+  `topup-webhook` onu görmez.
+- `wallet-api`'nin RabbitMQ bağımlılığı YOK ve eklenmez.
+
+**Top-up hattı**
+- `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —
+  append-only zorlanacak tablosu yok.
+- İmza: HAM gövde baytları üzerinde HMAC-SHA256, sabit zamanlı karşılaştırma.
+  Gövde parse EDİLMEDEN önce doğrulanır. Geçersiz imza, eksik başlık ve tanınmayan
+  sağlayıcı → `401`. Tanınmayan sağlayıcıya `404` DÖNÜLMEZ.
+- Yanıt `202 Accepted`, `200` DEĞİL: verilen söz "işledim" değil "kalıcı kaydettim"
+  (`decisions.md` madde 29). Ve ancak inbox commit'inden SONRA. Tekrar eden event de
+  `202` — sağlayıcı için yeniden gönderim başarılı sonuçtur, ayrım gövdedeki
+  `duplicate` alanında.
+- İki kademe idempotency: inbox `(provider, event_id)` UNIQUE + tüketicide
+  `processed_events`. Tüketicide kapı ile ledger AYNI transaction'da.
+- Top-up'ta `ledger_transactions.idempotency_key` = `provider:event_id`
+  (`decisions.md` madde 27). Yalnız `event_id` YAZILMAZ.
+- Kalıcı hata (cüzdan yok, currency uyuşmuyor, tutar geçersiz) → dead-letter.
+  Geçici hata (DB kapalı) → requeue. İkisi karıştırılmaz: kalıcı hatayı requeue etmek
+  partition'ı süresiz tıkar.
+- Routing key = cüzdan id, `x-consistent-hash` exchange, kuyruklarda
+  `x-single-active-consumer`, tüketicide `prefetch=1`.
+- Relay: `FOR UPDATE SKIP LOCKED` + publisher confirms. Önce publish, sonra işaretle —
+  ters sıra kayıp üretir.
+
 **API**
 - `/v1` prefix. Liste endpoint'lerinde pagination, unbounded query YOK.
 - Hata gövdesi RFC 7807 ProblemDetails.

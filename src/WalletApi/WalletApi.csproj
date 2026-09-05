@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- Public ingress. Mobil/web istemciler buraya bağlanıyor.
+         RabbitMQ referansı YOK ve olmamalı: top-up tüketicisi ayrı bir host'a
+         taşındıktan sonra bu uygulamanın broker'a hiç ihtiyacı kalmadı. Public
+         yüzeyin bağımlılık sayısı ne kadar azsa o kadar iyi. -->
+
+    <ItemGroup>
+        <PackageReference Include="FluentValidation"/>
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+        <PackageReference Include="Swashbuckle.AspNetCore"/>
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\WalletService.Core\WalletService.Core.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+</Project>

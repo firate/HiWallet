@@ -62,10 +62,11 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | Servis                  | Sorumluluk                                                              | Tutarlılık      |
 | ----------------------- | ----------------------------------------------------------------------- | --------------- |
 | wallet-service          | Cüzdanlar, double-entry ledger, transfer çekirdeği, bakiye projeksiyonu | Lokal ACID      |
+| ↳ wallet-api            | Yukarıdakinin public HTTP host'u (mobil/web)                            | —               |
+| ↳ topup-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
 | bank-service (fake)     | Dış banka transferini simüle eder                                       | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
-| topup-consumer          | Inbox/kuyruktan okuyup ledger'a yükleme işler                           | Idempotent      |
 | provider-fake           | Test için sahte dış sağlayıcı (Stripe/banka muadili)                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
@@ -218,7 +219,9 @@ Graceful shutdown ile uyumlu: job'lar `CancellationToken`'a saygı duyar, SIGTER
 
 ## 8. Sıralama (Ordering)
 
-Sıralama yalnızca **aynı cüzdan** için önemlidir; farklı cüzdanlar bağımsız, paralel işlenir. Mesajlar cüzdan id'sine göre partition'lanır (RabbitMQ consistent hashing exchange): aynı cüzdanın tüm mesajları aynı consumer'a gider, sıra korunur; farklı cüzdanlar paralel akar. Büyük ölçekte de yeterli — tek darboğaz "tek cüzdana saniyede binlerce işlem" ki gerçekçi değil.
+Sıralama yalnızca **aynı cüzdan** için önemlidir; farklı cüzdanlar bağımsız, paralel işlenir. Mesajlar cüzdan id'sine göre partition'lanır (RabbitMQ consistent hashing exchange): aynı cüzdanın tüm mesajları aynı kuyruğa düşer, kuyruk `x-single-active-consumer` ile tek tüketici tarafından sırayla işlenir; farklı cüzdanlar paralel akar. Büyük ölçekte de yeterli — tek darboğaz "tek cüzdana saniyede binlerce işlem" ki gerçekçi değil.
+
+**Sınır.** Bu garanti broker'a VARDIKTAN sonrası için geçerli. Relay çok instance koşarsa `SKIP LOCKED` ile alınan batch'ler farklı hızda yayınlanabiliyor ve sıra daha exchange'e ulaşmadan bozulabiliyor. Bugün relay tek instance ve top-up'lar toplama olduğu için tetiklenmiyor; `decisions.md` madde 30.
 
 ## 9. Test Servisleri (provider-fake)
 

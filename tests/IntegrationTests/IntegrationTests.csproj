@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="xunit.v3"/>
+        <PackageReference Include="xunit.runner.visualstudio"/>
+        <PackageReference Include="Shouldly"/>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
+    </ItemGroup>
+
+    <!-- Üç deployable birden. Uçtan uca test hepsini ayrı ayrı ayağa kaldırıyor;
+         proje adı bu yüzden tek servise bağlı değil. -->
+    <ItemGroup>
+        <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
+        <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
+        <ProjectReference Include="../../src/TopupConsumer/TopupConsumer.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit"/>
+        <Using Include="Shouldly"/>
+    </ItemGroup>
+
+</Project>
