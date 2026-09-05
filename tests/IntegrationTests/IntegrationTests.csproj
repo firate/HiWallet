@@ -13,12 +13,13 @@
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
     </ItemGroup>
 
-    <!-- Üç deployable birden. Uçtan uca test hepsini ayrı ayrı ayağa kaldırıyor;
-         proje adı bu yüzden tek servise bağlı değil. -->
+    <!-- Bütün deployable'lar birden. Uçtan uca test hepsini ayrı ayrı ayağa
+         kaldırıyor; proje adı bu yüzden tek servise bağlı değil. -->
     <ItemGroup>
         <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/TopupConsumer/TopupConsumer.csproj"/>
+        <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
