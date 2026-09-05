@@ -150,8 +150,8 @@ TopupConsumer/
 ├── Program.cs                 -- controller yok, Swagger yok, rate limiter yok
 ├── Dockerfile
 ├── TopupConsumerService.cs    -- BackgroundService: kuyrukları dinler
-├── TopupConsumerSetup.cs      -- DI + sağlık kontrolleri
-└── TopupConsumerApp.cs        -- test giriş noktası işaretçisi
+├── WalletConsumerSetup.cs      -- DI + sağlık kontrolleri
+└── WalletConsumerApp.cs        -- test giriş noktası işaretçisi
 ```
 
 `Sdk.Web` kullanıyor ama tek HTTP yüzeyi sağlık ucu. Probe olmasaydı "process ayakta

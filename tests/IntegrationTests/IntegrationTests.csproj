@@ -18,7 +18,7 @@
     <ItemGroup>
         <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
-        <ProjectReference Include="../../src/TopupConsumer/TopupConsumer.csproj"/>
+        <ProjectReference Include="../../src/WalletConsumer/WalletConsumer.csproj"/>
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
     </ItemGroup>
 

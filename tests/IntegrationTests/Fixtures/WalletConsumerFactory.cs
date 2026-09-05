@@ -1,4 +1,4 @@
-using HiWallet.TopupConsumer;
+using HiWallet.WalletConsumer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -10,8 +10,8 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// kaldırılıyor — wallet-api ile aynı süreçte koşsaydı test, üretimde olmayan bir
 /// yakınlığı doğrulamış olurdu.
 /// </summary>
-public sealed class TopupConsumerFactory(PostgresFixture postgres)
-    : WebApplicationFactory<TopupConsumerApp>
+public sealed class WalletConsumerFactory(PostgresFixture postgres)
+    : WebApplicationFactory<WalletConsumerApp>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

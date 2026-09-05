@@ -11,9 +11,9 @@
 #
 #   wallet-api      public ingress   — mobil/web istemciler
 #   topup-webhook   kısıtlı ingress  — yalnızca sağlayıcı IP'leri (proxy/firewall işi)
-#   topup-consumer  ingress YOK      — mesajları kendisi kuyruktan çekiyor
+#   wallet-consumer  ingress YOK      — mesajları kendisi kuyruktan çekiyor
 #
-# wallet-api ve topup-consumer aynı şemayı ve aynı kütüphaneyi (WalletService.Core)
+# wallet-api ve wallet-consumer aynı şemayı ve aynı kütüphaneyi (WalletService.Core)
 # paylaşıyor; ayrı deployable ama tek kod tabanı.
 
 name: hiwallet
@@ -188,10 +188,10 @@ services:
 
   # Ingress'i YOK: ports tanımı yalnızca sağlık ucu için ve host'a AÇILMIYOR.
   # Ledger'a yazan kod artık dışarıdan erişilebilen bir uygulamanın içinde değil.
-  topup-consumer:
+  wallet-consumer:
     build:
       context: .
-      dockerfile: src/TopupConsumer/Dockerfile
+      dockerfile: src/WalletConsumer/Dockerfile
       target: final
     depends_on:
       migrator:
@@ -205,7 +205,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       # wallet-api ile AYNI veritabanı ve AYNI rol. Application Name farklı:
       # pg_stat_activity'de "bu yükü kim üretiyor" sorusu cevaplanabilsin diye.
-      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD};Application Name=hiwallet-topup-consumer;Maximum Pool Size=16
+      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD};Application Name=hiwallet-wallet-consumer;Maximum Pool Size=16
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
@@ -213,7 +213,7 @@ services:
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
-      OTEL_SERVICE_NAME: hiwallet-topup-consumer
+      OTEL_SERVICE_NAME: hiwallet-wallet-consumer
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

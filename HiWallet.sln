@@ -18,7 +18,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WalletService.Core", "src\W
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WalletApi", "src\WalletApi\WalletApi.csproj", "{09FC7F7B-3FD0-4021-9F6B-27A1E5E96987}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TopupConsumer", "src\TopupConsumer\TopupConsumer.csproj", "{923516DA-B582-42A6-86BE-54E1CEAE4F77}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WalletConsumer", "src\WalletConsumer\WalletConsumer.csproj", "{923516DA-B582-42A6-86BE-54E1CEAE4F77}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WithdrawalOrchestrator", "src\WithdrawalOrchestrator\WithdrawalOrchestrator.csproj", "{6946ADDF-FC77-4109-9AF7-C38773AA682B}"
 EndProject

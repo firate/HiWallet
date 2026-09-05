@@ -1,7 +1,7 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
-using HiWallet.TopupConsumer;
+using HiWallet.WalletConsumer;
 using HiWallet.WalletService.Setup;
 
 // Ingress'i YOK. Hiçbir istemci buraya bağlanmıyor; mesajları kendisi kuyruktan
@@ -11,7 +11,7 @@ using HiWallet.WalletService.Setup;
 // Wallet-api ile AYNI kütüphaneyi (WalletService.Core) ve aynı tabloları kullanıyor.
 // İkisi ayrı deployable ama tek kod tabanı — invariant'ı zorlayan mantığın ikinci
 // bir kopyası yok (decisions.md madde 25).
-const string ServiceName = "hiwallet-topup-consumer";
+const string ServiceName = "hiwallet-wallet-consumer";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,11 +24,11 @@ builder.AddHiWalletObservability(ServiceName);
 
 builder.Services.AddHiWalletPersistence();
 builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
-builder.Services.AddHiWalletTopupConsumer(builder.Configuration);
+builder.Services.AddWalletConsumer(builder.Configuration);
 
 var app = builder.Build();
 
-app.ValidateTopupConsumerConfiguration();
+app.ValidateWalletConsumerConfiguration();
 
 // Tek HTTP yüzeyi bu. Controller yok, Swagger yok, rate limiter yok.
 // Probe olmadan "process ayakta ama tüketici tıkanmış" durumu görünmez olurdu.

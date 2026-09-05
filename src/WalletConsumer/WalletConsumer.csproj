@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- Wallet'ın kuyruk tarafı: ledger'a asenkron giren HER ŞEY burada.
+         Bugün iki kaynak var — top-up event'leri ve withdrawal saga'sının
+         komutları. Adı "topup-consumer" idi; ikinci kuyruk eklenince isim
+         gerçeği anlatmaz oldu (decisions.md madde 28).
+
+         İkisi ayrı deployable DEĞİL çünkü ayırmayı gerektiren bir şey yok:
+         ikisi de ingress'siz, aynı veritabanına aynı kütüphaneyle yazıyor.
+         Ayırma ölçütü ağ maruziyeti ve o ölçüt burada ikisini de aynı yere
+         koyuyor.
+
+         Ingress'i YOK: hiçbir istemci buraya bağlanmıyor, mesajları kendisi
+         kuyruktan çekiyor. Ledger'a yazan kod artık public bir uygulamanın
+         içinde değil.
+
+         Sdk.Web olmasının tek sebebi sağlık ucu: HTTP yüzeyi olmayan bir
+         süreçte "process ayakta ama tüketici tıkanmış" durumu görünmez olurdu.
+         Yalnızca /health/live ve /health/ready sunuluyor, başka endpoint yok. -->
+
+    <ItemGroup>
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\WalletService.Core\WalletService.Core.csproj"/>
+    </ItemGroup>
+
+</Project>

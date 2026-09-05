@@ -4,11 +4,11 @@ using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Setup;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace HiWallet.TopupConsumer;
+namespace HiWallet.WalletConsumer;
 
-public static class TopupConsumerSetup
+public static class WalletConsumerSetup
 {
-    public static IServiceCollection AddHiWalletTopupConsumer(
+    public static IServiceCollection AddWalletConsumer(
         this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<ProcessTopupHandler>();
@@ -38,7 +38,7 @@ public static class TopupConsumerSetup
     /// Broker ayarları <c>AddHiWalletMessaging</c> içinde zaten
     /// <c>ValidateOnStart</c> ile doğrulanıyor.
     /// </summary>
-    public static WebApplication ValidateTopupConsumerConfiguration(this WebApplication app)
+    public static WebApplication ValidateWalletConsumerConfiguration(this WebApplication app)
     {
         if (string.IsNullOrWhiteSpace(
                 app.Configuration.GetConnectionString(PersistenceSetup.ConnectionStringName)))
