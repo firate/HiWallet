@@ -199,7 +199,7 @@ kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 1
 
 - API girişinde `Idempotency-Key`: aynı çekme isteği iki kez → yeni saga başlatma, mevcut durumu dön.
 - Komut tüketiminde `CommandId`: bank-service ve wallet-service aynı komutu iki kez işlemez (`processed_messages`).
-- Saga event tüketiminde: state + correlation ile tekrar gelen event mevcut durumla eşleşmezse yok sayılır.
+- Saga event tüketiminde: state + correlation ile değerlendirilir. Zararsız tekrar (aynı event, ya da saga çoktan ilerlemiş) yok sayılır; **çelişkili** event (telafiden sonra gelen "başarılı" gibi) yok SAYILMAZ — durum olduğu yerde bırakılıp alarm üretilir, çünkü para kaybına işaret ediyor (`decisions.md` madde 31).
 
 **Retry (saga):**
 

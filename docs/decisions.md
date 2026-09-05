@@ -891,3 +891,35 @@ olan farklı tipte mesajlar aktığında (withdrawal ile karışık akış).
 **Karar ertelendi.** Ölçüm yok ve bugünkü kurulumda (tek relay) açık tetiklenmiyor.
 Buraya yazılıyor ki relay ölçeklenmeden önce bakılacak yer belli olsun. Kilit henüz
 KONULMADI — yani bugün relay'i iki instance koşturmak sessizce garantiyi kaldırır.
+
+---
+
+## 31. Saga'da "yok say" ile "çelişki" ayrılır
+
+**Karar.** Saga geçişleri üç sonuç dönüyor: `Applied`, `Ignored`, `Conflict`.
+`overview.md` madde 6 "tekrar gelen event mevcut durumla eşleşmezse yok sayılır"
+diyor; kod bunun ilerisine geçiyor.
+
+**Gerekçe.** "Eşleşmeyen event" tek bir şey değil, iki farklı şey:
+
+| durum | event | ne demek |
+| --- | --- | --- |
+| `Debited` | `WithdrawalDebited` | broker ikinci kez teslim etti — **beklenen** |
+| `BankTransferPending` | `WithdrawalDebited` | saga ilerlemiş, geciken event — **beklenen** |
+| `Compensating` | `BankTransferSucceeded` | banka "olmadı" dedi, iade ediyoruz, şimdi "oldu" diyor |
+| `Failed` | `BankTransferSucceeded` | iade edildi ama para bankadan çıkmış olabilir |
+| `Completed` | `BankTransferFailed` | tamamlandı sayıldı, sonra hata geldi |
+
+İlk ikisi en-az-bir-kez teslimin doğal sonucu; ack'lenip geçilir. Son üçü ise
+**para kaybına işaret ediyor** — muhtemelen hem bankadan çıkmış hem müşteriye iade
+edilmiş bir tutar var. İkisini aynı `Ignored` kefesine koymak, en pahalı hatayı en
+sessiz hale getirirdi.
+
+**`Conflict`'te ne oluyor.** Saga durumu DEĞİŞMİYOR — yarıda bırakılan bir telafi
+daha kötü. Mesaj ack'leniyor (tekrar denemek aynı çelişkiyi üretir), alarm log'u
+yazılıyor ve kayıt mutabakat raporuna düşüyor. Sistem düzeltmiyor, gösteriyor —
+madde 11'deki fatura uyuşmazlığıyla aynı yaklaşım.
+
+**Neden state machine'de, handler'da değil.** Karar tamamen mevcut durumun
+fonksiyonu; DB'ye, mesaja ve zamana bakmıyor. Handler'da olsaydı her handler kendi
+tablosunu taşır ve ilki sapan yerde sessizce yanlış davranırdı.
