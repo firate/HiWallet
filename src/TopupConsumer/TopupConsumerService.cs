@@ -31,6 +31,11 @@ internal sealed class TopupConsumerService(
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// Kilit altında. <c>BackgroundService.StopAsync</c>, iptal token'ı zaten
+    /// tetiklenmişse <c>ExecuteAsync</c>'i BEKLEMEDEN dönüyor — yani abone olma
+    /// döngüsü hâlâ kanal eklerken temizlik başlayabiliyor.
+    /// </summary>
     private readonly List<IChannel> _channels = [];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -90,7 +95,11 @@ internal sealed class TopupConsumerService(
             consumer.ReceivedAsync += (_, delivery) => OnMessageAsync(channel, queue, delivery, ct);
 
             await channel.BasicConsumeAsync(queue, autoAck: false, consumer, ct);
-            _channels.Add(channel);
+
+            lock (_channels)
+            {
+                _channels.Add(channel);
+            }
         }
 
         logger.LogInformation("Top-up tüketicisi {PartitionCount} partition dinliyor.", partitionCount);
@@ -157,12 +166,21 @@ internal sealed class TopupConsumerService(
     {
         await base.StopAsync(cancellationToken);
 
-        foreach (var channel in _channels)
+        IChannel[] channels;
+
+        lock (_channels)
         {
-            await channel.CloseAsync(cancellationToken);
-            await channel.DisposeAsync();
+            channels = [.. _channels];
+            _channels.Clear();
         }
 
-        _channels.Clear();
+        foreach (var channel in channels)
+        {
+            // Yalnızca DisposeAsync: kanalı zaten kapatıyor. Öncesinde CloseAsync
+            // çağırmak çift temizlik demek ve otomatik kurtarma ikinci turda
+            // disposed kanalın consumer'larını okumaya çalışıp
+            // ObjectDisposedException fırlatıyor.
+            await channel.DisposeAsync();
+        }
     }
 }
