@@ -27,6 +27,8 @@ POSTGRES_PASSWORD=...
 WALLET_OWNER_PASSWORD=...
 WALLET_APP_PASSWORD=...
 TOPUP_APP_PASSWORD=...
+WITHDRAWAL_APP_PASSWORD=...
+BANK_APP_PASSWORD=...
 
 RabbitMq__Username=...          # compose'daki broker'ın ilk kullanıcısı olur
 RabbitMq__Password=...
@@ -40,6 +42,8 @@ Portların varsayılanı **homelab'a göre** seçildi, dokunmana gerek yok:
 ```
 WALLET_HOST_PORT=8091        # 8080 Keycloak'ta, 8090 dolu
 TOPUP_HOST_PORT=8092
+WITHDRAWAL_HOST_PORT=8093
+BANK_HOST_PORT=8094          # sahte bankanın senaryo ucu
 POSTGRES_HOST_PORT=5433      # 5432 ana Postgres'te
 RABBITMQ_HOST_PORT=5673      # 5672 mevcut broker'da
 RABBITMQ_MGMT_HOST_PORT=15673
@@ -60,10 +64,14 @@ Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 docker compose up --build
 ```
 
-Beklenen sıra: `postgres` sağlıklı olur → `migrator` ve `topup-migrator` şemaları
-uygulayıp `exit 0` ile biter → `wallet-api`, `topup-webhook` ve `wallet-consumer`
-başlar. `rabbitmq` paralel kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa
-kalkmalılar).
+Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
+`topup-migrator`, `withdrawal-migrator`, `bank-migrator`) şemaları uygulayıp
+`exit 0` ile biter → beş uygulama başlar. `rabbitmq` paralel kalkar; hiçbiri onu
+BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
+
+Dört veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
+`hiwallet_withdrawal`, `hiwallet_bank`. Postgres healthcheck'i sonuncusuna soruyor;
+o cevap verdiğinde init'in tamamı bitmiş demektir.
 
 ## 4. Doğrula
 
@@ -89,6 +97,59 @@ docker compose exec postgres psql -U wallet_app -d hiwallet_wallet -c "UPDATE le
 
 Beklenen: `ERROR: permission denied for table ledger_entries`. Başka bir şey
 çıkarsa iki rollü kurulum çalışmıyor demektir.
+
+Servis sınırı gerçekten kapalı mı — orchestrator wallet'ı GÖREMEMELİ:
+
+```bash
+docker compose exec postgres psql -U withdrawal_app -d hiwallet_wallet -c "SELECT 1;"
+```
+
+Beklenen: bağlantı reddedilir (`permission denied for database hiwallet_wallet`).
+Bağlanabiliyorsa saga'nın anlamı kalmaz — orchestrator er ya da geç doğrudan yazmaya
+başlar ve compensation gereksizleşir (decisions.md madde 7).
+
+### Çekim akışını uçtan uca koşturma
+
+Cüzdan kurmak için hesap/cüzdan endpoint'i yok; cüzdanı DB'den açmak gerekiyor
+(top-up hattı bölümündeki gibi). Cüzdan hazırsa:
+
+```bash
+curl -i -X POST localhost:8093/v1/withdrawals \
+  -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
+  -d '{"accountId":"<ACCOUNT>","walletId":"<WALLET>","amount":100,"currency":"TRY",
+       "destinationIban":"TR330006100519786457841326"}'
+```
+
+Beklenen: `202 Accepted` ve gövdede `withdrawalId`. Birkaç saniye sonra:
+
+```bash
+curl -s localhost:8093/v1/withdrawals/<ID>
+```
+
+`state` sırayla `initiated` → `debited` → `bank_transfer_pending` → `completed`
+olmalı. Ledger'a üç bacaklı tek işlem düşer:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT la.type, e.amount FROM ledger_entries e
+     JOIN ledger_accounts la ON la.id = e.ledger_account_id
+     JOIN ledger_transactions t ON t.id = e.transaction_id
+    WHERE t.correlation_id = '<ID>';"
+```
+
+**Telafi yolu.** Bankayı reddedici yapıp aynı akışı tekrarla:
+
+```bash
+curl -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
+  -d '{"sagaId":"<ID>","outcome":"PermanentFailure"}'
+```
+
+Senaryoyu çekim isteğinden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
+bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=PermanentFailure` yapıp
+`docker compose up -d bank-service` ile yeniden başlat.
+
+Beklenen: `state` `failed`, ledger'da İKİ işlem — orijinal düşme ve üç bacaklı ters
+kayıt — ve cüzdan bakiyesi başladığı yerde. Komisyon da geri dönmüş olmalı.
 
 ## 5. Kapat
 
@@ -142,6 +203,11 @@ Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:
 | `rabbitmq` ayağa kalkıyor ve eklenti yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
 | `topup-migrator` inbox şemasını uyguluyor mu | `docker compose ps -a topup-migrator` — `exited (0)` |
 | `wallet-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps wallet-consumer` — `healthy` |
+| `withdrawal-migrator` ve `bank-migrator` şemaları uyguluyor mu | `docker compose ps -a` — ikisi de `exited (0)` |
+| `withdrawal-orchestrator` broker'sız ayağa kalkıyor mu | `curl localhost:8093/health/ready` — `Degraded` beklenir, `Unhealthy` değil |
+| `bank-service` ayağa kalkıyor mu | `curl localhost:8094/health/ready` |
+| servis sınırı kapalı mı | `psql -U withdrawal_app -d hiwallet_wallet` — reddedilmeli |
+| çekim akışının tamamı | aşağıdaki adım |
 | `wallet-api` broker'sız da sağlıklı mı | `curl localhost:8091/health/ready` — çıktıda `rabbitmq` OLMAMALI |
 | compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi |
 | top-up hattının tamamı | aşağıdaki adım |

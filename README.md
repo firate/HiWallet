@@ -67,7 +67,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
 | Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
-| Çekimin compose'a alınması | ⬜ adım 4.11 |
+| Beş uygulamanın compose'dan ayağa kalkması | ✅ yazıldı, homelab'da koşturulmadı |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
 193 test: 92 unit (DB'siz), 101 integration — gerçek Postgres ve gerçek RabbitMQ.
@@ -84,18 +84,14 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar ve roller/veritabanları kurulur → `migrator` ve
-`topup-migrator` şemaları uygular → uygulamalar başlar. RabbitMQ paralel kalkar;
-hiçbiri onu BEKLEMEZ.
-
-> **Compose'da şu an üç uygulama var:** `wallet-api`, `topup-webhook`,
-> `wallet-consumer`. `withdrawal-orchestrator` ve `bank-service` kodda ve testlerde
-> çalışıyor ama compose'a **henüz alınmadı** (adım 4.11). Yani çekim akışını bugün
-> yalnızca `dotnet test` ile görebilirsin, `docker compose up` ile değil.
+Sırayla: Postgres ayağa kalkar, dört rol ve dört veritabanı kurulur → dört migrator
+şemaları uygular → beş uygulama başlar. RabbitMQ paralel kalkar; hiçbiri onu BEKLEMEZ.
 
 ```bash
 curl http://localhost:8091/health/ready   # wallet-api
 curl http://localhost:8092/health/ready   # topup-webhook
+curl http://localhost:8093/health/ready   # withdrawal-orchestrator
+curl http://localhost:8094/health/ready   # bank-service (sahte)
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
@@ -104,14 +100,15 @@ açmasının sebebi olmazdı.
 
 Swagger: <http://localhost:8091/swagger> (Development'ta).
 
-Host portlarının varsayılanı homelab'a göre seçildi (`8091`, `8092`, `5433`, `5673`);
+Host portlarının varsayılanı homelab'a göre seçildi (`8091`–`8094`, `5433`, `5673`);
 orada `8080` Keycloak'ta, `8090` dolu, `5432` ana Postgres'te ve `5672` mevcut
 broker'da. Başka bir makinede `.env`'den değiştirilebilir.
 
-> **Bu compose sürümü henüz koşturulmadı.** İki uygulamalı önceki sürüm homelab'da
-> doğrulanmıştı (migration'lar uygulandı, `wallet_app` konteyner içinde de
-> `ledger_entries`'i güncelleyemedi). Üçüncü uygulama, RabbitMQ ve ikinci veritabanı
-> o koşuda yoktu. Adımlar ve açık uçlar:
+> **Bu compose sürümü henüz koşturulmadı.** İki uygulamalı bir önceki sürüm
+> homelab'da doğrulanmıştı (migration'lar uygulandı, `wallet_app` konteyner içinde de
+> `ledger_entries`'i güncelleyemedi). O koşuda RabbitMQ, `wallet-consumer`,
+> `withdrawal-orchestrator`, `bank-service` ve üç veritabanı yoktu. Adımlar,
+> beklenen çıktılar ve açık uçlar:
 > **[docs/verify-compose.md](docs/verify-compose.md)**
 
 ### İki veritabanı rolü
@@ -178,15 +175,11 @@ koymaz, koysa bile tüketicideki `processed_events` yutar.
 **zorunlu** — transfer'dekinin aksine: çekim çok adımlı ve dışarıya para çıkarıyor,
 anahtarsız bir tekrar ikinci bir banka transferi başlatırdı.
 
-Orchestrator compose'a henüz alınmadığı için host portu yok; isteğin şekli şöyle
-(`WithdrawalsApiTests` ve `WithdrawalChainTests` bunu koşturuyor):
-
-```
-POST /v1/withdrawals
-Idempotency-Key: cekim-1
-
-{"accountId":"...","walletId":"...","amount":100,"currency":"TRY",
- "destinationIban":"TR33 0006 1005 1978 6457 8413 26"}
+```bash
+curl -X POST http://localhost:8093/v1/withdrawals \
+  -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
+  -d '{"accountId":"...","walletId":"...","amount":100,"currency":"TRY",
+       "destinationIban":"TR33 0006 1005 1978 6457 8413 26"}'
 ```
 
 Yanıt **`202 Accepted`**: döndüğünde hiçbir para hareket etmemiş durumda. IBAN sınırda
@@ -195,7 +188,17 @@ mod-97 ile doğrulanıyor; geçersizse `400` ve saga hiç başlamıyor.
 Mutlu yolda ledger'a üç satır düşer: cüzdan `-102`, `clearing/bank-fake` `+100`,
 `revenue` `+2`.
 
-**Banka reddederse compensation.** Ters kayıt orijinalin aynası ve **üç bacaklı**:
+Durumu `GET /v1/withdrawals/{id}` ile izleyebilirsin: `initiated` → `debited` →
+`bank_transfer_pending` → `completed`.
+
+**Banka reddederse compensation.** Sahte bankaya söyleyerek tetiklenir:
+
+```bash
+curl -X POST http://localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
+  -d '{"sagaId":"<ID>","outcome":"PermanentFailure"}'
+```
+
+Ters kayıt orijinalin aynası ve **üç bacaklı**:
 cüzdan `+102`, clearing `-100`, `revenue` `-2`. Komisyon iadesi koşulsuz — başarısız
 bir çekimin sebebi ya bizde ya bankada.
 
