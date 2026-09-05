@@ -178,11 +178,12 @@ Aynı iskelet, daha az katman. Ölçüsü: bir klasör tek dosya içeriyorsa aç
 ```
 WithdrawalOrchestrator/
 ├── Api/Controllers/           -- WithdrawalsController
-├── Application/Withdrawals/   -- saga handler'ları, komut/event tipleri
-├── Domain/Saga/               -- WithdrawalSaga, WithdrawalState, geçiş kuralları
+├── Application/Withdrawals/   -- saga handler'ları
+├── Domain/                    -- WithdrawalSaga, WithdrawalState, Iban
 ├── Infrastructure/
-│   ├── Persistence/           -- OrchestratorDbContext, kendi migration'ları
-│   ├── Messaging/
+│   ├── Persistence/           -- OrchestratorDbContext, withdrawal_sagas,
+│   │                             withdrawal_outbox, kendi migration'ları
+│   ├── Messaging/             -- outbox relay, event tüketicisi
 │   └── Jobs/                  -- StuckSagaScanJob
 └── Setup/
 

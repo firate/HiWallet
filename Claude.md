@@ -105,6 +105,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `Conflict`'te saga durumu DEĞİŞMEZ, alarm üretilir.
 - Orchestrator'da outbox: saga geçişi ile komut gönderimi AYNI transaction'da
   (`decisions.md` madde 32). Broker'a taşımak relay'in işi.
+- `withdrawal_outbox.id` AYNI ZAMANDA komutun `CommandId`'si. İkinci bir yüzey id
+  üretilmez: relay aynı satırı iki kez yayınladığında alıcıya giden `CommandId` de
+  aynı kalmak zorunda, yoksa tekrar deduplike edilemez.
 - Komutu tüketen tarafta `CommandId` + `processed_messages`. Orchestrator'ın event
   tüketiminde ayrı tablo YOK — saga durumu zaten cevabı taşıyor.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
