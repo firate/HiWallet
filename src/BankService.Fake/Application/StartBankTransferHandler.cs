@@ -1,6 +1,7 @@
 using HiWallet.BankService.Infrastructure.Persistence;
 using HiWallet.Shared.Contracts.Withdrawals;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HiWallet.BankService.Application;
 
@@ -17,9 +18,12 @@ namespace HiWallet.BankService.Application;
 /// </summary>
 public sealed class StartBankTransferHandler(
     IDbContextFactory<BankDbContext> contextFactory,
+    IOptions<BankOptions> options,
     TimeProvider timeProvider,
     ILogger<StartBankTransferHandler> logger)
 {
+    private readonly BankOptions _options = options.Value;
+
     public async Task<BankReply> HandleAsync(StartBankTransfer command, CancellationToken ct)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
@@ -39,7 +43,9 @@ public sealed class StartBankTransferHandler(
             return new BankReply(stored.ReplyRoutingKey, stored.ReplyPayload, Replayed: true);
         }
 
-        var scenario = await db.Scenarios.FirstOrDefaultAsync(s => s.SagaId == command.SagaId, ct);
+        var scenario = await db.Scenarios.FirstOrDefaultAsync(s => s.SagaId == command.SagaId, ct)
+                       ?? MaterializeDefault(db, command.SagaId);
+
         var outcome = ResolveOutcome(scenario);
 
         if (scenario is not null)
@@ -101,6 +107,35 @@ public sealed class StartBankTransferHandler(
     }
 
     private const string FailureReason = "Alıcı hesap kapalı.";
+
+    /// <summary>
+    /// Senaryosu olmayan saga için varsayılan davranışı satıra dönüştürür.
+    /// Varsayılan başarıysa satır AÇILMIYOR — tablo gereksiz yere şişmesin.
+    ///
+    /// Satır olarak yazılması şart: geçici hata sayacı ve deneme sayısı kalıcı
+    /// olmadan "üç denemede başarılı" davranışı yeniden başlatmada başa dönerdi.
+    /// </summary>
+    private TransferScenario? MaterializeDefault(BankDbContext db, Guid sagaId)
+    {
+        if (_options.DefaultOutcome is TransferOutcome.Success) return null;
+
+        var scenario = new TransferScenario
+        {
+            SagaId = sagaId,
+            Outcome = _options.DefaultOutcome.ToString(),
+            RemainingTransientFailures =
+                _options.DefaultOutcome is TransferOutcome.TransientFailure
+                    ? _options.DefaultTransientFailures
+                    : 0,
+            DelayMilliseconds = 0,
+            Attempts = 0,
+            CreatedAt = timeProvider.GetUtcNow()
+        };
+
+        db.Scenarios.Add(scenario);
+
+        return scenario;
+    }
 
     private static TransferOutcome ResolveOutcome(TransferScenario? scenario)
     {

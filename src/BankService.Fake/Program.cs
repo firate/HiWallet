@@ -22,7 +22,7 @@ builder.Services.Configure<HostOptions>(options =>
 builder.AddHiWalletObservability(ServiceName);
 
 builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
-builder.Services.AddBankService();
+builder.Services.AddBankService(builder.Configuration);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddValidatorsFromAssemblyContaining<ArmScenarioRequestValidator>();

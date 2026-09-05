@@ -13,16 +13,19 @@ public static class BankServiceSetup
     /// <summary>Bu servisin kendi veritabanı. Wallet ve orchestrator şemalarına erişimi yok.</summary>
     public const string ConnectionStringName = "Bank";
 
-    public static IServiceCollection AddBankService(this IServiceCollection services)
+    public static IServiceCollection AddBankService(
+        this IServiceCollection services, IConfiguration configuration)
     {
+        // Senaryosu kurulmamış transferlerin varsayılan davranışı. Bölüm yoksa
+        // her transfer başarılı — sahte bankanın makul varsayılanı bu.
+        services.Configure<BankOptions>(configuration.GetSection(BankOptions.SectionName));
+
         // Bağlantı dizesi KAYIT anında değil, context kurulurken okunuyor —
         // WebApplicationFactory konfigürasyonunu host kurulduktan sonra ekliyor.
         services.AddDbContextFactory<BankDbContext>((provider, options) =>
-        {
-            var configuration = provider.GetRequiredService<IConfiguration>();
-
-            options.UseNpgsql(configuration.GetConnectionString(ConnectionStringName));
-        });
+            options.UseNpgsql(provider
+                .GetRequiredService<IConfiguration>()
+                .GetConnectionString(ConnectionStringName)));
 
         services.AddScoped<StartBankTransferHandler>();
         services.AddScoped<ScenarioStore>();
