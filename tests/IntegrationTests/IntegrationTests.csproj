@@ -20,6 +20,7 @@
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/WalletConsumer/WalletConsumer.csproj"/>
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
+        <ProjectReference Include="../../src/BankService.Fake/BankService.Fake.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

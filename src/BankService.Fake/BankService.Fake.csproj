@@ -34,4 +34,10 @@
         <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- Testler bank_transfers'a doğrudan bakıyor: "para iki kez gitti mi"
+             sorusunun cevabı orada ve HTTP yüzeyinden görünmüyor. -->
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
 </Project>
