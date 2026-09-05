@@ -33,7 +33,9 @@ public static class MessagingSetup
             .ValidateOnStart();
 
         services.AddSingleton<RabbitMqConnection>();
+        services.AddSingleton<MessagePublisher>();
         services.AddSingleton<TopupTopology>();
+        services.AddSingleton<WithdrawalTopology>();
 
         return services;
     }

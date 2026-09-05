@@ -95,6 +95,24 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Relay: `FOR UPDATE SKIP LOCKED` + publisher confirms. Önce publish, sonra işaretle —
   ters sıra kayıp üretir.
 
+**Withdrawal saga**
+- Saga state machine SAF: DB, mesajlaşma ve zaman bilmez. "Şimdi"yi çağıran verir.
+- Geçişler üç sonuç döner: `Applied` / `Ignored` / `Conflict`. Zararsız tekrar ile
+  para kaybına işaret eden çelişki AYNI kefeye konmaz (`decisions.md` madde 31).
+  `Conflict`'te saga durumu DEĞİŞMEZ, alarm üretilir.
+- Orchestrator'da outbox: saga geçişi ile komut gönderimi AYNI transaction'da
+  (`decisions.md` madde 32). Broker'a taşımak relay'in işi.
+- Komutu tüketen tarafta `CommandId` + `processed_messages`. Orchestrator'ın event
+  tüketiminde ayrı tablo YOK — saga durumu zaten cevabı taşıyor.
+- Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
+  `string currency`. Komisyon ve limit wallet'ın bilgisi, komutta taşınmaz.
+- `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.
+- Ters kayıt ÜÇ bacaklı: cüzdan, clearing, `revenue`. `revenue` bacağı atlanırsa
+  kayıt yine dengeli olur ve trigger susar — ama müşteri gerçekleşmemiş işlemin
+  komisyonunu ödemiş kalır. Bacak opsiyonel DEĞİL.
+- IBAN sınırda mod-97 ile doğrulanır ve `Iban` tipine dönüşür. Bu kontrol
+  "komisyon koşulsuz iade edilir" kuralının taşıyıcısı; zayıflatılamaz.
+
 **API**
 - `/v1` prefix. Liste endpoint'lerinde pagination, unbounded query YOK.
 - Hata gövdesi RFC 7807 ProblemDetails.

@@ -329,10 +329,35 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
    bağımlılığı yok.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
-4. ⬜ Withdrawal saga + bank-service + compensation.
+4. 🔄 Withdrawal saga + bank-service + compensation. Alt adımlar aşağıda.
 5. ⬜ Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
+
+### Adım 4'ün alt adımları
+
+Sıra bağımlılığa göre: saf olanlar önce, dış dünyaya bağlananlar sonra. Her biri
+kendi başına commit'lenebilir ve derlenebilir olmalı.
+
+| # | ne | durum |
+| --- | --- | --- |
+| 4.1 | `Iban` değer tipi, mod-97 (madde yok — `overview.md` madde 6'nın taşıyıcısı) | ✅ |
+| 4.2 | Saga state machine: durumlar, geçişler, çelişki ayrımı (madde 31) | ✅ |
+| 4.3 | Mesaj sözleşmeleri: üç komut, beş event | ✅ |
+| 4.4 | Withdrawal topolojisi + paylaşılan `MessagePublisher` | ✅ |
+| 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, outbox, `processed_messages`, migration (madde 32) | ⬜ |
+| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ⬜ |
+| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ⬜ |
+| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt | ⬜ |
+| 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle başarı/başarısızlık üretir | ⬜ |
+| 4.10 | Uçtan uca testler: mutlu yol, telafi yolu, çelişki, idempotency | ⬜ |
+| 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
+
+**4.8 en riskli adım.** Ters kayıt üç bacaklı olmak zorunda (cüzdan, clearing,
+`revenue`) ve `revenue` bacağını atlamak iki bacakla da DENGELİ bir kayıt üretiyor —
+trigger susuyor, zero-sum korunuyor, ama müşteri gerçekleşmemiş bir işlemin
+komisyonunu ödemiş oluyor. Sessiz ve para kaybettiren kusur; testi bu bacağı ayrıca
+doğrulamalı (`overview.md` madde 6).
 
 ---
 
@@ -891,3 +916,77 @@ olan farklı tipte mesajlar aktığında (withdrawal ile karışık akış).
 **Karar ertelendi.** Ölçüm yok ve bugünkü kurulumda (tek relay) açık tetiklenmiyor.
 Buraya yazılıyor ki relay ölçeklenmeden önce bakılacak yer belli olsun. Kilit henüz
 KONULMADI — yani bugün relay'i iki instance koşturmak sessizce garantiyi kaldırır.
+
+---
+
+## 31. Saga'da "yok say" ile "çelişki" ayrılır
+
+**Karar.** Saga geçişleri üç sonuç dönüyor: `Applied`, `Ignored`, `Conflict`.
+`overview.md` madde 6 "tekrar gelen event mevcut durumla eşleşmezse yok sayılır"
+diyor; kod bunun ilerisine geçiyor.
+
+**Gerekçe.** "Eşleşmeyen event" tek bir şey değil, iki farklı şey:
+
+| durum | event | ne demek |
+| --- | --- | --- |
+| `Debited` | `WithdrawalDebited` | broker ikinci kez teslim etti — **beklenen** |
+| `BankTransferPending` | `WithdrawalDebited` | saga ilerlemiş, geciken event — **beklenen** |
+| `Compensating` | `BankTransferSucceeded` | banka "olmadı" dedi, iade ediyoruz, şimdi "oldu" diyor |
+| `Failed` | `BankTransferSucceeded` | iade edildi ama para bankadan çıkmış olabilir |
+| `Completed` | `BankTransferFailed` | tamamlandı sayıldı, sonra hata geldi |
+
+İlk ikisi en-az-bir-kez teslimin doğal sonucu; ack'lenip geçilir. Son üçü ise
+**para kaybına işaret ediyor** — muhtemelen hem bankadan çıkmış hem müşteriye iade
+edilmiş bir tutar var. İkisini aynı `Ignored` kefesine koymak, en pahalı hatayı en
+sessiz hale getirirdi.
+
+**`Conflict`'te ne oluyor.** Saga durumu DEĞİŞMİYOR — yarıda bırakılan bir telafi
+daha kötü. Mesaj ack'leniyor (tekrar denemek aynı çelişkiyi üretir), alarm log'u
+yazılıyor ve kayıt mutabakat raporuna düşüyor. Sistem düzeltmiyor, gösteriyor —
+madde 11'deki fatura uyuşmazlığıyla aynı yaklaşım.
+
+**Neden state machine'de, handler'da değil.** Karar tamamen mevcut durumun
+fonksiyonu; DB'ye, mesaja ve zamana bakmıyor. Handler'da olsaydı her handler kendi
+tablosunu taşır ve ilki sapan yerde sessizce yanlış davranırdı.
+
+---
+
+## 32. Outbox orchestrator'da; komut gönderimi saga geçişiyle aynı transaction'da
+
+**Karar.** Orchestrator saga durumunu değiştirirken göndereceği komutu aynı DB
+transaction'ında bir `withdrawal_outbox` tablosuna yazıyor. Broker'a taşımak ayrı bir
+relay'in işi — top-up'taki inbox+relay ile aynı kalıp, ters yönde.
+
+**Gerekçe.** Saga'nın her adımı iki şey yapıyor: durumu ilerlet, komut gönder. Bu
+ikisi atomik değilse aradaki çökme iki bozuk sonuçtan birini bırakıyor:
+
+| sıra | çökme noktası | sonuç |
+| --- | --- | --- |
+| önce publish, sonra commit | ikisinin arası | komut gitti, saga hâlâ `Debited` — banka parayı gönderir, saga sonsuza kadar bekler |
+| önce commit, sonra publish | ikisinin arası | saga `BankTransferPending`, bankaya hiç komut gitmedi — **müşterinin parası clearing'de asılı kalır** |
+
+İkincisi daha sinsi: hiçbir hata log'u yok, saga "bekliyor" görünüyor ve ancak stuck
+saga taraması yakalıyor. Outbox ikisini de kapatıyor — durum ve niyet aynı commit'te.
+
+**Nerede DEĞİL.** Outbox wallet-service'te ya da bank-service'te yok. Onlar komut
+tüketip event yayınlıyor; event yayınlanamazsa mesaj ack'lenmiyor ve komut yeniden
+teslim ediliyor. Yani orada güvenilirlik zaten broker'ın redelivery'sinden geliyor,
+ikinci bir tablo gereksiz olurdu. Saga'da öyle değil: geçişi tetikleyen şey her zaman
+bir mesaj olmayabilir (API isteği, zamanlanmış tarama) ve o durumda geri alınacak bir
+teslim yok.
+
+**Inbox ile ilişkisi.** İkisi aynı kalıbın iki yönü ve karıştırılmamalı: inbox
+"dışarıdan gelen mesajı, göndereni onaylamadan önce kalıcı yaz" (top-up webhook'u),
+outbox "kendi işini commit'lerken haber vermeyi de aynı commit'e al". Top-up
+girişinde commit'lenen bir iş olmadığı için orada ikisi tek tabloya çöküyordu; burada
+gerçekten iki ayrı şey var.
+
+**En az bir kez teslim, yine.** Relay publish edip commit edemezse komut ikinci kez
+gidiyor. Alıcı tarafta `CommandId` + `processed_messages` bunu yutuyor
+(`overview.md` madde 6). Ters sıra (önce işaretle, sonra publish) KAYIP üretirdi;
+kaybetmektense iki kez göndermek tercih ediliyor — madde 3'teki relay kararıyla aynı.
+
+**`processed_messages` nerede.** Komutu TÜKETEN tarafta: wallet-service ve
+bank-service. Orchestrator da event tüketiyor ama orada deduplikasyon ayrı bir tabloya
+gerek duymuyor — saga'nın kendi durumu zaten "bu event uygulandı mı" sorusunu
+cevaplıyor (madde 31). İkinci bir tablo aynı bilgiyi iki yerde tutmak olurdu.
