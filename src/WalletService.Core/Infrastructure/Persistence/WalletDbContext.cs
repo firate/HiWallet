@@ -21,8 +21,11 @@ public sealed class WalletDbContext : DbContext
 
     public DbSet<LedgerBalance> LedgerBalances => Set<LedgerBalance>();
 
-    /// <summary>Tüketici tarafı idempotency defteri (overview.md madde 5).</summary>
+    /// <summary>Top-up event'lerinin idempotency defteri (overview.md madde 5).</summary>
     internal DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
+
+    /// <summary>Saga komutlarının idempotency defteri (decisions.md madde 32).</summary>
+    internal DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
