@@ -39,6 +39,13 @@ internal sealed class ProcessedMessage
     /// <summary>Yayınlanan cevabın routing key'i, yani event tipinin adı.</summary>
     public required string ReplyRoutingKey { get; init; }
 
-    /// <summary>Yayınlanan cevabın JSON hali. Tekrar teslimde birebir bu gönderiliyor.</summary>
+    /// <summary>
+    /// Yayınlanan cevabın JSON hali; tekrar teslimde bu gönderiliyor.
+    ///
+    /// Kolon <c>jsonb</c> — teşhis sorgulanabilir olsun diye. Bedeli: Postgres anahtar
+    /// sırasını normalize ediyor, yani geri okunan gövde ilk yayınlananla ANLAMCA aynı
+    /// ama karakter karakter değil. Tüketici JSON okuduğu için sorun değil; gövde
+    /// üzerinde imza/hash hesaplanacak olursa bu varsayım kırılır.
+    /// </summary>
     public required string ReplyPayload { get; init; }
 }

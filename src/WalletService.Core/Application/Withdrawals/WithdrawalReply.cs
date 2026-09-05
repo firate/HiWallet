@@ -5,9 +5,15 @@ namespace HiWallet.WalletService.Application.Withdrawals;
 /// <summary>
 /// Komuta verilen cevap: yayınlanacak event'in routing key'i ve gövdesi.
 ///
-/// Handler event NESNESİ değil SERİLEŞTİRİLMİŞ hali dönüyor, çünkü aynı bayt dizisi
-/// iki yere gidiyor: broker'a ve <c>processed_messages</c>'a. İki ayrı serileştirme
-/// olsaydı tekrar teslimde yayınlanan mesaj ilk gönderilenden farklı olabilirdi.
+/// Handler event NESNESİ değil SERİLEŞTİRİLMİŞ hali dönüyor: aynı gövde iki yere
+/// gidiyor, broker'a ve <c>processed_messages</c>'a. Tek bir serileştirme, tekrar
+/// teslimde saklanandan farklı bir mesaj yayınlanmasını engelliyor.
+///
+/// <b>Bayt bazında aynı DEĞİL.</b> <c>reply_payload</c> kolonu <c>jsonb</c> ve
+/// Postgres anahtar sırasını normalize ediyor; tekrar teslimde yayınlanan gövde
+/// ANLAMCA aynı, karakter karakter değil. Tüketici JSON okuduğu için fark etmiyor —
+/// ama bu gövde üzerinde bir imza ya da hash hesaplanacaksa bu varsayım kırılır.
+/// (Top-up inbox'ı da aynı şekilde çalışıyor.)
 /// </summary>
 /// <param name="Replayed">
 /// Komut daha önce işlenmiş; ledger'a DOKUNULMADI, saklanan cevap aynen dönüldü.
