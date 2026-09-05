@@ -10,11 +10,10 @@ namespace HiWallet.TopupConsumer;
 /// <summary>
 /// Top-up kuyruklarını dinler ve <see cref="ProcessTopupHandler"/>'a verir.
 ///
-/// <b>Neden wallet-service içinde?</b> Ledger'a yazan tek yer bu servis olmalı.
-/// Ayrı bir <c>topup-consumer</c> uygulaması aynı tablolara ikinci bir süreçten
-/// yazardı; CLAUDE.md orchestrator için bunu açıkça yasaklıyor ("wallet tablolarına
-/// doğrudan yazmaz") ve gerekçe burada da aynı. Dağıtık atlama zaten gerçek:
-/// webhook ayrı bir uygulama, arada broker var.
+/// <b>Bu sınıf yalnızca TAŞIMA.</b> Kanal açmak, ack/nack kararı, dead-letter'a
+/// yollamak. Ledger'a yazan iş kuralı <c>WalletService.Core</c>'da ve wallet-api ile
+/// paylaşılıyor — bu uygulama onun ikinci bir kopyasını taşımıyor
+/// (decisions.md madde 25).
 ///
 /// <b>Partition başına ayrı kanal.</b> Tek kanalda dört kuyruk dinlense mesajlar
 /// sırayla işlenirdi (kanal başına dispatch tek iş parçacığı); partition'ların amacı

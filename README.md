@@ -51,6 +51,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Baseline: OTel, health, rate limiting, validation | ✅ |
 | Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | ✅ |
 | HMAC imza, iki kademe idempotency, dead-letter | ✅ |
+| Üç deployable, üç erişim seviyesi | ✅ |
+| Hattın gerçek bir broker'a karşı uçtan uca koşması | ⬜ testler var, broker yok |
 | Withdrawal saga + compensation | ⬜ adım 4 |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
@@ -83,10 +85,11 @@ Host portlarının varsayılanı homelab'a göre seçildi (`8091`, `8092`, `5433
 orada `8080` Keycloak'ta, `8090` dolu, `5432` ana Postgres'te ve `5672` mevcut
 broker'da. Başka bir makinede `.env`'den değiştirilebilir.
 
-Stack gerçek bir koşuda doğrulandı: migration'lar uygulandı, sistem hesapları seed
-edildi, sağlık ucu `Healthy` döndü ve `wallet_app` konteyner içinde de
-`ledger_entries`'i güncelleyemedi. Ölçülen çıktılar:
-**[docs/verify-compose.md](docs/verify-compose.md)**
+> **Bu compose sürümü henüz koşturulmadı.** İki uygulamalı önceki sürüm homelab'da
+> doğrulanmıştı (migration'lar uygulandı, `wallet_app` konteyner içinde de
+> `ledger_entries`'i güncelleyemedi). Üçüncü uygulama, RabbitMQ ve ikinci veritabanı
+> o koşuda yoktu. Adımlar ve açık uçlar:
+> **[docs/verify-compose.md](docs/verify-compose.md)**
 
 ### İki veritabanı rolü
 

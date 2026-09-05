@@ -1,9 +1,12 @@
 # Compose'u doğrulama
 
 Bu dosya `docker compose` kurulumunun gerçekten çalıştığını kanıtlamak için var.
-Geliştirme makinesinde Docker yok; stack **homelab'da koşturuldu ve aşağıdaki
-adımların tamamı doğrulandı** (bkz. "Doğrulama kaydı"). Başka bir makinede
-tekrarlamak için adımlar olduğu gibi duruyor.
+Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
+
+> **Şu anki stack DOĞRULANMADI.** Homelab'da koşturulan sürüm iki uygulamalıydı
+> (wallet-service + topup-webhook, RabbitMQ yok). Bugün üç uygulama, bir broker ve
+> ikinci bir veritabanı var. Aşağıdaki "Doğrulama kaydı" o eski koşuya ait ve hâlâ
+> geçerli olan kısımları işaretli; yeni parçalar hiç çalıştırılmadı.
 
 ## 1. Kodu Docker'ı olan makineye al
 
@@ -96,14 +99,15 @@ docker compose down -v
 `-v` volume'u da siler; roller ve parolalar yalnızca veri dizini boşken kurulduğu
 için, parola değiştirdiğinde bu şart.
 
-## Doğrulama kaydı
+## Doğrulama kaydı (iki uygulamalı sürüm)
 
-Homelab'da (`docker compose up --build`) koşturuldu. Riskli görülen varsayımların
-her biri ve nasıl kanıtlandığı:
+Homelab'da `docker compose up --build` ile koşturuldu. O koşuda kanıtlananlar —
+imaj ve şema tarafı değişmediği için hâlâ geçerli:
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
 | `dotnet ef migrations bundle` alpine SDK'da çalışır | ✅ | bir hata çıktı, düzeltildi (aşağıda) |
+| *(yeni)* bundle Core'u kendi startup project'i olarak üretir | ⬜ | üç uygulamalı sürümle geldi, koşturulmadı |
 | `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | ✅ | dört migration uygulandı, seed satırları yerinde |
 | `aspnet:10.0-alpine` imajında `app` kullanıcısı var | ✅ | wallet-service başladı ve istek karşılıyor |
 | init script'i tam olarak bir kez koşar | ✅ | roller kuruldu, "role already exists" yok |
@@ -131,14 +135,17 @@ Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:
 
 ### Hâlâ doğrulanmadı
 
+Üç uygulamalı sürümün tamamı bu listede — hiç koşturulmadı.
+
 | ne | nasıl bakılır |
 | --- | --- |
-| compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi, `unhealthy` mi |
-| `topup-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps topup-consumer` — `healthy` olmalı |
+| `rabbitmq` ayağa kalkıyor ve eklenti yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
+| `topup-migrator` inbox şemasını uyguluyor mu | `docker compose ps -a topup-migrator` — `exited (0)` |
+| `topup-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps topup-consumer` — `healthy` |
+| `wallet-api` broker'sız da sağlıklı mı | `curl localhost:8091/health/ready` — çıktıda `rabbitmq` OLMAMALI |
+| compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi |
+| top-up hattının tamamı | aşağıdaki adım |
 | konteynerlenmiş uygulamadan uçtan uca transfer | hesap/cüzdan endpoint'i yok; cüzdanları DB'den kurmak gerekiyor |
-| **top-up hattının tamamı compose içinde** | aşağıdaki adım |
-| `rabbitmq_consistent_hash_exchange` eklentisinin yüklendiği | `docker compose logs rabbitmq \| grep consistent_hash` |
-| `topup-migrator` çıkışı | `docker compose ps -a topup-migrator` — `exited (0)` olmalı |
 
 ### Top-up hattını doğrulama
 

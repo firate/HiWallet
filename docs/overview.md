@@ -219,7 +219,9 @@ Graceful shutdown ile uyumlu: job'lar `CancellationToken`'a saygı duyar, SIGTER
 
 ## 8. Sıralama (Ordering)
 
-Sıralama yalnızca **aynı cüzdan** için önemlidir; farklı cüzdanlar bağımsız, paralel işlenir. Mesajlar cüzdan id'sine göre partition'lanır (RabbitMQ consistent hashing exchange): aynı cüzdanın tüm mesajları aynı consumer'a gider, sıra korunur; farklı cüzdanlar paralel akar. Büyük ölçekte de yeterli — tek darboğaz "tek cüzdana saniyede binlerce işlem" ki gerçekçi değil.
+Sıralama yalnızca **aynı cüzdan** için önemlidir; farklı cüzdanlar bağımsız, paralel işlenir. Mesajlar cüzdan id'sine göre partition'lanır (RabbitMQ consistent hashing exchange): aynı cüzdanın tüm mesajları aynı kuyruğa düşer, kuyruk `x-single-active-consumer` ile tek tüketici tarafından sırayla işlenir; farklı cüzdanlar paralel akar. Büyük ölçekte de yeterli — tek darboğaz "tek cüzdana saniyede binlerce işlem" ki gerçekçi değil.
+
+**Sınır.** Bu garanti broker'a VARDIKTAN sonrası için geçerli. Relay çok instance koşarsa `SKIP LOCKED` ile alınan batch'ler farklı hızda yayınlanabiliyor ve sıra daha exchange'e ulaşmadan bozulabiliyor. Bugün relay tek instance ve top-up'lar toplama olduğu için tetiklenmiyor; `decisions.md` madde 30.
 
 ## 9. Test Servisleri (provider-fake)
 
