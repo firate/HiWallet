@@ -49,8 +49,11 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Fatura ile `expected_amount` toplamı tolerans dışı sapıyorsa ledger'a HİÇBİR ŞEY yazılmaz.
 
 **Concurrency**
-- Optimistic lock `ledger_balances.version` üzerinde. `ledger_entries` üzerinde lock YOK.
-- EF Core'da `IsConcurrencyToken()` yalnızca `LedgerBalance` entity'sinde.
+- wallet-service'te optimistic lock `ledger_balances.version` üzerinde.
+  `ledger_entries` üzerinde lock YOK.
+- `IsConcurrencyToken()` yalnızca GERÇEKTEN UPDATE edilen ve birden fazla yazarı olan
+  satırlarda: wallet'ta `LedgerBalance`, orchestrator'da `WithdrawalSaga`. Başka
+  entity'ye EKLENMEZ — append-only tabloda anlamsız (`decisions.md` madde 2).
 - Bir transaction içinde birden fazla `ledger_balances` satırı güncelleniyorsa
   her zaman `account_id` artan sırayla güncellenir (deadlock önleme).
 - Redis distributed lock YOK. Background job tekilliği `pg_try_advisory_lock`
