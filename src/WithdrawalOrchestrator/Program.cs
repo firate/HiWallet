@@ -1,12 +1,14 @@
 using FluentValidation;
 using HiWallet.Shared.Infrastructure.HealthChecks;
+using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.WithdrawalOrchestrator.Api.Validators;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 using HiWallet.WithdrawalOrchestrator.Setup;
 
-// Withdrawal saga'sının state machine'i. Akış parça parça ekleniyor; şu an kalıcılık
-// ve API var, broker tarafı (outbox relay, event tüketicisi) henüz yok.
+// Withdrawal saga'sının state machine'i. Karşı taraf (wallet komut handler'ları ve
+// bank-service) henüz yok; bu servis kendi tarafını baştan sona yürütüyor.
 const string ServiceName = "hiwallet-withdrawal-orchestrator";
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,12 +20,20 @@ builder.Services.Configure<HostOptions>(options =>
 builder.AddHiWalletObservability(ServiceName);
 
 builder.Services.AddOrchestratorPersistence();
+builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
 builder.Services.AddOrchestratorHealthChecks();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<StartWithdrawalHandler>();
+builder.Services.AddScoped<AdvanceSagaHandler>();
 builder.Services.AddScoped<WithdrawalQueries>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateWithdrawalRequestValidator>();
+
+// Relay orchestrator'ın İÇİNDE, ayrı bir uygulama değil: outbox tablosunun sahibi
+// bu servis ve relay o tablodan başka hiçbir şeye bakmıyor. Ayrı süreç olsaydı aynı
+// tabloya ikinci bir yazar eklenirdi, karşılığında hiçbir şey kazanılmadan.
+builder.Services.AddHostedService<WithdrawalOutboxRelay>();
+builder.Services.AddHostedService<WithdrawalEventConsumer>();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();

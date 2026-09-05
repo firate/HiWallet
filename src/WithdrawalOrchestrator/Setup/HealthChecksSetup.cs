@@ -1,4 +1,5 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
+using HiWallet.Shared.Infrastructure.Messaging;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace HiWallet.WithdrawalOrchestrator.Setup;
@@ -19,11 +20,11 @@ public static class HealthChecksSetup
                 name: "postgres",
                 failureStatus: HealthStatus.Unhealthy,
                 tags: [HealthCheckEndpoints.ReadyTag],
-                timeout: TimeSpan.FromSeconds(3));
-
-        // Broker kontrolü henüz YOK: bu servis daha broker'a bağlanmıyor. Relay ve
-        // event tüketicisi geldiğinde eklenecek ve Degraded olacak — outbox'ın varlık
-        // sebebi tam olarak broker yokken de istek kabul edebilmek (madde 26).
+                timeout: TimeSpan.FromSeconds(3))
+            // Broker olmadan çekim kabul edilmeye DEVAM eder: komut outbox'ta birikir
+            // ve relay broker dönünce boşaltır. Outbox'ın varlık sebebi tam olarak bu,
+            // dolayısıyla broker arızası bu servisi trafikten çektirmemeli (madde 26).
+            .AddRabbitMqCheck("rabbitmq", HealthStatus.Degraded, HealthCheckEndpoints.ReadyTag);
 
         return services;
     }
