@@ -24,6 +24,11 @@ builder.AddHiWalletObservability(ServiceName);
 
 builder.Services.AddHiWalletPersistence();
 builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
+
+// Çekim tarifesi yalnızca burada: çekim komutlarını işleyen tek uygulama bu.
+// Bölüm eksikse startup'ta patlıyor (baseline.md madde 1).
+builder.Services.AddWithdrawalPolicy(builder.Configuration);
+
 builder.Services.AddWalletConsumer(builder.Configuration);
 
 var app = builder.Build();

@@ -1,6 +1,9 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WalletConsumer.Topups;
+using HiWallet.WalletConsumer.Withdrawals;
 using HiWallet.WalletService.Application.Topups;
+using HiWallet.WalletService.Application.Withdrawals;
 using HiWallet.WalletService.Setup;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -11,8 +14,14 @@ public static class WalletConsumerSetup
     public static IServiceCollection AddWalletConsumer(
         this IServiceCollection services, IConfiguration configuration)
     {
+        // Ledger'a asenkron giren iki kaynak. Ayrı kuyruklar, ayrı kanallar, ayrı
+        // hosted service'ler — biri tıkanınca diğeri akmaya devam ediyor.
         services.AddScoped<ProcessTopupHandler>();
         services.AddHostedService<TopupConsumerService>();
+
+        services.AddScoped<DebitForWithdrawalHandler>();
+        services.AddScoped<RefundWithdrawalHandler>();
+        services.AddHostedService<WithdrawalCommandConsumer>();
 
         services.AddHealthChecks()
             // Bu uygulamanın TEK işi kuyruktan okuyup ledger'a yazmak; ikisinden

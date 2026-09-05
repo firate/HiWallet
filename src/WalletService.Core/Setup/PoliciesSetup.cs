@@ -27,22 +27,35 @@ public static class PoliciesSetup
         // sözlük kurmaktan iyi.
         services.AddSingleton(new LimitPolicy(limits));
         services.AddSingleton(new CommissionPolicy(commissions));
-        services.AddSingleton(BuildWithdrawalPolicy(configuration));
 
         return services;
     }
 
     /// <summary>
-    /// Çekim tarifesi <c>Transfers</c> altında DEĞİL: çekim bir transfer değil ve
-    /// oraya konsaydı <c>TransferType</c> anahtarlı bağlama onu tanımayıp startup'ta
-    /// patlardı.
+    /// Çekim tarifesi AYRI bir çağrı, transfer tarifeleriyle birlikte kaydedilmiyor:
+    /// çekimi yalnızca wallet-consumer işliyor ve tarifenin yalnızca orada zorunlu
+    /// olması gerekiyor. Birlikte kaydedilseydi wallet-api de olmayan bir bölümü
+    /// istemek zorunda kalırdı.
     ///
-    /// Bölüm hiç yoksa komisyon sıfır ve limit sınırsız — transfer tarafındaki
-    /// "tarifesi tanımlı olmayan tip limitsiz" kuralıyla aynı.
+    /// Konfigürasyon <c>Transfers</c> altında DEĞİL: çekim bir transfer değil ve oraya
+    /// konsaydı <c>TransferType</c> anahtarlı bağlama onu tanımayıp patlardı.
     /// </summary>
-    private static WithdrawalPolicy BuildWithdrawalPolicy(IConfiguration configuration)
+    public static IServiceCollection AddWithdrawalPolicy(
+        this IServiceCollection services, IConfiguration configuration)
     {
         var section = configuration.GetSection(WithdrawalSection);
+
+        // Bölüm yoksa PATLIYOR, sessizce "komisyonsuz ve limitsiz"e düşmüyor.
+        // Transfer tarafındaki "tarifesi tanımlı olmayan tip serbest" kuralı burada
+        // geçerli değil: orada tip başına tarife var ve bazılarının olmaması normal,
+        // burada tek tarife var ve yokluğu yapılandırma hatasıdır. Sessizce
+        // düşseydi üretimde her çekim komisyonsuz ve limitsiz işlenirdi.
+        if (!section.GetChildren().Any())
+        {
+            throw new InvalidOperationException(
+                $"Zorunlu konfigürasyon eksik: {WithdrawalSection}:Commission ve " +
+                $"{WithdrawalSection}:Limit. Çekim tarifesi varsayılana bırakılmaz.");
+        }
 
         var commission = new CommissionRateOptions();
         section.GetSection("Commission").Bind(commission);
@@ -50,9 +63,11 @@ public static class PoliciesSetup
         var limit = new TransferLimitOptions();
         section.GetSection("Limit").Bind(limit);
 
-        return new WithdrawalPolicy(
+        services.AddSingleton(new WithdrawalPolicy(
             new CommissionRate(commission.Rate, commission.Minimum, commission.Maximum),
-            new TransferLimit(limit.PerTransaction, limit.Daily));
+            new TransferLimit(limit.PerTransaction, limit.Daily)));
+
+        return services;
     }
 
     /// <summary>

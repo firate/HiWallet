@@ -5,7 +5,7 @@ using HiWallet.WalletService.Application.Topups;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-namespace HiWallet.WalletConsumer;
+namespace HiWallet.WalletConsumer.Topups;
 
 /// <summary>
 /// Top-up kuyruklarını dinler ve <see cref="ProcessTopupHandler"/>'a verir.
