@@ -5,6 +5,7 @@ using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Contracts.Withdrawals;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace HiWallet.IntegrationTests.Withdrawals;
 
@@ -17,8 +18,16 @@ public sealed class BankTransferTests(BankFixture bank)
 {
     private const string Iban = "TR330006100519786457841326";
 
-    private StartBankTransferHandler Handler() => new(
+    /// <param name="defaultOutcome">
+    /// Senaryosu kurulmamış saga için varsayılan. Testlerin çoğu senaryoyu açıkça
+    /// kuruyor; bu parametre varsayılanın kendisini sınayan test için.
+    /// </param>
+    private StartBankTransferHandler Handler(TransferOutcome? defaultOutcome = null) => new(
         bank.ContextFactory,
+        Options.Create(new BankOptions
+        {
+            DefaultOutcome = defaultOutcome ?? TransferOutcome.Success
+        }),
         TimeProvider.System,
         NullLogger<StartBankTransferHandler>.Instance);
 
