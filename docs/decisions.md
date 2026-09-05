@@ -328,7 +328,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
    graceful shutdown). Polly / dış servis dayanıklılığı ertelendi — henüz dış HTTP
    bağımlılığı yok.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
-   burada. Uçtan uca testler gerçek bir broker'a karşı HENÜZ koşmadı.
+   burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
 4. ⬜ Withdrawal saga + bank-service + compensation.
 5. ⬜ Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 

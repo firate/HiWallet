@@ -52,12 +52,13 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | ✅ |
 | HMAC imza, iki kademe idempotency, dead-letter | ✅ |
 | Üç deployable, üç erişim seviyesi | ✅ |
-| Hattın gerçek bir broker'a karşı uçtan uca koşması | ⬜ testler var, broker yok |
+| Hattın gerçek bir broker'a karşı uçtan uca koşması | ✅ webhook → RabbitMQ → ledger |
 | Withdrawal saga + compensation | ⬜ adım 4 |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-112 test: 58 unit (DB'siz), 54 integration (gerçek Postgres). Uçtan uca top-up testleri
-bir RabbitMQ istiyor; erişilemezse atlanıyor (yeşil değil, "skipped").
+112 test: 58 unit (DB'siz), 54 integration — gerçek Postgres ve gerçek RabbitMQ.
+Uçtan uca iki test webhook'tan ledger'a kadar bütün zinciri koşturuyor: HTTP → inbox →
+relay → broker → tüketici → ledger.
 
 ## Çalıştırma
 
@@ -169,9 +170,20 @@ migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyo
 gerekmiyor. topup-webhook'un inbox'ı için ikinci bir schema açılıyor: üretimdeki ayrı
 veritabanı sınırı testte de korunuyor.
 
-Uçtan uca top-up testleri ayrıca bir RabbitMQ ister (`RabbitMq__*`). Erişilemezse
-`Assert.SkipUnless` ile atlanıyor — kurulumu zorunlu kılmak yerine varsa doğrulanıyor,
-ve atlanan test yeşil değil "skipped" görünüyor.
+Uçtan uca top-up testleri ayrıca bir RabbitMQ ister (`RabbitMq__*`) ve broker'da
+`rabbitmq_consistent_hash_exchange` eklentisinin açık olmasını:
+
+```bash
+docker exec <rabbitmq> rabbitmq-plugins enable rabbitmq_consistent_hash_exchange
+```
+
+İkisinden biri eksikse test `Assert.SkipUnless` ile atlanıyor ve mesajda eksiğin ne
+olduğu yazıyor — kurulumu zorunlu kılmak yerine varsa doğrulanıyor, atlanan test yeşil
+değil "skipped" görünüyor.
+
+Her koşu kendine özel bir exchange/kuyruk ön eki kullanıyor (`RabbitMq:NamePrefix`) ve
+sonunda topolojiyi siliyor: aynı broker'a bakan iki koşu birbirinin kuyruğundan mesaj
+çekmiyor, broker'da da çöp birikmiyor.
 
 ```bash
 set -a; . ./.env; set +a

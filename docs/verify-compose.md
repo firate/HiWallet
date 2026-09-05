@@ -186,6 +186,19 @@ Doğrudan `dotnet test` / `dotnet run` çalıştıracaksan .NET 10 SDK gerekir.
 
 Doğrulama sırasında çıkıp düzeltilenler, tekrar görülürse diye:
 
+**`PRECONDITION_FAILED - unknown exchange type 'x-consistent-hash'`.** Topoloji bu
+exchange tipine dayanıyor ama o RabbitMQ çekirdeğinde değil, eklentiyle geliyor ve
+varsayılan olarak KAPALI. Compose'daki broker `docker/rabbitmq/enabled_plugins` ile
+açık geliyor; mevcut bir broker'a karşı koşturacaksan elle açman gerekiyor:
+
+```bash
+docker exec <rabbitmq> rabbitmq-plugins enable rabbitmq_consistent_hash_exchange
+```
+
+Yeniden başlatma gerekmiyor. Testlerin atlama koşulu artık bunu da kontrol ediyor —
+önce yalnızca bağlantıya bakıyordu ve eklenti yokken testler atlanmak yerine bu
+hatayla düşüyordu.
+
 **`Unable to create a 'DbContext' ... ConnectionStrings__WalletOwner ortamda yok`**
 build sırasında. Design-time factory bağlantı dizesini ZORUNLU tutuyordu; oysa
 `migrations bundle` yalnızca modele bakıyor, hiçbir yere bağlanmıyor ve build sırasında
