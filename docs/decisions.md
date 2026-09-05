@@ -364,7 +364,7 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
 | 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
 | 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
-| 4.9 | `bank-service` (fake): komut tüketir, `processed_messages`, senaryo tetikleyicileriyle başarı/başarısızlık üretir | ⬜ |
+| 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle dört sonuç üretir | ✅ |
 | 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ⬜ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
 
@@ -1013,10 +1013,30 @@ gidiyor. Alıcı tarafta `CommandId` + `processed_messages` bunu yutuyor
 (`overview.md` madde 6). Ters sıra (önce işaretle, sonra publish) KAYIP üretirdi;
 kaybetmektense iki kez göndermek tercih ediliyor — madde 3'teki relay kararıyla aynı.
 
-**`processed_messages` nerede.** Komutu TÜKETEN tarafta: wallet-service ve
-bank-service. Orchestrator da event tüketiyor ama orada deduplikasyon ayrı bir tabloya
-gerek duymuyor — saga'nın kendi durumu zaten "bu event uygulandı mı" sorusunu
-cevaplıyor (madde 31). İkinci bir tablo aynı bilgiyi iki yerde tutmak olurdu.
+**Deduplikasyon nerede.** Komutu TÜKETEN tarafta. Orchestrator da event tüketiyor ama
+orada ayrı bir tabloya gerek yok — saga'nın kendi durumu zaten "bu event uygulandı mı"
+sorusunu cevaplıyor (madde 31). İkinci bir tablo aynı bilgiyi iki yerde tutmak olurdu.
+
+Aynı gerekçe tablo adlarını da belirledi:
+
+| taraf | tablo | neden |
+| --- | --- | --- |
+| wallet-service | `processed_messages` | komut işlenirken yazılacak başka bir kayıt yok |
+| bank-service | `bank_transfers` | zaten "ne yaptık" kaydı tutuluyor, anahtarı da `CommandId` |
+| orchestrator | — | saga durumu cevabı taşıyor |
+
+bank-service'te ayrıca bir `processed_messages` AÇILMADI: "bu komut işlendi mi" ile
+"bu transfer kaydı var mı" aynı soru ve iki tablo ilk ayrıştıklarında hangisinin doğru
+olduğu belirsizleşirdi.
+
+**Cevap da saklanıyor.** İki tüketen taraf da yalnızca "işledim" demiyor, verdiği
+cevabı da yazıyor. Sıra şu: işi yap ve commit et → cevabı yayınla → mesajı ack'le.
+Yayın başarısızsa ack yok ve komut yeniden teslim ediliyor; o teslimde iş İKİNCİ KEZ
+yapılmamalı ama cevap yine gitmeli. Saklanmasaydı ikinci teslim sessizce ack'lenir ve
+saga sonsuza kadar beklerdi.
+
+Bu bir outbox DEĞİL: tarayan bir relay yok, yayın tüketici iş parçacığında ve yeniden
+deneme broker'ın redelivery'sinden geliyor.
 
 ---
 
