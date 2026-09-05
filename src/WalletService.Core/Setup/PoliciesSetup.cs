@@ -10,6 +10,7 @@ public static class PoliciesSetup
 {
     private const string LimitsSection = "Transfers:Limits";
     private const string CommissionsSection = "Transfers:Commissions";
+    private const string WithdrawalSection = "Withdrawals";
 
     public static IServiceCollection AddHiWalletPolicies(
         this IServiceCollection services, IConfiguration configuration)
@@ -26,8 +27,32 @@ public static class PoliciesSetup
         // sözlük kurmaktan iyi.
         services.AddSingleton(new LimitPolicy(limits));
         services.AddSingleton(new CommissionPolicy(commissions));
+        services.AddSingleton(BuildWithdrawalPolicy(configuration));
 
         return services;
+    }
+
+    /// <summary>
+    /// Çekim tarifesi <c>Transfers</c> altında DEĞİL: çekim bir transfer değil ve
+    /// oraya konsaydı <c>TransferType</c> anahtarlı bağlama onu tanımayıp startup'ta
+    /// patlardı.
+    ///
+    /// Bölüm hiç yoksa komisyon sıfır ve limit sınırsız — transfer tarafındaki
+    /// "tarifesi tanımlı olmayan tip limitsiz" kuralıyla aynı.
+    /// </summary>
+    private static WithdrawalPolicy BuildWithdrawalPolicy(IConfiguration configuration)
+    {
+        var section = configuration.GetSection(WithdrawalSection);
+
+        var commission = new CommissionRateOptions();
+        section.GetSection("Commission").Bind(commission);
+
+        var limit = new TransferLimitOptions();
+        section.GetSection("Limit").Bind(limit);
+
+        return new WithdrawalPolicy(
+            new CommissionRate(commission.Rate, commission.Minimum, commission.Maximum),
+            new TransferLimit(limit.PerTransaction, limit.Daily));
     }
 
     /// <summary>
