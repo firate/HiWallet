@@ -66,11 +66,16 @@ internal static class BrokerSettings
     };
 
     /// <summary>
-    /// Ayar tanımlı olması yetmiyor, broker gerçekten erişilebilir mi. Uçtan uca
-    /// testler bunu sorup erişilemezse kendini atlıyor — kurulumu zorunlu kılmak
-    /// yerine, varsa doğruluyor (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım).
+    /// Broker uçtan uca testleri KOŞTURABİLECEK durumda mı. Uçtan uca testler bunu
+    /// sorup değilse kendini atlıyor — kurulumu zorunlu kılmak yerine, varsa
+    /// doğruluyor (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım).
+    ///
+    /// Bağlanabilmek YETMİYOR: topoloji <c>x-consistent-hash</c> exchange'ine dayanıyor
+    /// ve o, standart imajda kapalı gelen bir eklenti. Yalnızca bağlantıya bakılsaydı
+    /// testler atlanmak yerine <c>PRECONDITION_FAILED</c> ile düşerdi ve çıktıdan
+    /// eksiğin ne olduğu anlaşılmazdı. Atlama koşulu, gerçek ön koşulun kendisi olmalı.
     /// </summary>
-    public static async Task<bool> IsReachableAsync(CancellationToken ct)
+    public static async Task<bool> IsUsableAsync(CancellationToken ct)
     {
         if (!Configured) return false;
 
@@ -80,6 +85,14 @@ internal static class BrokerSettings
                 Options.Create(BuildOptions("hiwallet-tests-probe")));
 
             await using var channel = await (await connection.GetAsync(ct)).CreateChannelAsync(cancellationToken: ct);
+
+            // Başarısız declare kanalı kapatıyor; kanal zaten tek kullanımlık.
+            // autoDelete: broker'da iz bırakmıyor.
+            await channel.ExchangeDeclareAsync(
+                $"{NamePrefix}plugincheck", "x-consistent-hash",
+                durable: false, autoDelete: true, cancellationToken: ct);
+
+            await channel.ExchangeDeleteAsync($"{NamePrefix}plugincheck", cancellationToken: ct);
 
             return true;
         }

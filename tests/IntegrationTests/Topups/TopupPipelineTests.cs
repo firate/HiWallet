@@ -51,8 +51,11 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
         var ct = TestContext.Current.CancellationToken;
 
         Assert.SkipUnless(
-            await BrokerSettings.IsReachableAsync(ct),
-            "RabbitMQ erişilemiyor (RabbitMq__Host / kimlik bilgileri). Uçtan uca hat doğrulanmadı.");
+            await BrokerSettings.IsUsableAsync(ct),
+            "RabbitMQ kullanılamıyor: adres/kimlik bilgileri yanlış ya da " +
+            "rabbitmq_consistent_hash_exchange eklentisi kapalı " +
+            "(rabbitmq-plugins enable rabbitmq_consistent_hash_exchange). " +
+            "Uçtan uca hat doğrulanmadı.");
 
         await StartAsync();
 
@@ -105,8 +108,9 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
         var ct = TestContext.Current.CancellationToken;
 
         Assert.SkipUnless(
-            await BrokerSettings.IsReachableAsync(ct),
-            "RabbitMQ erişilemiyor. Uçtan uca hat doğrulanmadı.");
+            await BrokerSettings.IsUsableAsync(ct),
+            "RabbitMQ kullanılamıyor (adres/kimlik ya da consistent-hash eklentisi). " +
+            "Uçtan uca hat doğrulanmadı.");
 
         await StartAsync();
 
