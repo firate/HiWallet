@@ -202,6 +202,9 @@ wallet tablolarına doğrudan yazmaya başlıyor ve compensation gereksizleşiyo
 `overview.md`'nin "çekirdeği tek boundary'de ACID tut, sadece kenarı dağıt" mesajı ancak sınır
 gerçekten varsa gösterilebilir.
 
+Bu ayrımın bir bedeli var ve bedelsizmiş gibi okunmamalı: gerekçesi, seçilmeyen
+alternatifi ve faturası **madde 33'te**.
+
 ---
 
 ## 8. Deadlock önleme: satır güncelleme sırası
@@ -1002,3 +1005,50 @@ kaybetmektense iki kez göndermek tercih ediliyor — madde 3'teki relay kararı
 bank-service. Orchestrator da event tüketiyor ama orada deduplikasyon ayrı bir tabloya
 gerek duymuyor — saga'nın kendi durumu zaten "bu event uygulandı mı" sorusunu
 cevaplıyor (madde 31). İkinci bir tablo aynı bilgiyi iki yerde tutmak olurdu.
+
+---
+
+## 33. Neden ayrı orchestrator: bedeli ve seçilmeyen alternatif
+
+**Karar.** Withdrawal saga'sı ayrı bir serviste, ayrı veritabanında kalıyor (madde 7).
+Bu madde kararın kendisini değil **bedelini ve alternatifini** kayda geçiriyor; madde 7
+ayrımı doğal bir sonuçmuş gibi anlatıyor, oysa gerçek bir tercih ve gerçek bir bedeli var.
+
+**Seçilmeyen alternatif.** Saga satırı wallet'ın kendi veritabanında dursun, çekimi
+ledger'ın sahibi olan servis yürütsün, bankaya çağrı outbox üzerinden gitsin:
+
+```
+wallet-api ──▶ wallet DB (withdrawal_sagas + ledger_entries + outbox, TEK COMMIT)
+                   │
+                   └─ relay ──▶ bank-service ──▶ cevap ──▶ aynı servis saga'yı ilerletir
+```
+
+Bu alternatif **daha basit ve bir hata sınıfını tamamen ortadan kaldırıyor.** Şu anki
+tasarımda saga durumu ile ledger kaydı iki ayrı veritabanında: wallet parayı düşüp
+`WithdrawalDebited` yayınlıyor, o mesaj kaybolursa wallet'ta para düşmüş ama
+orchestrator'da saga hâlâ `Initiated` görünüyor. Müşterinin parası clearing'de asılı
+kalıyor ve bu iki veritabanı karşılaştırılmadan anlaşılmıyor. **Takılmış saga taraması
+(adım 5) tam olarak bu ayrım yüzünden var.** Alternatifte saga satırı ile ledger kaydı
+aynı commit'te olurdu ve o tarama gereksizleşirdi.
+
+Ayrıca şunlar da gereksizleşirdi: `DebitForWithdrawal`/`WithdrawalDebited` ve
+`RefundWithdrawal`/`WithdrawalRefunded` gidiş-dönüşleri, wallet tarafındaki
+`processed_messages`, orchestrator'ın ayrı veritabanı ve bir deployable.
+
+**Yine de ayrı tutuluyor, üç sebeple.**
+
+1. **Ledger'ın sahibi olan servis dışarıya çağrı yapmıyor.** Banka yavaşladığında ya da
+   erişilemez olduğunda o basınç ledger yazan sürecin içine girmiyor.
+2. **Akış büyürse yeri hazır.** Çekime KYC kontrolü, dolandırıcılık servisi ya da ikinci
+   bir ödeme sağlayıcısı girdiğinde bunlar wallet'ın içine değil orchestrator'a ekleniyor.
+3. **Bu bir referans uygulama.** Dağıtık saga'yı gerçekten dağıtık kurmak çıktının
+   kendisi; tek veritabanına çökmüş bir saga deseni göstermiyor.
+
+**Dürüst olmak gerekirse** ilk iki gerekçe bugün gerçek bir ihtiyaç değil: projede ne KYC
+var ne ikinci sağlayıcı, banka da sahte. Bugünkü ağırlık üçüncü maddede. Üretim
+sistemi tasarlanıyor ve bu üç koşulun hiçbiri yoksa **alternatif tercih edilmeli.**
+
+**Bedelini kim ödüyor.** Ayrımın faturası tek kalemde toplanıyor: iki veritabanı
+arasında ayrışma ihtimali. Karşılığı da tek: takılmış saga taraması. O tarama
+opsiyonel bir iyileştirme DEĞİL, bu kararın zorunlu tamamlayıcısı — yazılmazsa
+asılı kalmış çekimleri hiçbir şey yakalamaz.

@@ -133,6 +133,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 **Servis sınırı**
 - wallet-service ve withdrawal-orchestrator ayrı veritabanı (en azından ayrı schema).
 - Orchestrator wallet tablolarına doğrudan yazmaz, yalnızca komut gönderir.
+- Bu ayrımın bedeli iki veritabanı arasında ayrışma ihtimali; karşılığı takılmış saga
+  taraması. O tarama opsiyonel bir iyileştirme DEĞİL, bu kararın zorunlu tamamlayıcısı
+  (`decisions.md` madde 33).
 
 ## Çalışma tarzı
 
