@@ -29,6 +29,23 @@ public enum WithdrawalState
     Failed = 7
 }
 
+public static class WithdrawalStates
+{
+    /// <summary>
+    /// Saga'nın işi bitti mi. Tek yerde duruyor çünkü iki ayrı tüketicisi var:
+    /// <see cref="WithdrawalSaga.IsTerminal"/> ve takılmış saga taramasının
+    /// kullandığı kısmi index'in filtresi. İkisi ayrı listeler tutsaydı yeni bir
+    /// terminal durum eklendiğinde tarama bitmiş saga'ları "takılmış" diye
+    /// raporlamaya başlardı.
+    /// </summary>
+    public static bool IsTerminal(this WithdrawalState state) =>
+        state is WithdrawalState.Rejected or WithdrawalState.Completed or WithdrawalState.Failed;
+
+    /// <summary>Devam eden durumlar. Kısmi index filtresi bundan üretiliyor.</summary>
+    public static IEnumerable<WithdrawalState> Active =>
+        Enum.GetValues<WithdrawalState>().Where(state => !state.IsTerminal());
+}
+
 /// <summary>
 /// Bir event'in saga üzerindeki etkisi.
 ///

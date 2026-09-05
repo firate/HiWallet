@@ -69,8 +69,7 @@ public sealed class WithdrawalSaga
     /// </summary>
     public long Version { get; private set; }
 
-    public bool IsTerminal =>
-        State is WithdrawalState.Rejected or WithdrawalState.Completed or WithdrawalState.Failed;
+    public bool IsTerminal => State.IsTerminal();
 
     public static WithdrawalSaga Start(
         Guid id,
