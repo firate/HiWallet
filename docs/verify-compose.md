@@ -61,7 +61,7 @@ docker compose up --build
 ```
 
 Beklenen sıra: `postgres` sağlıklı olur → `migrator` ve `topup-migrator` şemaları
-uygulayıp `exit 0` ile biter → `wallet-api`, `topup-webhook` ve `topup-consumer`
+uygulayıp `exit 0` ile biter → `wallet-api`, `topup-webhook` ve `wallet-consumer`
 başlar. `rabbitmq` paralel kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa
 kalkmalılar).
 
@@ -141,7 +141,7 @@ Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:
 | --- | --- |
 | `rabbitmq` ayağa kalkıyor ve eklenti yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
 | `topup-migrator` inbox şemasını uyguluyor mu | `docker compose ps -a topup-migrator` — `exited (0)` |
-| `topup-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps topup-consumer` — `healthy` |
+| `wallet-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps wallet-consumer` — `healthy` |
 | `wallet-api` broker'sız da sağlıklı mı | `curl localhost:8091/health/ready` — çıktıda `rabbitmq` OLMAMALI |
 | compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi |
 | top-up hattının tamamı | aşağıdaki adım |

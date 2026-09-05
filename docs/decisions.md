@@ -363,7 +363,7 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, `withdrawal_outbox`, migration (madde 32) | ✅ |
 | 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
 | 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
-| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ⬜ |
+| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
 | 4.9 | `bank-service` (fake): komut tüketir, `processed_messages`, senaryo tetikleyicileriyle başarı/başarısızlık üretir | ⬜ |
 | 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ⬜ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
@@ -735,7 +735,7 @@ yerine, varsa doğrulanıyor.
 
 **Karar.** `ledger_transactions`, `ledger_entries` ve `ledger_balances`'a yazan mantık
 tek yerde: `WalletService.Core`. Kaç process bu kütüphaneyi çalıştırırsa çalıştırsın
-(bugün `wallet-api` ve `topup-consumer`) yazan **kod** tek.
+(bugün `wallet-api` ve `wallet-consumer`) yazan **kod** tek.
 
 **Gerekçe.** Veritabanı invariant'ların hepsini zorlamıyor. Zorladıkları:
 
@@ -780,7 +780,7 @@ yalnızca bir yan akış duruyorsa `Degraded`.
 | --- | --- | --- |
 | `wallet-api` | `Unhealthy` | *kontrol yok — bağımlılık da yok* |
 | `topup-webhook` | `Unhealthy` | `Degraded` |
-| `topup-consumer` | `Unhealthy` | `Unhealthy` |
+| `wallet-consumer` | `Unhealthy` | `Unhealthy` |
 
 **Gerekçe.** `Unhealthy` readiness'ı düşürür ve orchestrator servisi trafikten çeker.
 Bu, çalışmaya devam edebilecek yolları da kapatmak demek — arızayı olduğundan büyük
@@ -792,7 +792,7 @@ Satır satır:
 - **`topup-webhook` / RabbitMQ `Degraded`.** Webhook'u kabul etmek yalnızca Postgres'e
   bağlı; inbox'ın varlık sebebi zaten "broker yokken de kaybetme". Broker'ı readiness'a
   bağlamak inbox'ı anlamsız kılardı.
-- **`topup-consumer` / RabbitMQ `Unhealthy`.** Bu uygulamanın tek işi kuyruktan okuyup
+- **`wallet-consumer` / RabbitMQ `Unhealthy`.** Bu uygulamanın tek işi kuyruktan okuyup
   ledger'a yazmak. Broker yoksa yapacak başka bir şey yok, `Degraded` demek yanıltıcı
   olurdu.
 - **`wallet-api` / kontrol yok.** Tüketici ayrı deployable'a taşındıktan sonra bu
@@ -825,7 +825,7 @@ her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakal
 
 ---
 
-## 28. Üç deployable: erişim seviyesi ayrımı
+## 28. Deployable ayrımı erişim seviyesine göre
 
 **Karar.** wallet çekirdeği tek uygulama değil, ortak bir kütüphane (`WalletService.Core`)
 üstünde iki host:
@@ -834,7 +834,7 @@ her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakal
 | --- | --- | --- | --- |
 | `wallet-api` | **public** (mobil/web) | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** (sağlayıcı) | `hiwallet_topup` / `topup_app` | publish |
-| `topup-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
+| `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 
 **Birincil gerekçe: farklı ağ maruziyeti aynı process'te olamaz.** Banka webhook'u
 belirli IP bloklarına açılacak, cüzdan API'si herkese. IP kısıtı process seviyesinde
@@ -856,6 +856,18 @@ bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen 
 - Tüketici tıkandığında kendi sağlık ucu var; wallet-api'nin sağlıklı görünmesi durumu
   bitti.
 
+**Ölçüt iki yöne de işliyor.** Farklı maruziyet aynı process'te birleşmiyor; AYNI
+maruziyet de gereksiz yere bölünmüyor. `wallet-consumer` bugün iki kuyruk dinliyor —
+top-up event'leri ve withdrawal saga'sının komutları. İkisi de ingress'siz, ikisi de
+`hiwallet_wallet`'a aynı kütüphaneyle yazıyor; ayırmayı gerektiren hiçbir şey yok.
+Ayrı süreç açmanın gerekçeleri (bağımsız ölçekleme, biri çökerken diğerinin ayakta
+kalması) bu projede gerçek bir ihtiyaç değil ve gerekçesiz deployable taşınmıyor.
+
+Adı önce `topup-consumer` idi. İkinci kuyruk eklenince isim gerçeği anlatmaz oldu:
+bu uygulama "top-up tüketicisi" değil, **ledger'a asenkron giren her şeyin girdiği
+yer**. Ayrı hosted service'ler, ayrı kanallar — biri tıkanınca diğeri akmaya devam
+ediyor.
+
 **Neden ortak kütüphane, ayrı kopya değil.** Madde 25: ayrı deployable olmak sorun
 değil, ayrı **kod** olmak sorun.
 
@@ -869,7 +881,7 @@ sahipliği şeklinde değil.
 aktif tüketici sayısı `PartitionCount` ile sınırlı, instance sayısıyla değil. Postgres
 de izole olmuyor; ayrılan yalnızca .NET tarafındaki havuz.
 
-**Maliyet.** wallet-api ve topup-consumer aynı şemayı paylaştığı için birlikte deploy
+**Maliyet.** wallet-api ve wallet-consumer aynı şemayı paylaştığı için birlikte deploy
 edilmek zorundalar. Migration sahipliği değişmiyor (ayrı `migrator` job'ı, hiçbir
 uygulama startup'ta migrate etmiyor) ama koordine edilecek şey ikiye çıktı.
 

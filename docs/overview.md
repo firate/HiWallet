@@ -63,7 +63,7 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | ----------------------- | ----------------------------------------------------------------------- | --------------- |
 | wallet-service          | Cüzdanlar, double-entry ledger, transfer çekirdeği, bakiye projeksiyonu | Lokal ACID      |
 | ↳ wallet-api            | Yukarıdakinin public HTTP host'u (mobil/web)                            | —               |
-| ↳ topup-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
+| ↳ wallet-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
 | bank-service (fake)     | Dış banka transferini simüle eder                                       | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
@@ -128,7 +128,7 @@ Dış sağlayıcı (provider-fake)
        inbox'taki "unpublished" satırları RabbitMQ'ya publish eder
        (publisher confirms ile), sonra "published" işaretler.
   → RabbitMQ (cüzdan-bazlı partitioning — bkz. madde 8)
-  → topup-consumer:
+  → wallet-consumer:
        event_id daha önce işlendi mi? (processed_events tablosu)
        Hayırsa: (processed_events + ledger yazımı) TEK ACID transaction:
          kullanıcı cüzdanı +X, clearing -X
