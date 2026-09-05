@@ -30,8 +30,32 @@ public sealed class MessagePublisher(
     /// event'lerde saga id + tip. Broker'ın kendi tekilliği yok — bu alan
     /// <c>processed_messages</c>'a yazılan değer.
     /// </param>
-    public async Task PublishAsync<T>(
-        string exchange, string routingKey, T message, Guid messageId, CancellationToken ct)
+    public Task PublishAsync<T>(
+        string exchange, string routingKey, T message, Guid messageId, CancellationToken ct) =>
+        PublishRawAsync(
+            exchange,
+            routingKey,
+            JsonSerializer.SerializeToUtf8Bytes(message, JsonOptions),
+            messageId,
+            typeof(T).Name,
+            ct);
+
+    /// <summary>
+    /// Hazır gövdeyi yayınlar. Çağıranın elinde zaten serileştirilmiş bir JSON varsa
+    /// (outbox satırı, saklanmış bir cevap) onu tipe geri çevirip yeniden
+    /// serileştirmenin anlamı yok — üstelik iki dönüşüm arasındaki her fark tel
+    /// üzerinde farklı bir mesaj demek.
+    /// </summary>
+    /// <param name="type">
+    /// AMQP <c>type</c> başlığı ve genelde routing key ile aynı: mesaj tipinin adı.
+    /// </param>
+    public async Task PublishRawAsync(
+        string exchange,
+        string routingKey,
+        ReadOnlyMemory<byte> body,
+        Guid messageId,
+        string type,
+        CancellationToken ct)
     {
         var channel = await GetChannelAsync(ct);
 
@@ -41,7 +65,7 @@ public sealed class MessagePublisher(
             Persistent = true,
             ContentType = "application/json",
             MessageId = messageId.ToString(),
-            Type = typeof(T).Name
+            Type = type
         };
 
         await channel.BasicPublishAsync(
@@ -50,7 +74,7 @@ public sealed class MessagePublisher(
             // Yönlendirilemeyen mesaj sessizce düşer; mandatory onu görünür kılıyor.
             mandatory: true,
             basicProperties: properties,
-            body: JsonSerializer.SerializeToUtf8Bytes(message, JsonOptions),
+            body: body,
             cancellationToken: ct);
     }
 

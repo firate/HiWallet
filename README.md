@@ -23,12 +23,12 @@ Withdrawal saga *henüz yazılmadı, sırada.*
 | --- | --- | --- | --- |
 | `wallet-api` | **public** — mobil/web | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
-| `topup-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
+| `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 
 Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
 API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
 
-`wallet-api` ve `topup-consumer` aynı şemayı yazıyor ve **aynı kütüphaneyi**
+`wallet-api` ve `wallet-consumer` aynı şemayı yazıyor ve **aynı kütüphaneyi**
 (`WalletService.Core`) paylaşıyor. Ayrı deployable, tek kod tabanı — çünkü ledger
 invariant'larının bir kısmı hiçbir constraint tarafından zorlanmıyor (cüzdanın negatife
 düşememesi, bakiye satırlarının artan id sırasıyla güncellenmesi, `version`'ın birer
@@ -51,7 +51,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Baseline: OTel, health, rate limiting, validation | ✅ |
 | Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | ✅ |
 | HMAC imza, iki kademe idempotency, dead-letter | ✅ |
-| Üç deployable, üç erişim seviyesi | ✅ |
+| Deployable ayrımı erişim seviyesine göre | ✅ |
 | Hattın gerçek bir broker'a karşı uçtan uca koşması | ✅ webhook → RabbitMQ → ledger |
 | Withdrawal saga + compensation | ⬜ adım 4 |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
@@ -76,7 +76,7 @@ curl http://localhost:8091/health/ready   # wallet-api
 curl http://localhost:8092/health/ready   # topup-webhook
 ```
 
-`topup-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
+`wallet-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
 açmasının sebebi olmazdı.
 

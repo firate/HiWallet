@@ -67,10 +67,13 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   "Önce SELECT sonra INSERT" YOK.
 
 **Deployable'lar**
-- Üç uygulama, üç erişim seviyesi (`decisions.md` madde 28):
-  `wallet-api` public, `topup-webhook` IP kısıtlı, `topup-consumer` ingress'siz.
-  Farklı ağ maruziyeti aynı process'te BİRLEŞTİRİLMEZ.
-- `wallet-api` ve `topup-consumer` ortak kütüphane `WalletService.Core` üstünde.
+- Ayrım ölçütü ERİŞİM SEVİYESİ (`decisions.md` madde 28): `wallet-api` public,
+  `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz,
+  `withdrawal-orchestrator` kendi sınırı ve kendi veritabanı (madde 7 ve 33).
+  Farklı ağ maruziyeti aynı process'te BİRLEŞTİRİLMEZ. Aynı maruziyet ise ayrı
+  process'e BÖLÜNMEZ — `wallet-consumer` hem top-up event'lerini hem çekim
+  komutlarını dinliyor, ikisi de ingress'siz ve aynı ledger'a yazıyor.
+- `wallet-api` ve `wallet-consumer` ortak kütüphane `WalletService.Core` üstünde.
   Ledger'a yazan kodun tek kopyası orada; ikinci bir kopya AÇILMAZ (madde 25).
 - **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
   `topup-webhook` onu görmez.
@@ -115,7 +118,17 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.
 - Ters kayıt ÜÇ bacaklı: cüzdan, clearing, `revenue`. `revenue` bacağı atlanırsa
   kayıt yine dengeli olur ve trigger susar — ama müşteri gerçekleşmemiş işlemin
-  komisyonunu ödemiş kalır. Bacak opsiyonel DEĞİL.
+  komisyonunu ödemiş kalır. Bacak opsiyonel DEĞİL. Bu yüzden ters kayıt
+  politikadan yeniden ÜRETİLMEZ: orijinal işlemin bacakları okunup negatiflenir.
+- Wallet tarafında sıra: ledger commit → cevabı yayınla → ack. Ters sıra cevabı
+  kaybeder ve saga sonsuza kadar bekler. `processed_messages` cevabı da saklar;
+  tekrar teslimde ledger'a dokunulmadan aynı cevap yeniden yayınlanır.
+- Yetersiz bakiye ve limit aşımı dead-letter DEĞİL: `WithdrawalDebitRejected`
+  dönülüp mesaj ack'lenir. Cevapsız kalan saga müşteriyi sonsuza kadar
+  "işleniyor"da bırakır.
+- Çekim tarifesi (`Withdrawals` bölümü) yalnızca `wallet-consumer`'da. Bölüm
+  eksikse uygulama AÇILMAZ — sessizce komisyonsuz/limitsiz çalışmaz.
+- Çekim günlük limit sayımı iadeleri DÜŞER: geri dönen para hesaptan çıkmadı.
 - IBAN sınırda mod-97 ile doğrulanır ve `Iban` tipine dönüşür. Bu kontrol
   "komisyon koşulsuz iade edilir" kuralının taşıyıcısı; zayıflatılamaz.
   Sınırdan sonra akışta string IBAN DOLAŞMAZ. Yanıtta maskeli döner.
@@ -133,6 +146,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 **Servis sınırı**
 - wallet-service ve withdrawal-orchestrator ayrı veritabanı (en azından ayrı schema).
 - Orchestrator wallet tablolarına doğrudan yazmaz, yalnızca komut gönderir.
+- Bu ayrımın bedeli iki veritabanı arasında ayrışma ihtimali; karşılığı takılmış saga
+  taraması. O tarama opsiyonel bir iyileştirme DEĞİL, bu kararın zorunlu tamamlayıcısı
+  (`decisions.md` madde 33).
 
 ## Çalışma tarzı
 

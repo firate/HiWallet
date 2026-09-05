@@ -15,7 +15,7 @@ namespace HiWallet.IntegrationTests.Topups;
 
 /// <summary>
 /// Uçtan uca: webhook → inbox → relay → RabbitMQ → tüketici → ledger.
-/// Zincirin tamamı gerçek; topup-webhook ve topup-consumer ayrı ayrı ayağa
+/// Zincirin tamamı gerçek; topup-webhook ve wallet-consumer ayrı ayrı ayağa
 /// kalkıyor (üretimdeki gibi ayrı deployable) ve aralarında yalnızca broker var.
 ///
 /// <b>Broker yoksa atlanıyor.</b> Kurulumu zorunlu kılmak yerine, varsa doğrulanıyor
@@ -30,7 +30,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     private TopupWebhookApiFactory? _webhook;
-    private TopupConsumerFactory? _consumer;
+    private WalletConsumerFactory? _consumer;
     private HttpClient? _client;
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -141,7 +141,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
     private async Task StartAsync()
     {
         _webhook = new TopupWebhookApiFactory(inbox);
-        _consumer = new TopupConsumerFactory(postgres);
+        _consumer = new WalletConsumerFactory(postgres);
 
         _client = _webhook.CreateClient();
 
