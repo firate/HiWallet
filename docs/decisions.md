@@ -365,7 +365,7 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
 | 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
 | 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle dört sonuç üretir | ✅ |
-| 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ⬜ |
+| 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ✅ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
 
 **4.8 en riskli adım.** Ters kayıt üç bacaklı olmak zorunda (cüzdan, clearing,
