@@ -13,20 +13,31 @@ yapılıyorsa öyle.
 double-entry, optimistic lock. Saga yok — dağıtık karmaşıklık tutarlılığın kritik
 olduğu yere taşınmıyor.
 
-**Kenar (eventual).** Dış dünyayla konuşan akışlar. Top-up hattı çalışıyor: webhook
-ayrı bir serviste kendi veritabanıyla, arada RabbitMQ, tüketici üçüncü bir uygulamada.
-Withdrawal saga *henüz yazılmadı, sırada.*
+**Kenar (eventual).** Dış dünyayla konuşan akışlar. İki hat da çalışıyor:
 
-## Üç uygulama, üç erişim seviyesi
+- **Top-up:** webhook ayrı bir serviste kendi veritabanıyla, arada RabbitMQ, tüketici
+  üçüncü bir uygulamada.
+- **Withdrawal saga:** orchestrator kendi veritabanında saga durumunu yürütüyor,
+  wallet parayı düşüyor, banka transferi yapıyor. Banka reddederse **compensation**
+  cüzdana parayı geri yazıyor — silmeyle değil, üç bacaklı ters kayıtla.
+
+## Beş uygulama, erişim seviyesine göre ayrılmış
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
 | `wallet-api` | **public** — mobil/web | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
+| `withdrawal-orchestrator` | public — çekim isteği | `hiwallet_withdrawal` | ikisi de |
+| `bank-service` (fake) | yalnızca senaryo ucu | `hiwallet_bank` | ikisi de |
 
 Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
 API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
+
+Ölçüt iki yöne de işliyor: farklı maruziyet aynı process'te birleşmiyor, **aynı
+maruziyet de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
+top-up event'leri ve çekim komutları — çünkü ikisi de ingress'siz ve aynı ledger'a
+aynı kütüphaneyle yazıyor.
 
 `wallet-api` ve `wallet-consumer` aynı şemayı yazıyor ve **aynı kütüphaneyi**
 (`WalletService.Core`) paylaşıyor. Ayrı deployable, tek kod tabanı — çünkü ledger
@@ -53,12 +64,18 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | HMAC imza, iki kademe idempotency, dead-letter | ✅ |
 | Deployable ayrımı erişim seviyesine göre | ✅ |
 | Hattın gerçek bir broker'a karşı uçtan uca koşması | ✅ webhook → RabbitMQ → ledger |
-| Withdrawal saga + compensation | ⬜ adım 4 |
+| Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
+| Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
+| Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
+| Çekimin compose'a alınması | ⬜ adım 4.11 |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-112 test: 58 unit (DB'siz), 54 integration — gerçek Postgres ve gerçek RabbitMQ.
-Uçtan uca iki test webhook'tan ledger'a kadar bütün zinciri koşturuyor: HTTP → inbox →
-relay → broker → tüketici → ledger.
+193 test: 92 unit (DB'siz), 101 integration — gerçek Postgres ve gerçek RabbitMQ.
+
+İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
+ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
+bank-service → orchestrator, üç uygulama ayrı ayrı ayakta ve aralarında yalnızca
+broker var.
 
 ## Çalıştırma
 
@@ -68,8 +85,13 @@ docker compose up --build
 ```
 
 Sırayla: Postgres ayağa kalkar ve roller/veritabanları kurulur → `migrator` ve
-`topup-migrator` şemaları uygular → üç uygulama başlar. RabbitMQ paralel kalkar;
+`topup-migrator` şemaları uygular → uygulamalar başlar. RabbitMQ paralel kalkar;
 hiçbiri onu BEKLEMEZ.
+
+> **Compose'da şu an üç uygulama var:** `wallet-api`, `topup-webhook`,
+> `wallet-consumer`. `withdrawal-orchestrator` ve `bank-service` kodda ve testlerde
+> çalışıyor ama compose'a **henüz alınmadı** (adım 4.11). Yani çekim akışını bugün
+> yalnızca `dotnet test` ile görebilirsin, `docker compose up` ile değil.
 
 ```bash
 curl http://localhost:8091/health/ready   # wallet-api
@@ -152,6 +174,38 @@ koymaz, koysa bile tüketicideki `processed_events` yutar.
 
 İmza tutmazsa `401` ve inbox'a **hiçbir şey** yazılmaz.
 
+**Withdrawal (dışarıya para çıkışı).** Saga'nın evi. `Idempotency-Key` burada
+**zorunlu** — transfer'dekinin aksine: çekim çok adımlı ve dışarıya para çıkarıyor,
+anahtarsız bir tekrar ikinci bir banka transferi başlatırdı.
+
+Orchestrator compose'a henüz alınmadığı için host portu yok; isteğin şekli şöyle
+(`WithdrawalsApiTests` ve `WithdrawalChainTests` bunu koşturuyor):
+
+```
+POST /v1/withdrawals
+Idempotency-Key: cekim-1
+
+{"accountId":"...","walletId":"...","amount":100,"currency":"TRY",
+ "destinationIban":"TR33 0006 1005 1978 6457 8413 26"}
+```
+
+Yanıt **`202 Accepted`**: döndüğünde hiçbir para hareket etmemiş durumda. IBAN sınırda
+mod-97 ile doğrulanıyor; geçersizse `400` ve saga hiç başlamıyor.
+
+Mutlu yolda ledger'a üç satır düşer: cüzdan `-102`, `clearing/bank-fake` `+100`,
+`revenue` `+2`.
+
+**Banka reddederse compensation.** Ters kayıt orijinalin aynası ve **üç bacaklı**:
+cüzdan `+102`, clearing `-100`, `revenue` `-2`. Komisyon iadesi koşulsuz — başarısız
+bir çekimin sebebi ya bizde ya bankada.
+
+`revenue` bacağının kritikliği şurada: atlansaydı kayıt **yine dengeli** olurdu,
+zero-sum trigger'ı susardı ve müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş
+kalırdı. Bu yüzden ters kayıt politikadan yeniden üretilmiyor — orijinal işlemin
+bacakları okunup negatifleniyor.
+
+Orijinal kayıt **silinmiyor**; ledger append-only, saga başına iki işlem kalıyor.
+
 **Zero-sum, yük altında.** `EszamanliTransferler_ZeroSumKorunur_VeHicbirCuzdanNegatifDusmez`
 500 eşzamanlı transfer atıyor ve dört şeyi doğruluyor: her transaction'ın toplamı sıfır,
 sistem genelinde toplam sıfır, hiçbir cüzdan negatif değil, projeksiyon ledger'dan
@@ -167,11 +221,14 @@ dotnet test
 Integration testler bir Postgres sunucusu ister; bağlantı
 `ConnectionStrings__IntegrationTests`'ten gelir. Her koşu kendi schema'sını açar,
 migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyor, Docker
-gerekmiyor. topup-webhook'un inbox'ı için ikinci bir schema açılıyor: üretimdeki ayrı
-veritabanı sınırı testte de korunuyor.
+gerekmiyor. topup-webhook, withdrawal-orchestrator ve bank-service için ayrı schema'lar
+açılıyor: üretimdeki ayrı veritabanı sınırları testte de korunuyor, servisler
+birbirinin tablosunu göremiyor.
 
-Uçtan uca top-up testleri ayrıca bir RabbitMQ ister (`RabbitMq__*`) ve broker'da
-`rabbitmq_consistent_hash_exchange` eklentisinin açık olmasını:
+Uçtan uca testler ayrıca bir RabbitMQ ister (`RabbitMq__*`). Top-up hattı bir de
+`rabbitmq_consistent_hash_exchange` eklentisi istiyor — routing key cüzdan kimliği ve
+partition'ı o exchange seçiyor. Withdrawal zinciri düz bir direct exchange kullanıyor,
+eklenti istemiyor:
 
 ```bash
 docker exec <rabbitmq> rabbitmq-plugins enable rabbitmq_consistent_hash_exchange
@@ -199,7 +256,7 @@ dotnet test
 | [docs/decisions.md](docs/decisions.md) | kararlar, gerekçeler, **elenen alternatifler** |
 | [docs/ledger-schema.md](docs/ledger-schema.md) | şemanın okunabilir karşılığı |
 | [docs/structure.md](docs/structure.md) | yeni dosya nereye konur |
-| [CLAUDE.md](CLAUDE.md) | pazarlıksız kurallar |
+| [Claude.md](Claude.md) | pazarlıksız kurallar |
 
 Şemanın tek kaynağı EF migration'ları; `ledger-schema.md` onları açıklar, üretmez.
 
