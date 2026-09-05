@@ -7,14 +7,19 @@
 # Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
 # otomatik okur.
 #
-# Üç uygulama, üç farklı erişim seviyesi (decisions.md madde 28):
+# Beş uygulama, erişim seviyesine göre ayrılmış (decisions.md madde 28):
 #
-#   wallet-api      public ingress   — mobil/web istemciler
-#   topup-webhook   kısıtlı ingress  — yalnızca sağlayıcı IP'leri (proxy/firewall işi)
-#   wallet-consumer  ingress YOK      — mesajları kendisi kuyruktan çekiyor
+#   wallet-api               public ingress   — mobil/web istemciler
+#   topup-webhook            kısıtlı ingress  — yalnızca sağlayıcı IP'leri (proxy işi)
+#   wallet-consumer          ingress YOK      — mesajları kendisi kuyruktan çekiyor
+#   withdrawal-orchestrator  public ingress   — çekim isteği
+#   bank-service             sahte, senaryo ucu
 #
 # wallet-api ve wallet-consumer aynı şemayı ve aynı kütüphaneyi (WalletService.Core)
 # paylaşıyor; ayrı deployable ama tek kod tabanı.
+#
+# Dört veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
+# tablolarına yazamıyor — saga'nın anlamı buna bağlı (madde 7 ve 33).
 
 name: hiwallet
 
@@ -28,6 +33,8 @@ services:
       WALLET_OWNER_PASSWORD: ${WALLET_OWNER_PASSWORD:?WALLET_OWNER_PASSWORD .env'de tanımlı değil}
       WALLET_APP_PASSWORD: ${WALLET_APP_PASSWORD:?WALLET_APP_PASSWORD .env'de tanımlı değil}
       TOPUP_APP_PASSWORD: ${TOPUP_APP_PASSWORD:?TOPUP_APP_PASSWORD .env'de tanımlı değil}
+      WITHDRAWAL_APP_PASSWORD: ${WITHDRAWAL_APP_PASSWORD:?WITHDRAWAL_APP_PASSWORD .env'de tanımlı değil}
+      BANK_APP_PASSWORD: ${BANK_APP_PASSWORD:?BANK_APP_PASSWORD .env'de tanımlı değil}
     volumes:
       # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
       # volume'u düşürmek gerekiyor: docker compose down -v
@@ -45,7 +52,7 @@ services:
       # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
       # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor. Sonuncu kurulan
       # veritabanı soruluyor ki init'in tamamı bitmiş olsun.
-      test: ["CMD-SHELL", "psql -U postgres -d hiwallet_topup -c 'SELECT 1' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "psql -U postgres -d hiwallet_bank -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -104,6 +111,35 @@ services:
     command:
       - --connection
       - Host=postgres;Port=5432;Database=hiwallet_topup;Username=topup_app;Password=${TOPUP_APP_PASSWORD}
+    restart: "no"
+
+  # Orchestrator'ın kendi veritabanı: withdrawal_sagas ve withdrawal_outbox.
+  # Wallet şemasına DOKUNMUYOR.
+  withdrawal-migrator:
+    build:
+      context: .
+      dockerfile: src/WithdrawalOrchestrator/Dockerfile
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=postgres;Port=5432;Database=hiwallet_withdrawal;Username=withdrawal_app;Password=${WITHDRAWAL_APP_PASSWORD}
+    restart: "no"
+
+  # Sahte bankanın veritabanı: bank_transfers ve transfer_scenarios.
+  bank-migrator:
+    build:
+      context: .
+      dockerfile: src/BankService.Fake/Dockerfile
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD}
     restart: "no"
 
   # Public ingress. RabbitMQ ayarı YOK ve olmamalı: tüketici ayrı bir host'a
@@ -226,6 +262,88 @@ services:
       start_period: 10s
     # İşlenmekte olan mesaj bitsin. Bitmezse ack'lenmiyor ve yeniden teslim
     # ediliyor — kayıp değil, sadece gereksiz tekrar.
+    stop_grace_period: 20s
+
+  # Public ingress: çekim isteği buradan giriyor. Broker'a hem yazıyor (outbox
+  # relay) hem okuyor (saga event'leri).
+  withdrawal-orchestrator:
+    build:
+      context: .
+      dockerfile: src/WithdrawalOrchestrator/Dockerfile
+      target: final
+    depends_on:
+      withdrawal-migrator:
+        condition: service_completed_successfully
+      # Broker BEKLENMİYOR (service_started yeterli): çekim isteğini kabul etmek
+      # yalnızca Postgres'e bağlı. Komut outbox'ta birikiyor ve relay broker
+      # dönünce boşaltıyor — outbox'ın varlık sebebi tam olarak bu (madde 32).
+      rabbitmq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Withdrawal: Host=postgres;Port=5432;Database=hiwallet_withdrawal;Username=withdrawal_app;Password=${WITHDRAWAL_APP_PASSWORD}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: ${RabbitMq__Username}
+      RabbitMq__Password: ${RabbitMq__Password}
+      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-withdrawal-orchestrator
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${WITHDRAWAL_HOST_PORT:-8093}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # Relay bir batch'i yayınlamış ama commit etmemişken kesilirse komut iki kez
+    # gider. Alıcı taraf deduplike ediyor ama süre tanımak nadirleştiriyor.
+    stop_grace_period: 20s
+
+  # SAHTE servis. Üretimde yeri yok; burada olmasının sebebi telafi yolunun
+  # tetiklenebilir olması (overview.md madde 9).
+  #
+  # Host portu açık çünkü senaryo ucu dışarıdan çağrılıyor:
+  #   POST /v1/scenarios {"sagaId":"...","outcome":"PermanentFailure"}
+  # Gerçek bir banka entegrasyonunda bu port da bu servis de olmayacak.
+  bank-service:
+    build:
+      context: .
+      dockerfile: src/BankService.Fake/Dockerfile
+      target: final
+    depends_on:
+      bank-migrator:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Bank: Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: ${RabbitMq__Username}
+      RabbitMq__Password: ${RabbitMq__Password}
+      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
+      # Senaryosu kurulmamış transferlerin sonucu. Varsayılan başarı; telafi
+      # yolunu tüm sistemde göstermek istersen PermanentFailure yap.
+      Bank__DefaultOutcome: ${BANK_DEFAULT_OUTCOME:-Success}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-bank-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BANK_HOST_PORT:-8094}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     stop_grace_period: 20s
 
 volumes:
