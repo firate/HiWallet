@@ -150,7 +150,8 @@ public sealed class PostgresFixture : IAsyncLifetime
 public sealed class PostgresCollection
     : ICollectionFixture<PostgresFixture>,
         ICollectionFixture<InboxFixture>,
-        ICollectionFixture<OrchestratorFixture>
+        ICollectionFixture<OrchestratorFixture>,
+        ICollectionFixture<BankFixture>
 {
     public const string Name = "postgres";
 }

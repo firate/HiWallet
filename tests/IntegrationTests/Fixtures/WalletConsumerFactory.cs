@@ -13,6 +13,9 @@ namespace HiWallet.IntegrationTests.Fixtures;
 public sealed class WalletConsumerFactory(PostgresFixture postgres)
     : WebApplicationFactory<WalletConsumerApp>
 {
+    /// <summary>%2 komisyon: 100 çekimde 2, cüzdandan 102 çıkıyor.</summary>
+    public const decimal WithdrawalCommissionRate = 0.02m;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -23,7 +26,16 @@ public sealed class WalletConsumerFactory(PostgresFixture postgres)
             {
                 // wallet-api ile AYNI şema: ikisi de aynı tabloları yazıyor,
                 // ayrı deployable olmaları bunu değiştirmiyor.
-                ["ConnectionStrings:Wallet"] = postgres.ConnectionString
+                ["ConnectionStrings:Wallet"] = postgres.ConnectionString,
+
+                // Çekim tarifesi appsettings.json'dan da okunabilirdi ama testin
+                // beklediği sayılar o dosya değiştiğinde sessizce kaymasın diye
+                // burada AÇIKÇA veriliyor.
+                ["Withdrawals:Commission:Rate"] = WithdrawalCommissionRate.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture),
+                ["Withdrawals:Commission:Minimum"] = "0",
+                ["Withdrawals:Limit:PerTransaction"] = "20000",
+                ["Withdrawals:Limit:Daily"] = "50000"
             };
 
             BrokerSettings.ApplyFallbacks(overrides);

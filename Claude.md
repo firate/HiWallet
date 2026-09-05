@@ -111,8 +111,15 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - `withdrawal_outbox.id` AYNI ZAMANDA komutun `CommandId`'si. İkinci bir yüzey id
   üretilmez: relay aynı satırı iki kez yayınladığında alıcıya giden `CommandId` de
   aynı kalmak zorunda, yoksa tekrar deduplike edilemez.
-- Komutu tüketen tarafta `CommandId` + `processed_messages`. Orchestrator'ın event
-  tüketiminde ayrı tablo YOK — saga durumu zaten cevabı taşıyor.
+- Komutu tüketen tarafta `CommandId` ile deduplikasyon: wallet'ta
+  `processed_messages`, bank-service'te `bank_transfers` (zaten "ne yaptık" kaydı,
+  anahtarı da `CommandId` — ikinci tablo açılmaz). Orchestrator'ın event tüketiminde
+  ayrı tablo YOK, saga durumu zaten cevabı taşıyor.
+- İki tüketen taraf da verdiği CEVABI saklar. Tekrar teslimde iş ikinci kez
+  yapılmaz ama cevap yeniden yayınlanır.
+- bank-service'te geçici hata ile kalıcı hata AYRI: kalıcı hata
+  `BankTransferFailed` + ack, geçici hata hiçbir cevap üretmeden requeue. Karışırsa
+  her ağ kesintisi müşterinin parasını ileri geri taşır.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
   `string currency`. Komisyon ve limit wallet'ın bilgisi, komutta taşınmaz.
 - `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.

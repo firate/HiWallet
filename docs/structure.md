@@ -197,8 +197,12 @@ TopupWebhook/
 └── Setup/
 
 BankService.Fake/
-├── Api/Controllers/
-├── Application/               -- komut işleme, senaryo tetikleyicileri
+├── Api/Controllers/           -- ScenariosController (senaryo tetikleyicileri)
+├── Api/Requests/
+├── Application/               -- StartBankTransferHandler, ScenarioStore
+├── Infrastructure/
+│   ├── Persistence/           -- BankDbContext, bank_transfers, transfer_scenarios
+│   └── Messaging/             -- BankCommandConsumer
 └── Setup/
 
 ProviderFake/
