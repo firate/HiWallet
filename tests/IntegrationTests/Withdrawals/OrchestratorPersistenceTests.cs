@@ -249,26 +249,14 @@ public sealed class OrchestratorPersistenceTests(OrchestratorFixture fixture)
 
         foreach (var state in WithdrawalStates.Active)
         {
-            definition.ShouldContain(StateText(state));
+            definition.ShouldContain($"'{state.ToText()}'");
         }
 
         foreach (var state in Enum.GetValues<WithdrawalState>().Where(s => s.IsTerminal()))
         {
-            definition.ShouldNotContain(StateText(state));
+            definition.ShouldNotContain($"'{state.ToText()}'");
         }
     }
-
-    private static string StateText(WithdrawalState state) => state switch
-    {
-        WithdrawalState.Initiated => "'initiated'",
-        WithdrawalState.Rejected => "'rejected'",
-        WithdrawalState.Debited => "'debited'",
-        WithdrawalState.BankTransferPending => "'bank_transfer_pending'",
-        WithdrawalState.Completed => "'completed'",
-        WithdrawalState.Compensating => "'compensating'",
-        WithdrawalState.Failed => "'failed'",
-        _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Eşlemesi yazılmamış durum.")
-    };
 
     private static WithdrawalSaga NewSaga(Guid? accountId = null, string? idempotencyKey = null) =>
         WithdrawalSaga.Start(

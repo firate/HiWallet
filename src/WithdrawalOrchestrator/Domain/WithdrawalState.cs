@@ -44,6 +44,45 @@ public static class WithdrawalStates
     /// <summary>Devam eden durumlar. Kısmi index filtresi bundan üretiliyor.</summary>
     public static IEnumerable<WithdrawalState> Active =>
         Enum.GetValues<WithdrawalState>().Where(state => !state.IsTerminal());
+
+    /// <summary>
+    /// Durumun dış dünyadaki adı. TEK yerde duruyor çünkü üç tüketicisi var:
+    /// veritabanı kolonu, HTTP yanıtı ve index filtresi. Üçü ayrı yazılsaydı
+    /// biri değiştiğinde diğerleri sessizce eskir; kolon ile filtre ayrıştığında
+    /// hiçbir derleme hatası çıkmaz.
+    ///
+    /// <c>ToString()</c> yeterli değil: PascalCase isim yeniden adlandırmayla
+    /// değişir ve o anda hem şema hem sözleşme kırılır.
+    /// </summary>
+    public static string ToText(this WithdrawalState state)
+    {
+        return state switch
+        {
+            WithdrawalState.Initiated => "initiated",
+            WithdrawalState.Rejected => "rejected",
+            WithdrawalState.Debited => "debited",
+            WithdrawalState.BankTransferPending => "bank_transfer_pending",
+            WithdrawalState.Completed => "completed",
+            WithdrawalState.Compensating => "compensating",
+            WithdrawalState.Failed => "failed",
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Eşlemesi yazılmamış saga durumu.")
+        };
+    }
+
+    public static WithdrawalState FromText(string text)
+    {
+        return text switch
+        {
+            "initiated" => WithdrawalState.Initiated,
+            "rejected" => WithdrawalState.Rejected,
+            "debited" => WithdrawalState.Debited,
+            "bank_transfer_pending" => WithdrawalState.BankTransferPending,
+            "completed" => WithdrawalState.Completed,
+            "compensating" => WithdrawalState.Compensating,
+            "failed" => WithdrawalState.Failed,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen saga durumu.")
+        };
+    }
 }
 
 /// <summary>

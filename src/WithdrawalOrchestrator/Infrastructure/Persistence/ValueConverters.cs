@@ -4,12 +4,13 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence;
 
 /// <summary>
-/// Domain tipleri ↔ kolon değerleri. Enum'lar DB'de snake_case text; eşleme AÇIKÇA
-/// yazılır, EF'in convention'ına bırakılmaz (structure.md "Adlandırma").
+/// Domain tipleri ↔ kolon değerleri.
 ///
-/// Enum'u <c>int</c> olarak saklamıyoruz: saga durumu operasyonun elle bakacağı bir
-/// alan ve "state = 4" bir insana hiçbir şey söylemiyor. Ayrıca enum'a ortadan bir
-/// değer eklemek int eşlemesini sessizce kaydırırdı.
+/// Durum enum'u DB'de metin: operasyonun elle bakacağı bir alan ve <c>state = 4</c>
+/// bir insana hiçbir şey söylemiyor. Ayrıca enum'a ortadan bir değer eklemek int
+/// eşlemesini sessizce kaydırırdı. Metnin kendisi
+/// <see cref="WithdrawalStates.ToText"/>'te — kolon, HTTP yanıtı ve index filtresi
+/// aynı kaynaktan besleniyor.
 /// </summary>
 internal static class ValueConverters
 {
@@ -21,35 +22,5 @@ internal static class ValueConverters
         new(iban => iban.Value, value => Domain.Iban.From(value));
 
     public static readonly ValueConverter<WithdrawalState, string> WithdrawalState =
-        new(state => ToText(state), text => ToState(text));
-
-    private static string ToText(WithdrawalState state)
-    {
-        return state switch
-        {
-            Domain.WithdrawalState.Initiated => "initiated",
-            Domain.WithdrawalState.Rejected => "rejected",
-            Domain.WithdrawalState.Debited => "debited",
-            Domain.WithdrawalState.BankTransferPending => "bank_transfer_pending",
-            Domain.WithdrawalState.Completed => "completed",
-            Domain.WithdrawalState.Compensating => "compensating",
-            Domain.WithdrawalState.Failed => "failed",
-            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Eşlemesi yazılmamış saga durumu.")
-        };
-    }
-
-    private static WithdrawalState ToState(string text)
-    {
-        return text switch
-        {
-            "initiated" => Domain.WithdrawalState.Initiated,
-            "rejected" => Domain.WithdrawalState.Rejected,
-            "debited" => Domain.WithdrawalState.Debited,
-            "bank_transfer_pending" => Domain.WithdrawalState.BankTransferPending,
-            "completed" => Domain.WithdrawalState.Completed,
-            "compensating" => Domain.WithdrawalState.Compensating,
-            "failed" => Domain.WithdrawalState.Failed,
-            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen saga durumu.")
-        };
-    }
+        new(state => state.ToText(), text => WithdrawalStates.FromText(text));
 }

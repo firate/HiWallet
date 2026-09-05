@@ -106,8 +106,7 @@ internal sealed class WithdrawalSagaConfiguration : IEntityTypeConfiguration<Wit
     /// </summary>
     private static string ActiveStateFilter()
     {
-        var states = WithdrawalStates.Active
-            .Select(state => $"'{ValueConverters.WithdrawalState.ConvertToProviderTyped(state)}'");
+        var states = WithdrawalStates.Active.Select(state => $"'{state.ToText()}'");
 
         return $"state IN ({string.Join(", ", states)})";
     }
