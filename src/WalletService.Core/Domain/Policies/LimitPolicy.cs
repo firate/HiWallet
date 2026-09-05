@@ -11,6 +11,39 @@ namespace HiWallet.WalletService.Domain.Policies;
 public sealed record TransferLimit(decimal? PerTransaction = null, decimal? Daily = null)
 {
     public static TransferLimit Unlimited { get; } = new();
+
+    /// <summary>
+    /// Aşım varsa <see cref="LimitExceededException"/> fırlatır. Kontrol BURADA, tek
+    /// yerde: transfer ve çekim aynı iki soruyu soruyor ve ikinci bir kopya, biri
+    /// düzeltildiğinde diğerinin eski kalmasına açık olurdu.
+    /// </summary>
+    /// <param name="limitName">
+    /// Hata mesajında ve alarmında görünen ad (<c>"P2P"</c>, <c>"Withdrawal"</c>).
+    /// Hangi tarifenin devreye girdiği log'dan okunabilmeli.
+    /// </param>
+    /// <param name="amount">
+    /// Kontrol edilen tutar. Komisyon DAHİL — limitin koruduğu şey cüzdandan çıkan
+    /// toplam (decisions.md madde 22).
+    /// </param>
+    public void Ensure(Guid accountId, string limitName, Money amount, Money spentToday)
+    {
+        if (PerTransaction is { } perTransaction && amount.Amount > perTransaction)
+        {
+            throw new LimitExceededException(
+                accountId, $"{limitName}.PerTransaction",
+                new Money(perTransaction, amount.Currency), amount);
+        }
+
+        if (Daily is not { } daily) return;
+
+        var projected = spentToday + amount;
+
+        if (projected.Amount > daily)
+        {
+            throw new LimitExceededException(
+                accountId, $"{limitName}.Daily", new Money(daily, amount.Currency), projected);
+        }
+    }
 }
 
 /// <summary>
@@ -54,21 +87,6 @@ public sealed class LimitPolicy
             return;
         }
 
-        if (limit.PerTransaction is { } perTransaction && amount.Amount > perTransaction)
-        {
-            throw new LimitExceededException(
-                accountId, $"{type}.PerTransaction", new Money(perTransaction, amount.Currency), amount);
-        }
-
-        if (limit.Daily is { } daily)
-        {
-            var projected = spentToday + amount;
-
-            if (projected.Amount > daily)
-            {
-                throw new LimitExceededException(
-                    accountId, $"{type}.Daily", new Money(daily, amount.Currency), projected);
-            }
-        }
+        limit.Ensure(accountId, type.ToString(), amount, spentToday);
     }
 }
