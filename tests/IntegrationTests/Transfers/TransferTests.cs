@@ -232,6 +232,7 @@ public sealed class TransferTests(PostgresFixture postgres)
     {
         var ct = TestContext.Current.CancellationToken;
         Guid from, to;
+        decimal revenueBefore;
 
         await using (var db = postgres.CreateContext())
         {
@@ -240,6 +241,11 @@ public sealed class TransferTests(PostgresFixture postgres)
             from = await LedgerSeeder.CreateWalletAsync(db, person, "Müşteri", ct);
             to = await LedgerSeeder.CreateWalletAsync(db, business, "Dükkan", ct);
             await LedgerSeeder.FundAsync(db, from, 500m, ct);
+
+            // revenue tüm koşunun paylaştığı bir sistem hesabı; mutlak değer
+            // varsaymak, komisyon yazan başka bir test eklendiği anda kırılır.
+            revenueBefore = (await db.LedgerBalances
+                .SingleAsync(b => b.LedgerAccountId == SystemAccounts.RevenueTry, ct)).Balance;
         }
 
         var handler = Handler(postgres, paymentRate: new CommissionRate(0.02m));
@@ -262,7 +268,7 @@ public sealed class TransferTests(PostgresFixture postgres)
 
         var revenue = await verify.LedgerBalances
             .SingleAsync(b => b.LedgerAccountId == SystemAccounts.RevenueTry, ct);
-        revenue.Balance.ShouldBe(2m);
+        revenue.Balance.ShouldBe(revenueBefore + 2m);
     }
 
     [Fact]
