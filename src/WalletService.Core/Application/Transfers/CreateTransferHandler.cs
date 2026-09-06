@@ -197,10 +197,3 @@ public sealed class CreateTransferHandler(
         return new Money(-debited, currency);
     }
 }
-
-/// <summary>Cüzdan bulunamadı. İş kuralı reddi değil, geçersiz girdi → <c>404</c>.</summary>
-public sealed class WalletNotFoundException(Guid walletId)
-    : Exception($"Cüzdan bulunamadı: {walletId}")
-{
-    public Guid WalletId { get; } = walletId;
-}
