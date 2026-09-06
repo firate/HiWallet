@@ -16,6 +16,11 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
     <PackageVersion Include="Npgsql.OpenTelemetry" Version="10.0.3" />
+    <!-- Npgsql.EntityFrameworkCore.PostgreSQL zaten çekiyor; burada AÇIKÇA duruyor
+         çünkü Shared.Infrastructure onu EF olmadan, doğrudan kullanıyor (advisory
+         lock). Transitive referansa yaslanmak, ara paket değiştiğinde sessizce
+         kırılırdı. -->
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup Label="Api">
