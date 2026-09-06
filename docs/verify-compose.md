@@ -3,10 +3,9 @@
 Bu dosya `docker compose` kurulumunun gerçekten çalıştığını kanıtlamak için var.
 Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
 
-> **Beş uygulamalı stack ayağa kalktı**, uçtan uca akış henüz koşturulmadı.
-> Aşağıda iki doğrulama kaydı var: eski iki uygulamalı koşu ve beş uygulamalı koşu.
-> İkincisi bir sınır hatası ortaya çıkardı (`REVOKE CONNECT` eksikti); düzeltildi
-> ama düzeltmenin kendisi henüz koşturulmadı.
+> **Beş uygulamalı stack ayağa kalktı ve yapısal kontrolleri geçti**; uçtan uca
+> akışlar (top-up, çekim, telafi) henüz koşturulmadı. Aşağıda iki doğrulama kaydı
+> var: eski iki uygulamalı koşu ve beş uygulamalı koşu.
 
 ## 1. Kodu Docker'ı olan makineye al
 
@@ -280,23 +279,38 @@ homelab'da koşturuldu. Stack ayağa kalktı.
 | `wallet-api`'nin RabbitMQ bağımlılığı yok | ✅ | `health/ready` çıktısında yalnızca `postgres` check'i var |
 | sistem hesapları seed edilir | ✅ | altı satır |
 | `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied for table ledger_entries` |
-| **servis sınırı kapalı** | ❌ | `withdrawal_app` `hiwallet_wallet`'a BAĞLANDI |
+| **servis sınırı kapalı** | ✅ | ilk koşuda DÜŞTÜ, düzeltildi, ikinci koşuda geçti (aşağıda) |
 
-Sınır hatası: PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak
-`PUBLIC`'e veriyor, `postgres-init.sql` yalnızca `CREATE ON SCHEMA public`'i geri
-alıyordu. `GRANT CONNECT ... TO wallet_app` satırı zaten vardı ama karşılığı olan
-`REVOKE` hiç yazılmamıştı — o GRANT bugüne kadar hiçbir şey yapmıyordu.
+**İlk koşuda düşen kontrol.** `withdrawal_app` `hiwallet_wallet`'a bağlanabiliyordu.
+PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e veriyor,
+`postgres-init.sql` yalnızca `CREATE ON SCHEMA public`'i geri alıyordu.
+`GRANT CONNECT ... TO wallet_app` satırı zaten vardı ama karşılığı olan `REVOKE`
+hiç yazılmamıştı — o GRANT o güne kadar hiçbir şey yapmıyordu.
 
 Veri sızmıyordu: tablo yetkileri role İSİMLE veriliyor, `PUBLIC`'e değil. Görünen
 şey şemaydı — sistem kataloglarından tablo, kolon ve constraint adları.
-`REVOKE CONNECT ON DATABASE ... FROM PUBLIC` eklendi; **düzeltme henüz
-koşturulmadı**, `down -v` sonrası yukarıdaki döngüyle doğrulanacak.
+
+`REVOKE CONNECT ON DATABASE ... FROM PUBLIC` eklendikten ve `down -v` ile yeniden
+kurulduktan sonra matris tam köşegen:
+
+```
+BAĞLANDI  wallet_app -> hiwallet_wallet          reddedildi wallet_app -> hiwallet_topup
+BAĞLANDI  topup_app -> hiwallet_topup            reddedildi topup_app -> hiwallet_wallet
+BAĞLANDI  withdrawal_app -> hiwallet_withdrawal  reddedildi withdrawal_app -> hiwallet_wallet
+BAĞLANDI  bank_app -> hiwallet_bank              reddedildi bank_app -> hiwallet_wallet
+```
+
+Dört bağlantı, on iki ret. Uygulamalar `REVOKE` sonrası da `healthy` — veritabanı
+sahiplerinin yetkisi örtük olduğu için migrator'lar, açık `GRANT`'i olduğu için
+`wallet_app` etkilenmedi.
+
+Ders: kontrolü yazmak yetmiyor. Bu satır dokümanda "reddedilmeli" diye üç dal
+boyunca durdu ve kimse koşturmadığı için yanlış varsayımla ilerlendi.
 
 ### Hâlâ doğrulanmadı
 
 | ne | nasıl bakılır |
 | --- | --- |
-| `REVOKE CONNECT` düzeltmesi | yukarıdaki rol×veritabanı döngüsü — tam dört `BAĞLANDI` |
 | `rabbitmq` eklentisi yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
 | `withdrawal-orchestrator` broker'SIZ ayağa kalkıyor mu | broker ayaktayken denendi; `docker compose stop rabbitmq` sonrası `curl localhost:8093/health/ready` — `Degraded` beklenir, `Unhealthy` değil |
 | top-up hattının tamamı | aşağıdaki adım |
