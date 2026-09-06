@@ -3,10 +3,10 @@
 Bu dosya `docker compose` kurulumunun gerçekten çalıştığını kanıtlamak için var.
 Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
 
-> **Şu anki stack DOĞRULANMADI.** Homelab'da koşturulan sürüm iki uygulamalıydı
-> (wallet-service + topup-webhook, RabbitMQ yok). Bugün beş uygulama, bir broker ve
-> dört veritabanı var. Aşağıdaki "Doğrulama kaydı" o eski koşuya ait ve hâlâ
-> geçerli olan kısımları işaretli; yeni parçalar hiç çalıştırılmadı.
+> **Beş uygulamalı stack ayağa kalktı**, uçtan uca akış henüz koşturulmadı.
+> Aşağıda iki doğrulama kaydı var: eski iki uygulamalı koşu ve beş uygulamalı koşu.
+> İkincisi bir sınır hatası ortaya çıkardı (`REVOKE CONNECT` eksikti); düzeltildi
+> ama düzeltmenin kendisi henüz koşturulmadı.
 
 ## 1. Kodu Docker'ı olan makineye al
 
@@ -155,9 +155,28 @@ Servis sınırı gerçekten kapalı mı — orchestrator wallet'ı GÖREMEMELİ:
 docker compose exec postgres psql -U withdrawal_app -d hiwallet_wallet -c "SELECT 1;"
 ```
 
-Beklenen: bağlantı reddedilir (`permission denied for database hiwallet_wallet`).
+Beklenen: bağlantı reddedilir (`FATAL: permission denied for database "hiwallet_wallet"`).
 Bağlanabiliyorsa saga'nın anlamı kalmaz — orchestrator er ya da geç doğrudan yazmaya
 başlar ve compensation gereksizleşir (decisions.md madde 7).
+
+Tek yön yetmiyor; her rol yalnızca kendi veritabanını görmeli:
+
+```bash
+for role in wallet_app topup_app withdrawal_app bank_app; do
+  for db in hiwallet_wallet hiwallet_topup hiwallet_withdrawal hiwallet_bank; do
+    if docker compose exec -T postgres psql -U "$role" -d "$db" -c 'SELECT 1' >/dev/null 2>&1
+      then echo "BAĞLANDI  $role -> $db"
+      else echo "reddedildi $role -> $db"
+    fi
+  done
+done
+```
+
+Beklenen tam olarak dört `BAĞLANDI`: her rol kendi veritabanına. On iki satır
+`reddedildi` olmalı. Fazladan bir `BAĞLANDI` varsa `postgres-init.sql`'deki
+`REVOKE CONNECT ON DATABASE ... FROM PUBLIC` satırlarından biri eksik demektir —
+PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e verir,
+geri alınmazsa sınır yalnızca kâğıt üstünde kalır.
 
 ### Çekim akışını uçtan uca koşturma
 
@@ -245,23 +264,43 @@ ERROR:  permission denied for table ledger_entries
 
 Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:8091`).
 
-### Hâlâ doğrulanmadı
+## Doğrulama kaydı (beş uygulamalı sürüm)
 
-Üç uygulamalı sürümün tamamı bu listede — hiç koşturulmadı.
+`docker compose down -v --remove-orphans && docker compose up --build -d` ile
+homelab'da koşturuldu. Stack ayağa kalktı.
+
+| varsayım | durum | kanıt |
+| --- | --- | --- |
+| init beş rolü ve dört veritabanını kurar | ✅ | `\du`: `wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app` |
+| dört migrator da şemasını uygular | ✅ | dördü de `Done`, `exited (0)` |
+| bundle Core'u kendi startup project'i olarak üretir | ✅ | wallet migrator yedi migration'ı uyguladı |
+| beş uygulama ayağa kalkar | ✅ | `docker compose ps`: beşi de `healthy` |
+| `wallet-consumer` host portu olmadan da sağlıklı | ✅ | `healthy`, yalnızca `8080/tcp` |
+| compose healthcheck'i alpine'de çalışır | ✅ | beş uygulama + iki altyapı `healthy` |
+| `wallet-api`'nin RabbitMQ bağımlılığı yok | ✅ | `health/ready` çıktısında yalnızca `postgres` check'i var |
+| sistem hesapları seed edilir | ✅ | altı satır |
+| `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied for table ledger_entries` |
+| **servis sınırı kapalı** | ❌ | `withdrawal_app` `hiwallet_wallet`'a BAĞLANDI |
+
+Sınır hatası: PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak
+`PUBLIC`'e veriyor, `postgres-init.sql` yalnızca `CREATE ON SCHEMA public`'i geri
+alıyordu. `GRANT CONNECT ... TO wallet_app` satırı zaten vardı ama karşılığı olan
+`REVOKE` hiç yazılmamıştı — o GRANT bugüne kadar hiçbir şey yapmıyordu.
+
+Veri sızmıyordu: tablo yetkileri role İSİMLE veriliyor, `PUBLIC`'e değil. Görünen
+şey şemaydı — sistem kataloglarından tablo, kolon ve constraint adları.
+`REVOKE CONNECT ON DATABASE ... FROM PUBLIC` eklendi; **düzeltme henüz
+koşturulmadı**, `down -v` sonrası yukarıdaki döngüyle doğrulanacak.
+
+### Hâlâ doğrulanmadı
 
 | ne | nasıl bakılır |
 | --- | --- |
-| `rabbitmq` ayağa kalkıyor ve eklenti yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
-| `topup-migrator` inbox şemasını uyguluyor mu | `docker compose ps -a topup-migrator` — `exited (0)` |
-| `wallet-consumer` ayağa kalkıyor mu (host'a portu yok) | `docker compose ps wallet-consumer` — `healthy` |
-| `withdrawal-migrator` ve `bank-migrator` şemaları uyguluyor mu | `docker compose ps -a` — ikisi de `exited (0)` |
-| `withdrawal-orchestrator` broker'sız ayağa kalkıyor mu | `curl localhost:8093/health/ready` — `Degraded` beklenir, `Unhealthy` değil |
-| `bank-service` ayağa kalkıyor mu | `curl localhost:8094/health/ready` |
-| servis sınırı kapalı mı | `psql -U withdrawal_app -d hiwallet_wallet` — reddedilmeli |
-| çekim akışının tamamı | aşağıdaki adım |
-| `wallet-api` broker'sız da sağlıklı mı | `curl localhost:8091/health/ready` — çıktıda `rabbitmq` OLMAMALI |
-| compose healthcheck'i (alpine'de `wget` var mı) | `docker compose ps` — servisler `healthy` mi |
+| `REVOKE CONNECT` düzeltmesi | yukarıdaki rol×veritabanı döngüsü — tam dört `BAĞLANDI` |
+| `rabbitmq` eklentisi yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
+| `withdrawal-orchestrator` broker'SIZ ayağa kalkıyor mu | broker ayaktayken denendi; `docker compose stop rabbitmq` sonrası `curl localhost:8093/health/ready` — `Degraded` beklenir, `Unhealthy` değil |
 | top-up hattının tamamı | aşağıdaki adım |
+| çekim akışının tamamı ve telafi | yukarıdaki adım |
 | konteynerlenmiş uygulamadan uçtan uca transfer | hesap/cüzdan endpoint'i yok; cüzdanları DB'den kurmak gerekiyor |
 
 ### Top-up hattını doğrulama
