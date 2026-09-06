@@ -4,8 +4,8 @@ Bu dosya `docker compose` kurulumunun gerçekten çalıştığını kanıtlamak 
 Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
 
 > **Şu anki stack DOĞRULANMADI.** Homelab'da koşturulan sürüm iki uygulamalıydı
-> (wallet-service + topup-webhook, RabbitMQ yok). Bugün üç uygulama, bir broker ve
-> ikinci bir veritabanı var. Aşağıdaki "Doğrulama kaydı" o eski koşuya ait ve hâlâ
+> (wallet-service + topup-webhook, RabbitMQ yok). Bugün beş uygulama, bir broker ve
+> dört veritabanı var. Aşağıdaki "Doğrulama kaydı" o eski koşuya ait ve hâlâ
 > geçerli olan kısımları işaretli; yeni parçalar hiç çalıştırılmadı.
 
 ## 1. Kodu Docker'ı olan makineye al
@@ -36,6 +36,25 @@ RabbitMq__Password=...
 STRIPE_FAKE_WEBHOOK_SECRET=...  # uzun ve rastgele
 BANK_FAKE_WEBHOOK_SECRET=...
 ```
+
+**Elinde eski bir `.env` varsa** `cp` YAPMA — üstüne yazar. Stack her büyüdüğünde
+bu listeye yeni satır ekleniyor ve compose ilk eksik değişkende durup yalnızca
+onun adını söylüyor; sırayla düzeltmek uzun sürer. Hepsini birden gör:
+
+```bash
+for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
+         TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
+         RabbitMq__Username RabbitMq__Password \
+         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET; do
+  grep -qE "^${v}=" .env || echo "eksik: $v"
+done
+```
+
+Yalnızca eksik olanın ADINI yazdırır, hiçbir değeri ekrana basmaz.
+
+Eksik değişken `docker compose down`'ı da durdurur: compose dosyayı hangi komut
+için olursa olsun önce yorumluyor. Yani `down -v && up` zincirinde hata alırsan
+volume DÜŞMEMİŞTİR — `.env`'i düzelttikten sonra komutu baştan çalıştır.
 
 Portların varsayılanı **homelab'a göre** seçildi, dokunmana gerek yok:
 
