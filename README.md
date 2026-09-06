@@ -71,7 +71,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-202 test: 92 unit (DB'siz), 110 integration — gerçek Postgres ve gerçek RabbitMQ.
+204 test: 92 unit (DB'siz), 112 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
