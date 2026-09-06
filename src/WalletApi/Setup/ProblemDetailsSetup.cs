@@ -1,4 +1,3 @@
-using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletService.Domain.Errors;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -58,6 +57,7 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
         {
             InsufficientFundsException => "insufficient_funds",
             LimitExceededException limit => limit.LimitName,
+            UnsupportedCurrencyException => "unsupported_currency",
             _ => "business_rule"
         };
 
@@ -72,13 +72,16 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
     }
 }
 
-/// <summary>Cüzdan yok → <c>404</c>.</summary>
+/// <summary>
+/// Cüzdan ya da hesap yok → <c>404</c>. Tip listesi yerine ortak taban yakalanıyor:
+/// yeni bir "bulunamadı" türü eklendiğinde listeye eklemeyi unutmak <c>500</c> üretirdi.
+/// </summary>
 internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext context, Exception exception, CancellationToken ct)
     {
-        if (exception is not WalletNotFoundException notFound)
+        if (exception is not NotFoundException notFound)
         {
             return false;
         }
@@ -91,9 +94,17 @@ internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDet
             ProblemDetails = new ProblemDetails
             {
                 Status = StatusCodes.Status404NotFound,
-                Title = "Cüzdan bulunamadı",
+                Title = notFound switch
+                {
+                    AccountNotFoundException => "Hesap bulunamadı",
+                    _ => "Cüzdan bulunamadı"
+                },
                 Detail = notFound.Message,
-                Type = "https://hiwallet.dev/problems/wallet-not-found"
+                Type = notFound switch
+                {
+                    AccountNotFoundException => "https://hiwallet.dev/problems/account-not-found",
+                    _ => "https://hiwallet.dev/problems/wallet-not-found"
+                }
             },
             Exception = exception
         });
