@@ -33,7 +33,12 @@ public sealed class RabbitMqConnection : IAsyncDisposable
             // Kapalıysa her publish/consume noktasına elle yeniden bağlanma kodu
             // yazmak gerekirdi.
             AutomaticRecoveryEnabled = true,
-            TopologyRecoveryEnabled = true
+            TopologyRecoveryEnabled = true,
+            // Varsayılan 30 sn. Broker kapalıyken her deneme yarım dakika asılı
+            // kalıyor; sağlık kontrolü beklemeyi 2 sn'de bıraksa bile deneme arka
+            // planda _gate'i o kadar süre tutuyordu. Kısa tutmanın bedeli yok:
+            // bağlantı kurulamadığında yeniden denenecek zaten.
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(5)
         };
     }
 

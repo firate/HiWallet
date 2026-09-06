@@ -71,7 +71,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-202 test: 92 unit (DB'siz), 110 integration — gerçek Postgres ve gerçek RabbitMQ.
+204 test: 92 unit (DB'siz), 112 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -281,6 +281,8 @@ dotnet test
 | [docs/decisions.md](docs/decisions.md) | kararlar, gerekçeler, **elenen alternatifler** |
 | [docs/ledger-schema.md](docs/ledger-schema.md) | şemanın okunabilir karşılığı |
 | [docs/structure.md](docs/structure.md) | yeni dosya nereye konur |
+| [docs/api-examples.md](docs/api-examples.md) | her uç için istek ve beklenen yanıt |
+| [docs/verify-compose.md](docs/verify-compose.md) | compose'u ayağa kaldırma ve doğrulama |
 | [Claude.md](Claude.md) | pazarlıksız kurallar |
 
 Şemanın tek kaynağı EF migration'ları; `ledger-schema.md` onları açıklar, üretmez.
