@@ -59,11 +59,10 @@ Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj
 src/
 ├── WalletService.Core/     -- kütüphane, host değil
 ├── WalletApi/              -- host
-├── TopupConsumer/          -- host
+├── WalletConsumer/         -- host
 ├── TopupWebhook/           -- host
 ├── WithdrawalOrchestrator/
 ├── BankService.Fake/
-├── ProviderFake/
 └── Shared/
     ├── Shared.Contracts/
     └── Shared.Infrastructure/
@@ -72,8 +71,8 @@ src/
 Her **host** kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
 
 **Servis ≠ deployable.** Wallet sınırının iki host'u var — `WalletApi` (public HTTP)
-ve `TopupConsumer` (ingress'siz worker) — ve ikisi de `WalletService.Core`'u
-kullanıyor. Ayrılma sebebi erişim seviyesi (`decisions.md` madde 28); ortak kütüphane
+ve `WalletConsumer` (ingress'siz worker; hem top-up event'lerini hem çekim
+komutlarını dinliyor) — ve ikisi de `WalletService.Core`'u kullanıyor. Ayrılma sebebi erişim seviyesi (`decisions.md` madde 28); ortak kütüphane
 sebebi ise ledger'a yazan kodun tek kopya olması zorunluluğu (madde 25).
 
 `WalletService.Core`'un `RootNamespace`'i `HiWallet.WalletService` olarak elle
@@ -94,18 +93,21 @@ WalletService.Core/
 ├── WalletService.Core.csproj
 ├── Dockerfile                 -- yalnızca migration bundle
 ├── Application/
+│   ├── Accounts/              -- hesap ve cüzdan açma, hesap detayı
 │   ├── Transfers/             -- TransferCommand + TransferHandler yan yana
-│   ├── Balances/
+│   ├── Balances/              -- cüzdan sorgulama (bakiye projeksiyondan okunur)
 │   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
+│   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
 │   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
 │   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
 │   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- LedgerBalance
-│   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy
+│   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy, WithdrawalPolicy
 │   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,
-│                                 UnbalancedLedgerTransaction
+│                                 UnbalancedLedgerTransaction, UnsupportedCurrency;
+│                                 NotFoundException + Wallet/AccountNotFound
 ├── Infrastructure/
 │   ├── Persistence/
 │   │   ├── WalletDbContext.cs
@@ -142,17 +144,21 @@ WalletApi/
 
 RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
 
-### TopupConsumer (ingress'siz host)
+### WalletConsumer (ingress'siz host)
 
 ```
-TopupConsumer/
-├── TopupConsumer.csproj
-├── Program.cs                 -- controller yok, Swagger yok, rate limiter yok
+WalletConsumer/
+├── WalletConsumer.csproj
+├── Program.cs                  -- controller yok, Swagger yok, rate limiter yok
 ├── Dockerfile
-├── TopupConsumerService.cs    -- BackgroundService: kuyrukları dinler
+├── Topups/                     -- TopupConsumerService: top-up kuyruklarını dinler
+├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
 ├── WalletConsumerSetup.cs      -- DI + sağlık kontrolleri
 └── WalletConsumerApp.cs        -- test giriş noktası işaretçisi
 ```
+
+İki kuyruk tek process'te: ikisi de ingress'siz ve ikisi de aynı ledger'a yazıyor,
+yani ayırmanın erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
 
 `Sdk.Web` kullanıyor ama tek HTTP yüzeyi sağlık ucu. Probe olmasaydı "process ayakta
 ama tüketici tıkanmış" durumu görünmezdi.

@@ -177,16 +177,32 @@ Beklenen tam olarak dört `BAĞLANDI`: her rol kendi veritabanına. On iki satı
 PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e verir,
 geri alınmazsa sınır yalnızca kâğıt üstünde kalır.
 
+### Hesap ve cüzdan kurma
+
+Aşağıdaki iki akış da bir cüzdan istiyor. `jq` ile kimlikleri kabuk değişkenine al:
+
+```bash
+ACCOUNT=$(curl -s -X POST localhost:8091/v1/accounts \
+  -H 'Content-Type: application/json' -d '{"type":"Person"}' | jq -r .accountId)
+
+WALLET=$(curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets \
+  -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}' | jq -r .walletId)
+
+echo "$ACCOUNT / $WALLET"
+```
+
+Cüzdan sıfır bakiyeyle açılır; para aşağıdaki top-up akışıyla girer. Doğrudan
+bakiyeye yazan bir uç YOK — olsaydı zero-sum invariant'ı delerdi.
+
 ### Çekim akışını uçtan uca koşturma
 
-Cüzdan kurmak için hesap/cüzdan endpoint'i yok; cüzdanı DB'den açmak gerekiyor
-(top-up hattı bölümündeki gibi). Cüzdan hazırsa:
+Cüzdanda para olduktan sonra:
 
 ```bash
 curl -i -X POST localhost:8093/v1/withdrawals \
   -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
-  -d '{"accountId":"<ACCOUNT>","walletId":"<WALLET>","amount":100,"currency":"TRY",
-       "destinationIban":"TR330006100519786457841326"}'
+  -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",
+       \"destinationIban\":\"TR330006100519786457841326\"}"
 ```
 
 Beklenen: `202 Accepted` ve gövdede `withdrawalId`. Birkaç saniye sonra:
@@ -315,17 +331,24 @@ boyunca durdu ve kimse koşturmadığı için yanlış varsayımla ilerlendi.
 | `withdrawal-orchestrator` broker'SIZ ayağa kalkıyor mu | broker ayaktayken denendi; `docker compose stop rabbitmq` sonrası `curl localhost:8093/health/ready` — `Degraded` beklenir, `Unhealthy` değil |
 | top-up hattının tamamı | aşağıdaki adım |
 | çekim akışının tamamı ve telafi | yukarıdaki adım |
-| konteynerlenmiş uygulamadan uçtan uca transfer | hesap/cüzdan endpoint'i yok; cüzdanları DB'den kurmak gerekiyor |
+| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki "Hesap ve cüzdan kurma" ile iki cüzdan aç, birine top-up yap, transfer et |
 
 ### Top-up hattını doğrulama
 
-Cüzdan kurulduktan sonra (transfer doğrulamasındaki `psql` komutu), webhook'u imzalayıp
-gönder:
+Cüzdan kurulduktan sonra ("Hesap ve cüzdan kurma"), webhook'u imzalayıp gönder.
+Secret `.env`'den geliyor: `set -a; . ./.env; set +a`.
 
 ```bash
-BODY='{"eventId":"evt_manuel_1","walletId":"<CUZDAN_ID>","amount":100.00,"currency":"TRY","reference":"pi_1","occurredAt":"2026-03-01T10:00:00+00:00"}'
+BODY="{\"eventId\":\"evt_manuel_1\",\"walletId\":\"$WALLET\",\"amount\":100.00,\"currency\":\"TRY\",\"reference\":\"pi_1\",\"occurredAt\":\"2026-03-01T10:00:00+00:00\"}"
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
 curl -s -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
+```
+
+Paranın gerçekten geldiğini `psql` yerine uçtan görebilirsin — hat asenkron,
+birkaç saniye sürebilir:
+
+```bash
+curl -s localhost:8091/v1/wallets/$WALLET
 ```
 
 Beklenen: `202 Accepted` + `{"accepted":true,"duplicate":false}`.

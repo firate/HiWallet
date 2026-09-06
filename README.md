@@ -55,6 +55,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 
 | | durum |
 | --- | --- |
+| Hesap ve cüzdan uçları (`/v1/accounts`, `/v1/wallets`) | ✅ |
 | Transfer çekirdeği (5 tip), limit ve komisyon | ✅ |
 | Double-entry ledger, zero-sum invariant | ✅ DB trigger + testler |
 | Optimistic lock, retry, idempotency | ✅ |
@@ -70,7 +71,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
-193 test: 92 unit (DB'siz), 101 integration — gerçek Postgres ve gerçek RabbitMQ.
+202 test: 92 unit (DB'siz), 110 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -128,6 +129,25 @@ append-only kuralı tamamen süs olurdu.
 | `wallet_owner` | izin var | izin var | izin var |
 
 ## Senaryolar
+
+**Hesap ve cüzdan açma.** Diğer her şeyin başlangıcı; aşağıdaki `walletId`'ler buradan gelir.
+
+```bash
+ACCOUNT=$(curl -s -X POST http://localhost:8091/v1/accounts \
+  -H 'Content-Type: application/json' -d '{"type":"Person"}' | jq -r .accountId)
+
+WALLET=$(curl -s -X POST http://localhost:8091/v1/accounts/$ACCOUNT/wallets \
+  -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}' | jq -r .walletId)
+
+curl -s http://localhost:8091/v1/wallets/$WALLET
+```
+
+Cüzdan sıfır bakiyeyle açılır ve **para yalnızca ledger üzerinden girer** — top-up ya da
+transfer. Bakiyeye doğrudan yazan bir uç yok, olsaydı zero-sum invariant'ı delerdi.
+
+Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir (`decisions.md` madde 20);
+`GET /v1/accounts/{id}` hepsini bakiyeleriyle listeler. Günlük limit bu yüzden cüzdan
+değil **hesap** bazında uygulanır.
 
 **Komisyonlu ödeme.** Komisyon ayrı bir transfer değil, aynı atomik işlemin ek bacağı:
 
