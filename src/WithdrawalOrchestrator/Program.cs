@@ -1,9 +1,11 @@
 using FluentValidation;
 using HiWallet.Shared.Infrastructure.HealthChecks;
+using HiWallet.Shared.Infrastructure.Jobs;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.WithdrawalOrchestrator.Api.Validators;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 using HiWallet.WithdrawalOrchestrator.Setup;
 
@@ -34,6 +36,15 @@ builder.Services.AddValidatorsFromAssemblyContaining<CreateWithdrawalRequestVali
 // tabloya ikinci bir yazar eklenirdi, karşılığında hiçbir şey kazanılmadan.
 builder.Services.AddHostedService<WithdrawalOutboxRelay>();
 builder.Services.AddHostedService<WithdrawalEventConsumer>();
+
+// Takılmış saga taraması. Ayrı veritabanı kararının (decisions.md madde 7 ve 33)
+// zorunlu tamamlayıcısı: iki veritabanı arasında ayrışma olduğunda asılı kalmış
+// çekimi yakalayacak başka hiçbir mekanizma yok.
+builder.Services.Configure<StuckSagaScanOptions>(
+    builder.Configuration.GetSection(StuckSagaScanOptions.SectionName));
+builder.Services.AddHiWalletJobLease(PersistenceSetup.ConnectionStringName);
+builder.Services.AddSingleton<StuckSagaScanner>();
+builder.Services.AddHostedService<StuckSagaScan>();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();

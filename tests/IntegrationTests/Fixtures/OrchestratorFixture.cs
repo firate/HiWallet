@@ -69,4 +69,15 @@ public sealed class OrchestratorFixture : IAsyncLifetime
 
         return new OrchestratorDbContext(options);
     }
+
+    /// <summary>
+    /// İstek kapsamı dışında koşan bileşenler (relay, takılmış saga taraması)
+    /// factory bekliyor. <see cref="BankFixture"/> ile aynı kalıp.
+    /// </summary>
+    public IDbContextFactory<OrchestratorDbContext> ContextFactory => new Factory(this);
+
+    private sealed class Factory(OrchestratorFixture fixture) : IDbContextFactory<OrchestratorDbContext>
+    {
+        public OrchestratorDbContext CreateDbContext() => fixture.CreateContext();
+    }
 }

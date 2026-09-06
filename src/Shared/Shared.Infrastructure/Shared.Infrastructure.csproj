@@ -12,6 +12,9 @@
              geliyor; ayrı paket sürümü yönetmeye gerek kalmıyor. -->
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <PackageReference Include="RabbitMQ.Client"/>
+        <!-- Yalnızca advisory lock için (Jobs/JobLease). EF Core BURAYA GİRMİYOR:
+             job'ın kendi işi kendi DbContext'iyle, kendi bağlantısında koşuyor. -->
+        <PackageReference Include="Npgsql"/>
 
         <PackageReference Include="OpenTelemetry.Extensions.Hosting"/>
         <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol"/>
@@ -23,6 +26,13 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Shared.Contracts\Shared.Contracts.csproj"/>
+    </ItemGroup>
+
+    <!-- Kilit anahtarının süreçten sürece aynı üretildiği doğrulanabilsin diye
+         (JobLease.KeyFor). Anahtar public yüzey DEĞİL: dışarıdan çağrılacak bir
+         şey değil, yalnızca sınanacak bir şey. -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
     </ItemGroup>
 
 </Project>
