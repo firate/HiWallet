@@ -345,9 +345,10 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
 4. ✅ Withdrawal saga + bank-service + compensation. Zincir gerçek bir broker'a
-   karşı uçtan uca doğrulandı; compose'dan koşturulması henüz denenmedi.
-   Alt adımlar aşağıda.
-5. ⬜ Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
+   karşı uçtan uca doğrulandı; compose'dan ayağa kalkıyor, telafi yolu compose
+   üzerinden henüz koşturulmadı. Alt adımlar aşağıda.
+5. ⬜ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
+   taraması. Alt adımlar aşağıda.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
 
@@ -375,6 +376,43 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 trigger susuyor, zero-sum korunuyor, ama müşteri gerçekleşmemiş bir işlemin
 komisyonunu ödemiş oluyor. Sessiz ve para kaybettiren kusur; testi bu bacağı ayrıca
 doğrulamalı (`overview.md` madde 6).
+
+### Adım 5'in alt adımları
+
+Mutabakat, `overview.md` madde 7'de "clearing bakiyesi ile sağlayıcının settlement
+kayıtları karşılaştırılır" diye tarif ediliyor — ama settlement akışı hiç yazılmadı.
+`LedgerTransactionType.Settlement` enum'da duruyor, onu yazan kod yok. Yani
+karşılaştıracak ikinci taraf yok; mutabakat job'ı bugün yazılsa yalnızca kendi
+verisine bakardı ve "tutuyor" demekten başka bir şey söyleyemezdi.
+
+**Karar: önce settlement akışı, sonra mutabakat.** Sıra bu yüzden ikiye ayrılıyor —
+settlement'a bağlı olmayan job'lar önce, çünkü onlar bugün değer üretiyor ve job
+altyapısını da yerine oturtuyorlar.
+
+| # | ne | durum |
+| --- | --- | --- |
+| 5.1 | Job altyapısı: `PeriodicTimer`, `pg_try_advisory_lock` tekilliği, graceful shutdown (madde 3) | ⬜ |
+| 5.2 | Takılmış saga taraması — madde 33'ün zorunlu tamamlayıcısı | ⬜ |
+| 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | ⬜ |
+| 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | ⬜ |
+| 5.5 | Settlement alımı ve ledger kaydı: clearing kapanır, `nostro` hareket eder | ⬜ |
+| 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ⬜ |
+| 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ⬜ |
+
+**5.2 opsiyonel değil.** Ayrı orchestrator veritabanı kararının (madde 7 ve 33)
+faturası iki veritabanı arasında ayrışma ihtimali; karşılığı bu tarama. Yazılmazsa
+`bank_transfer_pending`'de asılı kalmış bir çekimi hiçbir şey yakalamaz — hata log'u
+yok, saga "bekliyor" görünüyor, müşteri parasını göremiyor.
+
+**Wallet tarafındaki job'lar `wallet-consumer`'da.** Ayrı bir `wallet-jobs`
+deployable'ı AÇILMIYOR: madde 28'in ölçütü erişim seviyesi ve job'ların da ingress'i
+yok, aynı ledger'a aynı kütüphaneyle yazıyorlar. "Aynı maruziyet bölünmez" kuralı iki
+yöne de işliyor. Consumer ölçeklendiğinde job'ın iki kez koşmasını engelleyen şey
+deployable ayrımı değil, advisory lock (5.1).
+
+**5.5'in giriş noktası `topup-webhook`.** Settlement de sağlayıcıdan gelen, imzalı,
+IP kısıtlı bir bildirim — top-up webhook'uyla aynı maruziyet. Yeni bir public uç
+açmak ya da wallet-api'ye sağlayıcı yüzeyi eklemek madde 28'i deler.
 
 ---
 
