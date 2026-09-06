@@ -10,6 +10,8 @@ set -euo pipefail
 : "${WALLET_OWNER_PASSWORD:?WALLET_OWNER_PASSWORD tanımlı değil}"
 : "${WALLET_APP_PASSWORD:?WALLET_APP_PASSWORD tanımlı değil}"
 : "${TOPUP_APP_PASSWORD:?TOPUP_APP_PASSWORD tanımlı değil}"
+: "${WITHDRAWAL_APP_PASSWORD:?WITHDRAWAL_APP_PASSWORD tanımlı değil}"
+: "${BANK_APP_PASSWORD:?BANK_APP_PASSWORD tanımlı değil}"
 
 psql -v ON_ERROR_STOP=1 \
      --username "$POSTGRES_USER" \
@@ -17,4 +19,6 @@ psql -v ON_ERROR_STOP=1 \
      -v wallet_owner_password="$WALLET_OWNER_PASSWORD" \
      -v wallet_app_password="$WALLET_APP_PASSWORD" \
      -v topup_app_password="$TOPUP_APP_PASSWORD" \
+     -v withdrawal_app_password="$WITHDRAWAL_APP_PASSWORD" \
+     -v bank_app_password="$BANK_APP_PASSWORD" \
      -f /opt/hiwallet/postgres-init.sql

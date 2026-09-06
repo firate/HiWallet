@@ -4,8 +4,10 @@
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve
 -- uygulamaların ihtiyaç duyduğu roller ve veritabanları var.
 --
--- İki servis, iki veritabanı: wallet-service ve topup-webhook birbirinin
--- tablosunu göremiyor (CLAUDE.md "Servis sınırı").
+-- Dört veritabanı, dört sınır: wallet-service, topup-webhook,
+-- withdrawal-orchestrator ve bank-service birbirinin tablosunu göremiyor
+-- (CLAUDE.md "Servis sınırı"). Saga'nın anlamı buna bağlı: orchestrator wallet
+-- tablolarına yazabilseydi compensation gereksizleşirdi (decisions.md madde 7).
 
 -- ---------------------------------------------------------------------------
 -- wallet-service
@@ -29,6 +31,24 @@ CREATE ROLE topup_app LOGIN PASSWORD :'topup_app_password';
 
 CREATE DATABASE hiwallet_topup OWNER topup_app ENCODING 'UTF8';
 
+-- ---------------------------------------------------------------------------
+-- withdrawal-orchestrator
+-- ---------------------------------------------------------------------------
+-- TEK rol. Burada da append-only zorlanacak tablo yok: saga satırı her geçişte
+-- güncelleniyor, outbox satırı yayınlandıkça.
+CREATE ROLE withdrawal_app LOGIN PASSWORD :'withdrawal_app_password';
+
+CREATE DATABASE hiwallet_withdrawal OWNER withdrawal_app ENCODING 'UTF8';
+
+-- ---------------------------------------------------------------------------
+-- bank-service (fake)
+-- ---------------------------------------------------------------------------
+-- Sahte servis ama sınırı gerçek: kendi veritabanı var ve wallet'ı göremiyor.
+-- Gerçek bir banka da göremezdi.
+CREATE ROLE bank_app LOGIN PASSWORD :'bank_app_password';
+
+CREATE DATABASE hiwallet_bank OWNER bank_app ENCODING 'UTF8';
+
 -- Hiçbir rol postgres veritabanında tablo yaratamasın.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
@@ -47,3 +67,14 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 -- gerekmiyor. wallet rollerine buraya erişim VERİLMİYOR.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT CREATE ON SCHEMA public TO topup_app;
+
+\connect hiwallet_withdrawal
+
+-- topup ile aynı kurulum: tek rol, hem migration hem uygulama.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT CREATE ON SCHEMA public TO withdrawal_app;
+
+\connect hiwallet_bank
+
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT CREATE ON SCHEMA public TO bank_app;

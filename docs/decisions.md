@@ -344,7 +344,9 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
    bağımlılığı yok.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
-4. 🔄 Withdrawal saga + bank-service + compensation. Alt adımlar aşağıda.
+4. ✅ Withdrawal saga + bank-service + compensation. Zincir gerçek bir broker'a
+   karşı uçtan uca doğrulandı; compose'dan koşturulması henüz denenmedi.
+   Alt adımlar aşağıda.
 5. ⬜ Scheduled job'lar: mutabakat, business özeti, stuck saga taraması.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
@@ -366,7 +368,7 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
 | 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle dört sonuç üretir | ✅ |
 | 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ✅ |
-| 4.11 | Compose servisleri, `.env.example`, dokümanlar | ⬜ |
+| 4.11 | Compose servisleri, `.env.example`, dokümanlar | ✅ |
 
 **4.8 en riskli adım.** Ters kayıt üç bacaklı olmak zorunda (cüzdan, clearing,
 `revenue`) ve `revenue` bacağını atlamak iki bacakla da DENGELİ bir kayıt üretiyor —
