@@ -69,9 +69,10 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
 | Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
 | Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
-| Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
+| Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
+| Settlement akışı, mutabakat, business özeti | ⬜ adım 5 |
 
-204 test: 92 unit (DB'siz), 112 integration — gerçek Postgres ve gerçek RabbitMQ.
+215 test: 92 unit (DB'siz), 123 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
