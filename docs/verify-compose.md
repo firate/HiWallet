@@ -92,6 +92,38 @@ Dört veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
 `hiwallet_withdrawal`, `hiwallet_bank`. Postgres healthcheck'i sonuncusuna soruyor;
 o cevap verdiğinde init'in tamamı bitmiş demektir.
 
+### init ne zaman koşar
+
+Rolleri ve veritabanlarını yaratan `docker/postgres-init.sh` yalnızca **veri dizini
+boşken** çalışır — postgres imajı `initdb` gerektiğinde `/docker-entrypoint-initdb.d`
+altındakileri koşuyor, gerektirmediğinde hiç bakmıyor. Veri dizini `postgres-data`
+adlı volume.
+
+| | init koşar mı |
+|---|---|
+| ilk `up` (volume yokken) | ✅ |
+| `down -v` sonrası | ✅ |
+| `down` (`-v` olmadan) sonrası | ❌ |
+| `up --build` | ❌ imajları yeniler, volume'a dokunmaz |
+| `restart`, container'ı silip yeniden yaratmak | ❌ |
+| `postgres-init.sql` düzenlendikten sonra | ❌ |
+
+En sinsi hali parola değişikliği: `.env`'de bir parolayı değiştirmek mevcut rolün
+parolasını DEĞİŞTİRMEZ. Uygulama authentication hatası alır, sen de doğru parolayı
+yazdığına emin olursun. Ya `down -v` ya elle `ALTER ROLE`.
+
+Yarım kalma tuzağı: init ortasında bir komut patlarsa (`ON_ERROR_STOP=1`) container
+ölür ama `initdb` çoktan koşmuştur — veri dizini artık boş değil. Sonraki `up` init'i
+ATLAR ve elinde ilk roller olan, sonrakiler olmayan bir cluster kalır. Hatalar alakasız
+görünür ("role withdrawal_app does not exist"). Tekrar denemek düzeltmez, `down -v`
+düzeltir. Beş rolün de kurulduğunu doğrula:
+
+```bash
+docker compose exec postgres psql -U postgres -c '\du'
+```
+
+`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app`.
+
 ## 4. Doğrula
 
 ```bash
