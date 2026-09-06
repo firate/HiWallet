@@ -67,7 +67,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
 | Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
-| Beş uygulamanın compose'dan ayağa kalkması | ✅ yazıldı, homelab'da koşturulmadı |
+| Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
 | Scheduled job'lar (mutabakat, özet, stuck saga) | ⬜ adım 5 |
 
 193 test: 92 unit (DB'siz), 101 integration — gerçek Postgres ve gerçek RabbitMQ.
@@ -104,11 +104,12 @@ Host portlarının varsayılanı homelab'a göre seçildi (`8091`–`8094`, `543
 orada `8080` Keycloak'ta, `8090` dolu, `5432` ana Postgres'te ve `5672` mevcut
 broker'da. Başka bir makinede `.env`'den değiştirilebilir.
 
-> **Bu compose sürümü henüz koşturulmadı.** İki uygulamalı bir önceki sürüm
-> homelab'da doğrulanmıştı (migration'lar uygulandı, `wallet_app` konteyner içinde de
-> `ledger_entries`'i güncelleyemedi). O koşuda RabbitMQ, `wallet-consumer`,
-> `withdrawal-orchestrator`, `bank-service` ve üç veritabanı yoktu. Adımlar,
-> beklenen çıktılar ve açık uçlar:
+> **Stack homelab'da ayağa kalktı**, uçtan uca akışlar henüz koşturulmadı. Beş
+> uygulama da `healthy`, dört migrator şemalarını uyguladı, sistem hesapları seed
+> edildi ve `wallet_app` konteyner içinde de `ledger_entries`'i güncelleyemedi.
+> O koşu bir sınır hatası ortaya çıkardı — `REVOKE CONNECT ON DATABASE` eksikti,
+> her rol her veritabanına bağlanabiliyordu; düzeltildi, düzeltme henüz
+> koşturulmadı. Adımlar, beklenen çıktılar ve açık uçlar:
 > **[docs/verify-compose.md](docs/verify-compose.md)**
 
 ### İki veritabanı rolü

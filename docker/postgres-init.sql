@@ -52,6 +52,22 @@ CREATE DATABASE hiwallet_bank OWNER bank_app ENCODING 'UTF8';
 -- Hiçbir rol postgres veritabanında tablo yaratamasın.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
+-- ---------------------------------------------------------------------------
+-- Veritabanı sınırı
+-- ---------------------------------------------------------------------------
+-- PostgreSQL her yeni veritabanına CONNECT'i PUBLIC'e verir. Geri alınmazsa
+-- withdrawal_app hiwallet_wallet'a bağlanabilir: tabloları okuyamaz (tablo
+-- yetkileri role İSİMLE veriliyor) ama sistem kataloglarından bütün şemayı
+-- görebilir. Servis sınırının Postgres tarafındaki karşılığı bu REVOKE.
+--
+-- Veritabanı SAHİBİ etkilenmiyor, yetkisi örtük: her migrator kendi
+-- veritabanının sahibi olarak bağlanıyor. Sahibi olmayan tek bağlantı
+-- wallet_app, onun GRANT'i aşağıda.
+REVOKE CONNECT ON DATABASE hiwallet_wallet FROM PUBLIC;
+REVOKE CONNECT ON DATABASE hiwallet_topup FROM PUBLIC;
+REVOKE CONNECT ON DATABASE hiwallet_withdrawal FROM PUBLIC;
+REVOKE CONNECT ON DATABASE hiwallet_bank FROM PUBLIC;
+
 \connect hiwallet_wallet
 
 GRANT CONNECT ON DATABASE hiwallet_wallet TO wallet_app;
