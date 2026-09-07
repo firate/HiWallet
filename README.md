@@ -112,13 +112,12 @@ Host portlarının varsayılanı homelab'a göre seçildi (`8091`–`8094`, `543
 orada `8080` Keycloak'ta, `8090` dolu, `5432` ana Postgres'te ve `5672` mevcut
 broker'da. Başka bir makinede `.env`'den değiştirilebilir.
 
-> **Stack homelab'da ayağa kalktı ve yapısal kontrolleri geçti**; uçtan uca
-> akışlar (top-up, çekim, telafi) henüz koşturulmadı. Beş uygulama da `healthy`,
-> dört migrator şemalarını uyguladı, sistem hesapları seed edildi, `wallet_app`
-> konteyner içinde de `ledger_entries`'i güncelleyemedi ve her rol yalnızca kendi
-> veritabanına bağlanabiliyor. O koşu bir sınır hatası da ortaya çıkardı
-> (`REVOKE CONNECT ON DATABASE` eksikti); düzeltildi ve doğrulandı.
-> Adımlar, beklenen çıktılar ve açık uçlar:
+> **Stack homelab'da koşuyor ve uçtan uca akışları geçiyor.** Top-up, çekimin
+> mutlu yolu ve telafi yolu compose üzerinde doğrulandı: banka reddettiğinde
+> bakiye `500` → `500` dönüyor ve ters kaydın `revenue` bacağı yerinde. Yapısal
+> tarafta beş uygulama `healthy`, dört migrator şemaları uyguluyor, `wallet_app`
+> konteyner içinde de `ledger_entries`'i güncelleyemiyor ve her rol yalnızca kendi
+> veritabanına bağlanabiliyor. Adımlar, ölçülen çıktılar ve açık uçlar:
 > **[docs/verify-compose.md](docs/verify-compose.md)**
 
 ### İki veritabanı rolü

@@ -3,9 +3,9 @@
 Bu dosya `docker compose` kurulumunun gerçekten çalıştığını kanıtlamak için var.
 Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
 
-> **Beş uygulamalı stack ayağa kalktı ve yapısal kontrolleri geçti**; uçtan uca
-> akışlar (top-up, çekim, telafi) henüz koşturulmadı. Aşağıda iki doğrulama kaydı
-> var: eski iki uygulamalı koşu ve beş uygulamalı koşu.
+> **Beş uygulamalı stack ayağa kalkıyor, yapısal kontrolleri ve uçtan uca akışları
+> geçiyor.** Top-up, çekimin mutlu yolu ve telafi yolu compose üzerinde
+> doğrulandı. Açık kalanlar aşağıdaki "Hâlâ doğrulanmadı" listesinde.
 
 ## 1. Kodu Docker'ı olan makineye al
 
@@ -323,15 +323,60 @@ sahiplerinin yetkisi örtük olduğu için migrator'lar, açık `GRANT`'i olduğ
 Ders: kontrolü yazmak yetmiyor. Bu satır dokümanda "reddedilmeli" diye üç dal
 boyunca durdu ve kimse koşturmadığı için yanlış varsayımla ilerlendi.
 
+### Akışların doğrulama kaydı
+
+Beş uygulamalı stack üzerinde, gerçek broker ve gerçek Postgres ile koşturuldu.
+
+| varsayım | durum | kanıt |
+| --- | --- | --- |
+| `rabbitmq` eklentisi yükleniyor | ✅ | `rabbit_exchange_type_consistent_hash_registry` boot adımı |
+| `withdrawal-orchestrator` broker'SIZ ayakta kalıyor | ✅ | `stop rabbitmq` sonrası `Degraded`, `Unhealthy` değil |
+| top-up hattının tamamı | ✅ | webhook `202` → relay → broker → tüketici → bakiye `500` |
+| çekim mutlu yolu | ✅ | saga `settling` üzerinden `completed`, cüzdan `398` |
+| çekim settlement'ı ledger'a düşüyor | ✅ | `clearing -100`, `nostro +100`; `Invoiced` modelde gider bacağı YOK |
+| **telafi yolu** | ✅ | saga `failed`, bakiye `500` → `500`, altı satır |
+| ters kaydın `revenue` bacağı | ✅ | `refund / revenue / -2.0000` |
+| beş migration otomatik uygulanıyor | ✅ | dört migrator, `down -v` gerekmedi |
+
+Telafi ölçümü:
+
+```
+    type    |    hesap    |  amount
+------------+-------------+-----------
+ withdrawal | user_wallet | -102.0000
+ withdrawal | revenue     |    2.0000
+ withdrawal | clearing    |  100.0000
+ refund     | clearing    | -100.0000
+ refund     | revenue     |   -2.0000
+ refund     | user_wallet |  102.0000
+```
+
+`refund / revenue / -2.0000` bu tablonun en kritik satırı. O bacak yazılmasaydı kayıt
+YİNE dengeli olurdu, trigger susardı ve testler geçerdi — ama müşteri gerçekleşmemiş
+bir işlemin komisyonunu ödemiş kalırdı. Ters kayıt bu yüzden politikadan yeniden
+üretilmiyor, orijinalin bacakları okunup negatifleniyor.
+
+Mutlu yol ölçümü — `withdrawal` üçlüsü artı `settlement` ikilisi:
+
+```
+ withdrawal | user_wallet |           | -102.0000
+ withdrawal | revenue     |           |    2.0000
+ withdrawal | clearing    | bank-fake |  100.0000
+ settlement | clearing    | bank-fake | -100.0000
+ settlement | nostro      | bank-fake |  100.0000
+```
+
+`provider_expense` bacağı YOK, olmamalı: banka `Invoiced` modelde ve ücreti dönem
+sonu faturasıyla alıyor (`decisions.md` madde 10). Ücret `provider_fees`'te
+`actual_amount = NULL` ile faturayı bekliyor.
+
 ### Hâlâ doğrulanmadı
 
 | ne | nasıl bakılır |
 | --- | --- |
-| `rabbitmq` eklentisi yükleniyor mu | `docker compose logs rabbitmq \| grep consistent_hash` |
-| `withdrawal-orchestrator` broker'SIZ ayağa kalkıyor mu | broker ayaktayken denendi; `docker compose stop rabbitmq` sonrası `curl localhost:8093/health/ready` — `Degraded` beklenir, `Unhealthy` değil |
-| top-up hattının tamamı | aşağıdaki adım |
-| çekim akışının tamamı ve telafi | yukarıdaki adım |
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki "Hesap ve cüzdan kurma" ile iki cüzdan aç, birine top-up yap, transfer et |
+| settlement ve fatura uçları (5.5–5.6) | webhook'lar yazıldı ve testlerde yeşil; compose'dan hiç çağrılmadı |
+| scheduled job'lar (5.1–5.3, 5.7) | ilk turları dakikalar/saatler sonra koşuyor; log'dan izlenir |
 
 ### Top-up hattını doğrulama
 
