@@ -17,11 +17,11 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Şekil — tek direct exchange, alıcı başına bir kuyruk, routing key = mesaj tipi:
 /// <code>
 ///   hiwallet.withdrawals  (direct)
-///        ├── .wallet        ← DebitForWithdrawal, RefundWithdrawal
+///        ├── .wallet        ← DebitForWithdrawal, RefundWithdrawal, SettleWithdrawal
 ///        ├── .bank          ← StartBankTransfer
 ///        └── .orchestrator  ← WithdrawalDebited, WithdrawalDebitRejected,
 ///                             BankTransferSucceeded, BankTransferFailed,
-///                             WithdrawalRefunded
+///                             WithdrawalRefunded, WithdrawalSettled
 ///
 ///   hiwallet.withdrawals.dlx (fanout) ── .dead
 /// </code>
@@ -55,7 +55,8 @@ public sealed class WithdrawalTopology(IOptions<RabbitMqOptions> options)
     private static readonly string[] WalletKeys =
     [
         nameof(DebitForWithdrawal),
-        nameof(RefundWithdrawal)
+        nameof(RefundWithdrawal),
+        nameof(SettleWithdrawal)
     ];
 
     private static readonly string[] BankKeys =
@@ -69,7 +70,8 @@ public sealed class WithdrawalTopology(IOptions<RabbitMqOptions> options)
         nameof(WithdrawalDebitRejected),
         nameof(BankTransferSucceeded),
         nameof(BankTransferFailed),
-        nameof(WithdrawalRefunded)
+        nameof(WithdrawalRefunded),
+        nameof(WithdrawalSettled)
     ];
 
     public async Task DeclareAsync(IChannel channel, CancellationToken ct)

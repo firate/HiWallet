@@ -121,7 +121,8 @@ public sealed class StuckSagaScannerTests(OrchestratorFixture fixture)
 
         if (terminal is WithdrawalState.Completed)
         {
-            saga.BankTransferSucceeded(at);
+            saga.BankTransferSucceeded("BNK-1", 1.50m, at);
+            saga.Settled(Guid.NewGuid(), at);
             return;
         }
 

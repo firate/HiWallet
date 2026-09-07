@@ -22,6 +22,13 @@ public enum WithdrawalState
     /// <summary>Banka transferi tamamlandı — terminal.</summary>
     Completed = 5,
 
+    /// <summary>
+    /// Para bankadan çıktı, muhasebesi kapanıyor: clearing boşaltılıp nostro'ya
+    /// yazılacak. Müşteri açısından iş bitti; bu durum İÇ muhasebenin kapanmasını
+    /// bekliyor ve saniyeler sürüyor.
+    /// </summary>
+    Settling = 8,
+
     /// <summary>Banka kalıcı olarak başarısız; ters kayıt yazılıyor.</summary>
     Compensating = 6,
 
@@ -63,6 +70,7 @@ public static class WithdrawalStates
             WithdrawalState.Debited => "debited",
             WithdrawalState.BankTransferPending => "bank_transfer_pending",
             WithdrawalState.Completed => "completed",
+            WithdrawalState.Settling => "settling",
             WithdrawalState.Compensating => "compensating",
             WithdrawalState.Failed => "failed",
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Eşlemesi yazılmamış saga durumu.")
@@ -78,6 +86,7 @@ public static class WithdrawalStates
             "debited" => WithdrawalState.Debited,
             "bank_transfer_pending" => WithdrawalState.BankTransferPending,
             "completed" => WithdrawalState.Completed,
+            "settling" => WithdrawalState.Settling,
             "compensating" => WithdrawalState.Compensating,
             "failed" => WithdrawalState.Failed,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen saga durumu.")

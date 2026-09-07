@@ -29,6 +29,7 @@ public static class WalletConsumerSetup
 
         services.AddScoped<DebitForWithdrawalHandler>();
         services.AddScoped<RefundWithdrawalHandler>();
+        services.AddScoped<SettleWithdrawalHandler>();
         services.AddHostedService<WithdrawalCommandConsumer>();
 
         // Zamanlanmış işler burada, ayrı bir wallet-jobs deployable'ında DEĞİL:

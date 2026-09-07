@@ -22,4 +22,13 @@ public sealed class BankOptions
     /// hata üretilecek. Saga başına sayılıyor.
     /// </summary>
     public int DefaultTransientFailures { get; init; } = 1;
+
+    /// <summary>
+    /// Bankanın transfer başına kestiği ücret. Gerçek entegrasyonda bankanın
+    /// tarifesinden gelir; burada sabit.
+    ///
+    /// Sıfır olabilir ama varsayılanı sıfır DEĞİL: ücretsiz bir banka, wallet
+    /// tarafındaki gider bacağını hiç sınamayan bir kurulum demek olurdu.
+    /// </summary>
+    public decimal TransferFee { get; init; } = 1.50m;
 }
