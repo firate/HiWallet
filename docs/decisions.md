@@ -397,7 +397,7 @@ altyapısını da yerine oturtuyorlar.
 | 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | ✅ |
 | 5.5 | Settlement alımı ve ledger kaydı (top-up): clearing kapanır, `nostro` hareket eder | ✅ |
 | 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | ⬜ |
-| 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ⬜ |
+| 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ✅ |
 | 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ⬜ |
 
 **5.2 opsiyonel değil.** Ayrı orchestrator veritabanı kararının (madde 7 ve 33)

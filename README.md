@@ -73,9 +73,10 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Business günlük özeti | ✅ |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
 | Settlement: clearing kapanır, `nostro` hareket eder | ✅ top-up tarafı |
-| Settlement akışı ve mutabakat | ⬜ adım 5 |
+| Fatura işleme, uyuşmazlıkta `PendingReview` | ✅ |
+| Mutabakat raporu | ⬜ adım 5.7 |
 
-233 test: 92 unit (DB'siz), 141 integration — gerçek Postgres ve gerçek RabbitMQ.
+239 test: 92 unit (DB'siz), 147 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →

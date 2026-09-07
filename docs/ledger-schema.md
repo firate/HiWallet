@@ -338,7 +338,10 @@ CREATE INDEX ix_provider_fees_tx ON provider_fees (transaction_id);
 - `net` modelde: `actual_amount` settlement anında dolar, `invoice_ref` hiç dolmaz.
 - `invoiced` modelde: fatura gelene kadar `actual_amount` NULL, `invoice_ref` boş.
 - `expected_amount` bir tahmindir, ledger'a asla yazılmaz.
-- Fatura özeti ayrı tablo gerektirmez; `invoice_ref` ile grupla.
+- Fatura özeti ayrı tablo gerektirmez; `invoice_ref` ile grupla. **İstisna:**
+  uyuşmazlıkta bekleyen faturanın hiç satırı yok (ledger'a yazılmadı, ücretler
+  işaretlenmedi), o yüzden `provider_invoices` tablosu faturanın kendisini tutuyor —
+  `status`, iddia edilen tutar, beklenen tutar ve gerekçe (`decisions.md` madde 11).
 
 `settlement_model` sağlayıcı konfigürasyonundan gelir:
 
