@@ -1,4 +1,5 @@
 using HiWallet.WalletConsumer;
+using HiWallet.WalletService.Domain.Policies;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -35,7 +36,18 @@ public sealed class WalletConsumerFactory(PostgresFixture postgres)
                     System.Globalization.CultureInfo.InvariantCulture),
                 ["Withdrawals:Commission:Minimum"] = "0",
                 ["Withdrawals:Limit:PerTransaction"] = "20000",
-                ["Withdrawals:Limit:Daily"] = "50000"
+                ["Withdrawals:Limit:Daily"] = "50000",
+
+                // Sağlayıcı tarifeleri, aynı gerekçeyle burada: appsettings.json
+                // değiştiğinde testin beklediği ücret sessizce kaymasın.
+                // Değerler TestProviders ile aynı — provider_fees satırını
+                // doğrulayan testler ikisini birden kullanıyor.
+                ["Providers:stripe-fake:FeeSettlement"] = nameof(FeeSettlement.Net),
+                ["Providers:stripe-fake:Fee:Rate"] = Invariant(TestProviders.StripeRate),
+                ["Providers:stripe-fake:Fee:Fixed"] = Invariant(TestProviders.StripeFixed),
+                ["Providers:bank-fake:FeeSettlement"] = nameof(FeeSettlement.Invoiced),
+                ["Providers:bank-fake:Fee:Rate"] = "0",
+                ["Providers:bank-fake:Fee:Fixed"] = Invariant(TestProviders.BankFixed)
             };
 
             BrokerSettings.ApplyFallbacks(overrides);
@@ -43,4 +55,7 @@ public sealed class WalletConsumerFactory(PostgresFixture postgres)
             config.AddInMemoryCollection(overrides);
         });
     }
+
+    private static string Invariant(decimal value) =>
+        value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }

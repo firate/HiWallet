@@ -22,6 +22,7 @@ public sealed class ProcessTopupTests(PostgresFixture postgres)
 
     private ProcessTopupHandler Handler() => new(
         postgres.ContextFactory,
+        TestProviders.Policy,
         new SystemClock(),
         NullLogger<ProcessTopupHandler>.Instance);
 
