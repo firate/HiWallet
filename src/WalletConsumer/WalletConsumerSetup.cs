@@ -23,6 +23,13 @@ public static class WalletConsumerSetup
         services.AddScoped<RefundWithdrawalHandler>();
         services.AddHostedService<WithdrawalCommandConsumer>();
 
+        // Zamanlanmış işler burada, ayrı bir wallet-jobs deployable'ında DEĞİL:
+        // ölçüt erişim seviyesi (decisions.md madde 28) ve job'ların da ingress'i
+        // yok, aynı ledger'a aynı kütüphaneyle yazıyorlar. Bu uygulama
+        // ölçeklendiğinde job'ın iki kez koşmasını engelleyen şey deployable
+        // ayrımı değil, advisory lock (madde 3).
+        services.AddWalletJobs(configuration);
+
         services.AddHealthChecks()
             // Bu uygulamanın TEK işi kuyruktan okuyup ledger'a yazmak; ikisinden
             // biri yoksa iş yapamıyor. wallet-api'de broker Degraded'dı çünkü

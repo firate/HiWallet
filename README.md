@@ -70,9 +70,10 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
 | Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
 | Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
-| Settlement akışı, mutabakat, business özeti | ⬜ adım 5 |
+| Business günlük özeti | ✅ |
+| Settlement akışı ve mutabakat | ⬜ adım 5 |
 
-215 test: 92 unit (DB'siz), 123 integration — gerçek Postgres ve gerçek RabbitMQ.
+220 test: 92 unit (DB'siz), 128 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →

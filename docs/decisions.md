@@ -393,7 +393,7 @@ altyapısını da yerine oturtuyorlar.
 | --- | --- | --- |
 | 5.1 | Job altyapısı: `PeriodicTimer`, `pg_try_advisory_lock` tekilliği, graceful shutdown (madde 3) | ✅ |
 | 5.2 | Takılmış saga taraması — madde 33'ün zorunlu tamamlayıcısı | ✅ |
-| 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | ⬜ |
+| 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | ✅ |
 | 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | ⬜ |
 | 5.5 | Settlement alımı ve ledger kaydı: clearing kapanır, `nostro` hareket eder | ⬜ |
 | 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ⬜ |
