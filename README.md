@@ -74,9 +74,10 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
 | Settlement: clearing kapanır, `nostro` hareket eder | ✅ top-up tarafı |
 | Fatura işleme, uyuşmazlıkta `PendingReview` | ✅ |
-| Mutabakat raporu | ⬜ adım 5.7 |
+| Mutabakat raporu (projeksiyon, yaşlanma, fatura) | ✅ |
+| Çekim settlement'ı (banka ücreti saga üzerinden) | ⬜ adım 5.5b |
 
-239 test: 92 unit (DB'siz), 147 integration — gerçek Postgres ve gerçek RabbitMQ.
+246 test: 92 unit (DB'siz), 154 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
