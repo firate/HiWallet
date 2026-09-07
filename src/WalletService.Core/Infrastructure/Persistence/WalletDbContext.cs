@@ -27,6 +27,12 @@ public sealed class WalletDbContext : DbContext
     /// <summary>Saga komutlarının idempotency defteri (decisions.md madde 32).</summary>
     internal DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
+    /// <summary>
+    /// İşletme günlük özeti (overview.md madde 7). Ledger DEĞİL — türetilmiş rapor,
+    /// her zaman yeniden hesaplanabilir.
+    /// </summary>
+    internal DbSet<BusinessDailySummary> BusinessDailySummaries => Set<BusinessDailySummary>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(WalletDbContext).Assembly);
