@@ -40,6 +40,13 @@ public sealed class WalletDbContext : DbContext
     /// </summary>
     internal DbSet<ProviderFee> ProviderFees => Set<ProviderFee>();
 
+    /// <summary>
+    /// Dönem sonu faturaları (decisions.md madde 11). Uygulanmış faturanın satırları
+    /// provider_fees'te; bu tablo faturanın KENDİSİNİ tutuyor — PendingReview'da
+    /// bekleyenin hiç satırı olmadığı için gruplanacak bir şey de yok.
+    /// </summary>
+    internal DbSet<ProviderInvoice> ProviderInvoices => Set<ProviderInvoice>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(WalletDbContext).Assembly);

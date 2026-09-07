@@ -21,7 +21,8 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Şekil — tek direct exchange, tek kuyruk:
 /// <code>
 ///   hiwallet.settlements  (direct)
-///        └── .wallet        ← SettlementReceived
+///        ├── .wallet        ← SettlementReceived
+///        └── .invoices      ← ProviderInvoiceReceived
 ///
 ///   hiwallet.settlements.dlx (fanout) ── .dead
 /// </code>
@@ -35,6 +36,9 @@ public sealed class SettlementTopology(IOptions<RabbitMqOptions> options)
     /// </summary>
     public const string RoutingKey = nameof(Contracts.Settlements.SettlementReceived);
 
+    /// <summary>Dönem sonu faturası (adım 5.6). Aynı exchange, ayrı kuyruk.</summary>
+    public const string InvoiceRoutingKey = nameof(Contracts.Settlements.ProviderInvoiceReceived);
+
     private readonly RabbitMqOptions _options = options.Value;
 
     public string Exchange => $"{_options.NamePrefix}hiwallet.settlements";
@@ -44,6 +48,13 @@ public sealed class SettlementTopology(IOptions<RabbitMqOptions> options)
     public string DeadLetterQueue => $"{Exchange}.dead";
 
     public string WalletQueue => $"{Exchange}.wallet";
+
+    /// <summary>
+    /// Fatura kuyruğu AYRI. Aynı kuyruğa bağlanabilirdi ama takılmış bir fatura
+    /// (incelemeye düşmüş, tekrar tekrar teslim edilen) settlement akışını da
+    /// durdururdu — ikisi bağımsız ve biri para girişini kapatıyor.
+    /// </summary>
+    public string InvoiceQueue => $"{Exchange}.invoices";
 
     public async Task DeclareAsync(IChannel channel, CancellationToken ct)
     {
@@ -72,5 +83,16 @@ public sealed class SettlementTopology(IOptions<RabbitMqOptions> options)
             cancellationToken: ct);
 
         await channel.QueueBindAsync(WalletQueue, Exchange, RoutingKey, cancellationToken: ct);
+
+        await channel.QueueDeclareAsync(
+            InvoiceQueue, durable: true, exclusive: false, autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = DeadLetterExchange
+            },
+            cancellationToken: ct);
+
+        await channel.QueueBindAsync(
+            InvoiceQueue, Exchange, InvoiceRoutingKey, cancellationToken: ct);
     }
 }
