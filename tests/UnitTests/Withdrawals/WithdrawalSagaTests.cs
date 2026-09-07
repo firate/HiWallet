@@ -48,7 +48,17 @@ public sealed class WithdrawalSagaTests
         saga.BankTransferStarted(Guid.NewGuid(), Now).ShouldBe(TransitionResult.Applied);
         saga.State.ShouldBe(WithdrawalState.BankTransferPending);
 
-        saga.BankTransferSucceeded(Now).ShouldBe(TransitionResult.Applied);
+        // Banka başarılı dedi ama saga daha BİTMİYOR: clearing hâlâ dolu ve
+        // muhasebenin kapanması gerekiyor (adım 5.5b). Burada bitirseydi settlement
+        // kaydını yazacak bir şey kalmaz, terminal saga'yı takılmış saga taraması da
+        // görmez ve clearing sessizce açık kalırdı.
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Applied);
+        saga.State.ShouldBe(WithdrawalState.Settling);
+        saga.IsTerminal.ShouldBeFalse();
+        saga.BankFee.ShouldBe(1.50m);
+        saga.BankReference.ShouldBe("BNK-1");
+
+        saga.Settled(Guid.NewGuid(), Now).ShouldBe(TransitionResult.Applied);
         saga.State.ShouldBe(WithdrawalState.Completed);
         saga.IsTerminal.ShouldBeTrue();
     }
@@ -119,9 +129,10 @@ public sealed class WithdrawalSagaTests
         var saga = NewSaga();
         saga.Debited(Guid.NewGuid(), 102m, Now);
         saga.BankTransferStarted(Guid.NewGuid(), Now);
-        saga.BankTransferSucceeded(Now);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now);
+        saga.Settled(Guid.NewGuid(), Now);
 
-        saga.BankTransferSucceeded(Now).ShouldBe(TransitionResult.Ignored);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Ignored);
         saga.State.ShouldBe(WithdrawalState.Completed);
     }
 
@@ -140,7 +151,7 @@ public sealed class WithdrawalSagaTests
         // Banka "olmadı" dedi, biz iade ediyoruz, sonra "oldu" diyor. Para hem
         // bankadan çıkmış hem müşteriye geri verilmiş olabilir — bu bir mutabakat
         // vakası. "Yok say" demek zararı görünmez kılardı.
-        saga.BankTransferSucceeded(Now).ShouldBe(TransitionResult.Conflict);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Conflict);
 
         // Durum DEĞİŞMİYOR: telafi yarıda bırakılmaz, insan bakana kadar devam eder.
         saga.State.ShouldBe(WithdrawalState.Compensating);
@@ -155,7 +166,7 @@ public sealed class WithdrawalSagaTests
         saga.BankTransferFailed("timeout", Now);
         saga.Refunded(Guid.NewGuid(), Now);
 
-        saga.BankTransferSucceeded(Now).ShouldBe(TransitionResult.Conflict);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Conflict);
         saga.State.ShouldBe(WithdrawalState.Failed);
     }
 
@@ -165,7 +176,8 @@ public sealed class WithdrawalSagaTests
         var saga = NewSaga();
         saga.Debited(Guid.NewGuid(), 102m, Now);
         saga.BankTransferStarted(Guid.NewGuid(), Now);
-        saga.BankTransferSucceeded(Now);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now);
+        saga.Settled(Guid.NewGuid(), Now);
 
         saga.BankTransferFailed("geç gelen hata", Now).ShouldBe(TransitionResult.Conflict);
         saga.State.ShouldBe(WithdrawalState.Completed);
@@ -178,7 +190,7 @@ public sealed class WithdrawalSagaTests
 
         // Cüzdandan para düşmeden banka transferi başarılı olamaz. Olduysa ya
         // event yanlış saga'ya geldi ya da sıralama bozuldu.
-        saga.BankTransferSucceeded(Now).ShouldBe(TransitionResult.Conflict);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Conflict);
         saga.State.ShouldBe(WithdrawalState.Initiated);
     }
 
@@ -190,7 +202,7 @@ public sealed class WithdrawalSagaTests
 
         // Reddedilen istekte bankaya hiç komut gitmedi; bir cevap gelmesi mümkün değil.
         saga.Debited(Guid.NewGuid(), 102m, Now).ShouldBe(TransitionResult.Conflict);
-        saga.BankTransferSucceeded(Now).ShouldBe(TransitionResult.Conflict);
+        saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Conflict);
         saga.State.ShouldBe(WithdrawalState.Rejected);
     }
 

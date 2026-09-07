@@ -96,9 +96,31 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
             saga.TotalDebited.ShouldBe(252.75m);
         }
 
-        // 4. Banka başardı.
+        // 4. Banka başardı — ama saga daha BİTMİYOR: muhasebesi kapanmalı (5.5b).
         await PublishEventAsync(
-            new BankTransferSucceeded { SagaId = withdrawalId, BankReference = "BNK-1" }, ct);
+            new BankTransferSucceeded { SagaId = withdrawalId, BankReference = "BNK-1", FeeAmount = 1.50m }, ct);
+
+        await WaitForStateAsync(withdrawalId, WithdrawalState.Settling, ct);
+
+        // 5. Orchestrator settlement komutunu üretti. Ücret TAŞINIYOR (yalnızca banka
+        // biliyor), tutar taşınmıyor (clearing'e ne yazıldığını wallet biliyor).
+        var settle = await ReadCommandAsync<SettleWithdrawal>(Topology.WalletQueue, ct);
+
+        settle.SagaId.ShouldBe(withdrawalId);
+        settle.FeeAmount.ShouldBe(1.50m);
+        settle.BankReference.ShouldBe("BNK-1");
+
+        await using (var db = fixture.CreateContext())
+        {
+            var saga = await db.Sagas.SingleAsync(s => s.Id == withdrawalId, ct);
+
+            saga.BankFee.ShouldBe(1.50m);
+            saga.BankReference.ShouldBe("BNK-1");
+        }
+
+        // 6. Wallet muhasebeyi kapattı.
+        await PublishEventAsync(
+            new WithdrawalSettled { SagaId = withdrawalId, LedgerTransactionId = Guid.NewGuid() }, ct);
 
         await WaitForStateAsync(withdrawalId, WithdrawalState.Completed, ct);
     }
@@ -219,7 +241,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
         var withdrawalId = await StartWithdrawalAsync(ct);
 
         await PublishEventAsync(
-            new BankTransferSucceeded { SagaId = withdrawalId, BankReference = "BNK-X" }, ct);
+            new BankTransferSucceeded { SagaId = withdrawalId, BankReference = "BNK-X", FeeAmount = 1.50m }, ct);
 
         await WaitForAsync(async () => await CountDeadLetteredAsync(ct) > 0,
             "çelişkili mesaj dead-letter kuyruğuna düşmedi");
