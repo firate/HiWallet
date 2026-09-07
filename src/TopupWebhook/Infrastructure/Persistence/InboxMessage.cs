@@ -19,10 +19,26 @@ public sealed class InboxMessage
     public required string EventId { get; init; }
 
     /// <summary>
-    /// Partition anahtarı. Payload'ın içinde de var ama kolon olarak duruyor:
-    /// relay her satır için JSON parse etmek zorunda kalmasın (overview.md madde 8).
+    /// Mesajın hangi akışa ait olduğu: <c>topup</c> ya da <c>settlement</c>. Relay
+    /// hangi exchange'e yayınlayacağını buradan biliyor.
+    ///
+    /// İkinci bir inbox tablosu ve ikinci bir relay AÇILMADI: relay'in işi (ele
+    /// geçir, yayınla, işaretle) iki akışta birebir aynı ve kopyalansaydı publisher
+    /// confirms, SKIP LOCKED ve yayınla-sonra-işaretle sırası iki yerde ayrı ayrı
+    /// doğru tutulmak zorunda kalırdı (decisions.md madde 25).
     /// </summary>
-    public required Guid LedgerAccountId { get; init; }
+    public required InboxKind Kind { get; init; }
+
+    /// <summary>
+    /// Yayınlanırken kullanılacak routing key. Payload'ın içinden de çıkarılabilirdi
+    /// ama kolon olarak duruyor: relay her satır için JSON parse etmek zorunda
+    /// kalmasın (overview.md madde 8).
+    ///
+    /// Top-up'ta cüzdan kimliği — partition anahtarı, aynı cüzdanın mesajları aynı
+    /// kuyruğa düşsün diye. Settlement'ta sabit mesaj tipi: hiçbir cüzdana
+    /// dokunmuyor, partition'ın koruduğu şey orada yok.
+    /// </summary>
+    public required string RoutingKey { get; init; }
 
     /// <summary>
     /// Yayınlanacak <c>TopupReceived</c>'in JSON hali. Ham gövde değil, NORMALİZE

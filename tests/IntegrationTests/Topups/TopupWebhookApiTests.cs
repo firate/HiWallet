@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.TopupWebhook.Application;
+using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.IntegrationTests.Topups;
@@ -53,7 +54,11 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         var row = await db.Inbox.SingleAsync(m => m.EventId == eventId, ct);
 
         row.Provider.ShouldBe(TopupWebhookApiFactory.StripeProvider);
-        row.LedgerAccountId.ShouldBe(walletId);
+        row.Kind.ShouldBe(InboxKind.Topup);
+
+        // Routing key cüzdan kimliği: consistent hash exchange bunu hash'leyip
+        // partition seçiyor, aynı cüzdanın mesajları aynı kuyruğa düşüyor.
+        row.RoutingKey.ShouldBe(walletId.ToString());
 
         // Yayınlanmamış olarak duruyor: 202 dönmek broker'a ulaşmakla ilgili değil,
         // kalıcı olmakla ilgili. Taşımak relay'in işi.

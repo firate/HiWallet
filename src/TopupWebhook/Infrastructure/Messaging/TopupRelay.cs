@@ -23,7 +23,8 @@ namespace HiWallet.TopupWebhook.Infrastructure.Messaging;
 internal sealed class TopupRelay(
     IDbContextFactory<InboxDbContext> contextFactory,
     RabbitMqConnection connection,
-    TopupTopology topology,
+    TopupTopology topupTopology,
+    SettlementTopology settlementTopology,
     TimeProvider timeProvider,
     ILogger<TopupRelay> logger) : BackgroundService
 {
@@ -118,21 +119,33 @@ internal sealed class TopupRelay(
 
     private async Task PublishAsync(IChannel channel, InboxMessage message, CancellationToken ct)
     {
+        // Exchange ve mesaj tipi satırın kendi alanlarından geliyor. Relay iki akışı
+        // da taşıyor ama içeriği hakkında hiçbir şey bilmiyor — payload'ı parse
+        // etmiyor, yalnızca baytları ve routing key'i geçiriyor.
+        var (exchange, type) = message.Kind switch
+        {
+            InboxKind.Topup => (topupTopology.Exchange, nameof(Shared.Contracts.Topups.TopupReceived)),
+            InboxKind.Settlement => (settlementTopology.Exchange, SettlementTopology.RoutingKey),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(message), message.Kind, "Eşlemesi yazılmamış inbox tipi.")
+        };
+
         var properties = new BasicProperties
         {
             // Broker yeniden başlarsa mesaj hayatta kalsın.
             Persistent = true,
             ContentType = "application/json",
             MessageId = $"{message.Provider}:{message.EventId}",
-            Type = nameof(Shared.Contracts.Topups.TopupReceived),
+            Type = type,
             Timestamp = new AmqpTimestamp(message.ReceivedAt.ToUnixTimeSeconds())
         };
 
-        // Routing key = cüzdan id. Consistent hash exchange bunu hash'leyip
-        // partition seçiyor; aynı cüzdan hep aynı kuyruğa (overview.md madde 8).
+        // Top-up'ta routing key cüzdan id: consistent hash exchange bunu hash'leyip
+        // partition seçiyor, aynı cüzdan hep aynı kuyruğa (overview.md madde 8).
+        // Settlement'ta sabit mesaj tipi, direct exchange üzerinden tek kuyruğa.
         await channel.BasicPublishAsync(
-            exchange: topology.Exchange,
-            routingKey: message.LedgerAccountId.ToString(),
+            exchange: exchange,
+            routingKey: message.RoutingKey,
             mandatory: true,
             basicProperties: properties,
             body: Encoding.UTF8.GetBytes(message.Payload),
@@ -169,7 +182,11 @@ internal sealed class TopupRelay(
             return Task.CompletedTask;
         };
 
-        await topology.DeclareAsync(_channel, ct);
+        // İki topoloji de burada kuruluyor: relay ikisine de yayınlıyor ve declare
+        // idempotent. Yalnızca biri kurulsaydı, ilk settlement mesajı NOT_FOUND ile
+        // düşerdi — ve bu ancak ilk settlement geldiğinde ortaya çıkardı.
+        await topupTopology.DeclareAsync(_channel, ct);
+        await settlementTopology.DeclareAsync(_channel, ct);
 
         return _channel;
     }

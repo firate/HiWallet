@@ -1,7 +1,9 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WalletConsumer.Settlements;
 using HiWallet.WalletConsumer.Topups;
 using HiWallet.WalletConsumer.Withdrawals;
+using HiWallet.WalletService.Application.Settlements;
 using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Application.Withdrawals;
 using HiWallet.WalletService.Setup;
@@ -18,6 +20,11 @@ public static class WalletConsumerSetup
         // hosted service'ler — biri tıkanınca diğeri akmaya devam ediyor.
         services.AddScoped<ProcessTopupHandler>();
         services.AddHostedService<TopupConsumerService>();
+
+        // Settlement: sağlayıcının batch ödemesi. Cevap yayınlamıyor, karşı taraf
+        // yok — tek yönlü bildirim.
+        services.AddScoped<ProcessSettlementHandler>();
+        services.AddHostedService<SettlementConsumer>();
 
         services.AddScoped<DebitForWithdrawalHandler>();
         services.AddScoped<RefundWithdrawalHandler>();

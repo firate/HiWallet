@@ -395,7 +395,8 @@ altyapısını da yerine oturtuyorlar.
 | 5.2 | Takılmış saga taraması — madde 33'ün zorunlu tamamlayıcısı | ✅ |
 | 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | ✅ |
 | 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | ✅ |
-| 5.5 | Settlement alımı ve ledger kaydı: clearing kapanır, `nostro` hareket eder | ⬜ |
+| 5.5 | Settlement alımı ve ledger kaydı (top-up): clearing kapanır, `nostro` hareket eder | ✅ |
+| 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | ⬜ |
 | 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ⬜ |
 | 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ⬜ |
 
@@ -409,6 +410,12 @@ deployable'ı AÇILMIYOR: madde 28'in ölçütü erişim seviyesi ve job'ların 
 yok, aynı ledger'a aynı kütüphaneyle yazıyorlar. "Aynı maruziyet bölünmez" kuralı iki
 yöne de işliyor. Consumer ölçeklendiğinde job'ın iki kez koşmasını engelleyen şey
 deployable ayrımı değil, advisory lock (5.1).
+
+**5.5 top-up settlement'ı; çekim tarafı 5.5b.** İkisi aynı adım değil: top-up'ta
+ücreti bildiren taraf sağlayıcı ve bilgi doğrudan webhook'la geliyor. Çekimde
+bildiren taraf banka ve bilgi saga üzerinden dönmek zorunda — yeni bir event,
+saga'da yeni bir alan ve wallet'a yeni bir komut demek. Aynı dalda yapmak, çalışan
+bir akışı yazılmamış bir akışın riskine bağlardı.
 
 **5.5'in giriş noktası `topup-webhook`.** Settlement de sağlayıcıdan gelen, imzalı,
 IP kısıtlı bir bildirim — top-up webhook'uyla aynı maruziyet. Yeni bir public uç

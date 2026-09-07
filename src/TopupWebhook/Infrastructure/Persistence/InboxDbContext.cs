@@ -27,6 +27,9 @@ internal sealed class InboxMessageConfiguration : IEntityTypeConfiguration<Inbox
 {
     public void Configure(EntityTypeBuilder<InboxMessage> builder)
     {
+        // Tablo adı topup_inbox KALIYOR, artık settlement de taşısa bile: yeniden
+        // adlandırmak çalışan bir tabloyu bir isim uğruna migration'a sokmak olurdu.
+        // "Sağlayıcıdan gelen imzalı bildirimlerin defteri" hep buydu.
         builder.ToTable("topup_inbox");
 
         builder.HasKey(m => m.Id).HasName("pk_topup_inbox");
@@ -34,7 +37,13 @@ internal sealed class InboxMessageConfiguration : IEntityTypeConfiguration<Inbox
         builder.Property(m => m.Id).HasColumnName("id");
         builder.Property(m => m.Provider).HasColumnName("provider").HasColumnType("text");
         builder.Property(m => m.EventId).HasColumnName("event_id").HasColumnType("text");
-        builder.Property(m => m.LedgerAccountId).HasColumnName("ledger_account_id");
+
+        builder.Property(m => m.Kind)
+            .HasColumnName("kind")
+            .HasColumnType("text")
+            .HasConversion(k => k.ToText(), text => InboxKinds.FromText(text));
+
+        builder.Property(m => m.RoutingKey).HasColumnName("routing_key").HasColumnType("text");
 
         // jsonb: sorgulanabilir olsun diye. Teşhis sırasında "şu cüzdana gelen
         // yükleme neydi" sorusu payload üzerinden cevaplanıyor.
@@ -54,6 +63,9 @@ internal sealed class InboxMessageConfiguration : IEntityTypeConfiguration<Inbox
 
         // Relay'in sıcak sorgusu: yayınlanmamışlar, geliş sırasına göre. Partial
         // index — yayınlanmış satırlar (zamanla tablonun tamamı) index'e girmiyor.
+        //
+        // kind index'e GİRMİYOR: relay iki akışı tek turda, tek batch'te alıyor.
+        // Ayrı ayrı sorgulasaydı iki tur, iki kilit ve iki commit olurdu; kazanç yok.
         builder.HasIndex(m => m.ReceivedAt)
             .HasDatabaseName("ix_topup_inbox_unpublished")
             .HasFilter("published_at IS NULL");
