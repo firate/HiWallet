@@ -1,4 +1,5 @@
 using System.Text;
+using HiWallet.Shared.Infrastructure.Jobs;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -16,18 +17,29 @@ namespace HiWallet.TopupWebhook.Infrastructure.Messaging;
 /// (önce işaretle, sonra publish) hata KAYIP olurdu; kaybetmektense iki kez
 /// göndermek tercih ediliyor.
 ///
-/// <b><c>FOR UPDATE SKIP LOCKED</c>.</b> Çok instance'ta iki relay aynı satırı
-/// almasın diye (decisions.md madde 3). Advisory lock ile tek instance'a indirmek
-/// de mümkündü ama gereksiz: SKIP LOCKED instance'ları paralel çalıştırıyor.
+/// <b>TEK INSTANCE.</b> Tur <c>pg_try_advisory_lock</c> ile korunuyor
+/// (decisions.md madde 30); kilidi alamayan instance o turu atlıyor. Gerekçe
+/// SIRALAMA: iki relay ayrı batch'ler alıp farklı hızda yayınlarsa aynı cüzdanın
+/// iki event'i exchange'e TERS SIRADA varıyor ve kuyruğun içindeki sıra garantisi
+/// bunu düzeltmiyor. Bedeli açık — relay yatay ölçeklenmiyor.
+///
+/// <b><c>FOR UPDATE SKIP LOCKED</c> KALIYOR.</b> Kilitle gereksizleşmiş gibi duruyor
+/// ama ikinci emniyet kemeri: kilit "aynı anda tek relay" diyor, SKIP LOCKED ise
+/// kilit bir şekilde alınamadığında iki relay'in aynı SATIRI almasını engelliyor.
+/// Birincisi sıra için, ikincisi çift yayın için.
 /// </summary>
 internal sealed class TopupRelay(
     IDbContextFactory<InboxDbContext> contextFactory,
+    JobLease lease,
     RabbitMqConnection connection,
     TopupTopology topupTopology,
     SettlementTopology settlementTopology,
     TimeProvider timeProvider,
     ILogger<TopupRelay> logger) : BackgroundService
 {
+    /// <summary>Kilit anahtarının kaynağı; bütün instance'larda AYNI olmak zorunda.</summary>
+    private const string JobName = "topup:relay";
+
     private const int BatchSize = 50;
 
     private static readonly TimeSpan IdleDelay = TimeSpan.FromMilliseconds(500);
@@ -41,11 +53,24 @@ internal sealed class TopupRelay(
         {
             try
             {
-                var published = await PublishBatchAsync(stoppingToken);
+                var published = 0;
 
-                // Dolu batch geldiyse hemen devam: birikmiş kuyruğu boşaltırken
-                // yarım saniye beklemenin anlamı yok.
-                if (published < BatchSize)
+                // Kilit TUR BAŞINA alınıyor, ömür boyu tutulmuyor. Ömür boyu tutmak
+                // "kilidi tutan süreç öldü ama bağlantı kapanmadı" durumunda relay'i
+                // tamamen durdururdu; tur başına almak en kötü ihtimalle bir turluk
+                // gecikme üretiyor.
+                //
+                // Turlar birbiriyle örtüşmediği için sıra korunuyor: bir sonraki
+                // batch'i kim alırsa alsın, önceki batch çoktan yayınlanmış oluyor.
+                var ran = await lease.TryRunAsync(
+                    JobName,
+                    async ct => published = await PublishBatchAsync(ct),
+                    stoppingToken);
+
+                // Kilit başkasındaysa bu instance boşta bekliyor. Dolu batch
+                // geldiyse hemen devam: birikmiş kuyruğu boşaltırken yarım saniye
+                // beklemenin anlamı yok.
+                if (!ran || published < BatchSize)
                 {
                     await Task.Delay(IdleDelay, stoppingToken);
                 }

@@ -954,42 +954,47 @@ alanında.
 
 ---
 
-## 30. Bilinen açık: relay çok instance'ta sıralamayı bozuyor
+## 30. Relay tek instance: sıra broker'a varmadan bozulmasın
 
 **Durum.** `overview.md` madde 8 "aynı cüzdanın mesajlarında sıra korunur" diyor.
 Broker tarafında bu doğru: consistent hash exchange aynı cüzdanı hep aynı kuyruğa
 düşürüyor ve `x-single-active-consumer` + `prefetch=1` o kuyruğu sırayla işletiyor.
 
-**Ama sıra broker'a VARMADAN önce bozulabiliyor.** Relay şöyle okuyor:
+**Ama sıra broker'a VARMADAN önce bozulabiliyordu.** Relay inbox'tan
+`FOR UPDATE SKIP LOCKED` ile batch alıyor. İki instance ayrı batch'ler kilitliyor:
+A 1-50'yi, B 51-100'ü aldıysa ve A yavaşsa, B önce publish ediyor. Aynı cüzdanın
+iki event'i farklı batch'lere düşerse exchange'e ters sırada varıyorlar. Kuyruğun
+içindeki sıra garantisi, kuyruğa yanlış sırada gelen mesajı düzeltmiyor.
 
-```sql
-SELECT * FROM topup_inbox WHERE published_at IS NULL
-ORDER BY received_at LIMIT 50 FOR UPDATE SKIP LOCKED
-```
+**Karar.** Top-up relay'i `pg_try_advisory_lock` ile tek instance'a bağlanıyor
+(madde 3'teki mekanizma, 5.1'de yazılan `JobLease`). Kilidi alamayan instance o turu
+atlıyor ve bekliyor.
 
-İki relay instance'ı ayrı batch'ler kilitliyor. A 1-50'yi, B 51-100'ü aldıysa ve A
-yavaşsa, B önce publish ediyor. Aynı cüzdanın iki event'i farklı batch'lere düşerse
-exchange'e ters sırada varıyorlar.
+**Neden bu seçenek.** Üç seçenek vardı:
 
-**Şu an sorun değil.** Relay tek instance koşuyor ve top-up'ların hepsi alacak kaydı —
-toplama işlemi, sıra sonucu değiştirmiyor. `+50` sonra `+30` ile `+30` sonra `+50`
-aynı bakiyeyi veriyor.
-
-**Ne zaman sorun olur.** Relay ölçeklendiğinde ve/veya aynı cüzdana sırası önemli
-olan farklı tipte mesajlar aktığında (withdrawal ile karışık akış).
-
-**Seçenekler.**
-
-1. Relay'i tek instance'a bağla (`pg_try_advisory_lock`, madde 3). Sıra gerçekten
-   korunur, verim tavanı `PartitionCount`. Basit ve dürüst.
+1. **Tek instance'a bağla.** Sıra gerçekten korunuyor. Verim tavanı tek relay'in
+   hızı; ölçeklenme partition sayısıyla değil, o tek süreçle sınırlı.
 2. `x-single-active-consumer`'ı kaldır, sıra iddiasını da kaldır. Verim instance
-   sayısıyla ölçeklenir; top-up için yeterli ama withdrawal'da geri istemek zor.
-3. Cüzdan bazında sıra numarası taşı, tüketici sırasızları tamponlasın. Doğru çözüm,
-   bu projenin ağırlığının üstünde.
+   sayısıyla ölçeklenir — top-up için yeterliydi (hepsi alacak kaydı, toplama
+   işlemi) ama çekim akışı aynı cüzdana sırası önemli mesajlar akıtıyor ve o iddiayı
+   geri istemek zor.
+3. Cüzdan bazında sıra numarası taşı, tüketici sırasızları tamponlasın. Doğru
+   çözüm ama bu projenin ağırlığının üstünde: tampon, zaman aşımı ve boşluk tespiti
+   gerektiriyor.
 
-**Karar ertelendi.** Ölçüm yok ve bugünkü kurulumda (tek relay) açık tetiklenmiyor.
-Buraya yazılıyor ki relay ölçeklenmeden önce bakılacak yer belli olsun. Kilit henüz
-KONULMADI — yani bugün relay'i iki instance koşturmak sessizce garantiyi kaldırır.
+Birincisi seçildi çünkü **iddia ile gerçeği hizalıyor.** İkincisi dokümanda verilen
+sıra sözünü geri almak demekti; üçüncüsü kapsam dışı. Bedeli açık ve ölçülebilir:
+relay yatay ölçeklenmiyor.
+
+**Bedelin sınırı.** Kilit yalnızca top-up relay'inde. Withdrawal outbox relay'i
+kilitlenmiyor ve gerek de yok: bir saga'nın aynı anda birden fazla bekleyen komutu
+olamıyor — her geçiş en fazla bir komut üretiyor ve bir sonraki ancak cevabı gelince
+yazılıyor. Orada sıra saga'nın kendisinden geliyor, batch'lerin hızından değil.
+
+**`SKIP LOCKED` KALIYOR.** Kilitle birlikte gereksizleşmiş gibi duruyor ama ikinci
+emniyet kemeri: kilit yalnızca "aynı anda tek relay" diyor, `SKIP LOCKED` ise kilit
+bir şekilde alınamadığında (bağlantı koptu, kilit elle bırakıldı) iki relay'in aynı
+SATIRI almasını engelliyor. Birincisi sıra için, ikincisi çift yayın için.
 
 ---
 

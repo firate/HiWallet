@@ -100,6 +100,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `x-single-active-consumer`, tüketicide `prefetch=1`.
 - Relay: `FOR UPDATE SKIP LOCKED` + publisher confirms. Önce publish, sonra işaretle —
   ters sıra kayıp üretir.
+- Top-up relay'i TEK instance: tur `pg_try_advisory_lock` ile korunur
+  (`decisions.md` madde 30). İki relay ayrı batch'leri farklı hızda yayınlarsa aynı
+  cüzdanın mesajları exchange'e ters sırada varır ve kuyruk içi sıra garantisi bunu
+  düzeltmez. `SKIP LOCKED` yine de kalır: biri sıra için, öbürü çift yayın için.
+  Withdrawal outbox relay'i kilitlenmez — bir saga'nın aynı anda birden fazla
+  bekleyen komutu olamaz.
 
 **Withdrawal saga**
 - Saga state machine SAF: DB, mesajlaşma ve zaman bilmez. "Şimdi"yi çağıran verir.

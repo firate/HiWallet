@@ -1,5 +1,6 @@
 using FluentValidation;
 using HiWallet.Shared.Infrastructure.HealthChecks;
+using HiWallet.Shared.Infrastructure.Jobs;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.TopupWebhook.Api.Validators;
@@ -33,6 +34,10 @@ builder.Services.AddValidatorsFromAssemblyContaining<TopupWebhookPayloadValidato
 // Relay webhook servisinin İÇİNDE, ayrı bir uygulama değil: inbox tablosunun sahibi
 // bu servis ve relay o tablodan başka hiçbir şeye bakmıyor. Ayrı süreç olsaydı aynı
 // tabloya ikinci bir yazar eklenirdi, karşılığında hiçbir şey kazanılmadan.
+// Relay TEK instance koşuyor: kilidi alamayan turu atlıyor (decisions.md madde 30).
+// Gerekçe sıralama — iki relay ayrı batch'leri farklı hızda yayınlarsa aynı cüzdanın
+// mesajları exchange'e ters sırada varır.
+builder.Services.AddHiWalletJobLease(PersistenceSetup.ConnectionStringName);
 builder.Services.AddHostedService<TopupRelay>();
 
 builder.Services.AddControllers();
