@@ -63,3 +63,24 @@ public sealed record RefundWithdrawal
 
     public required Guid SagaId { get; init; }
 }
+
+/// <summary>
+/// orchestrator → wallet. "Bu çekimin muhasebesini kapat."
+///
+/// Ücret TAŞIYOR, tutar taşımıyor — <see cref="RefundWithdrawal"/>'ın tam tersi
+/// gerekçeyle. Çekim tutarını wallet zaten kendi yazdı ve clearing'de duruyor;
+/// ücreti ise yalnızca banka biliyor ve buraya ondan geliyor. Her iki durumda da
+/// kural aynı: bilgiyi kim üretiyorsa o taşıyor, ikinci kaynak açılmıyor.
+/// </summary>
+public sealed record SettleWithdrawal
+{
+    public required Guid CommandId { get; init; }
+
+    public required Guid SagaId { get; init; }
+
+    /// <summary>Bankanın kestiği ücret. Sıfır olabilir.</summary>
+    public required decimal FeeAmount { get; init; }
+
+    /// <summary>Bankanın referansı; provider_fees eşleştirmesinin anahtarı.</summary>
+    public required string BankReference { get; init; }
+}

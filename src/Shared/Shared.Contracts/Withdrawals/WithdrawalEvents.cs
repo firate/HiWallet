@@ -48,6 +48,17 @@ public sealed record BankTransferSucceeded
 
     /// <summary>Bankanın kendi referansı. Mutabakatta eşleştirme için taşınıyor.</summary>
     public required string BankReference { get; init; }
+
+    /// <summary>
+    /// Bankanın bu transfer için kestiği ücret.
+    ///
+    /// Top-up'takinin AKSİNE ayrı bir settlement bildirimi beklenmiyor: transferi
+    /// yapan taraf ücreti o anda biliyor ve para nostro'dan o anda çıkıyor. Ayrı
+    /// bir batch bildirimi kurgulamak, bu sistemde karşılığı olmayan bir adım
+    /// olurdu — banka burada webhook gönderen bir sağlayıcı değil, mesajlaşan bir
+    /// servis (decisions.md madde 13, adım 5.5b).
+    /// </summary>
+    public required decimal FeeAmount { get; init; }
 }
 
 /// <summary>
@@ -73,5 +84,22 @@ public sealed record WithdrawalRefunded
     public required Guid SagaId { get; init; }
 
     /// <summary>Ters kaydın ledger işlemi. Orijinal işlem SİLİNMİYOR, yenisi yazılıyor.</summary>
+    public required Guid LedgerTransactionId { get; init; }
+}
+
+/// <summary>
+/// wallet → orchestrator. Çekimin muhasebesi kapandı: clearing boşaldı, para
+/// nostro'dan çıktı.
+///
+/// Saga ancak bunu aldıktan sonra <c>completed</c> oluyor. Banka başarılı dediğinde
+/// bitirmek daha basit olurdu ama settlement kaydını yazacak bir şey kalmazdı:
+/// terminal duruma gelmiş saga'yı takılmış saga taraması da görmez ve clearing
+/// sessizce açık kalırdı.
+/// </summary>
+public sealed record WithdrawalSettled
+{
+    public required Guid SagaId { get; init; }
+
+    /// <summary>Settlement kaydının ledger işlemi.</summary>
     public required Guid LedgerTransactionId { get; init; }
 }

@@ -76,7 +76,7 @@ public sealed class StartBankTransferHandler(
 
         var reply = outcome is TransferOutcome.PermanentFailure
             ? Fail(command)
-            : Succeed(command);
+            : Succeed(command, _options.TransferFee);
 
         db.Transfers.Add(new BankTransfer
         {
@@ -155,11 +155,12 @@ public sealed class StartBankTransferHandler(
         return configured;
     }
 
-    private static BankReply Succeed(StartBankTransfer command) =>
+    private static BankReply Succeed(StartBankTransfer command, decimal fee) =>
         BankReply.For(new BankTransferSucceeded
         {
             SagaId = command.SagaId,
-            BankReference = BankReference(command)
+            BankReference = BankReference(command),
+            FeeAmount = fee
         });
 
     private static BankReply Fail(StartBankTransfer command) =>
