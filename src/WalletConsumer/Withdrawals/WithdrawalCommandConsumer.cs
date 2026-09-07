@@ -171,6 +171,10 @@ internal sealed class WithdrawalCommandConsumer(
                 .GetRequiredService<RefundWithdrawalHandler>()
                 .HandleAsync(Read<RefundWithdrawal>(body), ct),
 
+            nameof(SettleWithdrawal) => services
+                .GetRequiredService<SettleWithdrawalHandler>()
+                .HandleAsync(Read<SettleWithdrawal>(body), ct),
+
             _ => throw new UnknownCommandException(commandName)
         };
     }
