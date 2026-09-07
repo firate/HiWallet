@@ -158,6 +158,7 @@ internal sealed class WithdrawalEventConsumer(
             nameof(WithdrawalDebitRejected) => handler.HandleAsync(Read<WithdrawalDebitRejected>(body), ct),
             nameof(BankTransferSucceeded) => handler.HandleAsync(Read<BankTransferSucceeded>(body), ct),
             nameof(BankTransferFailed) => handler.HandleAsync(Read<BankTransferFailed>(body), ct),
+            nameof(WithdrawalSettled) => handler.HandleAsync(Read<WithdrawalSettled>(body), ct),
             nameof(WithdrawalRefunded) => handler.HandleAsync(Read<WithdrawalRefunded>(body), ct),
             _ => throw new UnknownEventException(eventName)
         };

@@ -58,7 +58,28 @@ public sealed class AdvanceSagaHandler(
 
     public Task<TransitionResult> HandleAsync(BankTransferSucceeded @event, CancellationToken ct) =>
         ApplyAsync(@event.SagaId, nameof(BankTransferSucceeded), (saga, now) =>
-            (saga.BankTransferSucceeded(now), null), ct);
+        {
+            var result = saga.BankTransferSucceeded(@event.BankReference, @event.FeeAmount, now);
+
+            if (result is not TransitionResult.Applied) return (result, null);
+
+            // Ücret TAŞINIYOR, tutar taşınmıyor: çekim tutarını wallet kendi yazdı ve
+            // clearing'de duruyor, ücreti ise yalnızca banka biliyor. Bilgiyi kim
+            // üretiyorsa o taşıyor — RefundWithdrawal'daki kuralın aynası.
+            var command = OutboxMessage.For(saga.Id, commandId => new SettleWithdrawal
+            {
+                CommandId = commandId,
+                SagaId = saga.Id,
+                FeeAmount = @event.FeeAmount,
+                BankReference = @event.BankReference
+            }, now);
+
+            return (result, command);
+        }, ct);
+
+    public Task<TransitionResult> HandleAsync(WithdrawalSettled @event, CancellationToken ct) =>
+        ApplyAsync(@event.SagaId, nameof(WithdrawalSettled), (saga, now) =>
+            (saga.Settled(@event.LedgerTransactionId, now), null), ct);
 
     public Task<TransitionResult> HandleAsync(BankTransferFailed @event, CancellationToken ct) =>
         ApplyAsync(@event.SagaId, nameof(BankTransferFailed), (saga, now) =>

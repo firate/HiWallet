@@ -56,6 +56,15 @@ public sealed class WithdrawalSaga
     /// <summary>Bankaya gönderilen komutun kimliği; bankanın idempotency anahtarı.</summary>
     public Guid? BankCommandId { get; private set; }
 
+    /// <summary>Bankanın referansı; settlement komutunda ve mutabakatta kullanılıyor.</summary>
+    public string? BankReference { get; private set; }
+
+    /// <summary>Bankanın kestiği ücret. Transfer başarılı olana kadar NULL.</summary>
+    public decimal? BankFee { get; private set; }
+
+    /// <summary>Settlement kaydının ledger işlemi. Muhasebe kapanana kadar NULL.</summary>
+    public Guid? SettlementTransactionId { get; private set; }
+
     /// <summary>Reddetme ya da banka hatasının sebebi. Müşteriye gösterilebilir.</summary>
     public string? FailureReason { get; private set; }
 
@@ -159,14 +168,40 @@ public sealed class WithdrawalSaga
         return Advance(WithdrawalState.BankTransferPending, now);
     }
 
-    public TransitionResult BankTransferSucceeded(DateTimeOffset now)
+    /// <param name="feeAmount">
+    /// Bankanın kestiği ücret. Saga'da SAKLANIYOR çünkü settlement komutu bu
+    /// bilgiyi taşıyor ve komut yeniden gönderilebilmeli — event'i tekrar beklemek
+    /// gerekseydi kayıp bir event saga'yı kalıcı olarak asardı.
+    /// </param>
+    public TransitionResult BankTransferSucceeded(
+        string bankReference, decimal feeAmount, DateTimeOffset now)
     {
-        if (State is WithdrawalState.Completed) return TransitionResult.Ignored;
+        if (State is WithdrawalState.Settling or WithdrawalState.Completed)
+        {
+            return TransitionResult.Ignored;
+        }
 
         // Telafi başladıktan sonra gelen "başarılı" ÇELİŞKİ, tekrar değil: para hem
         // bankadan çıkmış hem müşteriye iade edilmiş olabilir. Yok saymak zararı
         // görünmez kılardı — durum olduğu yerde bırakılıp alarm üretiliyor.
         if (State is not WithdrawalState.BankTransferPending) return TransitionResult.Conflict;
+
+        BankReference = bankReference;
+        BankFee = feeAmount;
+
+        return Advance(WithdrawalState.Settling, now);
+    }
+
+    /// <summary>
+    /// Muhasebe kapandı. Saga'nın mutlu yoldaki terminal geçişi.
+    /// </summary>
+    public TransitionResult Settled(Guid ledgerTransactionId, DateTimeOffset now)
+    {
+        if (State is WithdrawalState.Completed) return TransitionResult.Ignored;
+
+        if (State is not WithdrawalState.Settling) return TransitionResult.Conflict;
+
+        SettlementTransactionId = ledgerTransactionId;
 
         return Advance(WithdrawalState.Completed, now);
     }
@@ -178,7 +213,8 @@ public sealed class WithdrawalSaga
             return TransitionResult.Ignored;
         }
 
-        // Tamamlanmış bir saga'ya "başarısız" demek de çelişki: para gitti sayıldı.
+        // Tamamlanmış ya da muhasebesi kapanan bir saga'ya "başarısız" demek çelişki:
+        // para gitti sayıldı ve settling'de clearing boşaltılıyor.
         if (State is not WithdrawalState.BankTransferPending) return TransitionResult.Conflict;
 
         FailureReason = reason;
