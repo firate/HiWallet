@@ -33,6 +33,13 @@ public sealed class WalletDbContext : DbContext
     /// </summary>
     internal DbSet<BusinessDailySummary> BusinessDailySummaries => Set<BusinessDailySummary>();
 
+    /// <summary>
+    /// Sağlayıcı ücretinin beklenen/gerçekleşen takibi (decisions.md madde 10).
+    /// Ledger DEĞİL: zero-sum'a dahil değil, expected_amount hiçbir zaman ledger'a
+    /// yazılmıyor.
+    /// </summary>
+    internal DbSet<ProviderFee> ProviderFees => Set<ProviderFee>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(WalletDbContext).Assembly);
