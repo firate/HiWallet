@@ -1,13 +1,19 @@
 using System.Text.Json;
+using HiWallet.Shared.Contracts.Settlements;
 using HiWallet.Shared.Contracts.Topups;
+using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.TopupWebhook.Application;
 
 /// <summary>
-/// Kabul edilen webhook'u inbox'a yazar. 200 dönmeden önceki SON adım —
+/// Kabul edilen webhook'u inbox'a yazar. 202 dönmeden önceki SON adım —
 /// kalıcılık garanti olmadan sağlayıcıya başarı denmiyor (overview.md madde 5).
+///
+/// İki akış da buradan geçiyor (top-up, settlement). Ayrı yazıcılar olsaydı
+/// <c>ON CONFLICT DO NOTHING</c> kalıbı ve "0 satır ise tekrar" yorumu iki yerde
+/// ayrı ayrı doğru tutulmak zorunda kalırdı.
 /// </summary>
 public sealed class TopupInboxWriter(
     IDbContextFactory<InboxDbContext> contextFactory,
@@ -17,10 +23,41 @@ public sealed class TopupInboxWriter(
 
     /// <returns>
     /// Aynı <c>(provider, event_id)</c> daha önce kaydedilmişse <c>true</c>.
-    /// Çağıran yine 200 dönüyor: sağlayıcı için tekrar gönderim başarılı bir
+    /// Çağıran yine 202 dönüyor: sağlayıcı için tekrar gönderim başarılı bir
     /// sonuçtur, hata değil.
     /// </returns>
-    public async Task<bool> WriteAsync(TopupReceived message, string rawPayload, CancellationToken ct)
+    public Task<bool> WriteAsync(TopupReceived message, string rawPayload, CancellationToken ct) =>
+        WriteAsync(
+            InboxKind.Topup,
+            message.Provider,
+            message.EventId,
+            // Partition anahtarı cüzdan kimliği: aynı cüzdanın mesajları aynı
+            // kuyruğa düşsün (overview.md madde 8).
+            routingKey: message.LedgerAccountId.ToString(),
+            message,
+            rawPayload,
+            ct);
+
+    public Task<bool> WriteAsync(SettlementReceived message, string rawPayload, CancellationToken ct) =>
+        WriteAsync(
+            InboxKind.Settlement,
+            message.Provider,
+            message.SettlementId,
+            // Sabit: settlement hiçbir cüzdana dokunmuyor, partition'ın koruduğu
+            // sıra burada yok.
+            routingKey: SettlementTopology.RoutingKey,
+            message,
+            rawPayload,
+            ct);
+
+    private async Task<bool> WriteAsync<T>(
+        InboxKind kind,
+        string provider,
+        string eventId,
+        string routingKey,
+        T message,
+        string rawPayload,
+        CancellationToken ct)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
@@ -31,9 +68,9 @@ public sealed class TopupInboxWriter(
         var inserted = await db.Database.ExecuteSqlAsync(
             $"""
              INSERT INTO topup_inbox
-                 (id, provider, event_id, ledger_account_id, payload, raw_payload, received_at, publish_attempts)
+                 (id, provider, event_id, kind, routing_key, payload, raw_payload, received_at, publish_attempts)
              VALUES
-                 ({Guid.NewGuid()}, {message.Provider}, {message.EventId}, {message.LedgerAccountId},
+                 ({Guid.NewGuid()}, {provider}, {eventId}, {kind.ToText()}, {routingKey},
                   {payload}::jsonb, {rawPayload}::jsonb, {timeProvider.GetUtcNow()}, 0)
              ON CONFLICT (provider, event_id) DO NOTHING
              """,
