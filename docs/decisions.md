@@ -347,8 +347,8 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 4. ✅ Withdrawal saga + bank-service + compensation. Zincir gerçek bir broker'a
    karşı uçtan uca doğrulandı; compose'dan ayağa kalkıyor, telafi yolu compose
    üzerinden henüz koşturulmadı. Alt adımlar aşağıda.
-5. ⬜ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
-   taraması. Alt adımlar aşağıda.
+5. ✅ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
+   taraması. Alt adımlar aşağıda; çekim settlement'ı (5.5b) açık kaldı.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
 
@@ -398,7 +398,7 @@ altyapısını da yerine oturtuyorlar.
 | 5.5 | Settlement alımı ve ledger kaydı (top-up): clearing kapanır, `nostro` hareket eder | ✅ |
 | 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | ⬜ |
 | 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ✅ |
-| 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ⬜ |
+| 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ✅ |
 
 **5.2 opsiyonel değil.** Ayrı orchestrator veritabanı kararının (madde 7 ve 33)
 faturası iki veritabanı arasında ayrışma ihtimali; karşılığı bu tarama. Yazılmazsa
