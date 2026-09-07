@@ -29,6 +29,10 @@ builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
 // Bölüm eksikse startup'ta patlıyor (baseline.md madde 1).
 builder.Services.AddWithdrawalPolicy(builder.Configuration);
 
+// Sağlayıcı ücret tarifeleri, aynı gerekçeyle yalnızca burada: top-up'ı işleyen
+// tek uygulama bu ve provider_fees satırını o akış yazıyor (decisions.md madde 10).
+builder.Services.AddProviderPolicy(builder.Configuration);
+
 builder.Services.AddWalletConsumer(builder.Configuration);
 
 var app = builder.Build();

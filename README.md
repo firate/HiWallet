@@ -71,9 +71,10 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
 | Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
 | Business günlük özeti | ✅ |
+| Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
 | Settlement akışı ve mutabakat | ⬜ adım 5 |
 
-220 test: 92 unit (DB'siz), 128 integration — gerçek Postgres ve gerçek RabbitMQ.
+227 test: 92 unit (DB'siz), 135 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →

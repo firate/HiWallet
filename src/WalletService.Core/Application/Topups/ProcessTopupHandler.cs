@@ -1,6 +1,7 @@
 using HiWallet.Shared.Contracts.Topups;
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Domain.Ledger;
+using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ namespace HiWallet.WalletService.Application.Topups;
 /// </summary>
 public sealed class ProcessTopupHandler(
     IDbContextFactory<WalletDbContext> contextFactory,
+    ProviderPolicy providers,
     IClock clock,
     ILogger<ProcessTopupHandler> logger)
 {
@@ -79,6 +81,32 @@ public sealed class ProcessTopupHandler(
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
+
+        // --- Sağlayıcı ücreti (ledger DEĞİL) ----------------------------------------
+        // Ücret beklentisi ledger'la AYNI transaction'da yazılıyor. Ayrı commit
+        // olsaydı aradaki çökme "para yattı ama gideri hiç kaydedilmedi" bırakırdı
+        // ve bu, faturayla karşılaştırılana kadar (madde 11) görünmezdi.
+        //
+        // expected_amount ledger'a YAZILMIYOR: gerçekleşmiş bir hareket değil.
+        // Gerçekleşen tutar Net modelde settlement'ta, Invoiced modelde faturada
+        // belli oluyor ve actual_amount'a o yazılıyor (5.5, 5.6).
+        var terms = providers.For(message.Provider);
+
+        db.ProviderFees.Add(new ProviderFee
+        {
+            Id = Guid.NewGuid(),
+            TransactionId = transactionId,
+            Provider = terms.Provider,
+            SettlementModel = terms.FeeSettlement,
+            ExpectedAmount = terms.Fee.Expected(amount).Amount,
+            Currency = currency.Code,
+
+            // Sağlayıcının kendi referansı; fatura kalemleriyle eşleştirmenin anahtarı
+            // bu (madde 11). Yoksa eşleştirme yalnızca tutar ve tarihe kalır.
+            // Sözleşmede tam bu amaçla taşınıyordu, ilk tüketicisi burası.
+            ProviderRef = message.ProviderRef,
+            OccurredAt = now
+        });
 
         // --- Projeksiyon -------------------------------------------------------------
         // Sıra ledger hesap kimliğine göre ARTAN (decisions.md madde 8).

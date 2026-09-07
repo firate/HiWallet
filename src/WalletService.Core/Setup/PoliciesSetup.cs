@@ -12,6 +12,14 @@ public static class PoliciesSetup
     private const string CommissionsSection = "Transfers:Commissions";
     private const string WithdrawalSection = "Withdrawals";
 
+    /// <summary>
+    /// topup-webhook da aynı adı kullanıyor ama başka bir anahtar için
+    /// (<c>WebhookSecret</c>). Aynı bölüm adı bilinçli: sağlayıcı kayıt defteri tek
+    /// kavram, iki servis ondan farklı alanları okuyor. Ayrı adlar olsaydı yeni bir
+    /// sağlayıcı eklerken iki yerden birini atlamak sessiz kalırdı.
+    /// </summary>
+    private const string ProvidersSection = "Providers";
+
     public static IServiceCollection AddHiWalletPolicies(
         this IServiceCollection services, IConfiguration configuration)
     {
@@ -71,6 +79,49 @@ public static class PoliciesSetup
     }
 
     /// <summary>
+    /// Sağlayıcı ücret tarifeleri. Çekim tarifesiyle aynı gerekçeyle AYRI bir çağrı:
+    /// sağlayıcı ücreti yalnızca top-up'ı işleyen uygulamayı (wallet-consumer)
+    /// ilgilendiriyor, wallet-api'nin olmayan bir bölümü istemesi anlamsız olurdu.
+    ///
+    /// Bölüm eksikse PATLIYOR. Sessizce "ücretsiz"e düşseydi her sağlayıcının gideri
+    /// raporlardan silinir ve fatura geldiğinde "beklenen toplam sıfır" ile
+    /// uyuşmazlık üretirdi (madde 11).
+    /// </summary>
+    public static IServiceCollection AddProviderPolicy(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        var section = configuration.GetSection(ProvidersSection);
+        var terms = new Dictionary<string, ProviderTerms>(StringComparer.Ordinal);
+
+        foreach (var child in section.GetChildren())
+        {
+            var options = new ProviderOptions();
+            child.Bind(options);
+
+            if (!Enum.TryParse<FeeSettlement>(options.FeeSettlement, ignoreCase: true, out var model))
+            {
+                throw new InvalidOperationException(
+                    $"{ProvidersSection}:{child.Key}:FeeSettlement geçersiz: '{options.FeeSettlement}'. " +
+                    $"Geçerli değerler: {string.Join(", ", Enum.GetNames<FeeSettlement>())}");
+            }
+
+            terms[child.Key] = new ProviderTerms(
+                child.Key, model, new ProviderFeeTariff(options.Fee.Rate, options.Fee.Fixed));
+        }
+
+        if (terms.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Zorunlu konfigürasyon eksik: {ProvidersSection}. Sağlayıcı tarifesi " +
+                "varsayılana bırakılmaz — ücretsiz sayılan bir sağlayıcı gideri gizler.");
+        }
+
+        services.AddSingleton(new ProviderPolicy(terms));
+
+        return services;
+    }
+
+    /// <summary>
     /// Bölümü <c>TransferType</c> anahtarlı sözlüğe bağlar. Tanınmayan bir anahtar
     /// startup'ta patlar — konfigürasyondaki yazım hatası sessizce "tarife yok"a
     /// dönüşmemeli (baseline.md madde 1, fail fast).
@@ -111,5 +162,24 @@ public static class PoliciesSetup
         public decimal? Minimum { get; init; }
 
         public decimal? Maximum { get; init; }
+    }
+
+    private sealed class ProviderOptions
+    {
+        /// <summary>
+        /// Varsayılan YOK: boş bırakıldığında <c>Enum.TryParse</c> patlıyor. Bir
+        /// varsayılan verilseydi eksik ayar sessizce o modele düşerdi ve model
+        /// ledger'a ne yazılacağını belirliyor.
+        /// </summary>
+        public string FeeSettlement { get; init; } = string.Empty;
+
+        public FeeOptions Fee { get; init; } = new();
+    }
+
+    private sealed class FeeOptions
+    {
+        public decimal Rate { get; init; }
+
+        public decimal Fixed { get; init; }
     }
 }
