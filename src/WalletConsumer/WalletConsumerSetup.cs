@@ -24,6 +24,7 @@ public static class WalletConsumerSetup
         // Settlement: sağlayıcının batch ödemesi. Cevap yayınlamıyor, karşı taraf
         // yok — tek yönlü bildirim.
         services.AddScoped<ProcessSettlementHandler>();
+        services.AddScoped<ProcessInvoiceHandler>();
         services.AddHostedService<SettlementConsumer>();
 
         services.AddScoped<DebitForWithdrawalHandler>();

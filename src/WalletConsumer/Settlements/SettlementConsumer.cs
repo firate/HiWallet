@@ -73,14 +73,24 @@ internal sealed class SettlementConsumer(
         await topology.DeclareAsync(channel, ct);
         await channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, ct);
 
-        var consumer = new AsyncEventingBasicConsumer(channel);
-        consumer.ReceivedAsync += (_, delivery) => OnMessageAsync(channel, delivery, ct);
+        // İKİ kuyruk, TEK sınıf. Ayrı kuyruklar çünkü incelemeye düşmüş bir fatura
+        // settlement akışını durdurmamalı; tek sınıf çünkü aradaki tek fark hangi
+        // handler'a gittiği — taşıma kodu (bağlan, ack/nack, kalıcı/geçici ayrımı)
+        // birebir aynı ve kopyalanmamalı.
+        var settlements = new AsyncEventingBasicConsumer(channel);
+        settlements.ReceivedAsync += (_, delivery) => OnMessageAsync(channel, delivery, ct);
 
-        await channel.BasicConsumeAsync(topology.WalletQueue, autoAck: false, consumer, ct);
+        var invoices = new AsyncEventingBasicConsumer(channel);
+        invoices.ReceivedAsync += (_, delivery) => OnMessageAsync(channel, delivery, ct);
+
+        await channel.BasicConsumeAsync(topology.WalletQueue, autoAck: false, settlements, ct);
+        await channel.BasicConsumeAsync(topology.InvoiceQueue, autoAck: false, invoices, ct);
 
         _channel = channel;
 
-        logger.LogInformation("Settlement tüketicisi {Queue} dinliyor.", topology.WalletQueue);
+        logger.LogInformation(
+            "Settlement tüketicisi {Queue} ve {InvoiceQueue} dinliyor.",
+            topology.WalletQueue, topology.InvoiceQueue);
     }
 
     private async Task OnMessageAsync(
@@ -88,26 +98,18 @@ internal sealed class SettlementConsumer(
     {
         try
         {
-            var message = JsonSerializer.Deserialize<SettlementReceived>(delivery.Body.Span, JsonOptions)
-                          ?? throw new JsonException("Settlement gövdesi boş.");
-
             using var scope = scopeFactory.CreateScope();
 
-            var result = await scope.ServiceProvider
-                .GetRequiredService<ProcessSettlementHandler>()
-                .HandleAsync(message, ct);
+            await DispatchAsync(scope.ServiceProvider, delivery, ct);
 
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, ct);
-
-            if (result.Replayed)
-            {
-                logger.LogInformation(
-                    "Settlement tekrar teslim edildi; ledger'a dokunulmadı. {Provider}/{SettlementId}",
-                    message.Provider, message.SettlementId);
-            }
         }
         catch (Exception exception)
-            when (exception is JsonException or SettlementRejectedException or UnknownProviderException)
+            when (exception is JsonException
+                      or SettlementRejectedException
+                      or InvoiceRejectedException
+                      or UnknownProviderException
+                      or UnknownNotificationException)
         {
             // KALICI hata: bozuk gövde, tutarsız batch, eksik sistem hesabı, tanımsız
             // sağlayıcı. Aynı bayt aynı sonucu verir; requeue etmek kuyruğu süresiz
@@ -136,6 +138,37 @@ internal sealed class SettlementConsumer(
         }
     }
 
+    /// <summary>
+    /// Routing key = sözleşme tipinin adı (<see cref="SettlementTopology"/>).
+    /// Kuyruğa göre değil routing key'e göre ayrılıyor: kuyruk bir dağıtım detayı,
+    /// mesajın ne olduğunu söyleyen şey tipi.
+    /// </summary>
+    private static async Task DispatchAsync(
+        IServiceProvider services, BasicDeliverEventArgs delivery, CancellationToken ct)
+    {
+        switch (delivery.RoutingKey)
+        {
+            case SettlementTopology.RoutingKey:
+                await services
+                    .GetRequiredService<ProcessSettlementHandler>()
+                    .HandleAsync(Read<SettlementReceived>(delivery.Body.Span), ct);
+                return;
+
+            case SettlementTopology.InvoiceRoutingKey:
+                await services
+                    .GetRequiredService<ProcessInvoiceHandler>()
+                    .HandleAsync(Read<ProviderInvoiceReceived>(delivery.Body.Span), ct);
+                return;
+
+            default:
+                throw new UnknownNotificationException(delivery.RoutingKey);
+        }
+    }
+
+    private static T Read<T>(ReadOnlySpan<byte> body) =>
+        JsonSerializer.Deserialize<T>(body, JsonOptions)
+        ?? throw new JsonException($"{typeof(T).Name} gövdesi boş.");
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken);
@@ -147,3 +180,6 @@ internal sealed class SettlementConsumer(
         }
     }
 }
+
+internal sealed class UnknownNotificationException(string routingKey)
+    : Exception($"Tanınmayan sağlayıcı bildirimi: {routingKey}");
