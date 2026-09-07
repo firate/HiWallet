@@ -34,6 +34,12 @@ public static class WalletJobsSetup
         services.AddSingleton<BusinessSummaryCalculator>();
         services.AddHostedService<BusinessSummaryJob>();
 
+        services.Configure<ReconciliationOptions>(
+            configuration.GetSection(ReconciliationOptions.SectionName));
+
+        services.AddSingleton<ReconciliationScanner>();
+        services.AddHostedService<ReconciliationJob>();
+
         return services;
     }
 }
