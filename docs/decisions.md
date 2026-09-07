@@ -348,7 +348,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
    karşı uçtan uca doğrulandı; compose'dan ayağa kalkıyor, telafi yolu compose
    üzerinden henüz koşturulmadı. Alt adımlar aşağıda.
 5. ✅ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
-   taraması. Alt adımlar aşağıda; çekim settlement'ı (5.5b) açık kaldı.
+   taraması. Alt adımlar aşağıda.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
 
@@ -396,7 +396,7 @@ altyapısını da yerine oturtuyorlar.
 | 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | ✅ |
 | 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | ✅ |
 | 5.5 | Settlement alımı ve ledger kaydı (top-up): clearing kapanır, `nostro` hareket eder | ✅ |
-| 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | ⬜ |
+| 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | ✅ |
 | 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ✅ |
 | 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ✅ |
 

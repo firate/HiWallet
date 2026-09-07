@@ -72,12 +72,12 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
 | Business günlük özeti | ✅ |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
-| Settlement: clearing kapanır, `nostro` hareket eder | ✅ top-up tarafı |
+| Settlement: clearing kapanır, `nostro` hareket eder | ✅ top-up ve çekim |
 | Fatura işleme, uyuşmazlıkta `PendingReview` | ✅ |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | ✅ |
-| Çekim settlement'ı (banka ücreti saga üzerinden) | ⬜ adım 5.5b |
+| Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 
-246 test: 92 unit (DB'siz), 154 integration — gerçek Postgres ve gerçek RabbitMQ.
+250 test: 92 unit (DB'siz), 158 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →

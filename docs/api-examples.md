@@ -302,7 +302,9 @@ curl -s localhost:8093/v1/withdrawals/$WD
 }
 ```
 
-`state` sırası: `initiated` → `debited` → `bank_transfer_pending` → `completed`.
+`state` sırası: `initiated` → `debited` → `bank_transfer_pending` → `settling` →
+`completed`. `settling`, para bankadan çıktıktan sonra iç muhasebenin kapanmasını
+bekliyor (clearing boşalıp `nostro`'ya yazılıyor) ve saniyeler sürüyor.
 Telafi yolunda: `debited` → `compensating` → `failed`. Reddedilmişse `rejected`.
 
 `totalDebited` cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi
