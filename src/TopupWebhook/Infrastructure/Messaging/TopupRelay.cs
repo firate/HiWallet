@@ -125,7 +125,10 @@ internal sealed class TopupRelay(
         var (exchange, type) = message.Kind switch
         {
             InboxKind.Topup => (topupTopology.Exchange, nameof(Shared.Contracts.Topups.TopupReceived)),
-            InboxKind.Settlement => (settlementTopology.Exchange, SettlementTopology.RoutingKey),
+            // Settlement ve fatura AYNI exchange'de, ayrı routing key'lerle. Tip
+            // routing key'in kendisi: ikisi de sözleşme tipinin adını taşıyor, o
+            // yüzden sabit yazmak faturayı "SettlementReceived" diye etiketlerdi.
+            InboxKind.Settlement => (settlementTopology.Exchange, message.RoutingKey),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(message), message.Kind, "Eşlemesi yazılmamış inbox tipi.")
         };

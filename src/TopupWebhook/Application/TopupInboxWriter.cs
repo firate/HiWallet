@@ -50,6 +50,25 @@ public sealed class TopupInboxWriter(
             rawPayload,
             ct);
 
+    /// <summary>
+    /// Fatura da settlement ile AYNI exchange'e gidiyor, ayrı routing key ile
+    /// (SettlementTopology). Inbox açısından ikisi de "sağlayıcıdan gelen, cüzdana
+    /// dokunmayan bildirim" — aynı kind altında duruyorlar.
+    /// </summary>
+    public Task<bool> WriteAsync(
+        ProviderInvoiceReceived message, string rawPayload, CancellationToken ct) =>
+        WriteAsync(
+            InboxKind.Settlement,
+            message.Provider,
+            // Ön ek ZORUNLU: inbox tekilliği (provider, event_id) ve fatura numarası
+            // ile settlement id'si aynı alanı paylaşıyor. Ön eksiz, aynı sağlayıcının
+            // "st_42" batch'i ile "st_42" faturası birbirini yutardı.
+            eventId: $"invoice:{message.InvoiceRef}",
+            routingKey: SettlementTopology.InvoiceRoutingKey,
+            message,
+            rawPayload,
+            ct);
+
     private async Task<bool> WriteAsync<T>(
         InboxKind kind,
         string provider,
