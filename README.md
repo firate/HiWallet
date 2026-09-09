@@ -78,7 +78,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
 
-257 test: 92 unit (DB'siz), 165 integration — gerçek Postgres ve gerçek RabbitMQ.
+259 test: 92 unit (DB'siz), 167 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -110,8 +110,11 @@ API dokümanı, yalnızca Development'ta:
 
 | | Scalar arayüzü | OpenAPI dokümanı |
 | --- | --- | --- |
-| `wallet-api` | <http://localhost:8091/scalar> | `/openapi/v1.json` |
-| `withdrawal-orchestrator` | <http://localhost:8093/scalar> | `/openapi/v1.json` |
+| `wallet-api` | <http://localhost:8091/scalar/> | `/openapi/v1.json` |
+| `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | `/openapi/v1.json` |
+
+Sondaki eğik çizgi bilerek: eğik çizgisiz adres `302` ile ona yönleniyor. Tarayıcı
+takip ediyor, `curl` varsayılan olarak etmiyor.
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 

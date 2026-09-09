@@ -53,13 +53,37 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
         paths.TryGetProperty("/v1/accounts", out _).ShouldBeTrue();
     }
 
-    /// <summary>Scalar arayüzü ayakta ve dokümanı okuyacak HTML'i dönüyor.</summary>
+    /// <summary>
+    /// Eğik çizgisiz <c>/scalar</c> sayfayı DÖNMÜYOR, <c>/scalar/</c>'a yönlendiriyor.
+    /// Arayüz göreli varlık yüklüyor; eğik çizgi olmadan o varlıkların yolu bir seviye
+    /// yukarıdan çözülürdü.
+    ///
+    /// Yönlendirmeyi takip ETMEDEN sınamak şart: <c>CreateClient()</c> varsayılan
+    /// olarak takip ediyor, takip edilince test <c>200</c> görüp geçiyor —
+    /// dokümandaki adresi <c>curl</c> ile deneyen ise <c>302</c> alıyor. Bu testin
+    /// ilk hali tam olarak bunu gizlemişti.
+    /// </summary>
+    [Fact]
+    public async Task Scalar_EgikCizgiyeYonlendiriyor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        using var client = _factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync("/scalar", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        response.Headers.Location?.ToString().ShouldBe("scalar/");
+    }
+
+    /// <summary>Yönlendirmenin ucundaki sayfa gerçekten açılıyor.</summary>
     [Fact]
     public async Task ScalarArayuzu_Aciliyor()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var response = await _client.GetAsync("/scalar", ct);
+        var response = await _client.GetAsync("/scalar/", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("text/html");
@@ -73,13 +97,18 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
     [Theory]
     [InlineData("/openapi/v1.json")]
     [InlineData("/scalar")]
+    [InlineData("/scalar/")]
     public async Task ProductionDa_UcYok(string path)
     {
         var ct = TestContext.Current.CancellationToken;
 
         using var production = _factory.WithWebHostBuilder(
             builder => builder.UseEnvironment("Production"));
-        using var client = production.CreateClient();
+
+        // Yönlendirme takip EDİLMİYOR: takip edilseydi bir yönlendirme zinciri
+        // sonunda 404'e varır ve uç "yok" görünürdü — oysa ilk uç var demektir.
+        using var client = production.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
         var response = await client.GetAsync(path, ct);
 
