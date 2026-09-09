@@ -370,6 +370,35 @@ Mutlu yol ölçümü — `withdrawal` üçlüsü artı `settlement` ikilisi:
 sonu faturasıyla alıyor (`decisions.md` madde 10). Ücret `provider_fees`'te
 `actual_amount = NULL` ile faturayı bekliyor.
 
+### API dokümanı (baseline.md madde 9)
+
+Compose'da ölçüldü, istemcisi olan iki serviste de:
+
+```
+8091  /scalar -> 302   /scalar/ -> 200
+8093  /scalar -> 302   /scalar/ -> 200
+```
+
+`302` beklenen davranış: eğik çizgisiz adres `scalar/`'a yönleniyor, arayüz göreli
+varlık yüklediği için. Tarayıcı takip ediyor, `curl` varsayılan olarak etmiyor.
+
+OpenAPI dokümanları da uçları gerçekten görüyor:
+
+```
+wallet-api                /v1/accounts, /v1/accounts/{accountId},
+                          /v1/accounts/{accountId}/wallets, /v1/transfers,
+                          /v1/wallets/{walletId}
+withdrawal-orchestrator   /v1/withdrawals, /v1/withdrawals/{withdrawalId}
+```
+
+`topup-webhook`'ta doküman YOK ve olmamalı: o sözleşmeyi sağlayıcı dayatıyor.
+
+**Bu ölçüm bir test kusurunu yakaladı.** `OpenApiTests` `/scalar` için `200`
+bekliyordu ve geçiyordu — `WebApplicationFactory.CreateClient()` yönlendirmeleri
+varsayılan olarak takip ettiği için. Compose'da `curl` `302` gösterdi. Test artık
+yönlendirmeyi takip etmeden sınıyor; dokümante edilen adres ile sınanan adres
+aynı olmak zorunda.
+
 ### Hâlâ doğrulanmadı
 
 | ne | nasıl bakılır |
