@@ -289,7 +289,7 @@ dotnet test
 | [docs/structure.md](docs/structure.md) | yeni dosya nereye konur |
 | [docs/api-examples.md](docs/api-examples.md) | her uç için istek ve beklenen yanıt |
 | [docs/verify-compose.md](docs/verify-compose.md) | compose'u ayağa kaldırma ve doğrulama |
-| [Claude.md](Claude.md) | pazarlıksız kurallar |
+| [CLAUDE.md](CLAUDE.md) | pazarlıksız kurallar |
 
 Şemanın tek kaynağı EF migration'ları; `ledger-schema.md` onları açıklar, üretmez.
 
