@@ -39,7 +39,7 @@ var app = builder.Build();
 
 app.ValidateWalletConsumerConfiguration();
 
-// Tek HTTP yüzeyi bu. Controller yok, Swagger yok, rate limiter yok.
+// Tek HTTP yüzeyi bu. Controller yok, API dokümanı yok, rate limiter yok.
 // Probe olmadan "process ayakta ama tüketici tıkanmış" durumu görünmez olurdu.
 app.MapHiWalletHealthChecks();
 

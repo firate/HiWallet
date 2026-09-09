@@ -3,6 +3,7 @@ using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Jobs;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
+using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WithdrawalOrchestrator.Api.Validators;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
@@ -48,12 +49,15 @@ builder.Services.AddHostedService<StuckSagaScan>();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHiWalletOpenApi();
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+// Development kapısı MapHiWalletOpenApi'nin içinde; üretimde iki uç da yok.
+app.MapHiWalletOpenApi();
 
 app.MapHiWalletHealthChecks();
 app.MapControllers();

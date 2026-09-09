@@ -78,7 +78,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
 
-253 test: 92 unit (DB'siz), 161 integration — gerçek Postgres ve gerçek RabbitMQ.
+257 test: 92 unit (DB'siz), 165 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -106,7 +106,14 @@ curl http://localhost:8094/health/ready   # bank-service (sahte)
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
 açmasının sebebi olmazdı.
 
-Swagger: <http://localhost:8091/swagger> (Development'ta).
+API dokümanı, yalnızca Development'ta:
+
+| | Scalar arayüzü | OpenAPI dokümanı |
+| --- | --- | --- |
+| `wallet-api` | <http://localhost:8091/scalar> | `/openapi/v1.json` |
+| `withdrawal-orchestrator` | <http://localhost:8093/scalar> | `/openapi/v1.json` |
+
+`topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
 Host portlarının varsayılanı (`8091`–`8094`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
