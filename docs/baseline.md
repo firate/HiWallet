@@ -28,7 +28,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - OpenTelemetry: distributed tracing + temel metrikler (request count, latency, error rate — RED).
 - Auto-instrumentation (ASP.NET Core, HttpClient, Npgsql).
 - Log–trace korelasyonu: OTel logs sayesinde trace_id otomatik eşleşir; Grafana'da log'dan Tempo trace'ine atlanabilir.
-- **Kapsam:** OTLP exporter → OTel Collector → Loki/Tempo/Prometheus → Grafana. Homelab stack'ine bağlanır.
+- **Kapsam:** OTLP exporter → OTel Collector → Loki/Tempo/Prometheus → Grafana. Mevcut bir gözlemlenebilirlik stack'ine bağlanır.
 
 ### 4. Health Checks
 

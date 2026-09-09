@@ -9,7 +9,7 @@ namespace HiWallet.IntegrationTests.Baseline;
 /// <summary>
 /// Broker erişilemezken sağlık ucunun NE KADAR SÜREDE cevap verdiği.
 ///
-/// Homelab'da compose koşarken çıkan kusur: <c>docker compose stop rabbitmq</c>
+/// Compose koşarken çıkan kusur: <c>docker compose stop rabbitmq</c>
 /// sonrası <c>/health/ready</c> 5005 ms sürüyordu, compose'un probe timeout'u ise
 /// 3 sn. Probe kesiliyor, container <c>unhealthy</c> işaretleniyor ve bilerek
 /// <c>Degraded</c> dönen servis trafikten çekiliyordu — broker'sız çalışabilme

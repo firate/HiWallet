@@ -1,8 +1,8 @@
 # baseline.md çıkış kriteri: `docker compose up` ile ayağa kalkıyor.
 #
-# Kendine yeterli: homelab'a bağlı değil. Telemetriyi homelab Collector'ına
-# göndermek istersen .env'de OTEL_EXPORTER_OTLP_ENDPOINT tanımla — tanımlı değilse
-# exporter hiç eklenmiyor ve uygulamalar sessizce çalışıyor.
+# Kendine yeterli: dışarıda hiçbir servise bağlı değil. Telemetriyi bir OTel
+# Collector'ına göndermek istersen .env'de OTEL_EXPORTER_OTLP_ENDPOINT tanımla —
+# tanımlı değilse exporter hiç eklenmiyor ve uygulamalar sessizce çalışıyor.
 #
 # Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
 # otomatik okur.
@@ -45,7 +45,7 @@ services:
       - ./docker/postgres-init.sql:/opt/hiwallet/postgres-init.sql:ro
       - postgres-data:/var/lib/postgresql/data
     ports:
-      # Host'tan pgAdmin/psql ile bakabilmek için. Homelab'da 5432 ana Postgres'te.
+      # Host'tan pgAdmin/psql ile bakabilmek için. 5432 mevcut bir Postgres'te olabilir.
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     healthcheck:
       # migrator ve app bunu bekliyor. pg_isready YETMEZ: gerçekten bağlanmıyor,
@@ -163,13 +163,13 @@ services:
       # değişkeni üç uygulamayı da aynı isimle etiketlerdi.
       OTEL_SERVICE_NAME: hiwallet-wallet-api
     extra_hosts:
-      # Collector container'ın DIŞINDA, Docker host'unda çalışıyor. "homelab" adı
+      # Collector container'ın DIŞINDA, Docker host'unda çalışıyorsa host'un adı
       # container içinde çözülmez; host-gateway ile host'un IP'sine takma ad veriliyor.
       # Böylece OTLP endpoint'i http://host.docker.internal:4317 olarak yazılabiliyor.
       - "host.docker.internal:host-gateway"
     ports:
-      # Homelab'da 8080 Keycloak'ta, 8090 da dolu. Varsayılan 8091 (boş olduğu
-      # kontrol edildi); başka bir makinede koşturursan .env'den değiştir.
+      # 8080 ve 8090 geliştirme makinelerinde çoğu zaman dolu; varsayılan 8091.
+      # Sende de doluysa .env'den değiştir.
       - "${WALLET_HOST_PORT:-8091}:8080"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]

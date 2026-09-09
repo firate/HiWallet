@@ -14,7 +14,7 @@ namespace HiWallet.Shared.Infrastructure.Observability;
 /// <summary>
 /// OpenTelemetry: traces, metrics, logs (baseline.md madde 2 ve 3). Serilog YOK.
 ///
-/// Üç sinyal de aynı OTLP endpoint'ine gidiyor; homelab'daki Collector onları
+/// Üç sinyal de aynı OTLP endpoint'ine gidiyor; oradaki Collector onları
 /// Tempo / Prometheus / Loki'ye dağıtıyor. Log–trace korelasyonu bedava geliyor:
 /// OTel logs trace_id'yi log record'una kendisi gömüyor, elle korelasyon alanı
 /// taşımaya gerek yok.

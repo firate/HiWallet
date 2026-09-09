@@ -55,20 +55,20 @@ Eksik değişken `docker compose down`'ı da durdurur: compose dosyayı hangi ko
 için olursa olsun önce yorumluyor. Yani `down -v && up` zincirinde hata alırsan
 volume DÜŞMEMİŞTİR — `.env`'i düzelttikten sonra komutu baştan çalıştır.
 
-Portların varsayılanı **homelab'a göre** seçildi, dokunmana gerek yok:
+Portların varsayılanı alışıldık portlardan bilerek kaçıyor, dokunmana gerek yok:
 
 ```
-WALLET_HOST_PORT=8091        # 8080 Keycloak'ta, 8090 dolu
+WALLET_HOST_PORT=8091        # 8080/8090 çoğu makinede dolu
 TOPUP_HOST_PORT=8092
 WITHDRAWAL_HOST_PORT=8093
 BANK_HOST_PORT=8094          # sahte bankanın senaryo ucu
-POSTGRES_HOST_PORT=5433      # 5432 ana Postgres'te
-RABBITMQ_HOST_PORT=5673      # 5672 mevcut broker'da
+POSTGRES_HOST_PORT=5433      # 5432 mevcut Postgres'te olabilir
+RABBITMQ_HOST_PORT=5673      # 5672 mevcut broker'da olabilir
 RABBITMQ_MGMT_HOST_PORT=15673
 ```
 
-Telemetriyi homelab Collector'ına göndereceksen `.env`'de şunu değiştir — container
-içinde `homelab` adı çözülmez, collector host tarafında:
+Telemetriyi bir OTel Collector'ına göndereceksen `.env`'de şunu değiştir —
+Collector container'ların dışında, Docker host tarafında çalışıyorsa:
 
 ```
 OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317
@@ -247,8 +247,8 @@ için, parola değiştirdiğinde bu şart.
 
 ## Doğrulama kaydı (iki uygulamalı sürüm)
 
-Homelab'da `docker compose up --build` ile koşturuldu. O koşuda kanıtlananlar —
-imaj ve şema tarafı değişmediği için hâlâ geçerli:
+`docker compose up --build` ile koşturuldu. O koşuda kanıtlananlar — imaj ve şema
+tarafı değişmediği için hâlâ geçerli:
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
@@ -277,12 +277,12 @@ $ ... psql -U wallet_app -c "UPDATE ledger_entries SET amount = amount + 1;"
 ERROR:  permission denied for table ledger_entries
 ```
 
-Sağlık ucu Tailscale üzerinden dışarıdan da doğrulandı (`http://homelab:8091`).
+Sağlık ucu, Docker host'unun dışındaki bir makineden de doğrulandı.
 
 ## Doğrulama kaydı (beş uygulamalı sürüm)
 
 `docker compose down -v --remove-orphans && docker compose up --build -d` ile
-homelab'da koşturuldu. Stack ayağa kalktı.
+koşturuldu. Stack ayağa kalktı.
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
@@ -417,7 +417,7 @@ docker compose exec postgres psql -U topup_app -d hiwallet_topup -c "SELECT even
 ## Host'ta .NET gerekmiyor
 
 `docker compose up --build` için host'un .NET sürümü kullanılmıyor; SDK ve runtime
-imajın içinden geliyor. Homelab'da .NET 9 olması sorun değil, yalnızca Docker yeterli.
+imajın içinden geliyor. Host'ta .NET 9 olması sorun değil, yalnızca Docker yeterli.
 Doğrudan `dotnet test` / `dotnet run` çalıştıracaksan .NET 10 SDK gerekir.
 
 ## Çözülmüş hatalar

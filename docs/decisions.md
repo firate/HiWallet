@@ -543,7 +543,7 @@ ihmal edilebilir. Sıcak yolda değişen bir şey yok: `ledger_entries` INSERT'�
 kontrolü zaten `accounts_pkey`'e bir index probe yapıyordu, artık
 `uq_ledger_accounts_id_currency`'ye yapıyor — aynı sayıda probe.
 
-**Doğrulandı.** DDL homelab'daki Postgres 17'de koşturuldu, 11 senaryonun hepsi beklendiği
+**Doğrulandı.** DDL gerçek bir Postgres 17'de koşturuldu, 11 senaryonun hepsi beklendiği
 gibi davrandı. Özellikle iki şüpheli nokta teyit edildi: (a) `CONSTRAINT ... UNIQUE`
 composite FK hedefi olarak kabul ediliyor — `CREATE UNIQUE INDEX` yerine constraint
 yazılması bu yüzden şart, (b) karışık para birimli "toplamı sıfır" işlem artık `P0001`
@@ -670,7 +670,7 @@ okumasında join, her cüzdan yaratmada iki insert. Bu ölçekte ağır.
 "Birikim" diyebilir. İsim ayırt etmek için varsa bu onu boşa çıkarıyor, ama bir ürün kararı
 ve şimdi verilmedi.
 
-**Doğrulandı.** Homelab'daki Postgres 17'de 17 senaryo koşturuldu, hepsi geçti. Bu maddenin
+**Doğrulandı.** Gerçek bir Postgres 17'de 17 senaryo koşturuldu, hepsi geçti. Bu maddenin
 kendi testleri: aynı hesap + aynı currency ile ikinci cüzdan **açılabiliyor** (T12); sistem
 hesabına `account_id` verilemiyor (T13, `ck_ledger_accounts_account`); var olmayan hesaba
 cüzdan bağlanamıyor (T14); adsız cüzdan ve adlı sistem hesabı reddediliyor (T15/T16);

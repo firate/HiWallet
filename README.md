@@ -68,7 +68,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
 | Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
-| Beş uygulamanın compose'dan ayağa kalkması | ✅ homelab'da koşturuldu |
+| Beş uygulamanın compose'dan ayağa kalkması | ✅ |
 | Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
 | Business günlük özeti | ✅ |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
@@ -108,11 +108,11 @@ açmasının sebebi olmazdı.
 
 Swagger: <http://localhost:8091/swagger> (Development'ta).
 
-Host portlarının varsayılanı homelab'a göre seçildi (`8091`–`8094`, `5433`, `5673`);
-orada `8080` Keycloak'ta, `8090` dolu, `5432` ana Postgres'te ve `5672` mevcut
-broker'da. Başka bir makinede `.env`'den değiştirilebilir.
+Host portlarının varsayılanı (`8091`–`8094`, `5433`, `5673`) alışıldık portlardan
+bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
+`.env`'den değiştirilebilir.
 
-> **Stack homelab'da koşuyor ve uçtan uca akışları geçiyor.** Top-up, çekimin
+> **Stack compose'dan koşuyor ve uçtan uca akışları geçiyor.** Top-up, çekimin
 > mutlu yolu ve telafi yolu compose üzerinde doğrulandı: banka reddettiğinde
 > bakiye `500` → `500` dönüyor ve ters kaydın `revenue` bacağı yerinde. Yapısal
 > tarafta beş uygulama `healthy`, dört migrator şemaları uyguluyor, `wallet_app`
