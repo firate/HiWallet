@@ -399,13 +399,136 @@ varsayılan olarak takip ettiği için. Compose'da `curl` `302` gösterdi. Test 
 yönlendirmeyi takip etmeden sınıyor; dokümante edilen adres ile sınanan adres
 aynı olmak zorunda.
 
+### Üç açık ucun koşturulması
+
+Aşağıdaki üçü compose ayaktayken sırayla koşturulur. Hepsi `.env` yüklü bir kabuk
+istiyor:
+
+```bash
+set -a; . ./.env; set +a
+```
+
+#### A. Uçtan uca transfer
+
+Cüzdan kur, top-up ile para sok, ikinci cüzdana geçir. Zincirin tamamı konteyner
+içinde: HTTP → inbox → relay → broker → tüketici → ledger.
+
+```bash
+A1=$(curl -s -X POST localhost:8091/v1/accounts -H 'Content-Type: application/json' \
+  -d '{"type":"Person"}' | jq -r .accountId)
+A2=$(curl -s -X POST localhost:8091/v1/accounts -H 'Content-Type: application/json' \
+  -d '{"type":"Person"}' | jq -r .accountId)
+
+W1=$(curl -s -X POST localhost:8091/v1/accounts/$A1/wallets -H 'Content-Type: application/json' \
+  -d '{"name":"Gonderen","currency":"TRY"}' | jq -r .walletId)
+W2=$(curl -s -X POST localhost:8091/v1/accounts/$A2/wallets -H 'Content-Type: application/json' \
+  -d '{"name":"Alan","currency":"TRY"}' | jq -r .walletId)
+
+# Top-up: imza HAM gövde baytları üzerinde.
+BODY="{\"eventId\":\"evt_e2e_1\",\"walletId\":\"$W1\",\"amount\":100.00,\"currency\":\"TRY\",\"reference\":\"pi_e2e_1\",\"occurredAt\":\"2026-09-09T10:00:00+00:00\"}"
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
+curl -s -X POST localhost:8092/v1/webhooks/topup/stripe-fake \
+  -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
+
+sleep 3   # hat asenkron
+
+curl -s -X POST localhost:8091/v1/transfers -H 'Content-Type: application/json' \
+  -d "{\"fromWalletId\":\"$W1\",\"toWalletId\":\"$W2\",\"amount\":40,\"currency\":\"TRY\",\"type\":\"P2P\"}"
+
+curl -s localhost:8091/v1/wallets/$W1; echo; curl -s localhost:8091/v1/wallets/$W2
+```
+
+Beklenen: top-up `{"accepted":true,"duplicate":false}`, transfer `201`, sonra
+gönderen `60`, alan `40` (P2P komisyonsuz).
+
+#### B. Settlement ve fatura uçları
+
+**Settlement — `stripe-fake`, `Net` model.** 100 TRY'lik top-up'ın ücreti
+%2.9 + 0.30 = `3.20`, banka hesabına giren `96.80`.
+
+```bash
+SB="{\"settlementId\":\"stl_e2e_1\",\"currency\":\"TRY\",\"grossAmount\":100.00,\"feeAmount\":3.20,\"netAmount\":96.80,\"references\":[\"pi_e2e_1\"],\"settledAt\":\"2026-09-09T18:00:00+00:00\"}"
+SS=$(printf '%s' "$SB" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
+curl -s -X POST localhost:8092/v1/webhooks/settlement/stripe-fake \
+  -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SS" --data "$SB"
+```
+
+`grossAmount ≠ netAmount + feeAmount` gönderirsen sınırda `400` alırsın — o kayıt
+ledger'a hiç ulaşmıyor.
+
+**Fatura — `bank-fake`, `Invoiced` model.** Tutar uydurulmaz, faturalanmamış ücret
+toplamı okunur; yoksa tolerans dışı kalıp `PendingReview`'a düşer.
+
+```bash
+EXP=$(docker compose exec -T postgres psql -U postgres -d hiwallet_wallet -t -A \
+  -c "SELECT COALESCE(SUM(expected_amount),0) FROM provider_fees WHERE provider='bank-fake' AND actual_amount IS NULL")
+echo "faturalanmamış bank-fake ücreti: $EXP"
+
+IB="{\"invoiceRef\":\"inv_e2e_1\",\"currency\":\"TRY\",\"amount\":$EXP,\"issuedAt\":\"2026-09-09T18:00:00+00:00\"}"
+IS=$(printf '%s' "$IB" | openssl dgst -sha256 -hmac "$BANK_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
+curl -s -X POST localhost:8092/v1/webhooks/invoice/bank-fake \
+  -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$IS" --data "$IB"
+```
+
+`$EXP` sıfırsa önce bir çekimin tamamlanması gerekiyor: ücreti yazan şey çekim
+settlement'ı.
+
+İkisinin ledger etkisi:
+
+```bash
+sleep 3
+docker compose exec -T postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT t.type, a.type AS hesap, a.provider, e.amount
+     FROM ledger_entries e
+     JOIN ledger_transactions t ON t.id = e.ledger_transaction_id
+     JOIN ledger_accounts a ON a.id = e.ledger_account_id
+    WHERE t.type = 'settlement' ORDER BY t.created_at DESC, e.amount DESC LIMIT 10"
+```
+
+Top-up settlement'ında beklenen üç bacak — toplamları sıfır:
+
+```
+ settlement | clearing         | stripe-fake |  100.0000
+ settlement | nostro           | stripe-fake |  -96.8000
+ settlement | provider_expense | stripe-fake |   -3.2000
+```
+
+Faturada iki bacak: `provider_expense -tutar`, `nostro +tutar`.
+
+#### C. Zamanlanmış işlerin ilk turu
+
+**İlk tur beklemeden koşmuyor** (`ScheduledJob`): dağıtımda ayağa kalkan her instance
+aynı anda tarama başlatmasın diye. Bunun bedeli, üretim aralıklarıyla mutabakatı
+görmek için altı saat beklemek. Aralıklar bu yüzden `.env`'den kısaltılabiliyor:
+
+```bash
+cat >> .env <<'EOF'
+JOBS_RECONCILIATION_INTERVAL=00:00:30
+JOBS_BUSINESS_SUMMARY_INTERVAL=00:00:30
+JOBS_STUCK_SAGA_SCAN_INTERVAL=00:00:30
+EOF
+
+docker compose up -d wallet-consumer withdrawal-orchestrator
+sleep 45
+
+docker compose logs wallet-consumer | grep -E "koşacak|Mutabakat|özeti"
+docker compose logs withdrawal-orchestrator | grep -E "koşacak|ilerlemiyor"
+```
+
+Beklenen: her job önce kaydını basıyor (`... her 00:00:30 sürede bir koşacak.`),
+sonra ilk turunu koşuyor. Temiz bir sistemde mutabakat `Mutabakat temiz: bulgu yok.`
+diyor, takılmış saga taraması ise hiçbir şey basmıyor — bulgu yoksa log da yok.
+
+Bittiğinde üç satırı `.env`'den sil ve servisleri yeniden başlat; üretim aralıkları
+geri gelsin.
+
 ### Hâlâ doğrulanmadı
 
 | ne | nasıl bakılır |
 | --- | --- |
-| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki "Hesap ve cüzdan kurma" ile iki cüzdan aç, birine top-up yap, transfer et |
-| settlement ve fatura uçları (5.5–5.6) | webhook'lar yazıldı ve testlerde yeşil; compose'dan hiç çağrılmadı |
-| scheduled job'lar (5.1–5.3, 5.7) | ilk turları dakikalar/saatler sonra koşuyor; log'dan izlenir |
+| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
+| settlement ve fatura uçları (5.5–5.6) | yukarıdaki **B** |
+| scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
 
 ### Top-up hattını doğrulama
 
