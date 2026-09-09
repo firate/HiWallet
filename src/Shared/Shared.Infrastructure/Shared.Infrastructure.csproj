@@ -12,6 +12,10 @@
              geliyor; ayrı paket sürümü yönetmeye gerek kalmıyor. -->
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <PackageReference Include="RabbitMQ.Client"/>
+        <!-- OpenAPI dokümanı ve Scalar arayüzü (OpenApi/OpenApiSetup).
+             İstemcisi olan iki servis de aynı kurulumu istiyor. -->
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+        <PackageReference Include="Scalar.AspNetCore"/>
         <!-- Yalnızca advisory lock için (Jobs/JobLease). EF Core BURAYA GİRMİYOR:
              job'ın kendi işi kendi DbContext'iyle, kendi bağlantısında koşuyor. -->
         <PackageReference Include="Npgsql"/>

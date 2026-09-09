@@ -149,7 +149,7 @@ RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
 ```
 WalletConsumer/
 ├── WalletConsumer.csproj
-├── Program.cs                  -- controller yok, Swagger yok, rate limiter yok
+├── Program.cs                  -- controller yok, API dokümanı yok, rate limiter yok
 ├── Dockerfile
 ├── Topups/                     -- TopupConsumerService: top-up kuyruklarını dinler
 ├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
@@ -230,7 +230,9 @@ Shared/
 │   └── Envelope.cs            -- MessageId, CorrelationId, OccurredAt
 └── Shared.Infrastructure/
     ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, sağlık kontrolü
+    ├── Jobs/                  -- PeriodicTimer tabanı, pg_try_advisory_lock kirası
     ├── Observability/         -- OTel ortak yapılandırması
+    ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
     └── HealthChecks/          -- /health/live ve /health/ready uçları
 ```
 

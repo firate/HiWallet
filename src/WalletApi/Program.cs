@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
+using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Setup;
 using Microsoft.AspNetCore.RateLimiting;
@@ -44,8 +45,7 @@ builder.Services
         // enum'a yeni bir değer eklemek mevcut client'ların anlamını kaydırırdı.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddHiWalletOpenApi();
 
 var app = builder.Build();
 
@@ -55,11 +55,8 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Development kapısı MapHiWalletOpenApi'nin içinde; üretimde iki uç da yok.
+app.MapHiWalletOpenApi();
 
 // Health check'lere rate limit UYGULANMIYOR: probe'un limite takılması sağlıklı bir
 // servisi trafikten çektirir.
