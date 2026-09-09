@@ -247,6 +247,11 @@ services:
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
+      # Job aralıkları. Varsayılanlar üretim değerleri; .env'den kısaltmak yalnızca
+      # ilk turu gözle görmek için. İlk tur BEKLEMEDEN koşmuyor (ScheduledJob) —
+      # kısaltılmazsa mutabakatı görmek için altı saat beklemek gerekirdi.
+      Jobs__Reconciliation__Interval: ${JOBS_RECONCILIATION_INTERVAL:-06:00:00}
+      Jobs__BusinessSummary__Interval: ${JOBS_BUSINESS_SUMMARY_INTERVAL:-01:00:00}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-wallet-consumer
@@ -287,6 +292,8 @@ services:
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
+      # Bkz. wallet-consumer'daki aynı not.
+      Jobs__StuckSagaScan__Interval: ${JOBS_STUCK_SAGA_SCAN_INTERVAL:-00:05:00}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-withdrawal-orchestrator
