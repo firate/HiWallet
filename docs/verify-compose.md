@@ -480,7 +480,7 @@ sleep 3
 docker compose exec -T postgres psql -U postgres -d hiwallet_wallet -c \
   "SELECT t.type, a.type AS hesap, a.provider, e.amount
      FROM ledger_entries e
-     JOIN ledger_transactions t ON t.id = e.ledger_transaction_id
+     JOIN ledger_transactions t ON t.id = e.transaction_id
      JOIN ledger_accounts a ON a.id = e.ledger_account_id
     WHERE t.type = 'settlement' ORDER BY t.created_at DESC, e.amount DESC LIMIT 10"
 ```
