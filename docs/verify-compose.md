@@ -489,9 +489,15 @@ Top-up settlement'ında beklenen üç bacak — toplamları sıfır:
 
 ```
  settlement | clearing         | stripe-fake |  100.0000
- settlement | nostro           | stripe-fake |  -96.8000
  settlement | provider_expense | stripe-fake |   -3.2000
+ settlement | nostro           | bank-fake   |  -96.8000
 ```
+
+`nostro` bacağının provider'ı `bank-fake`, `stripe-fake` DEĞİL — ve bu doğru.
+Nostro bir banka hesabı, ödeme sağlayıcısının hesabı değil; Stripe parayı bizim
+banka hesabımıza yatırıyor. `provider` kolonu burada hesabı tutan bankayı
+adlandırıyor. Handler para birimi başına tek nostro arıyor, sıfır ya da birden
+fazla bulursa settlement'ı reddediyor.
 
 Faturada iki bacak: `provider_expense -tutar`, `nostro +tutar`.
 
