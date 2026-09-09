@@ -306,3 +306,11 @@ Eksik değil, **elenmiş** — gerekçeleri `decisions.md` madde 12'de:
 Ayrıca kayda geçirilmiş, henüz sorun olmayan bir darboğaz var: komisyonlu her transfer
 tek `revenue` satırını güncelliyor ve eşzamanlı komisyonlu transferler cüzdanları farklı
 olsa bile çakışıyor (`decisions.md` madde 23).
+
+## Lisans
+
+MIT — [LICENSE](LICENSE).
+
+Bu bir **referans uygulamasıdır**, üretime hazır bir e-para sistemi değil. Yukarıdaki
+bilinçli sınırlamalar okunmadan üretim amacıyla kullanılmamalı. `stripe-fake` ve
+`bank-fake` yerel simülatörlerdir; hiçbir ödeme sağlayıcısıyla ilişkisi yoktur.
