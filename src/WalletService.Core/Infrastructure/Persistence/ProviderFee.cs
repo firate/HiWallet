@@ -40,9 +40,14 @@ internal sealed class ProviderFee
     public decimal ExpectedAmount { get; init; }
 
     /// <summary>
-    /// Gerçekleşen. <c>Net</c> modelde settlement anında, <c>Invoiced</c> modelde
-    /// fatura eşleşince dolar; o ana kadar NULL. Sıfır YAZILMAZ — "ücret alınmadı"
-    /// ile "henüz bilmiyoruz" ayrımı kaybolurdu.
+    /// Gerçekleşen. Yalnızca <c>Net</c> modelde, settlement anında dolar; sıfır
+    /// YAZILMAZ — "ücret alınmadı" ile "henüz bilmiyoruz" ayrımı kaybolurdu.
+    ///
+    /// <b><c>Invoiced</c> modelde HİÇ DOLMUYOR</b> ve NULL kalması kusur değil:
+    /// fatura toplam tutarı bildiriyor, onu satır başına dağıtmak uydurma bir
+    /// hassasiyet olurdu (settlement tarafındaki aynı gerekçe). O modelde satırın
+    /// kapandığını gösteren şey <see cref="InvoiceRef"/> — faturanın kapsam sorgusu
+    /// da onu kullanıyor, buradaki değeri değil.
     /// </summary>
     public decimal? ActualAmount { get; set; }
 
