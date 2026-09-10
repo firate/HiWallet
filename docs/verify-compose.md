@@ -459,9 +459,15 @@ ledger'a hiç ulaşmıyor.
 **Fatura — `bank-fake`, `Invoiced` model.** Tutar uydurulmaz, faturalanmamış ücret
 toplamı okunur; yoksa tolerans dışı kalıp `PendingReview`'a düşer.
 
+Kapsam ölçütü **`invoice_ref IS NULL`**, `actual_amount IS NULL` DEĞİL. Handler'ın
+kendi kapsam sorgusu da bunu kullanıyor. `Invoiced` modelde `actual_amount` hiç
+dolmuyor — fatura toplam bildiriyor, satır başına dağıtmak uydurma bir hassasiyet
+olurdu — yani o kolonla filtrelersen faturalanmış satırlar da toplama girer ve
+ikinci fatura şişik çıkar.
+
 ```bash
 EXP=$(docker compose exec -T postgres psql -U postgres -d hiwallet_wallet -t -A \
-  -c "SELECT COALESCE(SUM(expected_amount),0) FROM provider_fees WHERE provider='bank-fake' AND actual_amount IS NULL")
+  -c "SELECT COALESCE(SUM(expected_amount),0) FROM provider_fees WHERE provider='bank-fake' AND invoice_ref IS NULL")
 echo "faturalanmamış bank-fake ücreti: $EXP"
 
 IB="{\"invoiceRef\":\"inv_e2e_1\",\"currency\":\"TRY\",\"amount\":$EXP,\"issuedAt\":\"2026-09-09T18:00:00+00:00\"}"
