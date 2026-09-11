@@ -1145,9 +1145,18 @@ asılı kalmış çekimleri hiçbir şey yakalamaz.
 
 | `actor_type` | kim | `actor_id` |
 | --- | --- | --- |
-| `customer` | hesap sahibi, müşteriye dönük bir uçtan | hesabın kimliği |
+| `customer` | akışı hesap sahibi başlattı | hesabın kimliği |
 | `employee` | şirket çalışanı, backoffice'ten | kimlik sağlayıcıdaki `sub` |
 | `system` | insan yok: relay, zamanlanmış iş, settlement/fatura webhook'u, saga komutu | akışın sabit adı (`topup`, `settlement`, `withdrawal-saga`) |
+
+**Ölçüt taşıma değil, başlatma.** Aktör "bu kaydı hangi yol getirdi" sorusunun değil,
+"bu hareketi kim başlattı" sorusunun cevabı. Çekimin düşme kaydı wallet'a kuyruktan
+geliyor ama akışı müşteri başlattı — aktörü `customer`. Aynı saga'nın iade ve
+settlement kayıtları `system`, çünkü onları kimse istemedi: biri bankanın reddine,
+diğeri bankanın bildirimine verilen tepki.
+
+Bu ayrım yapılmazsa `system` "kimliği taşımayı beceremediğimiz her şey" anlamına
+kayar ve madde amacını kaybeder.
 
 **Gerekçe.** Bugün ledger *ne olduğunu* yazıyor, *kimin başlattığını* yazmıyor. Müşteri
 transferinde bu sorun değil — aktör örtük olarak hesabın sahibi. Ama backoffice'ten

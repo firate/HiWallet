@@ -129,11 +129,18 @@ public sealed class DebitForWithdrawalHandler(
         }
 
         // --- Ledger -------------------------------------------------------------------
+        // Aktör MÜŞTERİ, saga değil (decisions.md madde 34). Çekimi müşteri başlattı;
+        // araya kuyruk girmesi bunu değiştirmiyor. Aktör "kaydı hangi taşıma getirdi"
+        // sorusunun değil, "bu hareketi kim başlattı" sorusunun cevabı.
+        //
+        // Aynı saga'nın diğer iki kaydı `system` KALIYOR ve bu tutarsızlık değil:
+        // iadeyi kimse istemedi (banka reddetti, saga karar verdi), settlement'ı da
+        // banka bildirdi. Orada başlatan bir insan gerçekten yok.
         var tx = LedgerTransaction.Create(
             transactionId,
             LedgerTransactionType.Withdrawal,
             wallet.Id,
-            SystemActors.WithdrawalSaga,
+            Actor.Customer(accountId),
             now,
             IdempotencyKey(command.SagaId),
             correlationId: command.SagaId);

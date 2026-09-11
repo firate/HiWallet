@@ -184,7 +184,7 @@ Partial unique index: idempotency key'siz iç işlemler çakışmaz.
 
 | `actor_type` | `actor_id` | ne zaman |
 | --- | --- | --- |
-| `customer` | hesabın kimliği | müşteriye dönük bir uçtan gelen transfer |
+| `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi |
 | `employee` | kimlik sağlayıcıdaki `sub` | backoffice — kimlik doğrulama gelince |
 | `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`) | insan yok |
 
