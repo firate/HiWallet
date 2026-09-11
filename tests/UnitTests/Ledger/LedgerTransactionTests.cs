@@ -15,7 +15,7 @@ public sealed class LedgerTransactionTests
     private static LedgerTransaction NewTransaction(LedgerTransactionType type = LedgerTransactionType.P2P)
     {
         return LedgerTransaction.Create(
-            Guid.NewGuid(), type, Sender, Actor.Customer(Sender), DateTimeOffset.UnixEpoch);
+            Guid.NewGuid(), type, Sender, Actor.Customer(Sender), DateTimeOffset.UnixEpoch, "test-key");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class LedgerTransactionTests
         // iki kez yazılabilirdi (decisions.md madde 15).
         Should.Throw<ArgumentException>(() => LedgerTransaction.Create(
             Guid.NewGuid(), LedgerTransactionType.ProviderInvoice, Guid.Empty,
-            SystemActors.ProviderInvoice, DateTimeOffset.UnixEpoch));
+            SystemActors.ProviderInvoice, DateTimeOffset.UnixEpoch, "test-key"));
     }
 
     /// <summary>
@@ -97,7 +97,22 @@ public sealed class LedgerTransactionTests
     public void Create_AktorBos_Reddeder()
     {
         Should.Throw<ArgumentException>(() => LedgerTransaction.Create(
-            Guid.NewGuid(), LedgerTransactionType.P2P, Sender, default, DateTimeOffset.UnixEpoch));
+            Guid.NewGuid(), LedgerTransactionType.P2P, Sender, default, DateTimeOffset.UnixEpoch, "test-key"));
+    }
+
+    /// <summary>
+    /// Anahtarsız ledger işlemi açılamıyor (<c>decisions.md</c> madde 4). Anahtarsız
+    /// bir satır deduplike edilemez: tekrarı hiçbir şeye takılmadan ikinci kez
+    /// yazılır ve müşteri aynı parayı iki kez gönderir.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_AnahtarBos_Reddeder(string key)
+    {
+        Should.Throw<ArgumentException>(() => LedgerTransaction.Create(
+            Guid.NewGuid(), LedgerTransactionType.P2P, Sender,
+            Actor.Customer(Sender), DateTimeOffset.UnixEpoch, key));
     }
 
     [Fact]
@@ -105,7 +120,7 @@ public sealed class LedgerTransactionTests
     {
         var tx = LedgerTransaction.Create(
             Guid.NewGuid(), LedgerTransactionType.P2P, Sender,
-            Actor.Employee("kc-sub-123"), DateTimeOffset.UnixEpoch);
+            Actor.Employee("kc-sub-123"), DateTimeOffset.UnixEpoch, "test-key");
 
         tx.ActorType.ShouldBe(ActorType.Employee);
         tx.ActorId.ShouldBe("kc-sub-123");

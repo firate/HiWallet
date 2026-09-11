@@ -74,7 +74,7 @@ public sealed class TransferTests(PostgresFixture postgres)
             var to = (from + 1 + random.Next(walletCount - 1)) % walletCount;
             var amount = random.Next(1, 50);
             return new CreateTransferCommand(
-                wallets[from], wallets[to], amount, Try.Code, TransferType.P2P);
+                wallets[from], wallets[to], amount, Try.Code, TransferType.P2P, Guid.NewGuid().ToString("N"));
         }).ToArray();
 
         // Hepsi aynı anda. Aynı cüzdana yazan transferler optimistic lock'a takılacak
@@ -156,7 +156,7 @@ public sealed class TransferTests(PostgresFixture postgres)
         var handler = Handler(postgres);
 
         await Should.ThrowAsync<InsufficientFundsException>(() => handler.HandleAsync(
-            new CreateTransferCommand(from, to, 100m, Try.Code, TransferType.P2P), ct));
+            new CreateTransferCommand(from, to, 100m, Try.Code, TransferType.P2P, Guid.NewGuid().ToString("N")), ct));
 
         await using var verify = postgres.CreateContext();
 
@@ -251,7 +251,7 @@ public sealed class TransferTests(PostgresFixture postgres)
         var handler = Handler(postgres, paymentRate: new CommissionRate(0.02m));
 
         var result = await handler.HandleAsync(
-            new CreateTransferCommand(from, to, 100m, Try.Code, TransferType.Payment), ct);
+            new CreateTransferCommand(from, to, 100m, Try.Code, TransferType.Payment, Guid.NewGuid().ToString("N")), ct);
 
         await using var verify = postgres.CreateContext();
 
@@ -289,7 +289,7 @@ public sealed class TransferTests(PostgresFixture postgres)
         var handler = Handler(postgres, p2pLimit: new TransferLimit(PerTransaction: 100m));
 
         await Should.ThrowAsync<LimitExceededException>(() => handler.HandleAsync(
-            new CreateTransferCommand(from, to, 101m, Try.Code, TransferType.P2P), ct));
+            new CreateTransferCommand(from, to, 101m, Try.Code, TransferType.P2P, Guid.NewGuid().ToString("N")), ct));
 
         await using var verify = postgres.CreateContext();
         var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from, ct);
@@ -318,10 +318,10 @@ public sealed class TransferTests(PostgresFixture postgres)
         var handler = Handler(postgres, p2pLimit: new TransferLimit(Daily: 100m));
 
         await handler.HandleAsync(
-            new CreateTransferCommand(first, to, 100m, Try.Code, TransferType.P2P), ct);
+            new CreateTransferCommand(first, to, 100m, Try.Code, TransferType.P2P, Guid.NewGuid().ToString("N")), ct);
 
         // İkinci cüzdandan devam etmek limiti aşmalı — cüzdan bazında olsaydı geçerdi.
         await Should.ThrowAsync<LimitExceededException>(() => handler.HandleAsync(
-            new CreateTransferCommand(second, to, 1m, Try.Code, TransferType.P2P), ct));
+            new CreateTransferCommand(second, to, 1m, Try.Code, TransferType.P2P, Guid.NewGuid().ToString("N")), ct));
     }
 }

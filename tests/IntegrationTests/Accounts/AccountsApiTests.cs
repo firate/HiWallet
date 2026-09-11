@@ -113,14 +113,23 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
             await LedgerSeeder.FundAsync(db, sender, 500m, ct);
         }
 
-        var transfer = await _client.PostAsJsonAsync("/v1/transfers", new
+        // Idempotency-Key zorunlu (decisions.md madde 4); bu testin konusu değil ama
+        // başlıksız istek 400 döner.
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/transfers")
         {
-            fromWalletId = sender,
-            toWalletId = receiver,
-            amount = 100m,
-            currency = "TRY",
-            type = nameof(TransferType.P2P)
-        }, ct);
+            Content = JsonContent.Create(new
+            {
+                fromWalletId = sender,
+                toWalletId = receiver,
+                amount = 100m,
+                currency = "TRY",
+                type = nameof(TransferType.P2P)
+            })
+        };
+
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("N"));
+
+        var transfer = await _client.SendAsync(request, ct);
 
         transfer.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _factory.Errors));
 

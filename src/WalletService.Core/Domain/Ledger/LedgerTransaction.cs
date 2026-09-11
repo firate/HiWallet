@@ -20,7 +20,7 @@ public sealed class LedgerTransaction
         LedgerTransactionType type,
         Guid ledgerAccountId,
         Actor actor,
-        string? idempotencyKey,
+        string idempotencyKey,
         Guid? correlationId,
         DateTimeOffset createdAt)
     {
@@ -54,7 +54,13 @@ public sealed class LedgerTransaction
 
     public string ActorId { get; private set; } = string.Empty;
 
-    public string? IdempotencyKey { get; private set; }
+    /// <summary>
+    /// ZORUNLU (decisions.md madde 4). Nullable DEĞİL: anahtarsız bir satır
+    /// deduplike edilemez ve tekrarı hiçbir şeye takılmadan ikinci kez yazılır.
+    /// Her yazma yolunun bir anahtarı var — transfer'de istemci üretiyor, iç
+    /// akışlarda kaynağın kendi kimliğinden türüyor.
+    /// </summary>
+    public string IdempotencyKey { get; private set; } = string.Empty;
 
     /// <summary>Saga / webhook event ilişkisi.</summary>
     public Guid? CorrelationId { get; private set; }
@@ -74,12 +80,18 @@ public sealed class LedgerTransaction
         Guid ledgerAccountId,
         Actor actor,
         DateTimeOffset createdAt,
-        string? idempotencyKey = null,
+        string idempotencyKey,
         Guid? correlationId = null)
     {
         if (ledgerAccountId == Guid.Empty)
         {
             throw new ArgumentException("Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(ledgerAccountId));
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            throw new ArgumentException(
+                "Idempotency key'siz ledger işlemi açılamaz (decisions.md madde 4).", nameof(idempotencyKey));
         }
 
         if (string.IsNullOrWhiteSpace(actor.Id))

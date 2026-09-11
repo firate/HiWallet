@@ -14,8 +14,13 @@ public sealed class TransfersController(IMessageBus bus) : ControllerBase
     /// Cüzdanlar arası transfer. Tek ACID transaction, saga yok (overview.md madde 4).
     /// </summary>
     /// <param name="idempotencyKey">
-    /// Aynı key ile ikinci istek yeni transfer YAPMAZ, mevcut işlemi döner.
-    /// Yanıt yine <c>201</c>; tekrar olduğu gövdedeki <c>replayed</c> ile bildirilir.
+    /// ZORUNLU (decisions.md madde 4). Aynı key ile ikinci istek yeni transfer YAPMAZ,
+    /// mevcut işlemi döner. Yanıt yine <c>201</c>; tekrar olduğu gövdedeki
+    /// <c>replayed</c> ile bildirilir.
+    ///
+    /// Opsiyonel olsaydı şu senaryo sessizce çift harcama üretirdi: ledger commit
+    /// oldu, yanıt dönerken bağlantı koptu, istemci "oldu mu olmadı mı" bilmediği
+    /// için tekrar denedi. Anahtarsız tekrar hiçbir şeye takılmaz.
     /// </param>
     [HttpPost]
     [ProducesResponseType<TransferResponse>(StatusCodes.Status201Created)]
@@ -28,6 +33,15 @@ public sealed class TransfersController(IMessageBus bus) : ControllerBase
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]>
+                {
+                    ["Idempotency-Key"] = ["Idempotency-Key başlığı zorunlu."]
+                }));
+        }
+
         // Wolverine yalnızca in-process mediator olarak (decisions.md madde 1).
         var result = await bus.InvokeAsync<TransferResult>(
             request.ToCommand(idempotencyKey), ct);

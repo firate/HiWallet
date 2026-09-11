@@ -67,8 +67,15 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 
 **Idempotency**
 - Ayrı `idempotency_keys` tablosu YOK.
-- `ledger_transactions(account_id, idempotency_key)` UNIQUE.
+- `ledger_transactions(account_id, idempotency_key)` UNIQUE. Index PARTIAL DEĞİL:
+  `idempotency_key` NOT NULL ve anahtarsız ledger işlemi açılamıyor (madde 4).
+  Filtre kalsaydı NULL yazabilen bir yol açıldığında o satırlar dedup'ın dışında
+  kalır ve hata da vermezdi.
 - `withdrawal_sagas(account_id, idempotency_key)` UNIQUE.
+- Para hareketi başlatan HER uçta `Idempotency-Key` başlığı ZORUNLU — transfer dahil.
+  Yoksa `400`. Anahtarsız bir tekrar hiçbir constraint'e takılmaz ve çift harcama
+  sessizce ledger'a yazılır; append-only olduğu için de geri alınamaz, yalnızca
+  ters kayıtla düzeltilir.
 - Kalıp: `INSERT ... ON CONFLICT DO NOTHING`, 0 satır ise mevcut kaydı oku ve onu dön.
   "Önce SELECT sonra INSERT" YOK.
 
@@ -159,9 +166,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - IBAN sınırda mod-97 ile doğrulanır ve `Iban` tipine dönüşür. Bu kontrol
   "komisyon koşulsuz iade edilir" kuralının taşıyıcısı; zayıflatılamaz.
   Sınırdan sonra akışta string IBAN DOLAŞMAZ. Yanıtta maskeli döner.
-- `POST /v1/withdrawals`'ta `Idempotency-Key` ZORUNLU — transfer'dekinin aksine
-  opsiyonel DEĞİL. Çekim çok adımlı ve dışarıya para çıkarıyor; anahtarsız bir
-  tekrar ikinci bir banka transferi başlatırdı.
+- `POST /v1/withdrawals`'ta `Idempotency-Key` ZORUNLU. Çekim çok adımlı ve dışarıya
+  para çıkarıyor; anahtarsız bir tekrar ikinci bir banka transferi başlatırdı.
+  (Transfer'de de zorunlu — bkz. "Idempotency".)
 - Yanıt `202`: dönüldüğünde hiçbir para hareket etmedi. Tekrar eden istek de `202`,
   ayrım gövdedeki `replayed` alanında.
 

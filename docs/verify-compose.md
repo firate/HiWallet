@@ -433,6 +433,7 @@ curl -s -X POST localhost:8092/v1/webhooks/topup/stripe-fake \
 sleep 3   # hat asenkron
 
 curl -s -X POST localhost:8091/v1/transfers -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: transfer-e2e-$N" \
   -d "{\"fromWalletId\":\"$W1\",\"toWalletId\":\"$W2\",\"amount\":40,\"currency\":\"TRY\",\"type\":\"P2P\"}"
 
 curl -s localhost:8091/v1/wallets/$W1; echo; curl -s localhost:8091/v1/wallets/$W2

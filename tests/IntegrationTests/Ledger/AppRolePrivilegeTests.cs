@@ -125,7 +125,7 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
             NullLogger<CreateTransferHandler>.Instance);
 
         var result = await handler.HandleAsync(
-            new CreateTransferCommand(from, to, 100m, "TRY", TransferType.P2P), ct);
+            new CreateTransferCommand(from, to, 100m, "TRY", TransferType.P2P, Guid.NewGuid().ToString("N")), ct);
 
         result.TransactionId.ShouldNotBe(Guid.Empty);
 

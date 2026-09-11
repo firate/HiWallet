@@ -17,7 +17,7 @@ public sealed record CreateTransferRequest(
     /// <c>Idempotency-Key</c> header'ından gelir, gövdeden değil — HTTP semantiği bu
     /// ve client'ın aynı gövdeyi tekrar göndermesi yeterli olmalı.
     /// </summary>
-    public CreateTransferCommand ToCommand(string? idempotencyKey)
+    public CreateTransferCommand ToCommand(string idempotencyKey)
     {
         return new CreateTransferCommand(
             FromWalletId, ToWalletId, Amount, Currency, Type, idempotencyKey);
