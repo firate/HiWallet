@@ -345,6 +345,48 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     private static bool SameJson(string left, string right) =>
         JsonNode.DeepEquals(JsonNode.Parse(left), JsonNode.Parse(right));
 
+    /// <summary>
+    /// Aynı saga'nın iki kaydı FARKLI aktör taşıyor (<c>decisions.md</c> madde 34).
+    ///
+    /// Düşmeyi müşteri başlattı — araya kuyruk girmesi bunu değiştirmiyor. İadeyi ise
+    /// kimse istemedi: banka reddetti, saga karar verdi. Aktör "kaydı hangi taşıma
+    /// getirdi" sorusunun değil, "kim başlattı" sorusunun cevabı.
+    ///
+    /// İkisine de <c>system</c> yazmak kolay olurdu ve hiçbir test kırılmazdı — o
+    /// yüzden bu ayrımın kendi testi var.
+    /// </summary>
+    [Fact]
+    public async Task Dusme_MusteriAktoru_Iade_SistemAktoru()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var sagaId = Guid.NewGuid();
+
+        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId), ct);
+        await Refund().HandleAsync(
+            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId }, ct);
+
+        await using var db = postgres.CreateContext();
+
+        var accountId = await db.LedgerAccounts.AsNoTracking()
+            .Where(a => a.Id == walletId)
+            .Select(a => a.AccountId)
+            .SingleAsync(ct);
+
+        var debit = await db.LedgerTransactions.AsNoTracking()
+            .SingleAsync(t => t.CorrelationId == sagaId && t.Type == LedgerTransactionType.Withdrawal, ct);
+
+        debit.ActorType.ShouldBe(ActorType.Customer);
+        debit.ActorId.ShouldBe(accountId!.Value.ToString(),
+            "aktör cüzdanın değil hesabın kimliğini taşır (madde 20)");
+
+        var refund = await db.LedgerTransactions.AsNoTracking()
+            .SingleAsync(t => t.CorrelationId == sagaId && t.Type == LedgerTransactionType.Refund, ct);
+
+        refund.ActorType.ShouldBe(ActorType.System);
+        refund.ActorId.ShouldBe("withdrawal-saga");
+    }
+
     private static DebitForWithdrawal DebitCommand(Guid walletId, decimal amount, Guid? sagaId = null) =>
         new()
         {
