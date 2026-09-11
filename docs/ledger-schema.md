@@ -166,17 +166,18 @@ CREATE TABLE ledger_transactions (
     ledger_account_id uuid NOT NULL REFERENCES ledger_accounts(id),  -- idempotency KAPSAMI
     actor_type       text NOT NULL,       -- customer, employee, system
     actor_id         text NOT NULL,       -- hesap kimliği / IdP sub'ı / akış adı
-    idempotency_key  text NULL,
+    idempotency_key  text NOT NULL,     -- zorunlu, madde 4
     correlation_id   uuid NULL,           -- saga / webhook event ilişkisi
     created_at       timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX ux_ledger_tx_idem
-    ON ledger_transactions (ledger_account_id, idempotency_key)
-    WHERE idempotency_key IS NOT NULL;
+    ON ledger_transactions (ledger_account_id, idempotency_key);
 ```
 
-Partial unique index: idempotency key'siz iç işlemler çakışmaz.
+Index **partial değil**: anahtar her satırda zorunlu (`decisions.md` madde 4).
+Filtre kalsaydı `NULL` yazabilen bir yol açıldığında o satırlar dedup'ın dışında
+kalır ve hiçbir hata da vermezdi.
 
 `actor_type` ve `actor_id` işlemi **kimin başlattığını** tutuyor (`decisions.md` madde 34).
 İkisi de NOT NULL ve kolon varsayılanı YOK: nullable olsaydı "müşteri yaptı" ile

@@ -78,7 +78,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
 
-266 test: 94 unit (DB'siz), 172 integration — gerçek Postgres ve gerçek RabbitMQ.
+269 test: 96 unit (DB'siz), 173 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -170,6 +170,7 @@ değil **hesap** bazında uygulanır.
 ```bash
 curl -X POST http://localhost:8091/v1/transfers \
   -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
   -d '{"fromWalletId":"...","toWalletId":"...","amount":200,"currency":"TRY","type":"Payment"}'
 ```
 

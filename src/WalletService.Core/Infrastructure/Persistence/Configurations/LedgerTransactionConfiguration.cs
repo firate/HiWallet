@@ -39,7 +39,8 @@ internal sealed class LedgerTransactionConfiguration : IEntityTypeConfiguration<
             .HasColumnType("text")
             .IsRequired();
 
-        builder.Property(t => t.IdempotencyKey).HasColumnName("idempotency_key").HasColumnType("text");
+        builder.Property(t => t.IdempotencyKey)
+            .HasColumnName("idempotency_key").HasColumnType("text").IsRequired();
         builder.Property(t => t.CorrelationId).HasColumnName("correlation_id");
 
         builder.Property(t => t.CreatedAt)
@@ -52,11 +53,12 @@ internal sealed class LedgerTransactionConfiguration : IEntityTypeConfiguration<
             .HasConstraintName("fk_ledger_transactions_ledger_account")
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Partial: idempotency key'siz iç işlemler çakışmaz.
+        // Partial DEĞİL: anahtar artık her satırda var (madde 4). Filtre kalsaydı
+        // NULL yazabilen bir yol açıldığında index onu sessizce kapsam dışı bırakır
+        // ve dedup o satırlar için çalışmazdı.
         builder.HasIndex(t => new { t.LedgerAccountId, t.IdempotencyKey })
             .HasDatabaseName("ux_ledger_tx_idem")
-            .IsUnique()
-            .HasFilter("idempotency_key IS NOT NULL");
+            .IsUnique();
 
         builder.HasMany(t => t.Entries)
             .WithOne()

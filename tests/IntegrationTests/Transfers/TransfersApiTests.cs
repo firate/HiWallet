@@ -5,6 +5,7 @@ using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using HiWallet.IntegrationTests.Fixtures;
+using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.IntegrationTests.Transfers;
 
@@ -48,19 +49,58 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
         await _factory.DisposeAsync();
     }
 
-    private HttpRequestMessage Post(object body, string? idempotencyKey = null)
+    private async Task<int> TransferCountAsync(CancellationToken ct)
+    {
+        await using var db = postgres.CreateContext();
+
+        return await db.LedgerTransactions
+            .Where(t => t.LedgerAccountId == _from)
+            .CountAsync(ct);
+    }
+
+    /// <param name="omitKey">
+    /// Yalnızca "anahtarsız istek reddediliyor mu" testi için. Varsayılan davranış
+    /// anahtar ÜRETMEK: başlık zorunlu (decisions.md madde 4) ve diğer testlerin
+    /// konusu idempotency değil.
+    /// </param>
+    private HttpRequestMessage Post(object body, string? idempotencyKey = null, bool omitKey = false)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/transfers")
         {
             Content = JsonContent.Create(body)
         };
 
-        if (idempotencyKey is not null)
+        if (!omitKey)
         {
-            request.Headers.Add("Idempotency-Key", idempotencyKey);
+            request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString("N"));
         }
 
         return request;
+    }
+
+    /// <summary>
+    /// Anahtarsız istek <c>400</c> ile reddediliyor (<c>decisions.md</c> madde 4).
+    ///
+    /// Kabul edilseydi şu sessizce çift harcama üretirdi: ledger commit oldu, yanıt
+    /// dönerken bağlantı koptu, istemci "oldu mu olmadı mı" bilmediği için tekrar
+    /// denedi. Anahtarsız tekrar hiçbir constraint'e takılmaz — ikinci transfer
+    /// yazılır ve hiçbir uyarı çıkmaz.
+    /// </summary>
+    [Fact]
+    public async Task Post_AnahtarYok_400Doner()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var before = await TransferCountAsync(ct);
+
+        var response = await _client.SendAsync(
+            Post(new { fromWalletId = _from, toWalletId = _to, amount = 10m, currency = "TRY", type = "P2P" },
+                omitKey: true),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        (await TransferCountAsync(ct)).ShouldBe(before, "reddedilen istek ledger'a satır bırakmamalı");
     }
 
     [Fact]

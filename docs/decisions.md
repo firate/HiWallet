@@ -139,6 +139,30 @@ ON CONFLICT (ledger_account_id, idempotency_key) DO NOTHING;
 **Neden composite.** Key'i client üretiyor. Yalnız `idempotency_key` UNIQUE olsaydı iki farklı
 kullanıcının aynı key'i üretmesi durumunda birinin isteği diğerininkiyle karışırdı.
 
+**Anahtar ZORUNLU — transfer'de de.** `Idempotency-Key` başlığı yoksa `400`. Kolon
+da NOT NULL ve index artık **partial değil**.
+
+Uzun süre transfer'de opsiyoneldi ve bu savunulmuş bir tercih değildi: transfer ucu
+adım 1'de yazıldı, çekim ucu adım 4'te. At-least-once üzerine düşünce aradaki
+adımlarda olgunlaştı, çekim anahtarı zorunlu kıldı, ama transfer'e geri dönülmedi.
+`CLAUDE.md` de yalnızca karşıtlık kurarak değiniyordu — "transfer'dekinin aksine".
+
+Opsiyonel olmasının bedeli şu senaryoydu: ledger commit oldu, yanıt dönerken bağlantı
+koptu, istemci "oldu mu olmadı mı" bilmediği için tekrar denedi. Anahtarsız tekrar
+hiçbir constraint'e takılmaz — ikinci transfer yazılır, hiçbir uyarı çıkmaz, müşteri
+aynı parayı iki kez gönderir. Ve ledger append-only olduğu için bu kayıt kalıcıdır:
+"müşteri gerçekten iki kez mi gönderdi yoksa kaza mı" sorusu sonsuza kadar cevapsız
+kalır, çünkü ayırt edecek bilgi hiç yazılmamıştır.
+
+Kolonun NOT NULL olması yalnızca controller'ı sertleştirmenin ötesinde: kural orada
+kalsaydı yeni bir uç ya da yeni bir handler yine `NULL` yazabilirdi ve index —
+partial olduğu için — o satırları sessizce kapsam dışı bırakırdı. Dedup çalışmaz,
+hata da vermezdi.
+
+İç akışlarda anahtar zaten vardı: top-up'ta `provider:event_id`, çekimde
+`withdrawal:{sagaId}`, settlement ve faturada kaynağın kendi referansı. Yani NULL
+üreten tek yol transfer'di.
+
 **Not.** Bu, `overview.md` madde 5'teki iki kademe idempotency'yi (inbox `event_id` UNIQUE +
 `processed_events`) değiştirmez. O hat mesajlaşma tarafı, bu hat API girişi.
 
