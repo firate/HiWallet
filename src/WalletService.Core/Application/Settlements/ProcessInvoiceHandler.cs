@@ -136,6 +136,7 @@ public sealed class ProcessInvoiceHandler(
             transactionId,
             LedgerTransactionType.ProviderInvoice,
             expense.Id,
+            SystemActors.ProviderInvoice,
             now,
             IdempotencyKey(message));
 

@@ -86,6 +86,7 @@ public sealed class SettleWithdrawalHandler(
             transactionId,
             LedgerTransactionType.Settlement,
             clearing.Id,
+            SystemActors.WithdrawalSaga,
             now,
             $"{BankProvider}:withdrawal-settlement:{command.SagaId}",
             command.SagaId);

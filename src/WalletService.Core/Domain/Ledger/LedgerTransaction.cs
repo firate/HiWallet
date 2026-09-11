@@ -19,6 +19,7 @@ public sealed class LedgerTransaction
         Guid id,
         LedgerTransactionType type,
         Guid ledgerAccountId,
+        Actor actor,
         string? idempotencyKey,
         Guid? correlationId,
         DateTimeOffset createdAt)
@@ -26,6 +27,8 @@ public sealed class LedgerTransaction
         Id = id;
         Type = type;
         LedgerAccountId = ledgerAccountId;
+        ActorType = actor.Type;
+        ActorId = actor.Id;
         IdempotencyKey = idempotencyKey;
         CorrelationId = correlationId;
         CreatedAt = createdAt;
@@ -41,6 +44,16 @@ public sealed class LedgerTransaction
     /// </summary>
     public Guid LedgerAccountId { get; private set; }
 
+    /// <summary>
+    /// İşlemi başlatan taraf (decisions.md madde 34). İkisi de NOT NULL: nullable
+    /// olsaydı "müşteri yaptı" ile "kaydedilmedi" ayırt edilemezdi.
+    ///
+    /// Yaratılışta yazılır, bir daha güncellenmez — ledger append-only.
+    /// </summary>
+    public ActorType ActorType { get; private set; }
+
+    public string ActorId { get; private set; } = string.Empty;
+
     public string? IdempotencyKey { get; private set; }
 
     /// <summary>Saga / webhook event ilişkisi.</summary>
@@ -50,10 +63,16 @@ public sealed class LedgerTransaction
 
     public IReadOnlyList<LedgerEntry> Entries => _entries;
 
+    /// <param name="actor">
+    /// ZORUNLU ve varsayılanı YOK (decisions.md madde 34): her yazma yolu kökenini
+    /// beyan etmek zorunda. Varsayılan verilseydi yeni bir handler onu sessizce
+    /// devralır ve yanlış aktörle kalıcı kayıt yazardı.
+    /// </param>
     public static LedgerTransaction Create(
         Guid id,
         LedgerTransactionType type,
         Guid ledgerAccountId,
+        Actor actor,
         DateTimeOffset createdAt,
         string? idempotencyKey = null,
         Guid? correlationId = null)
@@ -63,7 +82,12 @@ public sealed class LedgerTransaction
             throw new ArgumentException("Idempotency kapsamı boş olamaz (decisions.md madde 15).", nameof(ledgerAccountId));
         }
 
-        return new LedgerTransaction(id, type, ledgerAccountId, idempotencyKey, correlationId, createdAt);
+        if (string.IsNullOrWhiteSpace(actor.Id))
+        {
+            throw new ArgumentException("Aktör belirtilmeden ledger işlemi açılamaz (decisions.md madde 34).", nameof(actor));
+        }
+
+        return new LedgerTransaction(id, type, ledgerAccountId, actor, idempotencyKey, correlationId, createdAt);
     }
 
     /// <summary>

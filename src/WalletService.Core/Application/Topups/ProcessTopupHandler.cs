@@ -74,7 +74,8 @@ public sealed class ProcessTopupHandler(
         // madde 15). processed_events'e ek olarak buradaki unique index de aynı
         // event'in ikinci kez yazılmasını engelliyor — ikinci bir emniyet kemeri.
         var tx = LedgerTransaction.Create(
-            transactionId, LedgerTransactionType.Topup, wallet.Id, now, IdempotencyKey(message));
+            transactionId, LedgerTransactionType.Topup, wallet.Id, SystemActors.Topup, now,
+            IdempotencyKey(message));
 
         tx.AddEntry(wallet.Id, amount);
         tx.AddEntry(clearing.Id, amount.Negated);

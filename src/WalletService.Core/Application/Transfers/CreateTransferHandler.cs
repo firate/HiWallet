@@ -101,8 +101,17 @@ public sealed class CreateTransferHandler(
 
         // --- Ledger ---------------------------------------------------------------
         var now = clock.UtcNow;
+        // Aktör gönderen cüzdanın SAHİBİ hesap (decisions.md madde 34). Bugün bu
+        // bilgi kimlik doğrulamadan değil, yüklenmiş cüzdandan türetiliyor — çünkü
+        // authn henüz yok (baseline.md "Opsiyonel Katman A").
+        //
+        // Authn geldiğinde burası değişmeli: aktör komutla gelen DOĞRULANMIŞ özne
+        // olmalı ve cüzdanın sahibiyle EŞLEŞTİĞİ kontrol edilmeli. Türetmeye devam
+        // etmek, başkasının cüzdanından yapılan bir transferi o cüzdanın sahibi
+        // yapmış gibi kaydederdi.
         var tx = LedgerTransaction.Create(
-            Guid.NewGuid(), command.Type.ToLedgerType(), sender.Id, now, command.IdempotencyKey);
+            Guid.NewGuid(), command.Type.ToLedgerType(), sender.Id,
+            Actor.Customer(senderAccountId), now, command.IdempotencyKey);
 
         tx.AddEntry(sender.Id, debit.Negated);
         tx.AddEntry(receiver.Id, amount);

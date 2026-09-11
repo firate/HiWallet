@@ -99,6 +99,7 @@ public sealed class RefundWithdrawalHandler(
             transactionId,
             LedgerTransactionType.Refund,
             original.LedgerAccountId,
+            SystemActors.WithdrawalSaga,
             now,
             IdempotencyKey(command.SagaId),
             correlationId: command.SagaId);
