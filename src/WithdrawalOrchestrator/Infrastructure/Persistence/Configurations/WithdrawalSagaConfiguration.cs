@@ -20,6 +20,15 @@ internal sealed class WithdrawalSagaConfiguration : IEntityTypeConfiguration<Wit
         builder.Property(s => s.AccountId).HasColumnName("account_id");
         builder.Property(s => s.WalletId).HasColumnName("wallet_id");
 
+        // Çekimi kim istedi (decisions.md madde 34). account_id "parası kimin"
+        // sorusunu cevaplıyor, bunlar "kim istedi" sorusunu — backoffice müşteri
+        // adına çekim açtığında ikisi ayrışıyor.
+        builder.Property(s => s.InitiatedByType)
+            .HasColumnName("initiated_by_type").HasColumnType("text").IsRequired();
+
+        builder.Property(s => s.InitiatedById)
+            .HasColumnName("initiated_by_id").HasColumnType("text").IsRequired();
+
         builder.Property(s => s.IdempotencyKey)
             .HasColumnName("idempotency_key")
             .HasColumnType("text")

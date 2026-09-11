@@ -1,3 +1,5 @@
+using HiWallet.Shared.Contracts.Actors;
+
 namespace HiWallet.Shared.Contracts.Withdrawals;
 
 // Komutlar: bir servisten diğerine "şunu yap" talimatı. Event'lerden ayrı
@@ -27,6 +29,14 @@ public sealed record DebitForWithdrawal
     public required decimal Amount { get; init; }
 
     public required string Currency { get; init; }
+
+    /// <summary>
+    /// Çekimi kim başlattı (madde 34). Normalde müşterinin kendisi; backoffice
+    /// müşteri adına çekim açarsa çalışan. Wallet bunu ledger'a yazıyor — türetmiyor,
+    /// çünkü cüzdandan türetmek backoffice'in açtığı çekimi müşteri yapmış gibi
+    /// gösterirdi.
+    /// </summary>
+    public required CommandActor Actor { get; init; }
 }
 
 /// <summary>
@@ -62,6 +72,16 @@ public sealed record RefundWithdrawal
     public required Guid CommandId { get; init; }
 
     public required Guid SagaId { get; init; }
+
+    /// <summary>
+    /// Telafiyi kim tetikledi (madde 34). Bankanın reddinde <c>system</c> — kimse
+    /// istemedi, saga karar verdi. Backoffice'ten iptal edildiğinde o çalışan.
+    ///
+    /// <b>Bu alan maddenin en çok işe yaradığı yer.</b> Taşınmasaydı, parayı geri
+    /// vermeye karar veren insan ledger'da <c>system</c> olarak görünürdü ve kalıcı
+    /// kayıtta hiçbir izi kalmazdı.
+    /// </summary>
+    public required CommandActor Actor { get; init; }
 }
 
 /// <summary>

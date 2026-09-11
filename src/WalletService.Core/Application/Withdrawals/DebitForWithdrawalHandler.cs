@@ -129,18 +129,27 @@ public sealed class DebitForWithdrawalHandler(
         }
 
         // --- Ledger -------------------------------------------------------------------
-        // Aktör MÜŞTERİ, saga değil (decisions.md madde 34). Çekimi müşteri başlattı;
-        // araya kuyruk girmesi bunu değiştirmiyor. Aktör "kaydı hangi taşıma getirdi"
-        // sorusunun değil, "bu hareketi kim başlattı" sorusunun cevabı.
+        // Aktör KOMUTTAN geliyor, cüzdandan türetilmiyor (decisions.md madde 34).
+        // Türetseydik backoffice'in müşteri adına açtığı bir çekim, müşteri yapmış
+        // gibi kaydedilirdi.
         //
-        // Aynı saga'nın diğer iki kaydı `system` KALIYOR ve bu tutarsızlık değil:
-        // iadeyi kimse istemedi (banka reddetti, saga karar verdi), settlement'ı da
-        // banka bildirdi. Orada başlatan bir insan gerçekten yok.
+        // Ama komuta körü körüne de güvenilmiyor: `customer` iddiası cüzdanın
+        // sahibiyle EŞLEŞMEK zorunda. Orchestrator'ın hatası ya da ele geçirilmesi
+        // başkasının adına kalıcı kayıt yazdırmamalı — wallet ledger'ın sahibi,
+        // doğrulama burada yapılır.
+        var actor = Actor.From(command.Actor);
+
+        if (actor.Type is ActorType.Customer && actor.Id != accountId.ToString())
+        {
+            throw new InvalidOperationException(
+                $"Komuttaki müşteri aktörü ({actor.Id}) cüzdanın sahibi ({accountId}) değil.");
+        }
+
         var tx = LedgerTransaction.Create(
             transactionId,
             LedgerTransactionType.Withdrawal,
             wallet.Id,
-            Actor.Customer(accountId),
+            actor,
             now,
             IdempotencyKey(command.SagaId),
             correlationId: command.SagaId);

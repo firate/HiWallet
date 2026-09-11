@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
 using HiWallet.IntegrationTests.Fixtures;
+using HiWallet.Shared.Contracts.Actors;
 using HiWallet.Shared.Contracts.Withdrawals;
+using HiWallet.WithdrawalOrchestrator.Domain;
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Application.Withdrawals;
 using HiWallet.WalletService.Domain.Accounts;
@@ -43,9 +45,9 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Dusme_UcBacakYazar_ToplamSifir()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
 
-        var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m), ct);
+        var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m, accountId: accountId), ct);
 
         reply.Replayed.ShouldBeFalse();
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebited));
@@ -71,9 +73,9 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Dusme_KomisyonSifirsa_IkiBacak()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
 
-        await Debit(Policy(rate: 0m)).HandleAsync(DebitCommand(walletId, 100m), ct);
+        await Debit(Policy(rate: 0m)).HandleAsync(DebitCommand(walletId, 100m, accountId: accountId), ct);
 
         await using var db = postgres.CreateContext();
 
@@ -96,9 +98,9 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task YetersizBakiye_Reddedilir_LedgeraYazilmaz()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(50m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(50m, ct);
 
-        var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m), ct);
+        var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m, accountId: accountId), ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
 
@@ -115,10 +117,10 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task LimitAsimi_Reddedilir()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(10_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(10_000m, ct);
 
         var reply = await Debit(Policy(perTransaction: 500m))
-            .HandleAsync(DebitCommand(walletId, 1_000m), ct);
+            .HandleAsync(DebitCommand(walletId, 1_000m, accountId: accountId), ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
         reply.Payload.ShouldContain("Withdrawal.PerTransaction");
@@ -132,10 +134,10 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Limit_KomisyonDahilToplamaUygulanir()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(10_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(10_000m, ct);
 
         var reply = await Debit(Policy(perTransaction: 505m))
-            .HandleAsync(DebitCommand(walletId, 500m), ct);
+            .HandleAsync(DebitCommand(walletId, 500m, accountId: accountId), ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
     }
@@ -144,8 +146,8 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task AyniKomut_IkinciKez_LedgeraDokunmaz_AyniCevabiDoner()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
-        var command = DebitCommand(walletId, 100m);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
+        var command = DebitCommand(walletId, 100m, accountId: accountId);
 
         var first = await Debit().HandleAsync(command, ct);
         var second = await Debit().HandleAsync(command, ct);
@@ -175,8 +177,8 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Reddedilen_KomutTekrarGelirse_BakiyeYetseBileReddedilmisKalir()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(50m, ct);
-        var command = DebitCommand(walletId, 100m);
+        var (walletId, accountId) = await NewFundedWalletAsync(50m, ct);
+        var command = DebitCommand(walletId, 100m, accountId: accountId);
 
         var first = await Debit().HandleAsync(command, ct);
         first.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
@@ -207,27 +209,28 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task GunlukLimit_IadeEdilenCekimiSaymaz()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(100_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(100_000m, ct);
 
         // Günlük tavan 30.000; ilk çekim 25.000 (+500 komisyon) alıyor.
         var policy = new WithdrawalPolicy(
             new CommissionRate(0.02m), new TransferLimit(Daily: 30_000m));
 
         var firstSaga = Guid.NewGuid();
-        await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m, firstSaga), ct);
+        await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m, firstSaga, accountId), ct);
 
         // İade edilmeden ikinci 25.000 limite takılır.
-        var blocked = await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m), ct);
+        var blocked = await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m, accountId: accountId), ct);
         blocked.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
 
         // İadeden sonra aynı istek geçmeli.
         await Refund().HandleAsync(new RefundWithdrawal
         {
             CommandId = Guid.NewGuid(),
-            SagaId = firstSaga
+            SagaId = firstSaga,
+            Actor = WithdrawalSaga.SagaActor
         }, ct);
 
-        var allowed = await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m), ct);
+        var allowed = await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m, accountId: accountId), ct);
 
         allowed.RoutingKey.ShouldBe(nameof(WithdrawalDebited));
     }
@@ -244,16 +247,16 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Iade_UcBacaginTumunuGeriAlir()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
         var sagaId = Guid.NewGuid();
 
         var revenueBefore = await SystemBalanceAsync(SystemAccounts.RevenueTry, ct);
         var clearingBefore = await SystemBalanceAsync(SystemAccounts.ClearingBankTry, ct);
 
-        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId), ct);
+        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId, accountId), ct);
 
         var reply = await Refund().HandleAsync(
-            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId }, ct);
+            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId, Actor = WithdrawalSaga.SagaActor }, ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalRefunded));
 
@@ -282,12 +285,12 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Iade_OrijinalKayitSilinmez()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
         var sagaId = Guid.NewGuid();
 
-        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId), ct);
+        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId, accountId), ct);
         await Refund().HandleAsync(
-            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId }, ct);
+            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId, Actor = WithdrawalSaga.SagaActor }, ct);
 
         await using var db = postgres.CreateContext();
 
@@ -299,12 +302,12 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task AyniIadeKomutu_IkinciKez_IkinciTersKayitYazmaz()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
         var sagaId = Guid.NewGuid();
 
-        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId), ct);
+        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId, accountId), ct);
 
-        var command = new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId };
+        var command = new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId, Actor = WithdrawalSaga.SagaActor };
 
         var first = await Refund().HandleAsync(command, ct);
         var second = await Refund().HandleAsync(command, ct);
@@ -333,7 +336,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             Refund().HandleAsync(
-                new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = Guid.NewGuid() }, ct));
+                new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = Guid.NewGuid(), Actor = WithdrawalSaga.SagaActor }, ct));
     }
 
     // --- yardımcılar ------------------------------------------------------------
@@ -359,45 +362,81 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     public async Task Dusme_MusteriAktoru_Iade_SistemAktoru()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await NewFundedWalletAsync(1_000m, ct);
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
         var sagaId = Guid.NewGuid();
 
-        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId), ct);
+        await Debit().HandleAsync(DebitCommand(walletId, 100m, sagaId, accountId), ct);
         await Refund().HandleAsync(
-            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId }, ct);
+            new RefundWithdrawal { CommandId = Guid.NewGuid(), SagaId = sagaId, Actor = WithdrawalSaga.SagaActor }, ct);
 
         await using var db = postgres.CreateContext();
-
-        var accountId = await db.LedgerAccounts.AsNoTracking()
-            .Where(a => a.Id == walletId)
-            .Select(a => a.AccountId)
-            .SingleAsync(ct);
 
         var debit = await db.LedgerTransactions.AsNoTracking()
             .SingleAsync(t => t.CorrelationId == sagaId && t.Type == LedgerTransactionType.Withdrawal, ct);
 
         debit.ActorType.ShouldBe(ActorType.Customer);
-        debit.ActorId.ShouldBe(accountId!.Value.ToString(),
+        debit.ActorId.ShouldBe(accountId.ToString(),
             "aktör cüzdanın değil hesabın kimliğini taşır (madde 20)");
 
         var refund = await db.LedgerTransactions.AsNoTracking()
             .SingleAsync(t => t.CorrelationId == sagaId && t.Type == LedgerTransactionType.Refund, ct);
 
         refund.ActorType.ShouldBe(ActorType.System);
-        refund.ActorId.ShouldBe("withdrawal-saga");
+        refund.ActorId.ShouldBe(SystemFlows.WithdrawalSaga);
     }
 
-    private static DebitForWithdrawal DebitCommand(Guid walletId, decimal amount, Guid? sagaId = null) =>
+    /// <summary>
+    /// <b>Asıl güvenlik kanıtı.</b> Komuttaki <c>customer</c> iddiası cüzdanın
+    /// sahibiyle eşleşmiyorsa ledger'a YAZILMIYOR.
+    ///
+    /// Wallet ledger'ın sahibi; orchestrator'ın hatası ya da ele geçirilmesi
+    /// başkasının adına kalıcı kayıt yazdıramamalı. Bu kontrol olmasaydı aktör
+    /// alanı bir güvence değil, yalnızca bir beyan olurdu.
+    /// </summary>
+    [Fact]
+    public async Task Dusme_BaskasininAktoruyle_Reddedilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (walletId, _) = await NewFundedWalletAsync(1_000m, ct);
+
+        var command = DebitCommand(walletId, 100m, accountId: Guid.NewGuid());
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            Debit().HandleAsync(command, ct));
+
+        await using var db = postgres.CreateContext();
+
+        (await db.LedgerTransactions.AnyAsync(
+            t => t.LedgerAccountId == walletId && t.Type == LedgerTransactionType.Withdrawal, ct))
+            .ShouldBeFalse();
+    }
+
+    /// <param name="accountId">
+    /// Aktör olarak kullanılıyor. Handler komuttaki `customer` iddiasını cüzdanın
+    /// sahibiyle karşılaştırdığı için gerçek hesap verilmeli; uydurulmuş bir değer
+    /// reddedilir — testi de bu var (<c>Dusme_BaskasininAktoruyle_Reddedilir</c>).
+    /// </param>
+    private static DebitForWithdrawal DebitCommand(
+        Guid walletId, decimal amount, Guid? sagaId = null, Guid? accountId = null) =>
         new()
         {
             CommandId = Guid.NewGuid(),
             SagaId = sagaId ?? Guid.NewGuid(),
             WalletId = walletId,
             Amount = amount,
-            Currency = Try.Code
+            Currency = Try.Code,
+            Actor = CustomerActor(accountId ?? Guid.NewGuid())
         };
 
-    private async Task<Guid> NewFundedWalletAsync(decimal amount, CancellationToken ct)
+    private static CommandActor CustomerActor(Guid accountId) =>
+        new() { Type = ActorTypes.Customer, Id = accountId.ToString() };
+
+    /// <summary>
+    /// Hesabı da döndürüyor: handler komuttaki <c>customer</c> aktörünü cüzdanın
+    /// sahibiyle karşılaştırdığı için testin gerçek hesabı bilmesi gerekiyor.
+    /// </summary>
+    private async Task<(Guid WalletId, Guid AccountId)> NewFundedWalletAsync(
+        decimal amount, CancellationToken ct)
     {
         await using var db = postgres.CreateContext();
 
@@ -406,7 +445,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
 
         await LedgerSeeder.FundAsync(db, walletId, amount, ct);
 
-        return walletId;
+        return (walletId, accountId);
     }
 
     private static async Task<decimal> BalanceAsync(

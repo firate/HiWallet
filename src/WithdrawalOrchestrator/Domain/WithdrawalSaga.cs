@@ -1,3 +1,5 @@
+using HiWallet.Shared.Contracts.Actors;
+
 namespace HiWallet.WithdrawalOrchestrator.Domain;
 
 /// <summary>
@@ -29,6 +31,17 @@ public sealed class WithdrawalSaga
 
     /// <summary>Parası düşülecek cüzdan.</summary>
     public Guid WalletId { get; private set; }
+
+    /// <summary>
+    /// Çekimi kim başlattı (decisions.md madde 34). Normalde hesabın sahibi;
+    /// backoffice müşteri adına çekim açtığında o çalışan.
+    ///
+    /// <c>AccountId</c>'den TÜRETİLEMİYOR: hesap "parası kimin" sorusunu, bu alan
+    /// "kim istedi" sorusunu cevaplıyor ve ikisi her zaman aynı kişi değil.
+    /// </summary>
+    public string InitiatedByType { get; private set; } = string.Empty;
+
+    public string InitiatedById { get; private set; } = string.Empty;
 
     public string IdempotencyKey { get; private set; } = string.Empty;
 
@@ -88,6 +101,7 @@ public sealed class WithdrawalSaga
         string currency,
         Iban destination,
         string idempotencyKey,
+        CommandActor initiatedBy,
         DateTimeOffset startedAt)
     {
         if (amount <= 0m)
@@ -100,11 +114,20 @@ public sealed class WithdrawalSaga
             throw new ArgumentException("Idempotency key zorunlu.", nameof(idempotencyKey));
         }
 
+        ArgumentNullException.ThrowIfNull(initiatedBy);
+
+        if (string.IsNullOrWhiteSpace(initiatedBy.Id))
+        {
+            throw new ArgumentException("Çekimi başlatan belirtilmeden saga açılamaz.", nameof(initiatedBy));
+        }
+
         return new WithdrawalSaga
         {
             Id = id,
             AccountId = accountId,
             WalletId = walletId,
+            InitiatedByType = initiatedBy.Type,
+            InitiatedById = initiatedBy.Id,
             Amount = amount,
             Currency = currency,
             Destination = destination,
@@ -221,6 +244,20 @@ public sealed class WithdrawalSaga
 
         return Advance(WithdrawalState.Compensating, now);
     }
+
+    /// <summary>
+    /// Saga'nın kendi ürettiği komutların aktörü. Bunlar bir tepki: iadeyi bankanın
+    /// reddi, settlement'ı bankanın bildirimi tetikliyor. Başlatan bir insan yok,
+    /// o yüzden çekimi başlatan kişiye DE yazılmıyor — müşteri iadeyi istemedi.
+    /// </summary>
+    public static CommandActor SagaActor { get; } = new()
+    {
+        Type = ActorTypes.System,
+        Id = SystemFlows.WithdrawalSaga
+    };
+
+    /// <summary>Çekimi başlatanın mesaja konulabilir hali.</summary>
+    public CommandActor InitiatedBy() => new() { Type = InitiatedByType, Id = InitiatedById };
 
     public TransitionResult Refunded(Guid ledgerTransactionId, DateTimeOffset now)
     {

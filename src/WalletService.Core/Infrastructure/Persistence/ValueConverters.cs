@@ -1,3 +1,4 @@
+using HiWallet.Shared.Contracts.Actors;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -35,13 +36,16 @@ internal static class ValueConverters
     public static readonly ValueConverter<ActorType, string> ActorType =
         new(t => ToText(t), text => ToActorType(text));
 
+    // Metinler ActorTypes'tan geliyor: aynı değerler mesaj sözleşmesinde de
+    // kullanılıyor ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce
+    // eski değerle kalırdı.
     private static string ToText(ActorType type)
     {
         return type switch
         {
-            Domain.Ledger.ActorType.Customer => "customer",
-            Domain.Ledger.ActorType.Employee => "employee",
-            Domain.Ledger.ActorType.System => "system",
+            Domain.Ledger.ActorType.Customer => ActorTypes.Customer,
+            Domain.Ledger.ActorType.Employee => ActorTypes.Employee,
+            Domain.Ledger.ActorType.System => ActorTypes.System,
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış aktör tipi.")
         };
     }
@@ -50,9 +54,9 @@ internal static class ValueConverters
     {
         return text switch
         {
-            "customer" => Domain.Ledger.ActorType.Customer,
-            "employee" => Domain.Ledger.ActorType.Employee,
-            "system" => Domain.Ledger.ActorType.System,
+            ActorTypes.Customer => Domain.Ledger.ActorType.Customer,
+            ActorTypes.Employee => Domain.Ledger.ActorType.Employee,
+            ActorTypes.System => Domain.Ledger.ActorType.System,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen aktör tipi.")
         };
     }

@@ -1,3 +1,4 @@
+using HiWallet.Shared.Contracts.Actors;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 using HiWallet.WithdrawalOrchestrator.Domain;
 
@@ -31,6 +32,12 @@ public sealed record CreateWithdrawalRequest(
             Amount,
             Currency.ToUpperInvariant(),
             Iban.From(DestinationIban),
-            idempotencyKey);
+            idempotencyKey,
+            // Bugün başlatan HER ZAMAN müşteri ve kimliği gövdeden geliyor — authn
+            // yok (baseline.md "Opsiyonel Katman A"). Authn geldiğinde burası
+            // DOĞRULANMIŞ özneden dolmalı ve gövdedeki AccountId ile eşleştiği
+            // kontrol edilmeli; backoffice çağırdığında da `employee` olmalı.
+            // Şu haliyle istemci kendi aktörünü beyan ediyor, bu bir güven varsayımı.
+            new CommandActor { Type = ActorTypes.Customer, Id = AccountId.ToString() });
     }
 }
