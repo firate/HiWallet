@@ -14,7 +14,8 @@ public sealed class LedgerTransactionTests
 
     private static LedgerTransaction NewTransaction(LedgerTransactionType type = LedgerTransactionType.P2P)
     {
-        return LedgerTransaction.Create(Guid.NewGuid(), type, Sender, DateTimeOffset.UnixEpoch);
+        return LedgerTransaction.Create(
+            Guid.NewGuid(), type, Sender, Actor.Customer(Sender), DateTimeOffset.UnixEpoch);
     }
 
     [Fact]
@@ -83,7 +84,31 @@ public sealed class LedgerTransactionTests
         // account_id nullable olsaydı unique index'teki NULL'lar eşleşmez ve aynı fatura
         // iki kez yazılabilirdi (decisions.md madde 15).
         Should.Throw<ArgumentException>(() => LedgerTransaction.Create(
-            Guid.NewGuid(), LedgerTransactionType.ProviderInvoice, Guid.Empty, DateTimeOffset.UnixEpoch));
+            Guid.NewGuid(), LedgerTransactionType.ProviderInvoice, Guid.Empty,
+            SystemActors.ProviderInvoice, DateTimeOffset.UnixEpoch));
+    }
+
+    /// <summary>
+    /// Aktör varsayılanı YOK ve boş geçilemiyor (decisions.md madde 34). Varsayılan
+    /// olsaydı yeni bir handler onu sessizce devralır ve kalıcı kayda yanlış aktör
+    /// yazardı — hiçbir test de kırılmazdı.
+    /// </summary>
+    [Fact]
+    public void Create_AktorBos_Reddeder()
+    {
+        Should.Throw<ArgumentException>(() => LedgerTransaction.Create(
+            Guid.NewGuid(), LedgerTransactionType.P2P, Sender, default, DateTimeOffset.UnixEpoch));
+    }
+
+    [Fact]
+    public void Create_AktoruKaydeder()
+    {
+        var tx = LedgerTransaction.Create(
+            Guid.NewGuid(), LedgerTransactionType.P2P, Sender,
+            Actor.Employee("kc-sub-123"), DateTimeOffset.UnixEpoch);
+
+        tx.ActorType.ShouldBe(ActorType.Employee);
+        tx.ActorId.ShouldBe("kc-sub-123");
     }
 
     [Fact]

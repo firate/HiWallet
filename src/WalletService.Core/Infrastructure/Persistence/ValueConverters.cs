@@ -32,6 +32,31 @@ internal static class ValueConverters
     public static readonly ValueConverter<LedgerTransactionType, string> LedgerTransactionType =
         new(t => ToText(t), text => ToLedgerTransactionType(text));
 
+    public static readonly ValueConverter<ActorType, string> ActorType =
+        new(t => ToText(t), text => ToActorType(text));
+
+    private static string ToText(ActorType type)
+    {
+        return type switch
+        {
+            Domain.Ledger.ActorType.Customer => "customer",
+            Domain.Ledger.ActorType.Employee => "employee",
+            Domain.Ledger.ActorType.System => "system",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış aktör tipi.")
+        };
+    }
+
+    private static ActorType ToActorType(string text)
+    {
+        return text switch
+        {
+            "customer" => Domain.Ledger.ActorType.Customer,
+            "employee" => Domain.Ledger.ActorType.Employee,
+            "system" => Domain.Ledger.ActorType.System,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen aktör tipi.")
+        };
+    }
+
     private static string ToText(AccountType type)
     {
         return type switch

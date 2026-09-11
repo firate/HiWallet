@@ -164,6 +164,8 @@ CREATE TABLE ledger_transactions (
     type             text NOT NULL,       -- p2p, p2b, b2p, b2b, payment, topup, withdrawal,
                                           -- refund, settlement, provider_invoice
     ledger_account_id uuid NOT NULL REFERENCES ledger_accounts(id),  -- idempotency KAPSAMI
+    actor_type       text NOT NULL,       -- customer, employee, system
+    actor_id         text NOT NULL,       -- hesap kimliği / IdP sub'ı / akış adı
     idempotency_key  text NULL,
     correlation_id   uuid NULL,           -- saga / webhook event ilişkisi
     created_at       timestamptz NOT NULL DEFAULT now()
@@ -175,6 +177,20 @@ CREATE UNIQUE INDEX ux_ledger_tx_idem
 ```
 
 Partial unique index: idempotency key'siz iç işlemler çakışmaz.
+
+`actor_type` ve `actor_id` işlemi **kimin başlattığını** tutuyor (`decisions.md` madde 34).
+İkisi de NOT NULL ve kolon varsayılanı YOK: nullable olsaydı "müşteri yaptı" ile
+"kaydetmeyi unuttuk" aynı değere inerdi.
+
+| `actor_type` | `actor_id` | ne zaman |
+| --- | --- | --- |
+| `customer` | hesabın kimliği | müşteriye dönük bir uçtan gelen transfer |
+| `employee` | kimlik sağlayıcıdaki `sub` | backoffice — kimlik doğrulama gelince |
+| `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`) | insan yok |
+
+Aktör cüzdanın değil **hesabın** kimliğini taşıyor: bir hesabın aynı para biriminde
+birden fazla cüzdanı olabiliyor (madde 20) ve cüzdan yazılsaydı aynı kişinin ikinci
+cüzdanından yaptığı işlem başka biri yapmış gibi görünürdü.
 
 `ledger_account_id` "isteği başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
 İç işlemlerde de doludur — nullable OLMAZ, çünkü unique index içindeki NULL hiçbir NULL'a

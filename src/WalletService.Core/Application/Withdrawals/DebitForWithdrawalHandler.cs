@@ -133,6 +133,7 @@ public sealed class DebitForWithdrawalHandler(
             transactionId,
             LedgerTransactionType.Withdrawal,
             wallet.Id,
+            SystemActors.WithdrawalSaga,
             now,
             IdempotencyKey(command.SagaId),
             correlationId: command.SagaId);

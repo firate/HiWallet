@@ -93,6 +93,7 @@ public sealed class ProcessSettlementHandler(
             transactionId,
             LedgerTransactionType.Settlement,
             clearing.Id,
+            SystemActors.Settlement,
             now,
             IdempotencyKey(message));
 

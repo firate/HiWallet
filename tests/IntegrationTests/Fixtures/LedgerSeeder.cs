@@ -47,7 +47,7 @@ public static class LedgerSeeder
         var clearingId = SystemAccounts.ClearingStripeTry;
 
         var tx = LedgerTransaction
-            .Create(Guid.NewGuid(), LedgerTransactionType.Topup, walletId, SeedTime)
+            .Create(Guid.NewGuid(), LedgerTransactionType.Topup, walletId, SystemActors.Topup, SeedTime)
             .AddEntry(walletId, new Money(amount, currency))
             .AddEntry(clearingId, new Money(-amount, currency));
 

@@ -170,8 +170,8 @@ public sealed class SettleWithdrawalTests(PostgresFixture postgres)
         var now = DateTimeOffset.UtcNow;
 
         var tx = LedgerTransaction
-            .Create(Guid.NewGuid(), LedgerTransactionType.Withdrawal, wallet, now,
-                $"withdrawal:{sagaId}", sagaId)
+            .Create(Guid.NewGuid(), LedgerTransactionType.Withdrawal, wallet,
+                SystemActors.WithdrawalSaga, now, $"withdrawal:{sagaId}", sagaId)
             .AddEntry(wallet, new Money(-(Amount + Commission), currency))
             .AddEntry(SystemAccounts.ClearingBankTry, new Money(Amount, currency))
             .AddEntry(SystemAccounts.RevenueTry, new Money(Commission, currency));

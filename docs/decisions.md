@@ -1136,3 +1136,76 @@ sistemi tasarlanıyor ve bu üç koşulun hiçbiri yoksa **alternatif tercih edi
 arasında ayrışma ihtimali. Karşılığı da tek: takılmış saga taraması. O tarama
 opsiyonel bir iyileştirme DEĞİL, bu kararın zorunlu tamamlayıcısı — yazılmazsa
 asılı kalmış çekimleri hiçbir şey yakalamaz.
+
+---
+
+## 34. Ledger işlemin aktörünü taşır
+
+**Karar.** `ledger_transactions` iki NOT NULL kolon kazanıyor: `actor_type` ve `actor_id`.
+
+| `actor_type` | kim | `actor_id` |
+| --- | --- | --- |
+| `customer` | hesap sahibi, müşteriye dönük bir uçtan | hesabın kimliği |
+| `employee` | şirket çalışanı, backoffice'ten | kimlik sağlayıcıdaki `sub` |
+| `system` | insan yok: relay, zamanlanmış iş, settlement/fatura webhook'u, saga komutu | akışın sabit adı (`topup`, `settlement`, `withdrawal-saga`) |
+
+**Gerekçe.** Bugün ledger *ne olduğunu* yazıyor, *kimin başlattığını* yazmıyor. Müşteri
+transferinde bu sorun değil — aktör örtük olarak hesabın sahibi. Ama backoffice'ten
+başlatılan bir işlemde kritik: hangi çalışan bu ters kaydı yazdı, hangi çalışan tutulan
+çekimi serbest bıraktı. E-para düzenlemesinde bu beklenen bir kayıt.
+
+**Neden ledger'a, log'a değil.** Log değişebilir, saklama süresi vardır, kaybolabilir.
+`ledger_transactions` append-only ve `wallet_app` onu UPDATE/DELETE edemiyor (madde 5
+ve 24). Aktör oraya yazıldığında para hareketinin kendisi kadar kalıcı oluyor. "Kim
+taşıdı" sorusunun cevabı, "ne taşındı" ile aynı dayanıklılıkta olmalı.
+
+**Neden iki kolon ve neden NOT NULL.** Tek bir nullable `initiated_by` kolonu "müşteri
+yaptı" ile "kaydetmeyi unuttuk"u aynı değere indirirdi. Proje bu karıştırmayı başka
+yerde zaten reddediyor: `provider_fees.actual_amount`'a sıfır yazılmıyor, çünkü "ücret
+alınmadı" ile "henüz bilmiyoruz" ayrımı kaybolurdu. NOT NULL olması ayrıca her yazma
+yolunu kökenini beyan etmeye zorluyor — yeni bir handler sessizce atlayamıyor.
+
+**Neden `ledger_entries`'e değil.** Aktör işleme ait, bacağa değil. Kararı veren bir
+tane, bacak birkaç tane.
+
+**Ücret kolonlarıyla çelişmiyor.** `ProviderFee` dokümantasyonu ücret kolonlarının
+`ledger_transactions`'a EKLENMEMESİ gerektiğini söylüyor; gerekçesi iki tane ve ikisi de
+burada geçerli değil. (a) Ücret sonradan UPDATE istiyor (fatura eşleşmesi), append-only
+delinirdi — aktör bir kez, yaratılışta yazılıyor, hiç güncellenmiyor. (b) Ücret kolonları
+transferlerin çoğunda NULL kalırdı — aktör hiçbir satırda boş değil, yalnızca farklı
+değer alıyor.
+
+**Neden şimdi, backoffice yokken.** Sonradan eklemenin bedeli kalıcı: aradaki dönemde
+yazılmış her satırın aktörü **bilinemez** hale gelir ve hiçbir migration onu geri
+getiremez. Şimdi eklemek bir migration ve `LedgerTransaction.Create`'e bir zorunlu
+parametre. Sonra eklemek ya nullable kolon (yukarıdaki karıştırmayı geri getirir) ya da
+uydurulmuş bir değerle backfill demek.
+
+`employee` değeri ancak kimlik doğrulama geldiğinde (baseline "Opsiyonel Katman A",
+madde 12) üretilmeye başlayacak. O zamana kadar yalnızca `customer` ve `system` oluşuyor
+— ama kolon baştan dolu ve zorunlu.
+
+**Domain saf kalıyor.** Aktör komutun içinde taşınıyor; handler `IHttpContextAccessor`
+tanımıyor. `IClock` ile aynı kalıp: dış dünyayı çağıran veriyor.
+
+**Kapsam dışı.** Bu bir denetim log'u DEĞİL. Giriş denemeleri, reddedilen yetkiler,
+okuma erişimi — bunlar log ve SIEM işi. Ledger yalnızca **para hareketinin** aktörünü
+tutuyor.
+
+Yetki devri zinciri de (hangi uç API çağrıyı taşıdı) yazılmıyor: o taşıma detayı ve
+trace'e ait. Ledger sorumluyu kaydediyor, güzergâhı değil.
+
+**Elenen alternatifler.**
+
+- *Yalnızca log'a yazmak.* Değişebilir ve kaybolabilir; düzenlemeye tabi bir kayıt için
+  yeterli değil.
+- *Tek nullable kolon.* "Müşteri" ile "kaydedilmedi" ayrımını yok ediyor.
+- *Ayrı aktör tablosu.* Aktörsüz bir işlemin var olmasına izin veriyor — kapatmak
+  istediğimiz boşluğun ta kendisi.
+- *`act` zincirini saklamak.* Taşıma detayı; ledger'ı şişirir, cevabı gözlemlenebilirlik
+  katmanında zaten var.
+
+**Bilinen eksik.** `withdrawal_sagas` aynı boşluğu taşıyor: backoffice'ten serbest
+bırakılan bir çekimin aktörü orada da kayıtlı olmalı. Orchestrator ayrı veritabanında
+(madde 7 ve 33), o yüzden ayrı bir migration ve ayrı bir karar gerekiyor. Bu madde
+yalnızca ledger tarafını bağlıyor.

@@ -26,6 +26,19 @@ internal sealed class LedgerTransactionConfiguration : IEntityTypeConfiguration<
         // ve aynı fatura iki kez yazılabilirdi (decisions.md madde 15).
         builder.Property(t => t.LedgerAccountId).HasColumnName("ledger_account_id").IsRequired();
 
+        // İşlemi kim başlattı (decisions.md madde 34). İkisi de NOT NULL — nullable
+        // bir kolon "müşteri yaptı" ile "kaydedilmedi"yi aynı değere indirirdi.
+        builder.Property(t => t.ActorType)
+            .HasColumnName("actor_type")
+            .HasConversion(ValueConverters.ActorType)
+            .HasColumnType("text")
+            .IsRequired();
+
+        builder.Property(t => t.ActorId)
+            .HasColumnName("actor_id")
+            .HasColumnType("text")
+            .IsRequired();
+
         builder.Property(t => t.IdempotencyKey).HasColumnName("idempotency_key").HasColumnType("text");
         builder.Property(t => t.CorrelationId).HasColumnName("correlation_id");
 

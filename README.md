@@ -78,7 +78,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
 
-259 test: 92 unit (DB'siz), 167 integration — gerçek Postgres ve gerçek RabbitMQ.
+264 test: 94 unit (DB'siz), 170 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
