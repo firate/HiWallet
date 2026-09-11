@@ -1214,7 +1214,32 @@ trace'e ait. Ledger sorumluyu kaydediyor, güzergâhı değil.
 - *`act` zincirini saklamak.* Taşıma detayı; ledger'ı şişirir, cevabı gözlemlenebilirlik
   katmanında zaten var.
 
-**Bilinen eksik.** `withdrawal_sagas` aynı boşluğu taşıyor: backoffice'ten serbest
-bırakılan bir çekimin aktörü orada da kayıtlı olmalı. Orchestrator ayrı veritabanında
-(madde 7 ve 33), o yüzden ayrı bir migration ve ayrı bir karar gerekiyor. Bu madde
-yalnızca ledger tarafını bağlıyor.
+**Aktör servis sınırını geçer.** Ledger'a yazan taraf (wallet) ile başlatanı bilen
+taraf (orchestrator) farklı servisler. Bu yüzden ledger'a yazdıran komutlar aktörü
+TAŞIYOR: `DebitForWithdrawal` çekimi başlatanı, `RefundWithdrawal` telafiyi tetikleyeni.
+
+Taşınmasaydı boşluk maddenin en çok işe yaradığı yerde açık kalırdı: backoffice'ten
+iptal edilen bir çekimde, parayı geri vermeye karar veren çalışan ledger'a `system`
+olarak düşer ve kalıcı kayıtta hiçbir izi kalmazdı. Ledger append-only ve yetkili
+kayıt orası; saga tablosuna yazmak yetmez, çünkü o tablo güncelleniyor.
+
+Sözleşmede aktör düz string olarak duruyor (`CommandActor`), `Actor` tipi olarak
+değil: `Actor` fabrika metotlarıyla korunuyor ve JSON deserializer fabrikaları
+atlıyor, yani kuyruktan gelen bayt geçersiz bir örnek üretebilirdi. Sözleşme aptal,
+doğrulama sınırda — `Actor.From` tanımadığı tipte patlıyor.
+
+**Wallet komuta körü körüne güvenmiyor.** `customer` iddiası cüzdanın sahibiyle
+eşleşmek zorunda; eşleşmezse ledger'a hiçbir şey yazılmıyor. Ledger'ın sahibi wallet
+ve orchestrator'ın hatası ya da ele geçirilmesi başkasının adına kalıcı kayıt
+yazdırmamalı. Bu kontrol olmasaydı aktör alanı bir güvence değil yalnızca bir beyan
+olurdu.
+
+`withdrawal_sagas` de kendi tarafında `initiated_by_type` / `initiated_by_id`
+taşıyor — `account_id` "parası kimin", bunlar "kim istedi" sorusunu cevaplıyor ve
+backoffice müşteri adına çekim açtığında ikisi ayrışıyor.
+
+**Bilinen eksik.** Saga, bankanın reddiyle operatörün iptalini AYIRT EDEMİYOR: ikisi
+de `Refunded` geçişine varıyor, aradaki fark yalnızca komutun taşıdığı aktörde
+kalıyor. Telafi aynı olsa da sebep aynı değil ve "bu ay kaç çekim banka tarafından
+reddedildi" ile "kaç çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli.
+Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.

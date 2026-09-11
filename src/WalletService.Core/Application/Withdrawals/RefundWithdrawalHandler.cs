@@ -95,11 +95,17 @@ public sealed class RefundWithdrawalHandler(
             return await ReadStoredReplyAsync(command, ct);
         }
 
+        // Aktör KOMUTTAN (decisions.md madde 34). Bankanın reddinde `system` geliyor
+        // — kimse istemedi, saga karar verdi. Backoffice'ten iptal edildiğinde o
+        // çalışan geliyor ve kalıcı kayıtta kim karar verdi görünüyor.
+        //
+        // Sabit `system` yazmak bu ayrımı imkânsız kılardı: parayı geri vermeye karar
+        // veren insanın izi hiç oluşmazdı.
         var tx = LedgerTransaction.Create(
             transactionId,
             LedgerTransactionType.Refund,
             original.LedgerAccountId,
-            SystemActors.WithdrawalSaga,
+            Actor.From(command.Actor),
             now,
             IdempotencyKey(command.SagaId),
             correlationId: command.SagaId);

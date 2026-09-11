@@ -90,10 +90,13 @@ public sealed class AdvanceSagaHandler(
 
             // Tutar TAŞINMIYOR: ters kayıt orijinalin aynası ve orijinali wallet
             // yazdı. Buradan tutar göndermek ikinci bir doğruluk kaynağı yaratırdı.
+            // Aktör SAGA, çekimi başlatan müşteri DEĞİL: iadeyi müşteri istemedi,
+            // banka reddetti ve karar buradan çıktı (decisions.md madde 34).
             var command = OutboxMessage.For(saga.Id, commandId => new RefundWithdrawal
             {
                 CommandId = commandId,
-                SagaId = saga.Id
+                SagaId = saga.Id,
+                Actor = WithdrawalSaga.SagaActor
             }, now);
 
             return (result, command);

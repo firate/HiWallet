@@ -1,3 +1,4 @@
+using HiWallet.Shared.Contracts.Actors;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.WithdrawalOrchestrator.Domain;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
@@ -139,5 +140,6 @@ public sealed class StuckSagaScannerTests(OrchestratorFixture fixture)
             currency: "TRY",
             destination: Destination,
             idempotencyKey: Guid.NewGuid().ToString("N"),
+            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
             startedAt: startedAt);
 }

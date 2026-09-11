@@ -1,3 +1,5 @@
+using HiWallet.Shared.Contracts.Actors;
+
 namespace HiWallet.WalletService.Domain.Ledger;
 
 /// <summary>
@@ -63,6 +65,41 @@ public readonly record struct Actor
 
         return new Actor(ActorType.System, flow);
     }
+
+    /// <summary>
+    /// Mesajdan gelen aktörü ayrıştırır. SINIR BURASI: kuyruktan gelen bayt
+    /// doğrulanmadan ledger'a geçmiyor. Tanınmayan tip sessizce yok sayılmıyor —
+    /// yeni bir aktör tipi eklenip bu tarafa yazılmadığında kayıt uydurma bir
+    /// değerle değil, hatayla durmalı.
+    /// </summary>
+    public static Actor From(CommandActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        return actor.Type switch
+        {
+            ActorTypes.Customer => Guid.TryParse(actor.Id, out var accountId)
+                ? Customer(accountId)
+                : throw new ArgumentException(
+                    $"Müşteri aktörünün kimliği hesap kimliği olmalı: '{actor.Id}'.", nameof(actor)),
+            ActorTypes.Employee => Employee(actor.Id),
+            ActorTypes.System => System(actor.Id),
+            _ => throw new ArgumentException($"Bilinmeyen aktör tipi: '{actor.Type}'.", nameof(actor))
+        };
+    }
+
+    /// <summary>Mesaja konulabilir hale getirir.</summary>
+    public CommandActor ToCommandActor() => new()
+    {
+        Type = Type switch
+        {
+            ActorType.Customer => ActorTypes.Customer,
+            ActorType.Employee => ActorTypes.Employee,
+            ActorType.System => ActorTypes.System,
+            _ => throw new InvalidOperationException($"Eşlemesi yazılmamış aktör tipi: {Type}.")
+        },
+        Id = Id
+    };
 }
 
 /// <summary>
@@ -71,12 +108,12 @@ public readonly record struct Actor
 /// </summary>
 public static class SystemActors
 {
-    public static readonly Actor Topup = Actor.System("topup");
+    public static readonly Actor Topup = Actor.System(SystemFlows.Topup);
 
-    public static readonly Actor Settlement = Actor.System("settlement");
+    public static readonly Actor Settlement = Actor.System(SystemFlows.Settlement);
 
-    public static readonly Actor ProviderInvoice = Actor.System("provider-invoice");
+    public static readonly Actor ProviderInvoice = Actor.System(SystemFlows.ProviderInvoice);
 
-    /// <summary>Çekim saga'sının komutları: düşme, iade, settlement.</summary>
-    public static readonly Actor WithdrawalSaga = Actor.System("withdrawal-saga");
+    /// <summary>Saga'nın kendi kararıyla ürettiği kayıtlar: iade, settlement.</summary>
+    public static readonly Actor WithdrawalSaga = Actor.System(SystemFlows.WithdrawalSaga);
 }

@@ -25,6 +25,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - İşaret konvansiyonu: credit `+`, debit `-`. Hiçbir yerde tersine çevrilmez.
 - Para: `numeric(19,4)` + ayrı `currency` kolonu. `float`/`double` YOK.
 - Bakiye asla ledger'a yazmadan güncellenmez.
+- Her `ledger_transactions` satırı AKTÖR taşır: `actor_type` + `actor_id`, ikisi de
+  NOT NULL ve kolon varsayılanı YOK (`decisions.md` madde 34). `LedgerTransaction.Create`'te
+  aktörün varsayılanı da YOK — her yazma yolu kökenini beyan etmek zorunda.
+  Ölçüt taşıma değil BAŞLATMA: kaydı hangi yol getirdi değil, hareketi kim başlattı.
+  Kuyruktan gelen bir komut aktörü `system` yapmaz; müşterinin başlattığı çekimin
+  düşme kaydı `customer`, saga'nın kendi kararıyla ürettiği iade `system`.
 - İki seviye: `accounts` müşteri hesabı, `ledger_accounts` bakiye tutabilen her şey
   (cüzdanlar + sistem hesapları). Cüzdan = `ledger_accounts.type = 'user_wallet'`.
   Ledger tarafı ayrı tablolara BÖLÜNMEZ — `ledger_entries` tek FK hedefi istiyor.
@@ -129,6 +135,14 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
   `string currency`. Komisyon ve limit wallet'ın bilgisi, komutta taşınmaz.
 - `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.
+- Ledger'a yazdıran komutlar AKTÖR taşır (`DebitForWithdrawal`, `RefundWithdrawal`).
+  Taşımazsa çalışanın başlattığı bir telafi ledger'a `system` olarak düşer ve kimin
+  karar verdiği kalıcı kayıtta kaybolur. Aktör sözleşmede düz string: `Actor` tipi
+  fabrikayla korunuyor ve JSON deserializer fabrikaları atlıyor — sözleşme aptal,
+  doğrulama sınırda (`Actor.From`).
+- Wallet komuttaki aktöre KÖRÜ KÖRÜNE GÜVENMEZ: `customer` iddiası cüzdanın sahibiyle
+  eşleşmek zorunda. Ledger'ın sahibi wallet; orchestrator'ın hatası başkasının adına
+  kalıcı kayıt yazdıramamalı.
 - Ters kayıt ÜÇ bacaklı: cüzdan, clearing, `revenue`. `revenue` bacağı atlanırsa
   kayıt yine dengeli olur ve trigger susar — ama müşteri gerçekleşmemiş işlemin
   komisyonunu ödemiş kalır. Bacak opsiyonel DEĞİL. Bu yüzden ters kayıt

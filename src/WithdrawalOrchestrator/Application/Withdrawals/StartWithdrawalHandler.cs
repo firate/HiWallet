@@ -32,6 +32,7 @@ public sealed class StartWithdrawalHandler(
             currency: command.Currency,
             destination: command.Destination,
             idempotencyKey: command.IdempotencyKey,
+            initiatedBy: command.InitiatedBy,
             startedAt: now);
 
         // Komisyon TAŞINMIYOR: politikayı wallet uyguluyor ve iki serviste
@@ -44,7 +45,8 @@ public sealed class StartWithdrawalHandler(
                 SagaId = saga.Id,
                 WalletId = saga.WalletId,
                 Amount = saga.Amount,
-                Currency = saga.Currency
+                Currency = saga.Currency,
+                Actor = saga.InitiatedBy()
             },
             now);
 

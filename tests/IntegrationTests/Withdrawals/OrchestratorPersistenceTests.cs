@@ -1,3 +1,4 @@
+using HiWallet.Shared.Contracts.Actors;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.WithdrawalOrchestrator.Domain;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence;
@@ -267,6 +268,7 @@ public sealed class OrchestratorPersistenceTests(OrchestratorFixture fixture)
             currency: "TRY",
             destination: Destination,
             idempotencyKey: idempotencyKey ?? Guid.NewGuid().ToString("N"),
+            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
             startedAt: DateTimeOffset.UtcNow);
 
     private static OutboxMessage NewOutboxMessage(Guid commandId, Guid sagaId) => new()

@@ -1,3 +1,4 @@
+using HiWallet.Shared.Contracts.Actors;
 using HiWallet.WithdrawalOrchestrator.Domain;
 
 namespace HiWallet.UnitTests.Withdrawals;
@@ -22,6 +23,7 @@ public sealed class WithdrawalSagaTests
         currency: "TRY",
         destination: Destination,
         idempotencyKey: "istek-1",
+        initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
         startedAt: Now);
 
     [Fact]
