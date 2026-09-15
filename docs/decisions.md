@@ -1304,16 +1304,48 @@ Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca te
 Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
 kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
 
-**Sonuç iki yoldan da gelebiliyor.** `Bank:ResultDelivery` ile seçiliyor:
+**Sonuç iki yoldan gelebiliyor ve bunlar BİRBİRİNİ DIŞLAMIYOR.** İki bağımsız anahtar,
+tek bir mod seçici değil:
 
-| mod | nasıl | bedeli |
+| | rol | zorunlu mu |
 | --- | --- | --- |
-| `Webhook` | banka adaptörün IP kısıtlı ucunu çağırır | yeni ingress, HMAC, inbox tablosu |
-| `Polling` | adaptör bekleyen transferleri düzenli sorar | gecikme, boşa giden sorgu |
+| `Bank:Webhook` | hızlı yol; banka adaptörün IP kısıtlı ucunu çağırır | hayır — banka destekliyorsa |
+| `Bank:Polling` | **emniyet ağı**; adaptör cevapsız kalanları sorar | **evet** |
 
-İkisi de gerçek entegrasyonlarda var ve hangisinin kullanılacağını banka söyler, biz
-değil. Tek mod yazmak "banka bizim seçtiğimiz şekilde konuşur" varsayımını koda gömerdi.
-İki mod **ayrı servis değil**: ikisi de aynı `bank_transfers` satırını kapatıyor, aynı
+Tek bir `Webhook | Polling` seçicisi ilk tasarımda vardı ve YANLIŞTI, iki sebeple.
+
+*Birincisi, sürüm geçişi sonuç kaybediyor.* Webhook'tan polling'e geçen bir dağıtımda
+webhook ucu haritadan kalkıyor; o sırada yolda olan callback `404` alıyor. Banka birkaç
+kez deneyip vazgeçtiğinde o transferin sonucunu bir daha kimse öğrenmiyor — ve o saga'nın
+parası clearing'de asılı kalıyor. Ters yönde de aynısı: polling kapanınca bekleyen eski
+transferleri artık kimse sormuyor, banka da onlar için callback göndermiyor.
+
+*İkincisi, gerçekte de dışlamıyorlar.* Webhook kullanan entegrasyonlar neredeyse her zaman
+ayrıca sorgu yapar, çünkü **webhook teslimi garanti değil**. Bu proje o kabulü başka yerde
+zaten yapmış: `topup_inbox` tam olarak bunun için var.
+
+Doğru okuma şu: webhook bir **optimizasyon**, sonucu saniyeler içinde öğrenmeyi sağlıyor.
+Polling ise sonucun **eninde sonunda öğrenileceğinin garantisi**. İkincisi olmadan
+birincisi tek başına bir umut.
+
+Kaybolan callback bu modelde veri kaybı değil, yalnızca gecikme.
+
+**`StaleAfter` ikisini birlikte ucuzlatıyor.** Webhook açıkken polling her bekleyen
+transferi değil, yalnızca bu süreden uzundur cevapsız kalanları soruyor. Mutlu yolda
+neredeyse hiç sorgu gitmiyor; webhook düştüğü an kendiliğinden devreye giriyor. Madde
+33'ün takılmış saga taramasıyla aynı desen — mutlu yol kendi işini görüyor, tarama
+yalnızca düşeni topluyor.
+
+**İkisi birden kapalıysa uygulama AÇILMIYOR.** Sessizce çalışmanın bedeli ağır: transferler
+başlar, `bank_transfers` satırları `pending` birikir, hiçbir sonuç öğrenilmez ve müşteri
+parası clearing'de kalır. Proje aynı seçimi çekim tarifesinde de yapıyor — eksik
+konfigürasyonla açılmaktansa açılmamak.
+
+Polling'i kapatmak yalnızca bankanın durum sorgusu ucu **yoksa** savunulabilir (dosya
+bazlı mutabakatla çalışan bankalar var). O durumda tek ağ takılmış saga taraması kalıyor,
+ve o tarama çözmüyor — **alarm üretiyor**. Aradaki fark kayda geçirilmeli.
+
+**İki yol AYRI SERVİS DEĞİL**: ikisi de aynı `bank_transfers` satırını kapatıyor, aynı
 cevabı yayınlıyor, tek fark sonucu nereden öğrendikleri. Ayrı deployable açmak madde
 28'in "aynı maruziyet bölünmez" ölçütünü delerdi.
 
