@@ -21,6 +21,26 @@
 # Dört veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
 # tablolarına yazamıyor — saga'nın anlamı buna bağlı (madde 7 ve 33).
 
+# Bağlantı havuzu bütçesi. Dört uygulama AYNI Postgres örneğine bakıyor ve
+# `max_connections` örnek bazında, veritabanı bazında DEĞİL — yani havuzlar
+# toplanıyor. Postgres'in varsayılanı 100; sınırsız bırakılan her servis
+# Npgsql'in varsayılanı olan 100'ü isteyebilir ve dördü birden 400'e çıkar.
+# O noktada havuz tükenmeden ÖNCE Postgres "too many connections" der.
+#
+#   wallet-api                30   public, en yüksek eşzamanlılık
+#   wallet-consumer           16   prefetch=1, sıralı tüketim
+#   withdrawal-orchestrator   16   API + tüketici + relay + job
+#   topup-webhook             10   IP kısıtlı, yalnızca inbox yazıyor
+#   bank-service              10   sahte, düşük hacim
+#                            ───
+#                             82   psql ve izleme için ~18 pay kalıyor
+#
+# Migrator'lar geçici ve uygulamalardan ÖNCE bitiyor (service_completed_successfully),
+# bu yüzden bütçeye girmiyorlar.
+#
+# `Application Name` de her bağlantıya işleniyor: pg_stat_activity'de "bu bağlantıyı
+# kim tutuyor" sorusu ancak onunla cevaplanabiliyor.
+
 name: hiwallet
 
 services:
@@ -155,7 +175,7 @@ services:
         condition: service_completed_successfully
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD}
+      ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD};Application Name=hiwallet-wallet-api;Maximum Pool Size=30
       # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
@@ -195,7 +215,7 @@ services:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__Topup: Host=postgres;Port=5432;Database=hiwallet_topup;Username=topup_app;Password=${TOPUP_APP_PASSWORD}
+      ConnectionStrings__Topup: Host=postgres;Port=5432;Database=hiwallet_topup;Username=topup_app;Password=${TOPUP_APP_PASSWORD};Application Name=hiwallet-topup-webhook;Maximum Pool Size=10
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
@@ -286,7 +306,7 @@ services:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__Withdrawal: Host=postgres;Port=5432;Database=hiwallet_withdrawal;Username=withdrawal_app;Password=${WITHDRAWAL_APP_PASSWORD}
+      ConnectionStrings__Withdrawal: Host=postgres;Port=5432;Database=hiwallet_withdrawal;Username=withdrawal_app;Password=${WITHDRAWAL_APP_PASSWORD};Application Name=hiwallet-withdrawal-orchestrator;Maximum Pool Size=16
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
@@ -329,7 +349,7 @@ services:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__Bank: Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD}
+      ConnectionStrings__Bank: Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD};Application Name=hiwallet-bank-service;Maximum Pool Size=10
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
