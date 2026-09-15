@@ -62,7 +62,10 @@ src/
 ├── WalletConsumer/         -- host
 ├── TopupWebhook/           -- host
 ├── WithdrawalOrchestrator/
-├── BankService.Fake/
+├── BankIntegration.Core/
+├── BankAdapter/
+├── BankWebhook/
+├── Bank.Fake/
 └── Shared/
     ├── Shared.Contracts/
     └── Shared.Infrastructure/
@@ -202,7 +205,7 @@ TopupWebhook/
 │   └── Messaging/             -- TopupRelay
 └── Setup/
 
-BankService.Fake/
+Bank.Fake/
 ├── Api/Controllers/           -- ScenariosController (senaryo tetikleyicileri)
 ├── Api/Requests/
 ├── Application/               -- StartBankTransferHandler, ScenarioStore
@@ -217,7 +220,7 @@ ProviderFake/
 └── Setup/
 ```
 
-`BankService.Fake` ve `ProviderFake` fake olmalarına rağmen `Setup/` alır: logging,
+`Bank.Fake` ve `ProviderFake` fake olmalarına rağmen `Setup/` alır: logging,
 tracing ve health check onlarda da çalışmalı, yoksa uçtan uca trace kopar.
 
 ### Shared/

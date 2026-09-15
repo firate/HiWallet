@@ -1,12 +1,14 @@
-using HiWallet.BankService.Infrastructure.Persistence;
+using HiWallet.BankIntegration.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
-/// bank-service'in veritabanı. Üretimde ayrı bir veritabanı (<c>hiwallet_bank</c>);
-/// testte aynı sunucuda AYRI BİR SCHEMA — sınır korunuyor ama koşu üçüncü bir
+/// <c>bank-adapter</c> ile <c>bank-webhook</c>'un paylaştığı veritabanı
+/// (<c>hiwallet_bank</c>). Şemanın sahibi <c>BankIntegration.Core</c>.
+///
+/// Testte aynı sunucuda AYRI BİR SCHEMA — sınır korunuyor ama koşu üçüncü bir
 /// veritabanı kurmayı gerektirmiyor. <see cref="InboxFixture"/> ile aynı kalıp.
 /// </summary>
 public sealed class BankFixture : IAsyncLifetime

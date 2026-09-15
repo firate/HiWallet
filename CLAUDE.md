@@ -91,6 +91,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
   `topup-webhook` onu görmez.
 - `wallet-api`'nin RabbitMQ bağımlılığı YOK ve eklenmez.
+- **`.Fake` son eki yalnızca BAŞKA BİR KURUMUN yerine duran servise konur**
+  (`decisions.md` madde 35). Kendi yazdığımız ve üretimde de koşacak servis normal ad
+  alır — bugün yalnızca testte koşuyor olması son ek sebebi DEĞİL. `bank-adapter`
+  bizim, son ek almaz; `Bank.Fake` bankanın API'sinin yerine duruyor, alır.
 
 **Top-up hattı**
 - `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —
@@ -131,12 +135,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   üretilmez: relay aynı satırı iki kez yayınladığında alıcıya giden `CommandId` de
   aynı kalmak zorunda, yoksa tekrar deduplike edilemez.
 - Komutu tüketen tarafta `CommandId` ile deduplikasyon: wallet'ta
-  `processed_messages`, bank-service'te `bank_transfers` (zaten "ne yaptık" kaydı,
+  `processed_messages`, `bank-adapter`'da `bank_transfers` (zaten "ne yaptık" kaydı,
   anahtarı da `CommandId` — ikinci tablo açılmaz). Orchestrator'ın event tüketiminde
   ayrı tablo YOK, saga durumu zaten cevabı taşıyor.
 - İki tüketen taraf da verdiği CEVABI saklar. Tekrar teslimde iş ikinci kez
   yapılmaz ama cevap yeniden yayınlanır.
-- bank-service'te geçici hata ile kalıcı hata AYRI: kalıcı hata
+- `bank-adapter`'da geçici hata ile kalıcı hata AYRI: kalıcı hata
   `BankTransferFailed` + ack, geçici hata hiçbir cevap üretmeden requeue. Karışırsa
   her ağ kesintisi müşterinin parasını ileri geri taşır.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
@@ -171,6 +175,35 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   (Transfer'de de zorunlu — bkz. "Idempotency".)
 - Yanıt `202`: dönüldüğünde hiçbir para hareket etmedi. Tekrar eden istek de `202`,
   ayrım gövdedeki `replayed` alanında.
+
+**Banka entegrasyonu** (`decisions.md` madde 35)
+- Üç deployable: `bank-adapter` ingress'siz, `bank-webhook` IP kısıtlı, `Bank.Fake`
+  bankanın API'sinin yerinde durur (üretimde YOK). İlk ikisi bizim ve üretimde koşar;
+  ortak kütüphane `BankIntegration.Core` üstündeler. Adaptör bankayı HTTP ile çağırır —
+  banka RabbitMQ DİNLEMEZ, öyle modellenmez.
+- Transfer sonucu SENKRON DEĞİL. Adaptör çağrıyı yapar, `bank_transfers` satırını
+  `pending` yazar ve HİÇBİR ŞEY yayınlamaz; saga gerçekten `bank_transfer_pending`'de
+  bekler. Kesin sonuç öğrenildiğinde cevap yayınlanır.
+- İki yolun rolü EŞİT DEĞİL: callback ASIL yol (sürekli), mutabakat taraması KONTROL
+  (günde birkaç kez). Tarama ikinci bir teslim kanalı değil, "kaçırdık mı" sorusu.
+- Tarama KAPATILAMAZ; aralığı konfigüre edilir, varlığı edilmez. Kaçırılan callback
+  aksi halde kalıcı kayıp olur: satır `pending` kalır, saga asılır, para clearing'de durur.
+- `Bank:Reconciliation:StaleAfter`: yalnızca bu süreden uzundur cevapsız kalanlar
+  sorulur. Callback çalışırken tarama boş döner; dönmediği satır sayısı alarm sinyali.
+- `bank-webhook` AYRI deployable çünkü ingress'i var, adaptörün yok (madde 28).
+  Tarama mantığı değişince bankanın çağırdığı uç YENİDEN BAŞLATILMAZ.
+- Relay `bank-adapter`'da, webhook'un içinde DEĞİL — `topup-webhook`'un şeklinden
+  bilinçli sapma. `bank-webhook`'un tek işi: doğrula, inbox'a yaz, `202`.
+- Webhook modu top-up kalıbının aynısı: HAM gövde üzerinde HMAC, parse etmeden önce,
+  inbox'a yaz + `202`, yayını relay yapar. İkinci bir kalıp İCAT EDİLMEZ.
+- Sahte bankanın AYRI veritabanı var (`hiwallet_bank_fake`). `transfer_scenarios`
+  bankanın iç bilgisi; `bank-adapter` ona erişemez — erişebilse simülasyon değerini
+  kaybederdi.
+- HTTP istek/yanıt tipleri paylaşılan assembly'de DEĞİL, iki tarafta ayrı ayrı yazılır.
+  Gerçek entegrasyonda o tipler bankanın dokümanından gelir; ortak tip "karşı taraf
+  sözleşmeyi değiştirdi" hatasını imkânsız gösterirdi.
+- `Shared.Contracts` yalnızca BİZİM mesajlarımızı taşır: `StartBankTransfer`,
+  `BankTransferSucceeded`, `BankTransferFailed`.
 
 **API**
 - `/v1` prefix. Liste endpoint'lerinde pagination, unbounded query YOK.

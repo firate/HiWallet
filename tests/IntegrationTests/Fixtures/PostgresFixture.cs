@@ -151,7 +151,11 @@ public sealed class PostgresCollection
     : ICollectionFixture<PostgresFixture>,
         ICollectionFixture<InboxFixture>,
         ICollectionFixture<OrchestratorFixture>,
-        ICollectionFixture<BankFixture>
+        ICollectionFixture<BankFixture>,
+        // Sahte bankanın schema'sı AYRI: adaptörün senaryo tablosunu göremediği
+        // yapısal olarak doğru kalsın (decisions.md madde 35). Paylaşsalardı test
+        // "göremiyor"u kanıtlayamazdı.
+        ICollectionFixture<BankFakeFixture>
 {
     public const string Name = "postgres";
 }

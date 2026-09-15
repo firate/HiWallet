@@ -343,32 +343,42 @@ Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 
 ---
 
-## bank-service (sahte) — `:8094`
+## bank-fake (BİZİM DEĞİL) — `:8094`
 
-Gerçek bir bankada bu uç yoktur. Varlık sebebi "banka reddetti" durumunun
+Bankanın API'sinin yerinde duran servis; üretimde yok (`decisions.md` madde 35).
+Senaryo ucu gerçek bir bankada bulunmaz — varlık sebebi "banka reddetti" durumunun
 denenebilmesi.
+
+**Transfer sonucu artık senkron dönmüyor.** `POST /v1/transfers` `202 pending`
+veriyor, kesin sonuç callback ile ya da `GET /v1/transfers/{ref}` ile sonra
+öğreniliyor. Bu yüzden çekim saga'sı gerçekten `bank_transfer_pending`'de bekliyor.
 
 ### Senaryo kur
 
 ```bash
 curl -i -X POST localhost:8094/v1/scenarios \
   -H 'Content-Type: application/json' \
-  -d "{\"sagaId\":\"$WD\",\"outcome\":\"PermanentFailure\"}"
+  -d "{\"clientReference\":\"$WD\",\"outcome\":\"Failure\"}"
 ```
 ```
 HTTP/1.1 204 No Content
 ```
 
-`outcome`: `Success` | `PermanentFailure` | `TransientFailure` | `DelayedSuccess`.
+`outcome`: `Success` | `Failure` | `TransientFailure` | `DelayedSuccess`.
 `TransientFailure` için `transientFailures` (1-10, varsayılan 1) kaç kez geçici hata
 üretileceğini, `DelayedSuccess` için `delayMilliseconds` (≤30000) gecikmeyi belirler.
 
-Senaryo **saga başına** kuruluyor — yani çekimi başlattıktan sonra kurman gerekiyor,
-kimliği önceden bilemezsin. Tüm çekimleri reddettirmek istersen varsayılanı değiştir:
+`TransientFailure` ile `Failure` arasındaki fark kritik: birincisinde banka `503`
+dönüyor ve **transfer hiç açılmıyor** (adaptör yeniden deniyor, saga bekliyor),
+ikincisinde transfer açılıyor ama sonucu başarısız (saga telafiye giriyor).
+
+Senaryo **çekim başına** kuruluyor ve anahtarı `clientReference` — bizim saga
+kimliğimiz. Yani çekimi başlattıktan sonra kurman gerekiyor. Tüm çekimleri
+reddettirmek istersen varsayılanı değiştir:
 
 ```bash
-BANK_DEFAULT_OUTCOME=PermanentFailure docker compose up -d --force-recreate --no-deps bank-service
-docker compose exec bank-service printenv Bank__DefaultOutcome
+BANK_DEFAULT_OUTCOME=Failure docker compose up -d --force-recreate --no-deps bank-fake
+docker compose exec bank-fake printenv BankFake__DefaultOutcome
 ```
 
 Geri almak için aynı komutu değişkensiz çalıştır.
@@ -403,7 +413,7 @@ WD=$(curl -s -X POST localhost:8093/v1/withdrawals \
   -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"destinationIban\":\"TR330006100519786457841326\"}" | jq -r .withdrawalId)
 
 curl -s -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
-  -d "{\"sagaId\":\"$WD\",\"outcome\":\"PermanentFailure\"}"
+  -d "{\"clientReference\":\"$WD\",\"outcome\":\"Failure\"}"
 
 sleep 6
 curl -s localhost:8093/v1/withdrawals/$WD; echo
@@ -446,7 +456,8 @@ orijinal işlemin bacakları okunup negatifleniyor.
 curl -s localhost:8091/health/ready   # wallet-api      — yalnızca postgres
 curl -s localhost:8092/health/ready   # topup-webhook
 curl -s localhost:8093/health/ready   # orchestrator    — postgres + rabbitmq
-curl -s localhost:8094/health/ready   # bank-service
+curl -s localhost:8094/health/ready   # bank-fake (üretimde yok)
+curl -s localhost:8095/health/ready   # bank-webhook
 ```
 
 `wallet-api`'nin çıktısında `rabbitmq` **olmamalı** — o uygulamanın broker'a hiç işi

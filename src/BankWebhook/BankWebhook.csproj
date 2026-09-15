@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- BANKANIN BİZİ ÇAĞIRDIĞI UÇ. Bizim kodumuz, üretimde de deploy ediliyor —
+         `.Fake` son eki ALMIYOR (decisions.md madde 35).
+
+         AYRI DEPLOYABLE çünkü ingress'i var; bank-adapter'ın yok (madde 28).
+         Broker'a hiç bağlanmıyor: callback'i kabul etmek yalnızca Postgres'e
+         bağlı ve inbox'ın varlık sebebi tam olarak bu. -->
+
+    <ItemGroup>
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\BankIntegration.Core\BankIntegration.Core.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+</Project>

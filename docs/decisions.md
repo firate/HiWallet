@@ -368,7 +368,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
    bağımlılığı yok.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
-4. ✅ Withdrawal saga + bank-service + compensation. Zincir gerçek bir broker'a
+4. ✅ Withdrawal saga + banka entegrasyonu + compensation. Zincir gerçek bir broker'a
    karşı uçtan uca doğrulandı; compose'dan ayağa kalkıyor, telafi yolu compose
    üzerinden henüz koşturulmadı. Alt adımlar aşağıda.
 5. ✅ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
@@ -391,7 +391,7 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
 | 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
 | 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
-| 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle dört sonuç üretir | ✅ |
+| 4.9 | `bank-adapter` + `bank-webhook` + `bank-fake`: komut → HTTP → callback, dört senaryo (madde 35) | ✅ |
 | 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ✅ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ✅ |
 
@@ -608,7 +608,7 @@ dalına düşer. Bu artık gürültü değil, **sözleşmeye aykırı bir kalem*
 kalıcı karmaşıklıkla ödemek olurdu; ayrıca `CLAUDE.md`'deki koşulsuz kuralı delerdi.
 
 **Elenen alternatif.** Başarısızlık sebebine göre karar vermek (`BankRejected` → iade,
-`InvalidBeneficiary` → iade etme). Gerçeğe daha yakın ama bank-service'in güvenilir sebep
+`InvalidBeneficiary` → iade etme). Gerçeğe daha yakın ama bankanın güvenilir sebep
 kodu üretmesini ve saga'nın bunu taşımasını gerektiriyor. Fake sağlayıcıyla üretilen sebep
 kodu üzerine iş kuralı kurmak, doğrulanmamış bir varsayımı şemaya gömmek olur.
 
@@ -1071,7 +1071,7 @@ ikisi atomik değilse aradaki çökme iki bozuk sonuçtan birini bırakıyor:
 İkincisi daha sinsi: hiçbir hata log'u yok, saga "bekliyor" görünüyor ve ancak stuck
 saga taraması yakalıyor. Outbox ikisini de kapatıyor — durum ve niyet aynı commit'te.
 
-**Nerede DEĞİL.** Outbox wallet-service'te ya da bank-service'te yok. Onlar komut
+**Nerede DEĞİL.** Outbox wallet-service'te yok. O komut
 tüketip event yayınlıyor; event yayınlanamazsa mesaj ack'lenmiyor ve komut yeniden
 teslim ediliyor. Yani orada güvenilirlik zaten broker'ın redelivery'sinden geliyor,
 ikinci bir tablo gereksiz olurdu. Saga'da öyle değil: geçişi tetikleyen şey her zaman
@@ -1098,10 +1098,10 @@ Aynı gerekçe tablo adlarını da belirledi:
 | taraf | tablo | neden |
 | --- | --- | --- |
 | wallet-service | `processed_messages` | komut işlenirken yazılacak başka bir kayıt yok |
-| bank-service | `bank_transfers` | zaten "ne yaptık" kaydı tutuluyor, anahtarı da `CommandId` |
+| bank-adapter | `bank_transfers` | zaten "ne yaptık" kaydı tutuluyor, anahtarı da `CommandId` |
 | orchestrator | — | saga durumu cevabı taşıyor |
 
-bank-service'te ayrıca bir `processed_messages` AÇILMADI: "bu komut işlendi mi" ile
+bank-adapter'da ayrıca bir `processed_messages` AÇILMADI: "bu komut işlendi mi" ile
 "bu transfer kaydı var mı" aynı soru ve iki tablo ilk ayrıştıklarında hangisinin doğru
 olduğu belirsizleşirdi.
 
@@ -1267,3 +1267,116 @@ de `Refunded` geçişine varıyor, aradaki fark yalnızca komutun taşıdığı 
 kalıyor. Telafi aynı olsa da sebep aynı değil ve "bu ay kaç çekim banka tarafından
 reddedildi" ile "kaç çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli.
 Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
+
+---
+
+## 35. Banka entegrasyonu üretim şeklinde: adaptör ayrı, sonuç asenkron
+
+**Karar.** Banka entegrasyonu üç deployable'a bölünmüş durumda. Öncesinde tek bir
+`BankService.Fake` vardı ve iki ayrı rolü birden taşıyordu:
+
+| deployable | ingress | kimin | üretimde | sorumluluk |
+| --- | --- | --- | --- | --- |
+| `bank-adapter` | **yok** | bizim | deploy edilir | komutu tüketir, bankayı HTTP ile çağırır, mutabakat taraması koşar, cevapları yayınlar |
+| `bank-webhook` | **IP kısıtlı** | bizim | deploy edilir | bankanın callback'ini doğrular, inbox'a yazar, `202` |
+| `bank-fake` (`Bank.Fake`) | iç | bankanın taklidi | **yok** | bankanın API'si; yerine gerçek bankanın ucu geçer |
+
+İlk ikisi `hiwallet_bank` üzerinde ortak kütüphane `BankIntegration.Core` ile —
+`wallet-api` / `wallet-consumer` / `WalletService.Core` üçlüsünün aynısı (madde 25, 28).
+
+Ve transfer sonucu artık **senkron dönmüyor**: adaptör bankayı çağırıp `202` alıyor,
+`bank_transfer_pending`'e geçiyor, kesin sonucu sonra öğreniyor.
+
+**Sorun.** Bugün tek uygulama iki ayrı role bakıyor ve ikisi de yanlış modelleniyor.
+
+*Birincisi, karşı taraf broker dinliyordu.* Tek uygulama RabbitMQ'dan `StartBankTransfer`
+tüketiyordu. Hiçbir banka müşterisinin broker'ına abone olmaz; entegrasyon her zaman bizden
+onlara giden bir çağrıdır. Bu haliyle "bankaya bağlanmak" diye bir kod yolu hiç yok —
+üretime geçerken yazılacak kısım, bugün gösterilmeyen kısım.
+
+*İkincisi, sonuç anında dönüyordu.* Handler transferi yapıp cevabı aynı teslimde
+yayınlıyordu, saga `bank_transfer_pending`'den anında çıkıyordu. Gerçek havalede çağrı "aldım" der, kesin
+sonuç dakikalar sonra ayrı bir kanaldan gelir. O haliyle `bank_transfer_pending`
+fiilen ölü bir durumdu ve **takılmış saga taraması (madde 33) hiç iş yapmıyordu** —
+asılı kalabilen bir pencere yoktu.
+
+**Fake son ekinin anlamı.** Kendi yazdığımız ve üretimde de koşacak servis normal ad alır.
+`.Fake` yalnızca **başka bir kurumun bize erişim vermediği için taklit ettiğimiz** servise
+konur. `bank-adapter` bizim, son ek almaz; `Bank.Fake` bankanın yerine duruyor, alır.
+Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca testte koşuyor ama
+üretimde de koşacak.
+
+Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
+kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
+
+**Sonucu iki yol getiriyor ve rolleri EŞİT DEĞİL.**
+
+| yol | nerede | sıklık | rol |
+| --- | --- | --- | --- |
+| callback | `bank-webhook` | sürekli | **asıl yol** — sonuç saniyeler içinde öğrenilir |
+| mutabakat taraması | `bank-adapter` | günde birkaç kez | **kontrol** — callback'i kaçırılanı toplar |
+
+Gerçek bir entegrasyonda sonuçların neredeyse tamamı callback'le gelir; tarama seyrek
+koşan bir doğrulamadır, ikinci bir teslim kanalı değil. İlk tasarımda ikisi eşit iki
+"mod" gibi yazılmıştı ve örnek konfigürasyonda tarama aralığı saniyelerdi — o gerçek
+zamanlı polling olurdu, mutabakat değil.
+
+**Neden ikisi birden.** Webhook teslimi garanti değil. Bu proje o kabulü başka yerde
+zaten yapmış: `topup_inbox` tam olarak bunun için var. Callback asıl yol olmaya devam
+ediyor ama "geldi mi" sorusunu soran bir şey olmadan sistem kaçırdığını fark edemez.
+
+**`StaleAfter` taramanın kapsamını daraltıyor.** Tarama her bekleyen transferi değil,
+yalnızca bu süreden uzundur cevapsız kalanları soruyor. Callback çalışırken tarama
+neredeyse boş dönüyor; çalışmadığında bulduğu satır sayısı doğrudan alarm sinyali.
+Madde 33'ün takılmış saga taramasıyla aynı desen — mutlu yol kendi işini görüyor,
+tarama yalnızca düşeni topluyor.
+
+**Tarama kapatılamıyor**; aralığı konfigüre edilir, varlığı edilmez. Kapatılabilseydi
+kaçırılan callback kalıcı bir kayıp olurdu: `bank_transfers` satırı `pending` kalır,
+saga `bank_transfer_pending`'de asılır ve müşteri parası clearing'de durur. Proje aynı
+seçimi çekim tarifesinde de yapıyor — eksik konfigürasyonla açılmaktansa açılmamak.
+
+**Callback ucu AYRI DEPLOYABLE.** Bu, madde 28'in ölçütünün doğrudan sonucu ve ilk
+yazımda ölçüt TERS uygulanmıştı: ikisinin maruziyeti aynı değil. Callback alıcısının
+IP kısıtlı bir ingress'i var, tarama ve komut tüketicisinin hiç ingress'i yok — yalnızca
+dışarı çağrı yapıyorlar. Madde 28 `wallet-consumer`'ı `wallet-api`'den tam olarak bu
+ayrımla ayırmıştı.
+
+Dağıtım tarafında da karşılığı var: tarama mantığındaki bir değişiklik bankanın çağırdığı
+ucu yeniden başlatmayı gerektirmemeli. Adaptör yeniden başladığında mesajlar kuyrukta
+bekler, kayıp yok; callback alıcısı yeniden başladığında banka **bağlantı hatası** alır.
+Yeniden başlatılması en pahalı olan parça tek başına duruyor.
+
+**Relay `bank-adapter`'da, webhook'un içinde DEĞİL** — burada `topup-webhook`'un
+şeklinden bilinçli sapılıyor. İki sebep: (a) yayın mantığındaki her değişiklik aksi halde
+ingress'i bounce eder, (b) callback yolu ile tarama yolu **aynı kapanış koduna** varmak
+zorunda ve o kodun tek kopyası olmalı (madde 25 ile aynı gerekçe). `bank-webhook`'un tek
+işi kalıyor: doğrula, inbox'a yaz, `202` dön.
+
+**Webhook modu top-up kalıbının aynısı** (madde 29, 30): ham gövde üzerinde HMAC, parse
+etmeden önce doğrulama, inbox'a yazıp `202`, ayrı bir relay'in yayınlaması. İkinci kez
+yazılmıyor çünkü orada zaten doğru — kopyalanan şey kod değil, karar.
+
+**Sahte bankanın kendi veritabanı var** (`hiwallet_bank_fake`). `transfer_scenarios`
+bankanın iç bilgisi; adaptör onu göremez. Paylaşılan bir veritabanında adaptör
+"senaryo ne diyormuş" diye bakabilirdi ve o an simülasyon değerini kaybederdi — madde 7
+ile aynı gerekçe, aynı sonuç: sınır nezaket kuralı değil, yetki meselesi.
+
+**HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün istek/yanıt tipleri kendi
+içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o
+tipler bankanın dokümanından yazılır, ortak bir projeden gelmez. Paylaşılsalardı
+derleyici iki tarafı senkron tutar ve "karşı taraf sözleşmeyi değiştirdi" hatası
+imkânsız görünürdü; oysa entegrasyonlarda en sık kırılan şey bu.
+
+`Shared.Contracts` yalnızca **bizim** mesajlarımızı taşımaya devam ediyor:
+`StartBankTransfer`, `BankTransferSucceeded`, `BankTransferFailed`. Bunlar orchestrator
+ile adaptör arasında, ikisi de bizim.
+
+**Saga değişmiyor.** `BankTransferStarted → BankTransferPending` geçişi zaten ayrı bir
+adım olarak duruyordu; bugüne kadar anlık geçiliyordu, artık gerçekten bekliyor. Durum
+makinesine tek satır eklenmiyor — bu, ayrımın baştan doğru çizildiğinin kanıtı.
+
+**Bedeli.** Bir deployable ve bir veritabanı daha, iki mod için iki test yolu, ve
+çekimin uçtan uca süresi artık sahte bankanın gecikmesine bağlı. Karşılığında
+`bank_transfer_pending` gerçek bir pencere oluyor ve takılmış saga taraması ilk kez
+yakalayacak bir şey buluyor.

@@ -226,12 +226,12 @@ docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
 
 ```bash
 curl -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
-  -d '{"sagaId":"<ID>","outcome":"PermanentFailure"}'
+  -d '{"clientReference":"<ID>","outcome":"Failure"}'
 ```
 
 Senaryoyu çekim isteğinden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
-bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=PermanentFailure` yapıp
-`docker compose up -d bank-service` ile yeniden başlat.
+bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=Failure` yapıp
+`docker compose up -d bank-fake` ile yeniden başlat.
 
 Beklenen: `state` `failed`, ledger'da İKİ işlem — orijinal düşme ve üç bacaklı ters
 kayıt — ve cüzdan bakiyesi başladığı yerde. Komisyon da geri dönmüş olmalı.
