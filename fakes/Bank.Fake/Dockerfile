@@ -1,6 +1,6 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/Bank.Fake/Dockerfile .
+#   docker build -f fakes/Bank.Fake/Dockerfile .
 #
 # Bu servis BANKANIN YERİNDE DURUYOR ve üretimde çalışmaz — gerçek banka
 # entegrasyonu geldiğinde bu klasör tamamen siliniyor. Yine de diğerleriyle aynı
@@ -12,13 +12,14 @@ WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/Bank.Fake/Bank.Fake.csproj src/Bank.Fake/
+COPY fakes/Bank.Fake/Bank.Fake.csproj fakes/Bank.Fake/
 COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
 COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/Bank.Fake/Bank.Fake.csproj
+RUN dotnet restore fakes/Bank.Fake/Bank.Fake.csproj
 
 COPY src/ src/
-RUN dotnet publish src/Bank.Fake/Bank.Fake.csproj \
+COPY fakes/ fakes/
+RUN dotnet publish fakes/Bank.Fake/Bank.Fake.csproj \
         -c Release -o /app/publish --no-restore
 
 # ---------------------------------------------------------------------------
@@ -29,8 +30,8 @@ FROM build AS migrator-build
 RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
-        --project src/Bank.Fake \
-        --startup-project src/Bank.Fake \
+        --project fakes/Bank.Fake \
+        --startup-project fakes/Bank.Fake \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 

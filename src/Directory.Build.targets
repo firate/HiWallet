@@ -1,0 +1,40 @@
+<Project>
+
+    <!-- Üst seviyede bir Directory.Build.targets varsa zincir kopmasın: MSBuild
+         yukarı doğru yürürken İLK bulduğunu kullanıp duruyor. Bugün kökte yok ama
+         eklendiği gün bu dosya onu sessizce gölgelerdi. -->
+    <PropertyGroup>
+        <!-- Önce özelliğe alınıyor: çağrıyı doğrudan Condition'a yazmak iç içe tek
+             tırnak üretiyor ve MSBuild koşulu ayrıştıramıyor (MSB4092). -->
+        <HiWalletParentTargets>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))</HiWalletParentTargets>
+    </PropertyGroup>
+
+    <Import Project="$(HiWalletParentTargets)" Condition="'$(HiWalletParentTargets)' != ''"/>
+
+    <!-- SAHTE SERVİSLERE REFERANS YASAK (decisions.md madde 35).
+
+         `fakes/` altındakiler başka kurumların yerinde duruyor ve üretimde YOKLAR.
+         `src/` altındaki bir proje onlara referans verirse üretim kodu, üretimde
+         var olmayan bir şeye derleme zamanı bağımlılık kurmuş olur.
+
+         Kural yorumda da yazıyor ama yorum kimseyi durdurmuyor. Bu proje aynı
+         gerekçeyle veritabanı sınırlarını da Postgres yetkileriyle zorluyor: sınır
+         nezaket kuralıysa baskı altında ilk delinen şey olur.
+
+         Ters yön SERBEST: fakes/ → src/Shared'a referans verebiliyor (observability,
+         sağlık ucu). Sahte servis de log ve trace üretmeli, yoksa uçtan uca trace
+         kopar. -->
+    <Target Name="HiWalletFakeReferenceGuard" BeforeTargets="ResolveProjectReferences">
+
+        <ItemGroup>
+            <_HiWalletFakeReference Include="@(ProjectReference)"
+                                    Condition="$([System.String]::Copy('%(Identity)').Replace('\','/').Contains('fakes/'))"/>
+        </ItemGroup>
+
+        <Error Condition="'@(_HiWalletFakeReference)' != ''"
+               Code="HIW001"
+               Text="$(MSBuildProjectName) sahte bir servise referans veriyor: @(_HiWalletFakeReference). fakes/ altındakiler üretimde YOK; src/ altındaki hiçbir proje onlara bağlanamaz (decisions.md madde 35). Sahte servisi yalnızca tests/ ve compose çağırır."/>
+
+    </Target>
+
+</Project>

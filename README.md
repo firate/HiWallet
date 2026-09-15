@@ -42,6 +42,10 @@ duruyor ve `hiwallet_bank_fake`'e yazıyor. Üretimde yok — yerine bankanın k
 geçiyor. `.Fake` son ekinin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine
 mi duruyor" (`decisions.md` madde 35).
 
+Kodu da `src/` altında değil, kökteki **`fakes/`** klasöründe: üretimde deploy edilen
+hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme hatası (`HIW001`) —
+kural yorumda değil, derleyicide.
+
 Ölçüt iki yöne de işliyor: farklı maruziyet aynı process'te birleşmiyor, **aynı
 maruziyet de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
 top-up event'leri ve çekim komutları — çünkü ikisi de ingress'siz ve aynı ledger'a

@@ -189,7 +189,7 @@ services:
   bank-fake-migrator:
     build:
       context: .
-      dockerfile: src/Bank.Fake/Dockerfile
+      dockerfile: fakes/Bank.Fake/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -465,7 +465,7 @@ services:
   bank-fake:
     build:
       context: .
-      dockerfile: src/Bank.Fake/Dockerfile
+      dockerfile: fakes/Bank.Fake/Dockerfile
       target: final
     depends_on:
       bank-fake-migrator:

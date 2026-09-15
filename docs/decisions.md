@@ -1309,6 +1309,17 @@ Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca te
 Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
 kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
 
+**Sahte servisler `src/` altında DEĞİL, kökteki `fakes/` klasöründe.** Üretimde
+deploy edilen hiçbir şey oradan çıkmıyor ve bu dizin yerleşiminden okunuyor.
+
+Kural derleme zamanında zorlanıyor: `src/Directory.Build.targets` içindeki `HIW001`
+kontrolü, `src/` altındaki bir projenin `fakes/`'e referans vermesini hata yapıyor.
+Yorum olarak bırakılsaydı ilk acele eden kişi delerdi — projenin veritabanı
+sınırlarını Postgres yetkileriyle zorlamasıyla aynı gerekçe (madde 24).
+
+Ters yön serbest: `fakes/` → `src/Shared`'a bakabiliyor. Sahte servisin de log ve
+trace üretmesi gerekiyor, aksi halde uçtan uca trace onun üzerinde kopar.
+
 **Sonucu iki yol getiriyor ve rolleri EŞİT DEĞİL.**
 
 | yol | nerede | sıklık | rol |

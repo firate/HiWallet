@@ -2,6 +2,11 @@
 
     <!-- BANKANIN YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 
+         KLASÖRÜ `fakes/`, `src/` DEĞİL. Üretimde deploy edilen hiçbir şey bu
+         klasörden çıkmıyor; sınır dizin seviyesinde görünür durumda. `src/`
+         altındaki hiçbir proje buraya referans VERMEZ — verirse üretim kodu
+         sahte bir kuruma bağlanmış olur.
+
          Üretimde bu proje YOK: yerine gerçek bankanın kendi ucu geçiyor ve bu klasör
          siliniyor. Bizim kodumuz olan taraf `BankAdapter`; ayrımın ölçütü "test amaçlı
          mı" değil, "başka bir kurumun yerine mi duruyor".
@@ -37,7 +42,7 @@
         <!-- Shared.Contracts YOK, bilerek: sahte banka bizim mesaj sözleşmelerimizi
              görmemeli. Shared.Infrastructure yalnızca observability ve sağlık ucu
              için — bunlar altyapı, iş sözleşmesi değil. -->
-        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+        <ProjectReference Include="..\..\src\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -20,7 +20,7 @@
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/WalletConsumer/WalletConsumer.csproj"/>
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
-        <ProjectReference Include="../../src/Bank.Fake/Bank.Fake.csproj"/>
+        <ProjectReference Include="../../fakes/Bank.Fake/Bank.Fake.csproj"/>
         <ProjectReference Include="../../src/BankAdapter/BankAdapter.csproj"/>
         <ProjectReference Include="../../src/BankWebhook/BankWebhook.csproj"/>
     </ItemGroup>

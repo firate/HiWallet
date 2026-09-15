@@ -65,7 +65,6 @@ src/
 ├── BankIntegration.Core/
 ├── BankAdapter/
 ├── BankWebhook/
-├── Bank.Fake/
 └── Shared/
     ├── Shared.Contracts/
     └── Shared.Infrastructure/
@@ -224,7 +223,7 @@ BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-
 ├── Application/               -- BankCallbackSignature, BankSecrets, BankCallbackWriter
 └── Setup/
 
-Bank.Fake/                     -- BANKANIN YERİNDE; üretimde YOK
+fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTINDA DEĞİL
 ├── Api/Controllers/           -- TransfersController, ScenariosController
 ├── Api/Requests/
 ├── Api/Responses/
@@ -235,17 +234,34 @@ Bank.Fake/                     -- BANKANIN YERİNDE; üretimde YOK
 │   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
 └── Setup/
 
-ProviderFake/                  -- HENÜZ YAZILMADI; yeri burası
+fakes/Stripe.Fake/             -- HENÜZ YAZILMADI; yeri burası
 ├── Api/Controllers/           -- senaryo tetikleme endpoint'leri
 ├── Application/               -- webhook üretimi (duplicate, gecikmeli, sırasız)
 └── Setup/
 ```
 
-`ProviderFake` bugün YOK: top-up webhook'ları testlerde doğrudan üretiliyor.
-Yazılırsa yeri yukarıda ve adı `.Fake` kuralına uyar. `Bank.Fake` ise yazıldı.
+### `fakes/` — üretimde olmayan servisler
 
-`Bank.Fake` ve `ProviderFake` fake olmalarına rağmen `Setup/` alır: logging,
-tracing ve health check onlarda da çalışmalı, yoksa uçtan uca trace kopar.
+**Sahte servisler `src/` altında DEĞİL, kökte ayrı bir klasörde.** Sınır dizin
+seviyesinde görünüyor: üretimde deploy edilen hiçbir şey `fakes/`'ten çıkmıyor.
+
+```
+fakes/
+├── Bank.Fake/      -- bankanın API'si (yazıldı)
+└── Stripe.Fake/    -- kart sağlayıcısının webhook'ları (HENÜZ YOK)
+```
+
+**`src/` → `fakes/` referansı DERLEME HATASI.** `src/Directory.Build.targets`
+içindeki `HIW001` kontrolü engelliyor. Yorumda yazmak yetmezdi: bu proje aynı
+gerekçeyle veritabanı sınırlarını da Postgres yetkileriyle zorluyor — sınır
+nezaket kuralıysa baskı altında ilk delinen şey olur.
+
+Ters yön serbest: `fakes/` → `src/Shared`. Sahte servis de log ve trace üretmeli,
+yoksa uçtan uca trace kopar. Bu yüzden `Setup/` klasörü onlarda da var.
+
+`fakes/`'i yalnızca iki şey çağırır: `tests/` ve `docker-compose.yml`.
+
+`Stripe.Fake` bugün YOK — top-up webhook'ları testlerde doğrudan üretiliyor.
 
 **`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
 duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
