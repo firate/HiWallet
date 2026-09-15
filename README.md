@@ -293,6 +293,7 @@ dotnet test
 
 | dosya | ne anlatır |
 | --- | --- |
+| [docs/architecture.md](docs/architecture.md) | **diyagramlar**: topoloji, akışlar, paranın nerede durduğu |
 | [docs/overview.md](docs/overview.md) | sistem: kapsam, servisler, akışlar, saga, çıkış kriteri |
 | [docs/baseline.md](docs/baseline.md) | uygulamadan bağımsız 12 zorunlu katman |
 | [docs/decisions.md](docs/decisions.md) | kararlar, gerekçeler, **elenen alternatifler** |

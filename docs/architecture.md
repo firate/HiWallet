@@ -1,0 +1,220 @@
+# Mimari — kim ne yapıyor, veri nereye gidiyor
+
+Bu dosya sistemin **şeklini** gösteriyor. Gerekçeler `decisions.md`'de, kurallar
+`CLAUDE.md`'de, şema `ledger-schema.md`'de. Kodu okumaya nereden başlanacağı
+`README.md`'de.
+
+Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş ad yok.
+
+---
+
+## 1. Topoloji: beş uygulama, dört veritabanı, bir broker
+
+```mermaid
+flowchart LR
+    client["Mobil / Web<br/>istemci"]
+    provider["Ödeme sağlayıcısı<br/>(stripe-fake)"]
+
+    subgraph public["public ingress"]
+        api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
+        orch["<b>withdrawal-orchestrator</b><br/>çekim saga'sı"]
+    end
+
+    subgraph restricted["IP kısıtlı ingress"]
+        hook["<b>topup-webhook</b><br/>imza doğrular, inbox'a yazar"]
+    end
+
+    subgraph noingress["ingress YOK"]
+        consumer["<b>wallet-consumer</b><br/>ledger'a yazan tek tüketici"]
+        bank["<b>bank-service</b><br/>sahte banka"]
+    end
+
+    mq[["RabbitMQ"]]
+
+    wdb[("hiwallet_wallet")]
+    tdb[("hiwallet_topup")]
+    odb[("hiwallet_withdrawal")]
+    bdb[("hiwallet_bank")]
+
+    client -->|HTTPS| api
+    client -->|HTTPS| orch
+    provider -->|"webhook + HMAC"| hook
+
+    api --> wdb
+    consumer --> wdb
+    hook --> tdb
+    orch --> odb
+    bank --> bdb
+
+    hook -->|publish| mq
+    orch <-->|"publish + consume"| mq
+    bank <-->|"publish + consume"| mq
+    mq -->|consume| consumer
+    consumer -->|publish| mq
+```
+
+**Ayrım ölçütü erişim seviyesi, işlevsellik değil** (`decisions.md` madde 28). Farklı
+ağ maruziyeti aynı process'te birleşmiyor; aynı maruziyet de gereksiz bölünmüyor —
+`wallet-consumer` hem top-up event'lerini hem çekim komutlarını hem settlement'ı
+dinliyor, üçü de ingress'siz ve aynı ledger'a yazıyor.
+
+Dikkat edilecek üç şey:
+
+**`wallet-api`'nin broker'a hiç bağlantısı yok.** Public yüzeyin tek bağımlılığı
+Postgres. Tüketici ayrı bir uygulamaya taşındıktan sonra bu kasıtlı olarak korunuyor.
+
+**`ledger_entries`'e yazan iki uygulama var** — `wallet-api` ve `wallet-consumer` —
+ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor (madde 25).
+
+**Orchestrator wallet veritabanına dokunmuyor.** Yalnızca komut gönderiyor. Bedeli iki
+veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga taraması (madde 33).
+
+---
+
+## 2. Top-up: para dışarıdan giriyor
+
+```mermaid
+sequenceDiagram
+    participant P as Sağlayıcı
+    participant H as topup-webhook
+    participant R as relay
+    participant MQ as hiwallet.topups
+    participant C as wallet-consumer
+
+    P->>H: POST /v1/webhooks/topup/stripe-fake
+    Note right of H: HAM gövde üzerinde HMAC,<br/>parse ETMEDEN önce.<br/>INSERT topup_inbox —<br/>provider + event_id UNIQUE
+    H-->>P: 202 Accepted
+    Note over P,H: Söz "işledim" değil, "kalıcı kaydettim"
+
+    loop her tur
+        R->>R: SELECT FOR UPDATE SKIP LOCKED
+        R->>MQ: publish, routing key = cüzdan id
+        R->>R: işlendi olarak işaretle
+    end
+    Note right of R: ÖNCE publish, SONRA işaretle.<br/>Ters sıra kayıp üretir.<br/>Relay tek instance — advisory lock
+
+    MQ->>C: p0 .. p3, x-consistent-hash
+    Note right of C: prefetch=1, x-single-active-consumer.<br/>processed_events + ledger<br/>AYNI transaction'da
+```
+
+`relay` ayrı bir uygulama değil, `topup-webhook`'un içinde koşan bir
+`BackgroundService` — ama ayrı çizildi, çünkü **zincirin koptuğu yer orası**: HTTP
+isteği `202` ile bitiyor, yayın sonra ve başka bir turda oluyor.
+
+Routing key cüzdan kimliği: aynı cüzdanın mesajları hep aynı partition'a düşüyor ve
+sıra orada korunuyor. Bu yüzden relay **tek instance** koşuyor — iki relay ayrı
+batch'leri farklı hızda yayınlarsa mesajlar exchange'e ters sırada varır ve kuyruk içi
+sıra garantisi bunu düzeltmez (madde 30).
+
+İki kademe idempotency var: inbox'ta `(provider, event_id)` UNIQUE, tüketicide
+`processed_events`. İkincisi ledger yazımıyla aynı transaction'da.
+
+---
+
+## 3. Çekim: para dışarı çıkıyor
+
+```mermaid
+sequenceDiagram
+    participant U as İstemci
+    participant O as withdrawal-orchestrator
+    participant W as wallet-consumer
+    participant B as bank-service
+
+    U->>O: POST /v1/withdrawals<br/>(Idempotency-Key ZORUNLU)
+    Note over O: saga + outbox<br/>AYNI transaction'da
+    O-->>U: 202 — hiçbir para hareket etmedi
+
+    O->>W: DebitForWithdrawal
+    Note over W: cüzdan −102<br/>clearing +100<br/>revenue +2
+    W->>O: WithdrawalDebited
+
+    O->>B: StartBankTransfer
+
+    alt banka kabul etti
+        B->>O: BankTransferSucceeded
+        O->>W: SettleWithdrawal
+        Note over W: clearing −100<br/>nostro +100
+        W->>O: WithdrawalSettled
+        Note over O: completed
+    else banka reddetti
+        B->>O: BankTransferFailed
+        O->>W: RefundWithdrawal
+        Note over W: ters kayıt ÜÇ bacaklı:<br/>cüzdan, clearing, revenue
+        W->>O: WithdrawalRefunded
+        Note over O: failed
+    end
+```
+
+Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
+Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
+
+**Ters kayıt politikadan yeniden üretilmiyor**, orijinal işlemin bacakları okunup
+negatifleniyor. `revenue` bacağı atlanırsa kayıt yine dengeli çıkar ve trigger susar —
+ama müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş kalır.
+
+**Yanıtların hepsi saklanıyor** (`processed_messages`). Tekrar teslimde iş ikinci kez
+yapılmıyor ama aynı cevap yeniden yayınlanıyor; cevapsız kalan saga müşteriyi sonsuza
+kadar "işleniyor"da bırakırdı.
+
+---
+
+## 4. Para nerede duruyor
+
+Diyagramların en önemlisi bu: **her akışta toplam sıfır.**
+
+Beş hesap rolü var ve ikisi "gerçek para", üçü "iddia":
+
+```mermaid
+flowchart LR
+    subgraph claim["iddia — henüz banka hareketi yok"]
+        wallet["<b>user_wallet</b><br/>müşteriye borcumuz"]
+        clearing["<b>clearing</b><br/>sağlayıcıyla<br/>açık hesap"]
+    end
+
+    subgraph real["gerçekleşmiş"]
+        nostro["<b>nostro</b><br/>bankadaki paramız"]
+        revenue["<b>revenue</b><br/>gelirimiz"]
+        expense["<b>provider_expense</b><br/>giderimiz"]
+    end
+
+    claim -.->|settlement<br/>iddiayı gerçeğe çevirir| real
+```
+
+Her işlem tipinin yazdığı bacaklar — **toplamı her satırda sıfır**:
+
+| işlem | bacaklar |
+| --- | --- |
+| `topup` | `wallet +100`, `clearing −100` |
+| `p2p` | `gönderen −100`, `alan +100` |
+| `payment` | `gönderen −102`, `alan +100`, `revenue +2` |
+| `withdrawal` | `cüzdan −102`, `clearing +100`, `revenue +2` |
+| `refund` | orijinalin bacakları negatiflenerek — üçü de |
+| `settlement` (top-up) | `clearing +gross`, `nostro −net`, `provider_expense −fee` |
+| `settlement` (çekim) | `clearing −owed`, `nostro +owed` |
+| `provider_invoice` | `provider_expense −tutar`, `nostro +tutar` |
+
+İşaret konvansiyonu: credit `+`, debit `−`, hiçbir yerde tersine çevrilmiyor.
+`nostro` bir **varlık** hesabı ve bu ledger'da varlıklar negatif duruyor — `−97.1`
+"97.1 açık" değil, "bankada 97.1 var" demek.
+
+`revenue` ile `provider_expense` **netleştirilmiyor**: biri müşteriden aldığımız,
+diğeri sağlayıcıya ödediğimiz. Ayrı hesaplar.
+
+`nostro` para birimi başına **tek**: ödeme sağlayıcısının nostro'su yok, çünkü nostro
+bir banka hesabı. Stripe parayı bizim banka hesabımıza yatırıyor.
+
+---
+
+## 5. Zamanlanmış işler
+
+| iş | nerede | varsayılan | ne yapıyor |
+| --- | --- | --- | --- |
+| takılmış saga taraması | orchestrator | 5 dk | iki veritabanı arasında asılı kalan çekimi yakalıyor |
+| mutabakat | wallet-consumer | 6 saat | projeksiyon sapması, gelmeyen settlement, geciken fatura |
+| işletme günlük özeti | wallet-consumer | 1 saat | hacim, işlem sayısı, kesilen komisyon |
+
+Üçü de `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve **ilk turu beklemeden
+koşmuyor** — dağıtımda ayağa kalkan her instance aynı anda tarama başlatmasın diye.
+
+Takılmış saga taraması opsiyonel bir iyileştirme **değil**: ayrı orchestrator
+veritabanı kararının zorunlu tamamlayıcısı (madde 33).
