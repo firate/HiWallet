@@ -1272,12 +1272,16 @@ Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
 
 ## 35. Banka entegrasyonu üretim şeklinde: adaptör ayrı, sonuç asenkron
 
-**Karar.** Bugünkü `BankService.Fake` ikiye ayrılıyor:
+**Karar.** Bugünkü `BankService.Fake` üçe ayrılıyor:
 
-| deployable | kimin | üretimde | sorumluluk |
-| --- | --- | --- | --- |
-| `bank-adapter` | **bizim** | **deploy edilir** | komutu alır, bankayı HTTP ile çağırır, sonucu saga'ya yayınlar |
-| `bank-fake` (`Bank.Fake`) | bankanın taklidi | **yok** | bankanın API'si; yerine gerçek bankanın ucu geçer |
+| deployable | ingress | kimin | üretimde | sorumluluk |
+| --- | --- | --- | --- | --- |
+| `bank-adapter` | **yok** | bizim | deploy edilir | komutu tüketir, bankayı HTTP ile çağırır, mutabakat taraması koşar, cevapları yayınlar |
+| `bank-webhook` | **IP kısıtlı** | bizim | deploy edilir | bankanın callback'ini doğrular, inbox'a yazar, `202` |
+| `bank-fake` (`Bank.Fake`) | iç | bankanın taklidi | **yok** | bankanın API'si; yerine gerçek bankanın ucu geçer |
+
+İlk ikisi `hiwallet_bank` üzerinde ortak kütüphane `BankIntegration.Core` ile —
+`wallet-api` / `wallet-consumer` / `WalletService.Core` üçlüsünün aynısı (madde 25, 28).
 
 Ve transfer sonucu artık **senkron dönmüyor**: adaptör bankayı çağırıp `202` alıyor,
 `bank_transfer_pending`'e geçiyor, kesin sonucu sonra öğreniyor.
@@ -1304,50 +1308,49 @@ Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca te
 Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
 kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
 
-**Sonuç iki yoldan gelebiliyor ve bunlar BİRBİRİNİ DIŞLAMIYOR.** İki bağımsız anahtar,
-tek bir mod seçici değil:
+**Sonucu iki yol getiriyor ve rolleri EŞİT DEĞİL.**
 
-| | rol | zorunlu mu |
-| --- | --- | --- |
-| `Bank:Webhook` | hızlı yol; banka adaptörün IP kısıtlı ucunu çağırır | hayır — banka destekliyorsa |
-| `Bank:Polling` | **emniyet ağı**; adaptör cevapsız kalanları sorar | **evet** |
+| yol | nerede | sıklık | rol |
+| --- | --- | --- | --- |
+| callback | `bank-webhook` | sürekli | **asıl yol** — sonuç saniyeler içinde öğrenilir |
+| mutabakat taraması | `bank-adapter` | günde birkaç kez | **kontrol** — callback'i kaçırılanı toplar |
 
-Tek bir `Webhook | Polling` seçicisi ilk tasarımda vardı ve YANLIŞTI, iki sebeple.
+Gerçek bir entegrasyonda sonuçların neredeyse tamamı callback'le gelir; tarama seyrek
+koşan bir doğrulamadır, ikinci bir teslim kanalı değil. İlk tasarımda ikisi eşit iki
+"mod" gibi yazılmıştı ve örnek konfigürasyonda tarama aralığı saniyelerdi — o gerçek
+zamanlı polling olurdu, mutabakat değil.
 
-*Birincisi, sürüm geçişi sonuç kaybediyor.* Webhook'tan polling'e geçen bir dağıtımda
-webhook ucu haritadan kalkıyor; o sırada yolda olan callback `404` alıyor. Banka birkaç
-kez deneyip vazgeçtiğinde o transferin sonucunu bir daha kimse öğrenmiyor — ve o saga'nın
-parası clearing'de asılı kalıyor. Ters yönde de aynısı: polling kapanınca bekleyen eski
-transferleri artık kimse sormuyor, banka da onlar için callback göndermiyor.
+**Neden ikisi birden.** Webhook teslimi garanti değil. Bu proje o kabulü başka yerde
+zaten yapmış: `topup_inbox` tam olarak bunun için var. Callback asıl yol olmaya devam
+ediyor ama "geldi mi" sorusunu soran bir şey olmadan sistem kaçırdığını fark edemez.
 
-*İkincisi, gerçekte de dışlamıyorlar.* Webhook kullanan entegrasyonlar neredeyse her zaman
-ayrıca sorgu yapar, çünkü **webhook teslimi garanti değil**. Bu proje o kabulü başka yerde
-zaten yapmış: `topup_inbox` tam olarak bunun için var.
+**`StaleAfter` taramanın kapsamını daraltıyor.** Tarama her bekleyen transferi değil,
+yalnızca bu süreden uzundur cevapsız kalanları soruyor. Callback çalışırken tarama
+neredeyse boş dönüyor; çalışmadığında bulduğu satır sayısı doğrudan alarm sinyali.
+Madde 33'ün takılmış saga taramasıyla aynı desen — mutlu yol kendi işini görüyor,
+tarama yalnızca düşeni topluyor.
 
-Doğru okuma şu: webhook bir **optimizasyon**, sonucu saniyeler içinde öğrenmeyi sağlıyor.
-Polling ise sonucun **eninde sonunda öğrenileceğinin garantisi**. İkincisi olmadan
-birincisi tek başına bir umut.
+**Tarama kapatılamıyor**; aralığı konfigüre edilir, varlığı edilmez. Kapatılabilseydi
+kaçırılan callback kalıcı bir kayıp olurdu: `bank_transfers` satırı `pending` kalır,
+saga `bank_transfer_pending`'de asılır ve müşteri parası clearing'de durur. Proje aynı
+seçimi çekim tarifesinde de yapıyor — eksik konfigürasyonla açılmaktansa açılmamak.
 
-Kaybolan callback bu modelde veri kaybı değil, yalnızca gecikme.
+**Callback ucu AYRI DEPLOYABLE.** Bu, madde 28'in ölçütünün doğrudan sonucu ve ilk
+yazımda ölçüt TERS uygulanmıştı: ikisinin maruziyeti aynı değil. Callback alıcısının
+IP kısıtlı bir ingress'i var, tarama ve komut tüketicisinin hiç ingress'i yok — yalnızca
+dışarı çağrı yapıyorlar. Madde 28 `wallet-consumer`'ı `wallet-api`'den tam olarak bu
+ayrımla ayırmıştı.
 
-**`StaleAfter` ikisini birlikte ucuzlatıyor.** Webhook açıkken polling her bekleyen
-transferi değil, yalnızca bu süreden uzundur cevapsız kalanları soruyor. Mutlu yolda
-neredeyse hiç sorgu gitmiyor; webhook düştüğü an kendiliğinden devreye giriyor. Madde
-33'ün takılmış saga taramasıyla aynı desen — mutlu yol kendi işini görüyor, tarama
-yalnızca düşeni topluyor.
+Dağıtım tarafında da karşılığı var: tarama mantığındaki bir değişiklik bankanın çağırdığı
+ucu yeniden başlatmayı gerektirmemeli. Adaptör yeniden başladığında mesajlar kuyrukta
+bekler, kayıp yok; callback alıcısı yeniden başladığında banka **bağlantı hatası** alır.
+Yeniden başlatılması en pahalı olan parça tek başına duruyor.
 
-**İkisi birden kapalıysa uygulama AÇILMIYOR.** Sessizce çalışmanın bedeli ağır: transferler
-başlar, `bank_transfers` satırları `pending` birikir, hiçbir sonuç öğrenilmez ve müşteri
-parası clearing'de kalır. Proje aynı seçimi çekim tarifesinde de yapıyor — eksik
-konfigürasyonla açılmaktansa açılmamak.
-
-Polling'i kapatmak yalnızca bankanın durum sorgusu ucu **yoksa** savunulabilir (dosya
-bazlı mutabakatla çalışan bankalar var). O durumda tek ağ takılmış saga taraması kalıyor,
-ve o tarama çözmüyor — **alarm üretiyor**. Aradaki fark kayda geçirilmeli.
-
-**İki yol AYRI SERVİS DEĞİL**: ikisi de aynı `bank_transfers` satırını kapatıyor, aynı
-cevabı yayınlıyor, tek fark sonucu nereden öğrendikleri. Ayrı deployable açmak madde
-28'in "aynı maruziyet bölünmez" ölçütünü delerdi.
+**Relay `bank-adapter`'da, webhook'un içinde DEĞİL** — burada `topup-webhook`'un
+şeklinden bilinçli sapılıyor. İki sebep: (a) yayın mantığındaki her değişiklik aksi halde
+ingress'i bounce eder, (b) callback yolu ile tarama yolu **aynı kapanış koduna** varmak
+zorunda ve o kodun tek kopyası olmalı (madde 25 ile aynı gerekçe). `bank-webhook`'un tek
+işi kalıyor: doğrula, inbox'a yaz, `202` dön.
 
 **Webhook modu top-up kalıbının aynısı** (madde 29, 30): ham gövde üzerinde HMAC, parse
 etmeden önce doğrulama, inbox'a yazıp `202`, ayrı bir relay'in yayınlaması. İkinci kez

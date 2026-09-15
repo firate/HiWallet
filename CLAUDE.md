@@ -177,22 +177,23 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   ayrım gövdedeki `replayed` alanında.
 
 **Banka entegrasyonu** (`decisions.md` madde 35)
-- İki deployable: `bank-adapter` BİZİM (üretimde de koşar), `Bank.Fake` bankanın
-  API'sinin yerinde durur (üretimde YOK). Adaptör bankayı HTTP ile çağırır —
+- Üç deployable: `bank-adapter` ingress'siz, `bank-webhook` IP kısıtlı, `Bank.Fake`
+  bankanın API'sinin yerinde durur (üretimde YOK). İlk ikisi bizim ve üretimde koşar;
+  ortak kütüphane `BankIntegration.Core` üstündeler. Adaptör bankayı HTTP ile çağırır —
   banka RabbitMQ DİNLEMEZ, öyle modellenmez.
 - Transfer sonucu SENKRON DEĞİL. Adaptör çağrıyı yapar, `bank_transfers` satırını
   `pending` yazar ve HİÇBİR ŞEY yayınlamaz; saga gerçekten `bank_transfer_pending`'de
   bekler. Kesin sonuç öğrenildiğinde cevap yayınlanır.
-- Sonuç iki yoldan gelir ve bunlar BİRBİRİNİ DIŞLAMAZ: `Bank:Webhook` hızlı yol
-  (opsiyonel, banka destekliyorsa), `Bank:Polling` EMNİYET AĞI (zorunlu). Webhook
-  teslimi garanti değil; sonucun eninde sonunda öğrenilmesini polling garanti eder.
-  Tek bir mod seçici YAZILMAZ — sürüm geçişinde yoldaki callback `404` alır ve o
-  transferin sonucu kalıcı olarak kaybolur.
-- `Bank:Polling:StaleAfter`: webhook açıkken yalnızca bu süreden uzundur cevapsız
-  kalanlar sorulur. Mutlu yolda sorgu gitmez, webhook düşünce kendiliğinden devreye girer.
-- İkisi birden kapalıysa uygulama AÇILMAZ. Sessizce çalışırsa `pending` satırlar
-  birikir ve müşteri parası clearing'de kalır.
-- İki yol AYNI deployable'da — aynı satırı kapatıp aynı cevabı yayınlıyorlar.
+- İki yolun rolü EŞİT DEĞİL: callback ASIL yol (sürekli), mutabakat taraması KONTROL
+  (günde birkaç kez). Tarama ikinci bir teslim kanalı değil, "kaçırdık mı" sorusu.
+- Tarama KAPATILAMAZ; aralığı konfigüre edilir, varlığı edilmez. Kaçırılan callback
+  aksi halde kalıcı kayıp olur: satır `pending` kalır, saga asılır, para clearing'de durur.
+- `Bank:Reconciliation:StaleAfter`: yalnızca bu süreden uzundur cevapsız kalanlar
+  sorulur. Callback çalışırken tarama boş döner; dönmediği satır sayısı alarm sinyali.
+- `bank-webhook` AYRI deployable çünkü ingress'i var, adaptörün yok (madde 28).
+  Tarama mantığı değişince bankanın çağırdığı uç YENİDEN BAŞLATILMAZ.
+- Relay `bank-adapter`'da, webhook'un içinde DEĞİL — `topup-webhook`'un şeklinden
+  bilinçli sapma. `bank-webhook`'un tek işi: doğrula, inbox'a yaz, `202`.
 - Webhook modu top-up kalıbının aynısı: HAM gövde üzerinde HMAC, parse etmeden önce,
   inbox'a yaz + `202`, yayını relay yapar. İkinci bir kalıp İCAT EDİLMEZ.
 - Sahte bankanın AYRI veritabanı var (`hiwallet_bank_fake`). `transfer_scenarios`
