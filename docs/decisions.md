@@ -368,7 +368,7 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
    bağımlılığı yok.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
-4. ✅ Withdrawal saga + bank-service + compensation. Zincir gerçek bir broker'a
+4. ✅ Withdrawal saga + banka entegrasyonu + compensation. Zincir gerçek bir broker'a
    karşı uçtan uca doğrulandı; compose'dan ayağa kalkıyor, telafi yolu compose
    üzerinden henüz koşturulmadı. Alt adımlar aşağıda.
 5. ✅ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
@@ -391,7 +391,7 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 | 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
 | 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
 | 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
-| 4.9 | `bank-service` (fake): komut tüketir, senaryo tetikleyicileriyle dört sonuç üretir | ✅ |
+| 4.9 | `bank-adapter` + `bank-webhook` + `bank-fake`: komut → HTTP → callback, dört senaryo (madde 35) | ✅ |
 | 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ✅ |
 | 4.11 | Compose servisleri, `.env.example`, dokümanlar | ✅ |
 
@@ -608,7 +608,7 @@ dalına düşer. Bu artık gürültü değil, **sözleşmeye aykırı bir kalem*
 kalıcı karmaşıklıkla ödemek olurdu; ayrıca `CLAUDE.md`'deki koşulsuz kuralı delerdi.
 
 **Elenen alternatif.** Başarısızlık sebebine göre karar vermek (`BankRejected` → iade,
-`InvalidBeneficiary` → iade etme). Gerçeğe daha yakın ama bank-service'in güvenilir sebep
+`InvalidBeneficiary` → iade etme). Gerçeğe daha yakın ama bankanın güvenilir sebep
 kodu üretmesini ve saga'nın bunu taşımasını gerektiriyor. Fake sağlayıcıyla üretilen sebep
 kodu üzerine iş kuralı kurmak, doğrulanmamış bir varsayımı şemaya gömmek olur.
 
@@ -1071,7 +1071,7 @@ ikisi atomik değilse aradaki çökme iki bozuk sonuçtan birini bırakıyor:
 İkincisi daha sinsi: hiçbir hata log'u yok, saga "bekliyor" görünüyor ve ancak stuck
 saga taraması yakalıyor. Outbox ikisini de kapatıyor — durum ve niyet aynı commit'te.
 
-**Nerede DEĞİL.** Outbox wallet-service'te ya da bank-service'te yok. Onlar komut
+**Nerede DEĞİL.** Outbox wallet-service'te yok. O komut
 tüketip event yayınlıyor; event yayınlanamazsa mesaj ack'lenmiyor ve komut yeniden
 teslim ediliyor. Yani orada güvenilirlik zaten broker'ın redelivery'sinden geliyor,
 ikinci bir tablo gereksiz olurdu. Saga'da öyle değil: geçişi tetikleyen şey her zaman
@@ -1098,10 +1098,10 @@ Aynı gerekçe tablo adlarını da belirledi:
 | taraf | tablo | neden |
 | --- | --- | --- |
 | wallet-service | `processed_messages` | komut işlenirken yazılacak başka bir kayıt yok |
-| bank-service | `bank_transfers` | zaten "ne yaptık" kaydı tutuluyor, anahtarı da `CommandId` |
+| bank-adapter | `bank_transfers` | zaten "ne yaptık" kaydı tutuluyor, anahtarı da `CommandId` |
 | orchestrator | — | saga durumu cevabı taşıyor |
 
-bank-service'te ayrıca bir `processed_messages` AÇILMADI: "bu komut işlendi mi" ile
+bank-adapter'da ayrıca bir `processed_messages` AÇILMADI: "bu komut işlendi mi" ile
 "bu transfer kaydı var mı" aynı soru ve iki tablo ilk ayrıştıklarında hangisinin doğru
 olduğu belirsizleşirdi.
 
@@ -1272,7 +1272,8 @@ Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
 
 ## 35. Banka entegrasyonu üretim şeklinde: adaptör ayrı, sonuç asenkron
 
-**Karar.** Bugünkü `BankService.Fake` üçe ayrılıyor:
+**Karar.** Banka entegrasyonu üç deployable'a bölünmüş durumda. Öncesinde tek bir
+`BankService.Fake` vardı ve iki ayrı rolü birden taşıyordu:
 
 | deployable | ingress | kimin | üretimde | sorumluluk |
 | --- | --- | --- | --- | --- |
@@ -1288,16 +1289,16 @@ Ve transfer sonucu artık **senkron dönmüyor**: adaptör bankayı çağırıp 
 
 **Sorun.** Bugün tek uygulama iki ayrı role bakıyor ve ikisi de yanlış modelleniyor.
 
-*Birincisi, karşı taraf broker dinliyor.* `BankService.Fake` RabbitMQ'dan `StartBankTransfer`
-tüketiyor. Hiçbir banka müşterisinin broker'ına abone olmaz; entegrasyon her zaman bizden
+*Birincisi, karşı taraf broker dinliyordu.* Tek uygulama RabbitMQ'dan `StartBankTransfer`
+tüketiyordu. Hiçbir banka müşterisinin broker'ına abone olmaz; entegrasyon her zaman bizden
 onlara giden bir çağrıdır. Bu haliyle "bankaya bağlanmak" diye bir kod yolu hiç yok —
 üretime geçerken yazılacak kısım, bugün gösterilmeyen kısım.
 
-*İkincisi, sonuç anında dönüyor.* Handler transferi yapıp cevabı aynı teslimde yayınlıyor,
-saga `bank_transfer_pending`'den anında çıkıyor. Gerçek havalede çağrı "aldım" der, kesin
-sonuç dakikalar sonra ayrı bir kanaldan gelir. Bu yüzden bugün `bank_transfer_pending`
-fiilen ölü bir durum ve **takılmış saga taraması (madde 33) hiç iş yapmıyor** — asılı
-kalabilen bir pencere yok.
+*İkincisi, sonuç anında dönüyordu.* Handler transferi yapıp cevabı aynı teslimde
+yayınlıyordu, saga `bank_transfer_pending`'den anında çıkıyordu. Gerçek havalede çağrı "aldım" der, kesin
+sonuç dakikalar sonra ayrı bir kanaldan gelir. O haliyle `bank_transfer_pending`
+fiilen ölü bir durumdu ve **takılmış saga taraması (madde 33) hiç iş yapmıyordu** —
+asılı kalabilen bir pencere yoktu.
 
 **Fake son ekinin anlamı.** Kendi yazdığımız ve üretimde de koşacak servis normal ad alır.
 `.Fake` yalnızca **başka bir kurumun bize erişim vermediği için taklit ettiğimiz** servise

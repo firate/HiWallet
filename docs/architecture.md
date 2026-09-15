@@ -8,7 +8,7 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 
 ---
 
-## 1. Topoloji: beş uygulama, dört veritabanı, bir broker
+## 1. Topoloji: altı uygulama, beş veritabanı, bir broker
 
 ```mermaid
 flowchart LR
@@ -22,11 +22,16 @@ flowchart LR
 
     subgraph restricted["IP kısıtlı ingress"]
         hook["<b>topup-webhook</b><br/>imza doğrular, inbox'a yazar"]
+        bhook["<b>bank-webhook</b><br/>imza doğrular, inbox'a yazar"]
     end
 
     subgraph noingress["ingress YOK"]
         consumer["<b>wallet-consumer</b><br/>ledger'a yazan tek tüketici"]
-        bank["<b>bank-service</b><br/>sahte banka"]
+        adapter["<b>bank-adapter</b><br/>bankayı arar, sonucu yayınlar"]
+    end
+
+    subgraph outside["BİZİM DEĞİL — üretimde yok"]
+        bank["<b>bank-fake</b><br/>bankanın API'si"]
     end
 
     mq[["RabbitMQ"]]
@@ -35,30 +40,38 @@ flowchart LR
     tdb[("hiwallet_topup")]
     odb[("hiwallet_withdrawal")]
     bdb[("hiwallet_bank")]
+    fdb[("hiwallet_bank_fake")]
 
     client -->|HTTPS| api
     client -->|HTTPS| orch
     provider -->|"webhook + HMAC"| hook
+    bank -->|"callback + HMAC"| bhook
 
     api --> wdb
     consumer --> wdb
     hook --> tdb
     orch --> odb
-    bank --> bdb
+    adapter --> bdb
+    bhook --> bdb
+    bank --> fdb
+
+    adapter -->|"HTTP"| bank
 
     hook -->|publish| mq
     orch <-->|"publish + consume"| mq
-    bank <-->|"publish + consume"| mq
     mq -->|consume| consumer
     consumer -->|publish| mq
+    mq -->|consume| adapter
+    adapter -->|publish| mq
 ```
+
 
 **Ayrım ölçütü erişim seviyesi, işlevsellik değil** (`decisions.md` madde 28). Farklı
 ağ maruziyeti aynı process'te birleşmiyor; aynı maruziyet de gereksiz bölünmüyor —
 `wallet-consumer` hem top-up event'lerini hem çekim komutlarını hem settlement'ı
 dinliyor, üçü de ingress'siz ve aynı ledger'a yazıyor.
 
-Dikkat edilecek üç şey:
+Dikkat edilecek dört şey:
 
 **`wallet-api`'nin broker'a hiç bağlantısı yok.** Public yüzeyin tek bağımlılığı
 Postgres. Tüketici ayrı bir uygulamaya taşındıktan sonra bu kasıtlı olarak korunuyor.
@@ -68,6 +81,15 @@ ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor
 
 **Orchestrator wallet veritabanına dokunmuyor.** Yalnızca komut gönderiyor. Bedeli iki
 veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga taraması (madde 33).
+
+**Banka RabbitMQ dinlemiyor** ve bu diyagramdaki en önemli ayrıntı. `bank-adapter`
+onu HTTP ile arıyor, banka da sonucu `bank-webhook`'a callback ile bildiriyor —
+gerçek bir entegrasyonun şekli bu. `bank-fake` üretimde silinecek tek kutu; yerine
+bankanın kendi ucu geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
+
+`bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
+birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
+`hiwallet_bank`; doğrudan çağrı yok.
 
 ### Neden İKİ public yüzey var
 
@@ -153,7 +175,9 @@ sequenceDiagram
     participant U as İstemci
     participant O as withdrawal-orchestrator
     participant W as wallet-consumer
-    participant B as bank-service
+    participant A as bank-adapter
+    participant B as bank-fake
+    participant H as bank-webhook
 
     U->>O: POST /v1/withdrawals<br/>(Idempotency-Key ZORUNLU)
     Note over O: saga + outbox<br/>AYNI transaction'da
@@ -163,16 +187,24 @@ sequenceDiagram
     Note over W: cüzdan −102<br/>clearing +100<br/>revenue +2
     W->>O: WithdrawalDebited
 
-    O->>B: StartBankTransfer
+    O->>A: StartBankTransfer
+    A->>B: POST /v1/transfers<br/>(Idempotency-Key = CommandId)
+    B-->>A: 202 pending + bankReference
+    Note over A: bank_transfers = pending<br/>CEVAP YAYINLANMIYOR
+    Note over O: saga GERÇEKTEN<br/>bank_transfer_pending'de bekliyor
+
+    B->>H: callback + HMAC
+    H-->>B: 202 (inbox'a yazıldı)
+    Note over H,A: tek bağ veritabanı;<br/>relay adaptörde
 
     alt banka kabul etti
-        B->>O: BankTransferSucceeded
+        A->>O: BankTransferSucceeded
         O->>W: SettleWithdrawal
         Note over W: clearing −100<br/>nostro +100
         W->>O: WithdrawalSettled
         Note over O: completed
     else banka reddetti
-        B->>O: BankTransferFailed
+        A->>O: BankTransferFailed
         O->>W: RefundWithdrawal
         Note over W: ters kayıt ÜÇ bacaklı:<br/>cüzdan, clearing, revenue
         W->>O: WithdrawalRefunded
@@ -183,13 +215,23 @@ sequenceDiagram
 Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
 Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
 
+**`bank_transfer_pending` gerçek bir pencere.** Banka "aldım" diyor, sonucu sonra
+bildiriyor; o arada saga bekliyor. Önceki tasarımda banka aynı teslimde cevap
+verdiği için bu durumdan hiç geçilmiyordu ve takılmış saga taraması (madde 33)
+yakalayacak bir şey bulamıyordu.
+
+**Callback kaybolursa kayıp olmuyor.** `bank-adapter`'ın mutabakat taraması
+`StaleAfter` süresinden uzundur cevapsız kalan transferleri bankaya soruyor.
+Callback asıl yol, tarama kontrol — ve taramanın bulduğu satır sayısı doğrudan
+callback hattının sağlık göstergesi (madde 35).
+
 **Ters kayıt politikadan yeniden üretilmiyor**, orijinal işlemin bacakları okunup
 negatifleniyor. `revenue` bacağı atlanırsa kayıt yine dengeli çıkar ve trigger susar —
 ama müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş kalır.
 
-**Yanıtların hepsi saklanıyor** (`processed_messages`). Tekrar teslimde iş ikinci kez
-yapılmıyor ama aynı cevap yeniden yayınlanıyor; cevapsız kalan saga müşteriyi sonsuza
-kadar "işleniyor"da bırakırdı.
+**Yanıtların hepsi saklanıyor** (`processed_messages`, `bank_transfers`). Tekrar
+teslimde iş ikinci kez yapılmıyor ama aynı cevap yeniden yayınlanıyor; cevapsız
+kalan saga müşteriyi sonsuza kadar "işleniyor"da bırakırdı.
 
 ---
 
@@ -245,6 +287,7 @@ bir banka hesabı. Stripe parayı bizim banka hesabımıza yatırıyor.
 | iş | nerede | varsayılan | ne yapıyor |
 | --- | --- | --- | --- |
 | takılmış saga taraması | orchestrator | 5 dk | iki veritabanı arasında asılı kalan çekimi yakalıyor |
+| banka mutabakatı | bank-adapter | 4 saat | callback'i kaçırılmış transferi bankaya sorup kapatıyor |
 | mutabakat | wallet-consumer | 6 saat | projeksiyon sapması, gelmeyen settlement, geciken fatura |
 | işletme günlük özeti | wallet-consumer | 1 saat | hacim, işlem sayısı, kesilen komisyon |
 
@@ -253,3 +296,7 @@ koşmuyor** — dağıtımda ayağa kalkan her instance aynı anda tarama başla
 
 Takılmış saga taraması opsiyonel bir iyileştirme **değil**: ayrı orchestrator
 veritabanı kararının zorunlu tamamlayıcısı (madde 33).
+
+Banka mutabakatı da öyle (madde 35) ve **kapatılamıyor** — yalnızca aralığı
+ayarlanıyor. İkisi aynı desen ama aynı şey değil: biri iki veritabanımız arasındaki
+ayrışmaya bakıyor, öbürü bizimle banka arasındakine.

@@ -29,10 +29,16 @@ olduğu yere taşınmıyor.
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 | `withdrawal-orchestrator` | public — çekim isteği | `hiwallet_withdrawal` | ikisi de |
-| `bank-service` (fake) | yalnızca senaryo ucu | `hiwallet_bank` | ikisi de |
+| `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
+| `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
 
 Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
 API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
+
+Bir de **bizim olmayan** bir uygulama var: `bank-fake`, bankanın API'sinin yerinde
+duruyor ve `hiwallet_bank_fake`'e yazıyor. Üretimde yok — yerine bankanın kendi ucu
+geçiyor. `.Fake` son ekinin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine
+mi duruyor" (`decisions.md` madde 35).
 
 Ölçüt iki yöne de işliyor: farklı maruziyet aynı process'te birleşmiyor, **aynı
 maruziyet de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
@@ -82,8 +88,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
-bank-service → orchestrator, üç uygulama ayrı ayrı ayakta ve aralarında yalnızca
-broker var.
+bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →
+orchestrator. Beş uygulama ayrı ayrı ayakta; aralarında broker ve gerçek HTTP var.
 
 ## Çalıştırma
 
@@ -92,14 +98,16 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar, dört rol ve dört veritabanı kurulur → dört migrator
-şemaları uygular → beş uygulama başlar. RabbitMQ paralel kalkar; hiçbiri onu BEKLEMEZ.
+Sırayla: Postgres ayağa kalkar, beş rol ve beş veritabanı kurulur → beş migrator
+şemaları uygular → altı uygulama başlar (biri sahte banka). RabbitMQ paralel kalkar;
+hiçbiri onu BEKLEMEZ.
 
 ```bash
 curl http://localhost:8091/health/ready   # wallet-api
 curl http://localhost:8092/health/ready   # topup-webhook
 curl http://localhost:8093/health/ready   # withdrawal-orchestrator
-curl http://localhost:8094/health/ready   # bank-service (sahte)
+curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, üretimde yok)
+curl http://localhost:8095/health/ready   # bank-webhook
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
@@ -228,13 +236,18 @@ Mutlu yolda ledger'a üç satır düşer: cüzdan `-102`, `clearing/bank-fake` `
 `revenue` `+2`.
 
 Durumu `GET /v1/withdrawals/{id}` ile izleyebilirsin: `initiated` → `debited` →
-`bank_transfer_pending` → `completed`.
+`bank_transfer_pending` → `settling` → `completed`.
 
-**Banka reddederse compensation.** Sahte bankaya söyleyerek tetiklenir:
+`bank_transfer_pending`'de birkaç saniye takılı görmen normal ve **istenen şey**:
+banka çağrısı "aldım" diyor, sonuç callback ile sonra geliyor (`decisions.md`
+madde 35). Süreyi `BANK_SETTLEMENT_DELAY` belirliyor.
+
+**Banka reddederse compensation.** Sahte bankaya söyleyerek tetiklenir — anahtar
+saga kimliği, alan adı `clientReference` (bankanın gözünde bizim referansımız):
 
 ```bash
 curl -X POST http://localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
-  -d '{"sagaId":"<ID>","outcome":"PermanentFailure"}'
+  -d '{"clientReference":"<ID>","outcome":"Failure"}'
 ```
 
 Ters kayıt orijinalin aynası ve **üç bacaklı**:
@@ -263,7 +276,7 @@ dotnet test
 Integration testler bir Postgres sunucusu ister; bağlantı
 `ConnectionStrings__IntegrationTests`'ten gelir. Her koşu kendi schema'sını açar,
 migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyor, Docker
-gerekmiyor. topup-webhook, withdrawal-orchestrator ve bank-service için ayrı schema'lar
+gerekmiyor. topup-webhook, withdrawal-orchestrator, banka entegrasyonu ve sahte banka için ayrı schema'lar
 açılıyor: üretimdeki ayrı veritabanı sınırları testte de korunuyor, servisler
 birbirinin tablosunu göremiyor.
 

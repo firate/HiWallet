@@ -65,13 +65,15 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | ↳ wallet-api            | Yukarıdakinin public HTTP host'u (mobil/web)                            | —               |
 | ↳ wallet-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
-| bank-service (fake)     | Dış banka transferini simüle eder                                       | —               |
+| bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | hiwallet_bank   |
+| bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | hiwallet_bank   |
+| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; üretimde YOK                          | hiwallet_bank_fake |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
 | provider-fake           | Test için sahte dış sağlayıcı (Stripe/banka muadili)                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 
-Dış sağlayıcılar (provider-fake, bank-service) bir `IPaymentProvider` / `IBankProvider` soyutlamasının arkasında durur; gerçekte burada Stripe/banka API'si olurdu, burada fake implementasyon. Böylece sağlayıcı bağımsızlığı gösterilir, sağlayıcıyı değiştirmek uygulama kodunu etkilemez.
+Dış sağlayıcılar (provider-fake, bank-fake) bir `IPaymentProvider` / `IBankProvider` soyutlamasının arkasında durur; gerçekte burada Stripe/banka API'si olurdu, burada fake implementasyon. Böylece sağlayıcı bağımsızlığı gösterilir, sağlayıcıyı değiştirmek uygulama kodunu etkilemez.
 
 ## 3. Double-Entry Ledger
 
@@ -152,7 +154,7 @@ X = çekilen tutar, k = müşteriden alınan komisyon (yoksa k = 0).
   → [Debited]
 
 [Debited]
-  → bank-service'e komut: "X banka transferi başlat" (CommandId'li, idempotent)
+  → bank-adapter'a komut: "X banka transferi başlat" (CommandId'li, idempotent)
   → [BankTransferPending]
 
 [BankTransferPending]
@@ -198,7 +200,7 @@ kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 1
 **Idempotency (saga):**
 
 - API girişinde `Idempotency-Key`: aynı çekme isteği iki kez → yeni saga başlatma, mevcut durumu dön.
-- Komut tüketiminde `CommandId`: bank-service ve wallet-service aynı komutu iki kez işlemez (`processed_messages`).
+- Komut tüketiminde `CommandId`: bank-adapter ve wallet-service aynı komutu iki kez işlemez (`processed_messages`).
 - Saga event tüketiminde: state + correlation ile değerlendirilir. Zararsız tekrar (aynı event, ya da saga çoktan ilerlemiş) yok sayılır; **çelişkili** event (telafiden sonra gelen "başarılı" gibi) yok SAYILMAZ — durum olduğu yerde bırakılıp alarm üretilir, çünkü para kaybına işaret ediyor (`decisions.md` madde 31).
 
 **Retry (saga):**
@@ -236,7 +238,7 @@ provider-fake şunları tetikleyebilmeli:
 - **Sırasız** gönderim (ordering/partitioning testi).
 - **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek).
 
-bank-service de fake: withdrawal komutuna başarılı / transient-fail / kalıcı-fail / gecikmeli yanıt üretebilmeli.
+bank-fake de aynı şekilde: transfere başarılı / transient-fail / kalıcı-fail / gecikmeli sonuç üretebilmeli. Sonuç SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callback ya da durum sorgusuyla (decisions.md madde 35).
 
 ## 10. Çıkış Kriteri
 
@@ -247,4 +249,4 @@ bank-service de fake: withdrawal komutuna başarılı / transient-fail / kalıc�
 - Clearing hesabı bakiyesi "yolda olan parayı" doğru gösteriyor (mutabakat dayanağı).
 - Scheduled mutabakat raporu clearing ile settlement'ı karşılaştırıp tutarsızlığı yakalayabiliyor.
 - Cüzdan-bazlı partitioning ile aynı cüzdanda sıra korunuyor.
-- Trace uçtan uca takip edilebiliyor (webhook → kuyruk → consumer → ledger; API → saga → bank-service → compensation).
+- Trace uçtan uca takip edilebiliyor (webhook → kuyruk → consumer → ledger; API → saga → bank-adapter → banka → callback → compensation).
