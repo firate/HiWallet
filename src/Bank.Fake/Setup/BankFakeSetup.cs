@@ -29,6 +29,7 @@ public static class BankFakeSetup
 
         services.AddScoped<AcceptTransferHandler>();
         services.AddScoped<ScenarioStore>();
+        services.AddScoped<TransferQueries>();
 
         // Callback göndericisi kendi HTTP istemcisini kullanıyor. Timeout kısa:
         // ulaşılamayan bir uca takılıp kalmak, sırada bekleyen callback'leri de

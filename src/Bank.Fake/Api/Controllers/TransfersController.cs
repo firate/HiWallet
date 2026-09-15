@@ -2,9 +2,7 @@ using FluentValidation;
 using HiWallet.Bank.Fake.Api.Requests;
 using HiWallet.Bank.Fake.Api.Responses;
 using HiWallet.Bank.Fake.Application;
-using HiWallet.Bank.Fake.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.Bank.Fake.Api.Controllers;
 
@@ -21,8 +19,7 @@ namespace HiWallet.Bank.Fake.Api.Controllers;
 public sealed class TransfersController(
     AcceptTransferHandler handler,
     IValidator<StartTransferRequest> validator,
-    IDbContextFactory<BankFakeDbContext> contextFactory,
-    TimeProvider timeProvider) : ControllerBase
+    TransferQueries transfers) : ControllerBase
 {
     /// <summary>
     /// Bankanın idempotency başlığı. Adı bizim <c>Idempotency-Key</c>'imizle aynı
@@ -103,24 +100,8 @@ public sealed class TransfersController(
     public async Task<ActionResult<TransferStatusResponse>> Get(
         string bankReference, CancellationToken ct)
     {
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
+        var transfer = await transfers.FindAsync(bankReference, ct);
 
-        var transfer = await db.Transfers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.BankReference == bankReference, ct);
-
-        if (transfer is null) return NotFound();
-
-        var status = TransferResolution.StatusOf(transfer, timeProvider.GetUtcNow());
-
-        return new TransferStatusResponse(
-            transfer.BankReference,
-            transfer.ClientReference,
-            status,
-            transfer.Amount,
-            transfer.Fee,
-            transfer.Currency,
-            status is TransferStatus.Failed ? TransferResolution.FailureReason : null,
-            transfer.AcceptedAt);
+        return transfer is null ? NotFound() : transfer;
     }
 }
