@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using HiWallet.BankService.Application;
+using HiWallet.Bank.Fake.Application;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.WalletService.Domain.Accounts;
@@ -21,9 +21,16 @@ namespace HiWallet.IntegrationTests.Withdrawals;
 /// <code>
 ///   POST /v1/withdrawals → orchestrator → outbox → relay
 ///        → wallet-consumer  (ledger'a düşme)  → WithdrawalDebited
-///        → bank-service     (transfer)        → BankTransferSucceeded / Failed
+///        → bank-adapter     (HTTP)            → bank-fake  [kabul, sonuç YOK]
+///                                             → callback   → bank-webhook → inbox
+///                                             → relay      → BankTransferSucceeded / Failed
 ///        → orchestrator     (saga ilerler)    → [Completed] ya da iade komutu
 /// </code>
+///
+/// <b>Banka artık senkron cevap vermiyor</b> (decisions.md madde 35): saga gerçekten
+/// <c>bank_transfer_pending</c>'de bekliyor ve sonucu callback getiriyor. Zincire
+/// eklenen iki host — <c>bank-adapter</c> ve <c>bank-webhook</c> — arasındaki tek
+/// bağ veritabanı; aralarında doğrudan çağrı yok.
 ///
 /// Buraya kadar her parça kendi testleriyle doğrulandı; burada doğrulanan şey
 /// PARÇALARIN BİRBİRİNE DEĞDİĞİ YER: sözleşmeler uyuşuyor mu, routing key'ler
@@ -34,7 +41,10 @@ namespace HiWallet.IntegrationTests.Withdrawals;
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class WithdrawalChainTests(
-    PostgresFixture postgres, OrchestratorFixture orchestratorDb, BankFixture bankDb) : IAsyncLifetime
+    PostgresFixture postgres,
+    OrchestratorFixture orchestratorDb,
+    BankFixture bankDb,
+    BankFakeFixture bankFakeDb) : IAsyncLifetime
 {
     private const string SkipReason =
         "RabbitMQ'ya bağlanılamıyor (RabbitMq__Host ve kimlik bilgileri). Zincir doğrulanmadı.";
@@ -47,7 +57,9 @@ public sealed class WithdrawalChainTests(
 
     private WithdrawalOrchestratorApiFactory? _orchestrator;
     private WalletConsumerFactory? _walletConsumer;
-    private BankServiceFactory? _bank;
+    private BankWebhookFactory? _bankWebhook;
+    private BankFakeFactory? _bankFake;
+    private BankAdapterFactory? _bankAdapter;
     private HttpClient? _api;
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -58,7 +70,9 @@ public sealed class WithdrawalChainTests(
 
         if (_orchestrator is not null) await _orchestrator.DisposeAsync();
         if (_walletConsumer is not null) await _walletConsumer.DisposeAsync();
-        if (_bank is not null) await _bank.DisposeAsync();
+        if (_bankAdapter is not null) await _bankAdapter.DisposeAsync();
+        if (_bankFake is not null) await _bankFake.DisposeAsync();
+        if (_bankWebhook is not null) await _bankWebhook.DisposeAsync();
 
         await DeleteTopologyAsync();
     }
@@ -127,7 +141,7 @@ public sealed class WithdrawalChainTests(
         // ama saga kimliği ancak istek kabul edildikten sonra biliniyor ve banka
         // komutu teorik olarak araya girebilirdi. Varsayılanı servis başlamadan
         // vermek o pencereyi tamamen kapatıyor.
-        await StartAsync(ct, TransferOutcome.PermanentFailure);
+        await StartAsync(ct, TransferOutcome.Failure);
 
         var wallet = await NewFundedWalletAsync(1_000m, ct);
         var revenueBefore = await BalanceAsync(SystemAccounts.RevenueTry, ct);
@@ -226,8 +240,12 @@ public sealed class WithdrawalChainTests(
         new(Options.Create(BrokerSettings.BuildOptions("hiwallet-tests")));
 
     /// <summary>
-    /// Üç host'u ayağa kaldırır. Topolojiyi TEST kuruyor: uygulamalar da kuruyor ama
-    /// arka planda, ve ilk komut relay bağlanmadan önce yazılabiliyor.
+    /// Beş host'u ayağa kaldırır. Topolojiyi TEST kuruyor: uygulamalar da kuruyor
+    /// ama arka planda, ve ilk komut relay bağlanmadan önce yazılabiliyor.
+    ///
+    /// Sıra önemli: webhook önce kalkıyor çünkü sahte bankanın callback istemcisi
+    /// onun test sunucusuna bağlanıyor; adaptör en sonda çünkü o da sahte bankanın
+    /// sunucusuna bağlanıyor.
     /// </summary>
     private async Task StartAsync(CancellationToken ct, TransferOutcome? bankOutcome = null)
     {
@@ -242,10 +260,23 @@ public sealed class WithdrawalChainTests(
 
         _orchestrator ??= new WithdrawalOrchestratorApiFactory(orchestratorDb, useRealBroker: true);
         _walletConsumer ??= new WalletConsumerFactory(postgres);
-        _bank ??= new BankServiceFactory(bankDb, bankOutcome);
+
+        _bankWebhook ??= new BankWebhookFactory(bankDb);
+
+        // Sahte banka sonucu webhook'a POST ediyor: ASIL YOL uçtan uca koşuyor,
+        // imza doğrulaması ve inbox dahil. Mutabakat taraması burada devreye
+        // girmiyor — adaptörün varsayılan aralığı testin süresinden uzun.
+        _bankFake ??= new BankFakeFactory(
+            bankFakeDb,
+            bankOutcome,
+            callbackUrl: $"http://bank-webhook/v1/webhooks/bank/{TestBankSecrets.Bank}",
+            callbackHttpClient: _bankWebhook.CreateClient());
+
+        _bankAdapter ??= new BankAdapterFactory(
+            bankDb, "http://bank-fake", _bankFake.CreateClient());
 
         _api ??= _orchestrator.CreateClient();
-        _bank.CreateClient().Dispose();
+        _bankAdapter.CreateClient().Dispose();
 
         // CreateClient host'u kuruyor; tüketiciler böylece dinlemeye başlıyor.
         _walletConsumer.CreateClient().Dispose();

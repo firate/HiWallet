@@ -1,23 +1,25 @@
-using HiWallet.BankIntegration.Persistence;
+using HiWallet.Bank.Fake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
-/// <c>bank-adapter</c> ile <c>bank-webhook</c>'un paylaştığı veritabanı
-/// (<c>hiwallet_bank</c>). Şemanın sahibi <c>BankIntegration.Core</c>.
+/// SAHTE BANKANIN veritabanı. Üretimde böyle bir veritabanı yok — sahte banka da
+/// yok. Testte <see cref="BankFixture"/>'dan AYRI bir schema: sınır korunuyor ve
+/// adaptörün sahte bankanın senaryolarını göremediği yapısal olarak doğru kalıyor
+/// (decisions.md madde 35).
 ///
-/// Testte aynı sunucuda AYRI BİR SCHEMA — sınır korunuyor ama koşu üçüncü bir
-/// veritabanı kurmayı gerektirmiyor. <see cref="InboxFixture"/> ile aynı kalıp.
+/// Paylaşsalardı test yanlış bir şeyi kanıtlardı: adaptörün "senaryo ne diyormuş"
+/// diye bakamadığını, ancak bakamayacak durumdayken kanıtlayabilirsin.
 /// </summary>
-public sealed class BankFixture : IAsyncLifetime
+public sealed class BankFakeFixture : IAsyncLifetime
 {
     private const string ConnectionEnvironmentVariable = "ConnectionStrings__IntegrationTests";
 
     private readonly string _adminConnectionString;
 
-    public BankFixture()
+    public BankFakeFixture()
     {
         _adminConnectionString =
             Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable)
@@ -25,7 +27,7 @@ public sealed class BankFixture : IAsyncLifetime
                 $"{ConnectionEnvironmentVariable} ortamda yok. Kabuğa .env yükle: " +
                 "set -a; . ./.env; set +a");
 
-        Schema = $"itbank_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid().ToString("N")[..8]}";
+        Schema = $"itbankfake_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid().ToString("N")[..8]}";
 
         ConnectionString = new NpgsqlConnectionStringBuilder(_adminConnectionString)
         {
@@ -61,20 +63,20 @@ public sealed class BankFixture : IAsyncLifetime
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public BankDbContext CreateContext()
+    public BankFakeDbContext CreateContext()
     {
-        var options = new DbContextOptionsBuilder<BankDbContext>()
+        var options = new DbContextOptionsBuilder<BankFakeDbContext>()
             .UseNpgsql(ConnectionString, npgsql =>
                 npgsql.MigrationsHistoryTable("__EFMigrationsHistory", Schema))
             .Options;
 
-        return new BankDbContext(options);
+        return new BankFakeDbContext(options);
     }
 
-    public IDbContextFactory<BankDbContext> ContextFactory => new Factory(this);
+    public IDbContextFactory<BankFakeDbContext> ContextFactory => new Factory(this);
 
-    private sealed class Factory(BankFixture fixture) : IDbContextFactory<BankDbContext>
+    private sealed class Factory(BankFakeFixture fixture) : IDbContextFactory<BankFakeDbContext>
     {
-        public BankDbContext CreateDbContext() => fixture.CreateContext();
+        public BankFakeDbContext CreateDbContext() => fixture.CreateContext();
     }
 }

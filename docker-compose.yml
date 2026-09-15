@@ -7,19 +7,31 @@
 # Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
 # otomatik okur.
 #
-# Beş uygulama, erişim seviyesine göre ayrılmış (decisions.md madde 28):
+# Altı uygulama, erişim seviyesine göre ayrılmış (decisions.md madde 28):
 #
 #   wallet-api               public ingress   — mobil/web istemciler
 #   topup-webhook            kısıtlı ingress  — yalnızca sağlayıcı IP'leri (proxy işi)
+#   bank-webhook             kısıtlı ingress  — yalnızca bankanın IP'leri
 #   wallet-consumer          ingress YOK      — mesajları kendisi kuyruktan çekiyor
 #   withdrawal-orchestrator  public ingress   — çekim isteği
-#   bank-service             sahte, senaryo ucu
+#   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
-# wallet-api ve wallet-consumer aynı şemayı ve aynı kütüphaneyi (WalletService.Core)
-# paylaşıyor; ayrı deployable ama tek kod tabanı.
+# Ve bir tane de BİZİM OLMAYAN:
 #
-# Dört veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
-# tablolarına yazamıyor — saga'nın anlamı buna bağlı (madde 7 ve 33).
+#   bank-fake                bankanın API'sinin yerinde duruyor — ÜRETİMDE YOK
+#
+# Son ekin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor"
+# (decisions.md madde 35). bank-adapter da bugün yalnızca burada koşuyor ama
+# üretimde de koşacak; o yüzden son ek almıyor.
+#
+# İki çift ayrı deployable ama tek kod tabanı:
+#   wallet-api + wallet-consumer  → WalletService.Core
+#   bank-adapter + bank-webhook   → BankIntegration.Core
+#
+# Beş veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
+# tablolarına yazamıyor — saga'nın anlamı buna bağlı (madde 7 ve 33). Sahte
+# bankanınki de ayrı: adaptör senaryo tablosunu göremiyor, görebilseydi
+# simülasyon değerini kaybederdi (madde 35).
 
 # Bağlantı havuzu bütçesi. Dört uygulama AYNI Postgres örneğine bakıyor ve
 # `max_connections` örnek bazında, veritabanı bazında DEĞİL — yani havuzlar
@@ -31,9 +43,16 @@
 #   wallet-consumer           16   prefetch=1, sıralı tüketim
 #   withdrawal-orchestrator   16   API + tüketici + relay + job
 #   topup-webhook             10   IP kısıtlı, yalnızca inbox yazıyor
-#   bank-service              10   sahte, düşük hacim
+#   bank-adapter              10   tüketici + iki relay + tarama
+#   bank-webhook               6   yalnızca inbox yazıyor, en dar yüzey
+#   bank-fake                  6   sahte, düşük hacim
 #                            ───
-#                             82   psql ve izleme için ~18 pay kalıyor
+#                             94   psql ve izleme için ~6 pay kalıyor
+#
+# 94, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
+# max_connections'ının yükseltilmesi; compose'daki örnekte 200 veriliyor.
+# Yükseltilmeseydi doğru yol havuzları kısmak olurdu, sınırı görmezden gelmek
+# değil.
 #
 # Migrator'lar geçici ve uygulamalardan ÖNCE bitiyor (service_completed_successfully),
 # bu yüzden bütçeye girmiyorlar.
@@ -148,11 +167,14 @@ services:
       - Host=postgres;Port=5432;Database=hiwallet_withdrawal;Username=withdrawal_app;Password=${WITHDRAWAL_APP_PASSWORD}
     restart: "no"
 
-  # Sahte bankanın veritabanı: bank_transfers ve transfer_scenarios.
+  # Banka entegrasyonunun şeması: bank_transfers ve bank_callbacks. Sahibi
+  # BankIntegration.Core; bundle'ı bank-adapter'ın Dockerfile'ı üretiyor.
+  # bank-webhook AYRI migrator açmıyor — iki host aynı şema için ayrı bundle
+  # üretseydi hangisinin önce koştuğu şemayı belirlerdi.
   bank-migrator:
     build:
       context: .
-      dockerfile: src/BankService.Fake/Dockerfile
+      dockerfile: src/BankAdapter/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -160,6 +182,21 @@ services:
     command:
       - --connection
       - Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD}
+    restart: "no"
+
+  # SAHTE BANKANIN şeması, ayrı veritabanında. Üretimde ne bu migrator var ne de
+  # veritabanı (decisions.md madde 35).
+  bank-fake-migrator:
+    build:
+      context: .
+      dockerfile: src/Bank.Fake/Dockerfile
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=postgres;Port=5432;Database=hiwallet_bank_fake;Username=bank_fake_app;Password=${BANK_FAKE_APP_PASSWORD}
     restart: "no"
 
   # Public ingress. RabbitMQ ayarı YOK ve olmamalı: tüketici ayrı bir host'a
@@ -331,36 +368,126 @@ services:
     # gider. Alıcı taraf deduplike ediyor ama süre tanımak nadirleştiriyor.
     stop_grace_period: 20s
 
-  # SAHTE servis. Üretimde yeri yok; burada olmasının sebebi telafi yolunun
-  # tetiklenebilir olması (overview.md madde 9).
+  # BİZİM KODUMUZ, üretimde de koşuyor (decisions.md madde 35).
   #
-  # Host portu açık çünkü senaryo ucu dışarıdan çağrılıyor:
-  #   POST /v1/scenarios {"sagaId":"...","outcome":"PermanentFailure"}
-  # Gerçek bir banka entegrasyonunda bu port da bu servis de olmayacak.
-  bank-service:
+  # INGRESS'İ YOK: komutu kuyruktan alıyor, bankayı kendisi arıyor. ports tanımı
+  # yalnızca sağlık ucu için ve host'a AÇILMIYOR.
+  #
+  # Sahtelik tamamen Bank__BaseUrl değerinde; gerçek bankaya geçerken bu servisin
+  # kodunda tek satır değişmiyor.
+  bank-adapter:
     build:
       context: .
-      dockerfile: src/BankService.Fake/Dockerfile
+      dockerfile: src/BankAdapter/Dockerfile
       target: final
     depends_on:
       bank-migrator:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_started
+      bank-fake:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__Bank: Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD};Application Name=hiwallet-bank-service;Maximum Pool Size=10
+      ConnectionStrings__Bank: Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD};Application Name=hiwallet-bank-adapter;Maximum Pool Size=10
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
-      # Senaryosu kurulmamış transferlerin sonucu. Varsayılan başarı; telafi
-      # yolunu tüm sistemde göstermek istersen PermanentFailure yap.
-      Bank__DefaultOutcome: ${BANK_DEFAULT_OUTCOME:-Success}
+      # ÜRETİMDE BURAYA BANKANIN ADRESİ YAZILIR ve bank-fake silinir.
+      Bank__BaseUrl: http://bank-fake:8080
+      # Mutabakat taraması KAPATILAMAZ, yalnızca aralığı ayarlanır. Compose'da
+      # kısa: callback hattını elle bozup taramanın topladığını görebilmek için.
+      # Üretim varsayılanı 4 saat (appsettings.json).
+      Bank__Reconciliation__Interval: ${BANK_RECONCILIATION_INTERVAL:-00:01:00}
+      Bank__Reconciliation__StaleAfter: ${BANK_RECONCILIATION_STALE_AFTER:-00:00:30}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
-      OTEL_SERVICE_NAME: hiwallet-bank-service
+      OTEL_SERVICE_NAME: hiwallet-bank-adapter
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # BİZİM KODUMUZ, üretimde de koşuyor. Bankanın bizi çağırdığı uç.
+  #
+  # AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR; bank-adapter'ın yok (madde 28). Üretimde
+  # yalnızca bankanın IP bloklarına açılır — o kısıt proxy'nin işi, tıpkı
+  # topup-webhook'ta olduğu gibi.
+  #
+  # Broker ayarı YOK ve olmamalı: callback'i kabul etmek yalnızca Postgres'e
+  # bağlı. Inbox'ın varlık sebebi tam olarak bu.
+  bank-webhook:
+    build:
+      context: .
+      dockerfile: src/BankWebhook/Dockerfile
+      target: final
+    depends_on:
+      bank-migrator:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Bank: Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD};Application Name=hiwallet-bank-webhook;Maximum Pool Size=6
+      # Bankayla paylaşılan HMAC secret'ı. Sahte callback'i engelleyen tek şey bu;
+      # koda gömülmez.
+      Banks__bank-fake__CallbackSecret: ${BANK_CALLBACK_SECRET:?BANK_CALLBACK_SECRET .env'de tanımlı değil}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-bank-webhook
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BANK_WEBHOOK_HOST_PORT:-8095}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # BANKANIN YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, ÜRETİMDE YOK.
+  # Gerçek entegrasyonda bu blok tamamen silinir ve bank-adapter'ın
+  # Bank__BaseUrl'ü bankanın adresine çevrilir.
+  #
+  # Host portu açık çünkü senaryo ucu dışarıdan çağrılıyor:
+  #   POST /v1/scenarios {"clientReference":"<sagaId>","outcome":"Failure"}
+  #
+  # RabbitMQ ayarı YOK: gerçek banka müşterisinin broker'ını dinlemez.
+  bank-fake:
+    build:
+      context: .
+      dockerfile: src/Bank.Fake/Dockerfile
+      target: final
+    depends_on:
+      bank-fake-migrator:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__BankFake: Host=postgres;Port=5432;Database=hiwallet_bank_fake;Username=bank_fake_app;Password=${BANK_FAKE_APP_PASSWORD};Application Name=hiwallet-bank-fake;Maximum Pool Size=6
+      # Senaryosu kurulmamış transferlerin sonucu. Varsayılan başarı; telafi
+      # yolunu tüm sistemde göstermek istersen Failure yap.
+      BankFake__DefaultOutcome: ${BANK_DEFAULT_OUTCOME:-Success}
+      # Sonucun belli olması için geçen süre. SIFIR DEĞİL: sıfır olsaydı asenkron
+      # yapının tek gözlemlenebilir tarafı — bank_transfer_pending penceresi —
+      # compose'da hiç görünmezdi.
+      BankFake__SettlementDelay: ${BANK_SETTLEMENT_DELAY:-00:00:03}
+      # ASIL YOL. Kapatırsan sonuç yalnızca mutabakat taramasıyla öğrenilir;
+      # durum sorgusu olan ama callback göndermeyen bankaları temsil eder.
+      BankFake__Callback__Enabled: ${BANK_CALLBACK_ENABLED:-true}
+      BankFake__Callback__Url: http://bank-webhook:8080/v1/webhooks/bank/bank-fake
+      BankFake__Callback__Secret: ${BANK_CALLBACK_SECRET}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-bank-fake
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
