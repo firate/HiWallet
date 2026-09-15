@@ -3,7 +3,7 @@
 Her uç için istek ve **beklenen** yanıt. Elle denemek ve bir şeyin bozulduğunu
 anlamak için; sözleşmenin kaynağı kod, bu dosya ona uyar.
 
-Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8094`). Kimlikler her
+Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8095`). Kimlikler her
 koşuda değişir.
 
 ```bash
@@ -183,8 +183,12 @@ HTTP/1.1 201 Created
 olarak gönderenden düşülür: `Payment` %2 ise gönderen `-204`, alan `+200`,
 `revenue` `+4`. Ledger'a üç satır düşer, toplamı sıfır.
 
-`Idempotency-Key` opsiyonel ama önerilir. Aynı anahtarla ikinci istek yeni transfer
-yapmaz:
+**`Idempotency-Key` ZORUNLU**; başlık yoksa `400` ve ledger'a hiçbir şey yazılmaz
+(`decisions.md` madde 4). Anahtarsız bir tekrar hiçbir constraint'e takılmaz ve çift
+harcama sessizce ledger'a düşerdi; append-only olduğu için de geri alınamaz, yalnızca
+ters kayıtla düzeltilir.
+
+Aynı anahtarla ikinci istek yeni transfer yapmaz:
 
 ```json
 { "transactionId": "aynı-kimlik", "replayed": true }
@@ -276,9 +280,9 @@ Location: http://localhost:8093/v1/withdrawals/cf13827f-470c-43af-a3b7-e3606e48c
 }
 ```
 
-**`Idempotency-Key` ZORUNLU** — transfer'dekinin aksine. Çekim çok adımlı ve dışarıya
-para çıkarıyor; anahtarsız bir tekrar ikinci bir banka transferi başlatırdı. Başlık
-yoksa `400`.
+**`Idempotency-Key` ZORUNLU** — transfer'de olduğu gibi. Burada bahis daha da yüksek:
+çekim çok adımlı ve dışarıya para çıkarıyor, anahtarsız bir tekrar ikinci bir banka
+transferi başlatırdı. Başlık yoksa `400`.
 
 `202` dönüldüğünde **hiçbir para hareket etmedi**. IBAN boşluklu yazılabilir,
 normalize edilir; mod-97 geçmezse `400`.
@@ -390,14 +394,95 @@ curl -s localhost:8094/v1/scenarios/$WD
 ```
 ```json
 {
-  "sagaId": "...",
-  "outcome": "TransientFailure",
+  "clientReference": "...",
+  "outcome": "transient_failure",
   "remainingTransientFailures": 0,
   "attempts": 2
 }
 ```
 
-`attempts` retry'ın gerçekten çalıştığının kanıtı. Kurulmamış saga için `404`.
+`attempts` retry'ın gerçekten çalıştığının kanıtı. Kurulmamış çekim için `404`.
+
+### Transfer uçları — adaptörün konuştuğu sözleşme
+
+Bunları elle çağırman gerekmiyor; `bank-adapter` çağırıyor. Burada duruyorlar çünkü
+**gerçek entegrasyonda bankanın dokümanından yazılacak kısım** tam olarak bu ikisi.
+
+```bash
+curl -i -X POST localhost:8094/v1/transfers \
+  -H 'Content-Type: application/json' -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"clientReference":"<sagaId>","amount":100,"currency":"TRY","destinationIban":"TR330006100519786457841326"}'
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "bankReference": "BNK4F2A9C1E8B7D6A3", "status": "pending", "replayed": false }
+```
+
+**`status` her zaman `pending`.** Banka "aldım" diyor, "gönderdim" demiyor. Sonuç
+callback ile ya da durum sorgusuyla sonra geliyor (`decisions.md` madde 35).
+
+```bash
+curl -s localhost:8094/v1/transfers/BNK4F2A9C1E8B7D6A3
+```
+```json
+{
+  "bankReference": "BNK4F2A9C1E8B7D6A3",
+  "clientReference": "...",
+  "status": "succeeded",
+  "amount": 100.0000,
+  "fee": 1.5000,
+  "currency": "TRY",
+  "failureReason": null,
+  "acceptedAt": "..."
+}
+```
+
+**Mutabakat taramasının okuduğu uç bu.** Bankanın böyle bir ucu olmasaydı, callback'i
+kaçırılan transferin sonucunu hiçbir şey öğrenemezdi.
+
+`Idempotency-Key` başlıksız istek `400`. Aynı anahtarla ikinci istek yeni transfer
+AÇMAZ: aynı `bankReference` ve `"replayed": true` döner.
+
+`TransientFailure` senaryosunda uç `503` veriyor ve **transfer hiç açılmıyor** —
+kalıcı hatadan farkı bu. Adaptör bunu yeniden deniyor, saga'ya hiçbir şey
+bildirilmiyor.
+
+---
+
+## bank-webhook — `:8095`
+
+Bankanın transfer sonucunu bildirdiği uç. **Bizim kodumuz**, üretimde de koşuyor;
+`bank-adapter`'dan ayrı bir deployable çünkü ingress'i var (`decisions.md` madde 28).
+
+Elle çağırman gerekmiyor — `bank-fake` çağırıyor. İmza `topup-webhook`'unkiyle aynı
+algoritma ama **ayrı bir sözleşme**: başlık adı `X-Bank-Signature` ve secret
+`BANK_CALLBACK_SECRET`. Orada şemayı biz dayatıyoruz, burada bankanınkini uyguluyoruz.
+
+```bash
+BODY='{"eventId":"evt-BNK4F2A9C1E8B7D6A3","bankReference":"BNK4F2A9C1E8B7D6A3","clientReference":"...","status":"succeeded","fee":1.50,"currency":"TRY","failureReason":null,"occurredAt":"2026-03-01T10:00:00+00:00"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$BANK_CALLBACK_SECRET" -hex | awk '{print $2}')
+curl -i -X POST localhost:8095/v1/webhooks/bank/bank-fake \
+  -H 'Content-Type: application/json' -H "X-Bank-Signature: sha256=$SIG" --data "$BODY"
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "accepted": true, "duplicate": false }
+```
+
+`202`, `200` değil: verilen söz "işledim" değil "kalıcı kaydettim". Bu servis
+**işlemiyor** — inbox'a yazıp bırakıyor, transferi kapatmak `bank-adapter`'daki
+relay'in işi.
+
+`eventId` tekrar denemelerde aynı kalmak zorunda; ikinci kez gelirse yine `202` ama
+`"duplicate": true` ve satır ikinci kez yazılmıyor.
+
+İmza tutmazsa `401` ve inbox'a **hiçbir şey** yazılmaz. Tanınmayan kurum da `401`,
+`404` değil — hangi bankalarla çalıştığımız dışarıya sızmamalı. `eventId` yoksa
+`400`: kimliksiz bir bildirim deduplike edilemez.
 
 ---
 
@@ -415,7 +500,9 @@ WD=$(curl -s -X POST localhost:8093/v1/withdrawals \
 curl -s -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
   -d "{\"clientReference\":\"$WD\",\"outcome\":\"Failure\"}"
 
-sleep 6
+# Banka sonucu ANINDA vermiyor: BANK_SETTLEMENT_DELAY kadar bekliyor, sonra
+# callback gönderiyor, sonra adaptörün relay'i cevabı yayınlıyor.
+sleep 10
 curl -s localhost:8093/v1/withdrawals/$WD; echo
 echo "önce=$BEFORE sonra=$(curl -s localhost:8091/v1/wallets/$WALLET | jq -r .balance)"
 ```

@@ -6,6 +6,13 @@ Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
 > **Beş uygulamalı stack ayağa kalkıyor, yapısal kontrolleri ve uçtan uca akışları
 > geçiyor.** Top-up, çekimin mutlu yolu ve telafi yolu compose üzerinde
 > doğrulandı. Açık kalanlar aşağıdaki "Hâlâ doğrulanmadı" listesinde.
+>
+> **O doğrulama bankanın SENKRON cevap verdiği sürümde yapıldı.** Banka hattı
+> sonradan üçe bölündü (`bank-adapter`, `bank-webhook`, `bank-fake`) ve sonuç
+> asenkron hale geldi (`decisions.md` madde 35). Yeni hat testlerde koşuyor ama
+> **compose üzerinde tekrarlanmadı**; aşağıdaki kayıtlar eski sürümün ölçümleri
+> ve o haliyle bırakıldı — bir doğrulama kaydı, olmamış bir ölçümü anlatacak
+> şekilde güncellenmez.
 
 ## 1. Kodu Docker'ı olan makineye al
 
@@ -28,12 +35,14 @@ WALLET_APP_PASSWORD=...
 TOPUP_APP_PASSWORD=...
 WITHDRAWAL_APP_PASSWORD=...
 BANK_APP_PASSWORD=...
+BANK_FAKE_APP_PASSWORD=...      # sahte bankanın KENDİ veritabanı (madde 35)
 
 RabbitMq__Username=...          # compose'daki broker'ın ilk kullanıcısı olur
 RabbitMq__Password=...
 
 STRIPE_FAKE_WEBHOOK_SECRET=...  # uzun ve rastgele
 BANK_FAKE_WEBHOOK_SECRET=...
+BANK_CALLBACK_SECRET=...        # bankanın sonuç callback'ini imzaladığı secret
 ```
 
 **Elinde eski bir `.env` varsa** `cp` YAPMA — üstüne yazar. Stack her büyüdüğünde
@@ -43,8 +52,9 @@ onun adını söylüyor; sırayla düzeltmek uzun sürer. Hepsini birden gör:
 ```bash
 for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
+         BANK_FAKE_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
-         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET; do
+         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -82,14 +92,19 @@ Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 docker compose up --build
 ```
 
-Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
-`topup-migrator`, `withdrawal-migrator`, `bank-migrator`) şemaları uygulayıp
-`exit 0` ile biter → beş uygulama başlar. `rabbitmq` paralel kalkar; hiçbiri onu
-BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
+Beklenen sıra: `postgres` sağlıklı olur → beş migrator (`migrator`,
+`topup-migrator`, `withdrawal-migrator`, `bank-migrator`, `bank-fake-migrator`)
+şemaları uygulayıp `exit 0` ile biter → yedi uygulama başlar. `rabbitmq` paralel
+kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
 
-Dört veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
-`hiwallet_withdrawal`, `hiwallet_bank`. Postgres healthcheck'i sonuncusuna soruyor;
-o cevap verdiğinde init'in tamamı bitmiş demektir.
+Tek istisna `bank-adapter`: `bank-fake`'in sağlıklı olmasını bekliyor. Gerçek
+entegrasyonda böyle bir bağımlılık OLMAZ — banka bizim compose'umuzda değil.
+Burada var çünkü sahte banka da bizim stack'imizde ve ilk transfer denemesinin
+boşa gitmemesi için.
+
+Beş veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
+`hiwallet_withdrawal`, `hiwallet_bank`, `hiwallet_bank_fake`. Postgres
+healthcheck'i `hiwallet_bank`'a soruyor.
 
 ### init ne zaman koşar
 
@@ -115,13 +130,14 @@ Yarım kalma tuzağı: init ortasında bir komut patlarsa (`ON_ERROR_STOP=1`) co
 ölür ama `initdb` çoktan koşmuştur — veri dizini artık boş değil. Sonraki `up` init'i
 ATLAR ve elinde ilk roller olan, sonrakiler olmayan bir cluster kalır. Hatalar alakasız
 görünür ("role withdrawal_app does not exist"). Tekrar denemek düzeltmez, `down -v`
-düzeltir. Beş rolün de kurulduğunu doğrula:
+düzeltir. Altı rolün de kurulduğunu doğrula:
 
 ```bash
 docker compose exec postgres psql -U postgres -c '\du'
 ```
 
-`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app`.
+`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app`,
+`bank_fake_app`.
 
 ## 4. Doğrula
 
@@ -542,6 +558,13 @@ geri gelsin.
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
 | settlement ve fatura uçları (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
+| **yedi container'lı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
+| **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
+| **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
+| **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |
+
+Son üçü bu sürümle geldi ve hiçbiri koşturulmadı. İlki yapısal; diğer ikisi
+madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol".
 
 ### Top-up hattını doğrulama
 

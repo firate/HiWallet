@@ -1128,7 +1128,7 @@ ledger'ın sahibi olan servis yürütsün, bankaya çağrı outbox üzerinden gi
 ```
 wallet-api ──▶ wallet DB (withdrawal_sagas + ledger_entries + outbox, TEK COMMIT)
                    │
-                   └─ relay ──▶ bank-service ──▶ cevap ──▶ aynı servis saga'yı ilerletir
+                   └─ relay ──▶ bank-adapter ──▶ cevap ──▶ aynı servis saga'yı ilerletir
 ```
 
 Bu alternatif **daha basit ve bir hata sınıfını tamamen ortadan kaldırıyor.** Şu anki

@@ -205,23 +205,57 @@ TopupWebhook/
 │   └── Messaging/             -- TopupRelay
 └── Setup/
 
-Bank.Fake/
-├── Api/Controllers/           -- ScenariosController (senaryo tetikleyicileri)
-├── Api/Requests/
-├── Application/               -- StartBankTransferHandler, ScenarioStore
+BankIntegration.Core/          -- şema ve migration'lar; İKİ host paylaşıyor
+├── Domain/                    -- BankTransferStatus
+├── Persistence/               -- BankDbContext, bank_transfers, bank_callbacks
+└── Setup/                     -- BankPersistenceSetup
+
+BankAdapter/                   -- BİZİM; ingress YOK, bankayı kendisi arıyor
+├── Application/               -- BankClient, StartBankTransferHandler,
+│                                 TransferCompleter, banka HTTP sözleşmesi
 ├── Infrastructure/
-│   ├── Persistence/           -- BankDbContext, bank_transfers, transfer_scenarios
-│   └── Messaging/             -- BankCommandConsumer
+│   ├── Messaging/             -- BankCommandConsumer, ReplyRelay
+│   ├── Callbacks/             -- CallbackRelay (inbox'ı işler)
+│   └── Jobs/                  -- ReconciliationScan
 └── Setup/
 
-ProviderFake/
+BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-202
+├── Api/Controllers/           -- BankWebhookController
+├── Application/               -- BankCallbackSignature, BankSecrets, BankCallbackWriter
+└── Setup/
+
+Bank.Fake/                     -- BANKANIN YERİNDE; üretimde YOK
+├── Api/Controllers/           -- TransfersController, ScenariosController
+├── Api/Requests/
+├── Api/Responses/
+├── Application/               -- AcceptTransferHandler, TransferQueries,
+│                                 ScenarioStore, TransferResolution
+├── Infrastructure/
+│   ├── Persistence/           -- BankFakeDbContext, transfers, transfer_scenarios
+│   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
+└── Setup/
+
+ProviderFake/                  -- HENÜZ YAZILMADI; yeri burası
 ├── Api/Controllers/           -- senaryo tetikleme endpoint'leri
 ├── Application/               -- webhook üretimi (duplicate, gecikmeli, sırasız)
 └── Setup/
 ```
 
+`ProviderFake` bugün YOK: top-up webhook'ları testlerde doğrudan üretiliyor.
+Yazılırsa yeri yukarıda ve adı `.Fake` kuralına uyar. `Bank.Fake` ise yazıldı.
+
 `Bank.Fake` ve `ProviderFake` fake olmalarına rağmen `Setup/` alır: logging,
 tracing ve health check onlarda da çalışmalı, yoksa uçtan uca trace kopar.
+
+**`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
+duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
+testlerde koşuyor ama üretimde de koşacak — son ek almıyor. `Bank.Fake` üretimde
+silinecek, alıyor.
+
+`BankAdapter` ile `BankWebhook` ayrı klasörler çünkü ayrı deployable'lar: birinin
+IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok (madde 28). Ortak şemaları
+`BankIntegration.Core`'da — `WalletApi` / `WalletConsumer` / `WalletService.Core`
+üçlüsüyle aynı kalıp.
 
 ### Shared/
 

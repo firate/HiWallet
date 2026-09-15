@@ -134,7 +134,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         var ct = TestContext.Current.CancellationToken;
         var command = Command();
 
-        await ArmAsync(command.SagaId.ToString(), TransferOutcome.TransientFailure);
+        await SetScenarioAsync(command.SagaId.ToString(), TransferOutcome.TransientFailure);
 
         await Should.ThrowAsync<TransientBankException>(() => HandleAsync(command, ct));
 
@@ -158,7 +158,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         var ct = TestContext.Current.CancellationToken;
         var command = Command();
 
-        await ArmAsync(command.SagaId.ToString(), TransferOutcome.Failure);
+        await SetScenarioAsync(command.SagaId.ToString(), TransferOutcome.Failure);
         await HandleAsync(command, ct);
 
         var transfer = await FindAsync(command.CommandId, ct);
@@ -269,7 +269,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         throw new TimeoutException($"{bankReference} beş saniyede sonuçlanmadı.");
     }
 
-    private async Task ArmAsync(string clientReference, TransferOutcome outcome)
+    private async Task SetScenarioAsync(string clientReference, TransferOutcome outcome)
     {
         using var client = _bankFake.CreateClient();
 

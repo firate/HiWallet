@@ -15,14 +15,14 @@ namespace HiWallet.Bank.Fake.Api.Controllers;
 [ApiController]
 [Route("v1/scenarios")]
 public sealed class ScenariosController(
-    ScenarioStore scenarios, IValidator<ArmScenarioRequest> validator) : ControllerBase
+    ScenarioStore scenarios, IValidator<ScenarioRequest> validator) : ControllerBase
 {
     /// <summary>Bir çekim için sonraki transferin nasıl sonuçlanacağını belirler.</summary>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Arm(
-        [FromBody] ArmScenarioRequest request, CancellationToken ct)
+    public async Task<IActionResult> Set(
+        [FromBody] ScenarioRequest request, CancellationToken ct)
     {
         var validation = await validator.ValidateAsync(request, ct);
 
@@ -34,7 +34,7 @@ public sealed class ScenariosController(
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
         }
 
-        await scenarios.ArmAsync(
+        await scenarios.SetAsync(
             request.ClientReference, request.Outcome,
             request.TransientFailures, request.DelayMilliseconds, ct);
 

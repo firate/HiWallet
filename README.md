@@ -3,9 +3,9 @@
 E-money cüzdan sistemi. Double-entry ledger + saga orchestration.
 
 Referans uygulama: mimari production seviyesinde, kapsam bilinçli olarak dar. Dış
-servisler fake ama her biri bir interface arkasında; katman ayrımı, transaction
-sınırları, idempotency, concurrency stratejisi ve invariant zorlaması gerçekte nasıl
-yapılıyorsa öyle.
+kurumlar sahte ama **sınırları gerçek** — banka ayrı bir process, arada HTTP ve
+callback var, wallet'ı göremiyor. Katman ayrımı, transaction sınırları, idempotency,
+concurrency stratejisi ve invariant zorlaması gerçekte nasıl yapılıyorsa öyle.
 
 ## Ne gösteriyor
 
@@ -18,10 +18,12 @@ olduğu yere taşınmıyor.
 - **Top-up:** webhook ayrı bir serviste kendi veritabanıyla, arada RabbitMQ, tüketici
   üçüncü bir uygulamada.
 - **Withdrawal saga:** orchestrator kendi veritabanında saga durumunu yürütüyor,
-  wallet parayı düşüyor, banka transferi yapıyor. Banka reddederse **compensation**
-  cüzdana parayı geri yazıyor — silmeyle değil, üç bacaklı ters kayıtla.
+  wallet parayı düşüyor, adaptör bankayı HTTP ile arıyor. Banka "aldım" diyor,
+  **sonuç sonra** callback ile geliyor — saga o arada gerçekten bekliyor. Banka
+  reddederse **compensation** cüzdana parayı geri yazıyor: silmeyle değil, üç
+  bacaklı ters kayıtla.
 
-## Beş uygulama, erişim seviyesine göre ayrılmış
+## Altı uygulama, erişim seviyesine göre ayrılmış
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
@@ -73,8 +75,9 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Hattın gerçek bir broker'a karşı uçtan uca koşması | ✅ webhook → RabbitMQ → ledger |
 | Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
-| Saga zincirinin uçtan uca koşması | ✅ API → wallet → banka → saga |
-| Beş uygulamanın compose'dan ayağa kalkması | ✅ |
+| Saga zincirinin uçtan uca koşması | ✅ API → wallet → adaptör → banka → callback → saga |
+| Banka entegrasyonu: asenkron sonuç, callback + mutabakat | ✅ |
+| Yedi container'ın compose'dan ayağa kalkması | ✅ |
 | Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
 | Business günlük özeti | ✅ |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
@@ -84,12 +87,12 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
 
-269 test: 96 unit (DB'siz), 173 integration — gerçek Postgres ve gerçek RabbitMQ.
+283 test: 96 unit (DB'siz), 187 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
 bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →
-orchestrator. Beş uygulama ayrı ayrı ayakta; aralarında broker ve gerçek HTTP var.
+orchestrator. Beş host ayrı ayrı ayakta; aralarında hem broker hem gerçek HTTP var.
 
 ## Çalıştırma
 
@@ -98,9 +101,9 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar, beş rol ve beş veritabanı kurulur → beş migrator
-şemaları uygular → altı uygulama başlar (biri sahte banka). RabbitMQ paralel kalkar;
-hiçbiri onu BEKLEMEZ.
+Sırayla: Postgres ayağa kalkar, altı rol ve beş veritabanı kurulur → beş migrator
+şemaları uygular → yedi container başlar (altısı bizim, biri sahte banka). RabbitMQ
+paralel kalkar; hiçbiri onu BEKLEMEZ.
 
 ```bash
 curl http://localhost:8091/health/ready   # wallet-api
@@ -126,17 +129,21 @@ takip ediyor, `curl` varsayılan olarak etmiyor.
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8094`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8095`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 
 > **Stack compose'dan koşuyor ve uçtan uca akışları geçiyor.** Top-up, çekimin
 > mutlu yolu ve telafi yolu compose üzerinde doğrulandı: banka reddettiğinde
 > bakiye `500` → `500` dönüyor ve ters kaydın `revenue` bacağı yerinde. Yapısal
-> tarafta beş uygulama `healthy`, dört migrator şemaları uyguluyor, `wallet_app`
+> tarafta uygulamalar `healthy`, migrator'lar şemaları uyguluyor, `wallet_app`
 > konteyner içinde de `ledger_entries`'i güncelleyemiyor ve her rol yalnızca kendi
 > veritabanına bağlanabiliyor. Adımlar, ölçülen çıktılar ve açık uçlar:
 > **[docs/verify-compose.md](docs/verify-compose.md)**
+>
+> **Bu doğrulama bankanın SENKRON cevap verdiği sürümde yapıldı.** Asenkron hat
+> (adaptör → banka → callback → webhook) testlerde koşuyor ama compose üzerinde
+> henüz tekrarlanmadı; `verify-compose.md`'de açık uç olarak duruyor.
 
 ### İki veritabanı rolü
 

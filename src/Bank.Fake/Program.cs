@@ -28,7 +28,7 @@ builder.AddHiWalletObservability(ServiceName);
 builder.Services.AddBankFake(builder.Configuration);
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddValidatorsFromAssemblyContaining<ArmScenarioRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<ScenarioRequestValidator>();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();

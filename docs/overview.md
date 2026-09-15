@@ -65,15 +65,17 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | ↳ wallet-api            | Yukarıdakinin public HTTP host'u (mobil/web)                            | —               |
 | ↳ wallet-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
-| bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | hiwallet_bank   |
-| bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | hiwallet_bank   |
-| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; üretimde YOK                          | hiwallet_bank_fake |
+| bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | Idempotent      |
+| bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | Idempotent      |
+| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **üretimde YOK**                      | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
 | provider-fake           | Test için sahte dış sağlayıcı (Stripe/banka muadili)                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 
-Dış sağlayıcılar (provider-fake, bank-fake) bir `IPaymentProvider` / `IBankProvider` soyutlamasının arkasında durur; gerçekte burada Stripe/banka API'si olurdu, burada fake implementasyon. Böylece sağlayıcı bağımsızlığı gösterilir, sağlayıcıyı değiştirmek uygulama kodunu etkilemez.
+Dış kurumlar (provider-fake, bank-fake) **ağ sınırının** arkasında durur — bir C# interface'inin değil. Banka ayrı bir process, arada HTTP ve callback var, kendi veritabanı var ve wallet'ı göremiyor. Bizim tarafımızdaki karşılığı `bank-adapter`: gerçek bankaya geçerken değişen tek şey `Bank:BaseUrl`, kod değil (`decisions.md` madde 35).
+
+Bu, "interface arkasına al" yaklaşımından bilinçli bir sapma. Bir interface yalnızca derleme zamanı sınırıdır; taklit edilen tarafın gerçekten ayrı bir process olması, süreç ölümünü, ağ hatasını, kısmi başarıyı ve asenkron sonucu da sınanabilir kılıyor. Entegrasyonlarda kırılan şeyler bunlar, metot imzaları değil.
 
 ## 3. Double-Entry Ledger
 

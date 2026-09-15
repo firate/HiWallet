@@ -19,13 +19,13 @@ namespace HiWallet.Bank.Fake.Api.Requests;
 /// Sonucun belli olması için geçecek süre. Sıfır bırakılırsa servisin
 /// <c>SettlementDelay</c> varsayılanı kullanılıyor.
 /// </param>
-public sealed record ArmScenarioRequest(
+public sealed record ScenarioRequest(
     string ClientReference,
     TransferOutcome Outcome,
     int TransientFailures = 1,
     int DelayMilliseconds = 0);
 
-public sealed class ArmScenarioRequestValidator : AbstractValidator<ArmScenarioRequest>
+public sealed class ScenarioRequestValidator : AbstractValidator<ScenarioRequest>
 {
     /// <summary>
     /// Gecikme üst sınırı. Sahte servis testlerin süresini belirliyor; sınırsız
@@ -33,7 +33,7 @@ public sealed class ArmScenarioRequestValidator : AbstractValidator<ArmScenarioR
     /// </summary>
     private const int MaxDelayMilliseconds = 30_000;
 
-    public ArmScenarioRequestValidator()
+    public ScenarioRequestValidator()
     {
         RuleFor(r => r.ClientReference).NotEmpty().WithMessage("Müşteri referansı zorunlu.");
 

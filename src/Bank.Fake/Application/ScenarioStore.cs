@@ -15,11 +15,11 @@ public sealed class ScenarioStore(
     IDbContextFactory<BankFakeDbContext> contextFactory, TimeProvider timeProvider)
 {
     /// <summary>
-    /// Senaryoyu kurar ya da mevcut olanı DEĞİŞTİRİR. Aynı çekim için ikinci kez
+    /// Senaryoyu YAZAR ya da mevcut olanı DEĞİŞTİRİR. Aynı çekim için ikinci kez
     /// çağrılırsa üzerine yazıyor; test bir senaryoyu kurup sonra fikrini
     /// değiştirebilmeli ve bunun için kaydı silmek zorunda kalmamalı.
     /// </summary>
-    public async Task ArmAsync(
+    public async Task SetAsync(
         string clientReference, TransferOutcome outcome, int transientFailures,
         int delayMilliseconds, CancellationToken ct)
     {

@@ -146,7 +146,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
 
         var clientReference = Guid.NewGuid().ToString();
 
-        await ArmAsync(clientReference, TransferOutcome.TransientFailure, transientFailures: 1);
+        await SetScenarioAsync(clientReference, TransferOutcome.TransientFailure, transientFailures: 1);
 
         var first = await StartAsync(clientReference, Guid.NewGuid().ToString());
 
@@ -191,7 +191,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         var clientReference = Guid.NewGuid().ToString();
-        await ArmAsync(clientReference, TransferOutcome.Failure);
+        await SetScenarioAsync(clientReference, TransferOutcome.Failure);
 
         var start = await StartAsync(clientReference, Guid.NewGuid().ToString());
         var started = await start.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -211,7 +211,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    private async Task ArmAsync(
+    private async Task SetScenarioAsync(
         string clientReference, TransferOutcome outcome, int transientFailures = 1)
     {
         var response = await _client.PostAsJsonAsync("/v1/scenarios", new
