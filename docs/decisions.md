@@ -1267,3 +1267,80 @@ de `Refunded` geçişine varıyor, aradaki fark yalnızca komutun taşıdığı 
 kalıyor. Telafi aynı olsa da sebep aynı değil ve "bu ay kaç çekim banka tarafından
 reddedildi" ile "kaç çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli.
 Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
+
+---
+
+## 35. Banka entegrasyonu üretim şeklinde: adaptör ayrı, sonuç asenkron
+
+**Karar.** Bugünkü `BankService.Fake` ikiye ayrılıyor:
+
+| deployable | kimin | üretimde | sorumluluk |
+| --- | --- | --- | --- |
+| `bank-adapter` | **bizim** | **deploy edilir** | komutu alır, bankayı HTTP ile çağırır, sonucu saga'ya yayınlar |
+| `bank-fake` (`Bank.Fake`) | bankanın taklidi | **yok** | bankanın API'si; yerine gerçek bankanın ucu geçer |
+
+Ve transfer sonucu artık **senkron dönmüyor**: adaptör bankayı çağırıp `202` alıyor,
+`bank_transfer_pending`'e geçiyor, kesin sonucu sonra öğreniyor.
+
+**Sorun.** Bugün tek uygulama iki ayrı role bakıyor ve ikisi de yanlış modelleniyor.
+
+*Birincisi, karşı taraf broker dinliyor.* `BankService.Fake` RabbitMQ'dan `StartBankTransfer`
+tüketiyor. Hiçbir banka müşterisinin broker'ına abone olmaz; entegrasyon her zaman bizden
+onlara giden bir çağrıdır. Bu haliyle "bankaya bağlanmak" diye bir kod yolu hiç yok —
+üretime geçerken yazılacak kısım, bugün gösterilmeyen kısım.
+
+*İkincisi, sonuç anında dönüyor.* Handler transferi yapıp cevabı aynı teslimde yayınlıyor,
+saga `bank_transfer_pending`'den anında çıkıyor. Gerçek havalede çağrı "aldım" der, kesin
+sonuç dakikalar sonra ayrı bir kanaldan gelir. Bu yüzden bugün `bank_transfer_pending`
+fiilen ölü bir durum ve **takılmış saga taraması (madde 33) hiç iş yapmıyor** — asılı
+kalabilen bir pencere yok.
+
+**Fake son ekinin anlamı.** Kendi yazdığımız ve üretimde de koşacak servis normal ad alır.
+`.Fake` yalnızca **başka bir kurumun bize erişim vermediği için taklit ettiğimiz** servise
+konur. `bank-adapter` bizim, son ek almaz; `Bank.Fake` bankanın yerine duruyor, alır.
+Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca testte koşuyor ama
+üretimde de koşacak.
+
+Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
+kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
+
+**Sonuç iki yoldan da gelebiliyor.** `Bank:ResultDelivery` ile seçiliyor:
+
+| mod | nasıl | bedeli |
+| --- | --- | --- |
+| `Webhook` | banka adaptörün IP kısıtlı ucunu çağırır | yeni ingress, HMAC, inbox tablosu |
+| `Polling` | adaptör bekleyen transferleri düzenli sorar | gecikme, boşa giden sorgu |
+
+İkisi de gerçek entegrasyonlarda var ve hangisinin kullanılacağını banka söyler, biz
+değil. Tek mod yazmak "banka bizim seçtiğimiz şekilde konuşur" varsayımını koda gömerdi.
+İki mod **ayrı servis değil**: ikisi de aynı `bank_transfers` satırını kapatıyor, aynı
+cevabı yayınlıyor, tek fark sonucu nereden öğrendikleri. Ayrı deployable açmak madde
+28'in "aynı maruziyet bölünmez" ölçütünü delerdi.
+
+**Webhook modu top-up kalıbının aynısı** (madde 29, 30): ham gövde üzerinde HMAC, parse
+etmeden önce doğrulama, inbox'a yazıp `202`, ayrı bir relay'in yayınlaması. İkinci kez
+yazılmıyor çünkü orada zaten doğru — kopyalanan şey kod değil, karar.
+
+**Sahte bankanın kendi veritabanı var** (`hiwallet_bank_fake`). `transfer_scenarios`
+bankanın iç bilgisi; adaptör onu göremez. Paylaşılan bir veritabanında adaptör
+"senaryo ne diyormuş" diye bakabilirdi ve o an simülasyon değerini kaybederdi — madde 7
+ile aynı gerekçe, aynı sonuç: sınır nezaket kuralı değil, yetki meselesi.
+
+**HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün istek/yanıt tipleri kendi
+içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o
+tipler bankanın dokümanından yazılır, ortak bir projeden gelmez. Paylaşılsalardı
+derleyici iki tarafı senkron tutar ve "karşı taraf sözleşmeyi değiştirdi" hatası
+imkânsız görünürdü; oysa entegrasyonlarda en sık kırılan şey bu.
+
+`Shared.Contracts` yalnızca **bizim** mesajlarımızı taşımaya devam ediyor:
+`StartBankTransfer`, `BankTransferSucceeded`, `BankTransferFailed`. Bunlar orchestrator
+ile adaptör arasında, ikisi de bizim.
+
+**Saga değişmiyor.** `BankTransferStarted → BankTransferPending` geçişi zaten ayrı bir
+adım olarak duruyordu; bugüne kadar anlık geçiliyordu, artık gerçekten bekliyor. Durum
+makinesine tek satır eklenmiyor — bu, ayrımın baştan doğru çizildiğinin kanıtı.
+
+**Bedeli.** Bir deployable ve bir veritabanı daha, iki mod için iki test yolu, ve
+çekimin uçtan uca süresi artık sahte bankanın gecikmesine bağlı. Karşılığında
+`bank_transfer_pending` gerçek bir pencere oluyor ve takılmış saga taraması ilk kez
+yakalayacak bir şey buluyor.
