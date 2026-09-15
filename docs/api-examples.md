@@ -3,7 +3,7 @@
 Her uç için istek ve **beklenen** yanıt. Elle denemek ve bir şeyin bozulduğunu
 anlamak için; sözleşmenin kaynağı kod, bu dosya ona uyar.
 
-Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8095`). Kimlikler her
+Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8096`). Kimlikler her
 koşuda değişir.
 
 ```bash
@@ -451,6 +451,50 @@ bildirilmiyor.
 
 ---
 
+## stripe-fake (BİZİM DEĞİL) — `:8096`
+
+Kart sağlayıcısının yerinde duran servis; üretimde yok. **Tek ucu var** — Stripe'tan
+para çıkmadığı için ne transfer ucu var ne callback alıcısı.
+
+Gerçek Stripe'ta bu uç YOKTUR: webhook müşteri ödeme yaptığında gelir, sen
+istediğinde değil.
+
+### Para girişi tetikle
+
+```bash
+curl -i -X POST localhost:8096/v1/topups \
+  -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"mode\":\"Normal\"}"
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "mode": "Normal", "eventCount": 1 }
+```
+
+`202` çünkü gönderim ARKA PLANDA: dönüldüğünde webhook henüz gitmedi. `eventCount`
+kaç webhook gideceğini söylüyor.
+
+| `mode` | ne yapar | beklenen |
+| --- | --- | --- |
+| `Normal` | tek event | bakiye bir kez artar |
+| `Duplicate` | **aynı** event iki kez (`eventId` de aynı) | bakiye **bir kez** artar |
+| `Delayed` | tek event, `delayMilliseconds` sonra | eventual davranış görünür olur |
+| `OutOfOrder` | aynı cüzdana `count` event, en yenisi önce | hepsi iner, bakiye toplama eşit |
+
+`Duplicate`'in `eventId`'si bilerek aynı: farklı olsaydı bu iki ayrı para girişi
+olurdu, tekrar değil.
+
+`OutOfOrder` "sıra korunuyor" demiyor — top-up'ta toplama değişmeli. Dediği şey ters
+sırada gelen bir dizinin tamamının kabul edildiği; değeri consistent-hash routing'in
+hepsini aynı partition'a düşürmesinde.
+
+Aynı uç `bank-fake`'te de var (`:8094`) ve `clearing/bank-fake`'e yazıyor — aynı
+banka hem gelen havaleyi bildiriyor hem giden transferi kabul ediyor.
+
+---
+
 ## bank-webhook — `:8095`
 
 Bankanın transfer sonucunu bildirdiği uç. **Bizim kodumuz**, üretimde de koşuyor;
@@ -545,6 +589,7 @@ curl -s localhost:8092/health/ready   # topup-webhook
 curl -s localhost:8093/health/ready   # orchestrator    — postgres + rabbitmq
 curl -s localhost:8094/health/ready   # bank-fake (üretimde yok)
 curl -s localhost:8095/health/ready   # bank-webhook
+curl -s localhost:8096/health/ready   # stripe-fake (üretimde yok)
 ```
 
 `wallet-api`'nin çıktısında `rabbitmq` **olmamalı** — o uygulamanın broker'a hiç işi

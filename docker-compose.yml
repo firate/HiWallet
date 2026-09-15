@@ -16,9 +16,10 @@
 #   withdrawal-orchestrator  public ingress   — çekim isteği
 #   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
-# Ve bir tane de BİZİM OLMAYAN:
+# Ve iki tane de BİZİM OLMAYAN (ikisi de `fakes/` altında, `src/` altında DEĞİL):
 #
-#   bank-fake                bankanın API'sinin yerinde duruyor — ÜRETİMDE YOK
+#   bank-fake                bankanın API'si — para girişi VE çıkışı; ÜRETİMDE YOK
+#   stripe-fake              kart sağlayıcısı — yalnızca para girişi; ÜRETİMDE YOK
 #
 # Son ekin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor"
 # (decisions.md madde 35). bank-adapter da bugün yalnızca burada koşuyor ama
@@ -48,6 +49,8 @@
 #   bank-fake                  6   sahte, düşük hacim
 #                            ───
 #                             94   psql ve izleme için ~6 pay kalıyor
+#
+# stripe-fake bütçede YOK: veritabanı bağlantısı hiç açmıyor.
 #
 # 94, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
 # max_connections'ının yükseltilmesi; compose'daki örnekte 200 veriliyor.
@@ -485,6 +488,11 @@ services:
       BankFake__Callback__Enabled: ${BANK_CALLBACK_ENABLED:-true}
       BankFake__Callback__Url: http://bank-webhook:8080/v1/webhooks/bank/bank-fake
       BankFake__Callback__Secret: ${BANK_CALLBACK_SECRET}
+      # PARA GİRİŞİ tarafı: müşteri havale/EFT ile yüklediğinde banka bize webhook
+      # atıyor. Aynı kurum iki yönde de çalışıyor — clearing/bank-fake iki yönde
+      # de hareket ediyor.
+      Topup__WebhookUrl: http://topup-webhook:8080
+      Topup__WebhookSecret: ${BANK_FAKE_WEBHOOK_SECRET}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-bank-fake
@@ -492,6 +500,45 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${BANK_HOST_PORT:-8094}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, ÜRETİMDE YOK.
+  #
+  # Bankadan farkı: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden ne
+  # transfer ucu var ne callback alıcısı. Ledger'da nostro'su da yok.
+  #
+  # VERİTABANI YOK ve migrator'ı da yok: tetikleyen taraf zaten bir test ya da
+  # insan, süreç ölürse yeniden tetikliyor.
+  stripe-fake:
+    build:
+      context: .
+      dockerfile: fakes/Stripe.Fake/Dockerfile
+      target: final
+    depends_on:
+      # topup-webhook ayakta olmadan webhook gönderilemez. Gerçek Stripe böyle
+      # beklemezdi (bizim ayakta olmamız onun sorunu değil) ama burada ilk
+      # tetiklemenin boşa gitmemesi için.
+      topup-webhook:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Topup__WebhookUrl: http://topup-webhook:8080
+      # topup-webhook'taki Providers__stripe-fake__WebhookSecret ile AYNI olmak
+      # zorunda; ayrışırsa her webhook 401 alır ve hiç para girmez.
+      Topup__WebhookSecret: ${STRIPE_FAKE_WEBHOOK_SECRET}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-stripe-fake
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${STRIPE_HOST_PORT:-8096}:8080"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
       interval: 5s

@@ -42,6 +42,7 @@
         <!-- Shared.Contracts YOK, bilerek: sahte banka bizim mesaj sözleşmelerimizi
              görmemeli. Shared.Infrastructure yalnızca observability ve sağlık ucu
              için — bunlar altyapı, iş sözleşmesi değil. -->
+        <ProjectReference Include="..\Fakes.Core\Fakes.Core.csproj"/>
         <ProjectReference Include="..\..\src\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 

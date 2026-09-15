@@ -234,10 +234,8 @@ fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTIN
 │   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
 └── Setup/
 
-fakes/Stripe.Fake/             -- HENÜZ YAZILMADI; yeri burası
-├── Api/Controllers/           -- senaryo tetikleme endpoint'leri
-├── Application/               -- webhook üretimi (duplicate, gecikmeli, sırasız)
-└── Setup/
+fakes/Stripe.Fake/             -- KART SAĞLAYICISI; üretimde YOK, veritabanı YOK
+└── Api/Controllers/           -- TopupsController (Fakes.Core'dan türüyor)
 ```
 
 ### `fakes/` — üretimde olmayan servisler
@@ -247,9 +245,16 @@ seviyesinde görünüyor: üretimde deploy edilen hiçbir şey `fakes/`'ten çı
 
 ```
 fakes/
-├── Bank.Fake/      -- bankanın API'si (yazıldı)
-└── Stripe.Fake/    -- kart sağlayıcısının webhook'ları (HENÜZ YOK)
+├── Fakes.Core/     -- ortak: top-up webhook'u gönderme ve teslim modları
+├── Bank.Fake/      -- bankanın API'si: para girişi VE çıkışı
+└── Stripe.Fake/    -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
 ```
+
+`Fakes.Core` neden paylaşılıyor: `topup-webhook` bütün sağlayıcılar için tek bir
+gövde şekli kabul ediyor, yani sözleşmeyi BİZ dayatıyoruz — ayrışacak iki taraf yok.
+Bankanın HTTP sözleşmesinin bilerek paylaşılmamasıyla (madde 35) çelişmiyor: orada
+sözleşmeyi karşı taraf dayatıyor. Asıl kazanç teslim modlarında — "sırasız gönderim"
+iki sahtede ayrı yazılsa iki testin sonucu karşılaştırılamazdı.
 
 **`src/` → `fakes/` referansı DERLEME HATASI.** `src/Directory.Build.targets`
 içindeki `HIW001` kontrolü engelliyor. Yorumda yazmak yetmezdi: bu proje aynı
@@ -261,7 +266,8 @@ yoksa uçtan uca trace kopar. Bu yüzden `Setup/` klasörü onlarda da var.
 
 `fakes/`'i yalnızca iki şey çağırır: `tests/` ve `docker-compose.yml`.
 
-`Stripe.Fake` bugün YOK — top-up webhook'ları testlerde doğrudan üretiliyor.
+`Stripe.Fake`'in `Setup/` klasörü yok: kuracağı tek şey `Fakes.Core`'un
+kendi kurulum metodu ve veritabanı hiç yok.
 
 **`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
 duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve

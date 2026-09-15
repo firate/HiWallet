@@ -94,7 +94,8 @@ docker compose up --build
 
 Beklenen sıra: `postgres` sağlıklı olur → beş migrator (`migrator`,
 `topup-migrator`, `withdrawal-migrator`, `bank-migrator`, `bank-fake-migrator`)
-şemaları uygulayıp `exit 0` ile biter → yedi uygulama başlar. `rabbitmq` paralel
+şemaları uygulayıp `exit 0` ile biter → sekiz uygulama başlar (altısı bizim,
+ikisi sahte kurum). `rabbitmq` paralel
 kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
 
 Tek istisna `bank-adapter`: `bank-fake`'in sağlıklı olmasını bekliyor. Gerçek
@@ -562,6 +563,7 @@ geri gelsin.
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
 | **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
 | **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |
+| **sahte sağlayıcıların top-up tetiklemesi** | `POST :8096/v1/topups` — `Duplicate` bakiyeyi bir kez artırmalı, `OutOfOrder` hepsini indirmeli |
 
 Son üçü bu sürümle geldi ve hiçbiri koşturulmadı. İlki yapısal; diğer ikisi
 madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol".

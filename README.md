@@ -37,14 +37,24 @@ olduğu yere taşınmıyor.
 Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
 API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
 
-Bir de **bizim olmayan** bir uygulama var: `bank-fake`, bankanın API'sinin yerinde
-duruyor ve `hiwallet_bank_fake`'e yazıyor. Üretimde yok — yerine bankanın kendi ucu
-geçiyor. `.Fake` son ekinin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine
-mi duruyor" (`decisions.md` madde 35).
+Bir de **bizim olmayan iki** uygulama var:
 
-Kodu da `src/` altında değil, kökteki **`fakes/`** klasöründe: üretimde deploy edilen
-hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme hatası (`HIW001`) —
-kural yorumda değil, derleyicide.
+| | temsil ettiği kurum | ne yapıyor |
+| --- | --- | --- |
+| `bank-fake` | bankamız | para girişi **ve** çıkışı; kendi veritabanı var |
+| `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
+
+İkisi de üretimde yok — yerlerine kurumların kendi uçları geçiyor. `.Fake` son ekinin
+ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor" (`decisions.md`
+madde 35).
+
+`bank-fake`'in iki yönde de çalışması tesadüf değil: aynı banka hem gelen havaleyi
+bildiriyor hem giden transferi kabul ediyor. Ledger'da da öyle — `clearing/bank-fake`
+iki yönde de hareket ediyor. Stripe'ın `nostro`'su yok, çünkü nostro bir banka hesabı.
+
+Kodları da `src/` altında değil, kökteki **`fakes/`** klasöründe: üretimde deploy
+edilen hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme hatası
+(`HIW001`) — kural yorumda değil, derleyicide.
 
 Ölçüt iki yöne de işliyor: farklı maruziyet aynı process'te birleşmiyor, **aynı
 maruziyet de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
@@ -81,7 +91,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
 | Saga zincirinin uçtan uca koşması | ✅ API → wallet → adaptör → banka → callback → saga |
 | Banka entegrasyonu: asenkron sonuç, callback + mutabakat | ✅ |
-| Yedi container'ın compose'dan ayağa kalkması | ✅ |
+| Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | ✅ |
+| Sekiz container'ın compose'dan ayağa kalkması | ✅ |
 | Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
 | Business günlük özeti | ✅ |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
@@ -91,7 +102,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
 
-283 test: 96 unit (DB'siz), 187 integration — gerçek Postgres ve gerçek RabbitMQ.
+289 test: 96 unit (DB'siz), 193 integration — gerçek Postgres ve gerçek RabbitMQ.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -106,7 +117,7 @@ docker compose up --build
 ```
 
 Sırayla: Postgres ayağa kalkar, altı rol ve beş veritabanı kurulur → beş migrator
-şemaları uygular → yedi container başlar (altısı bizim, biri sahte banka). RabbitMQ
+şemaları uygular → sekiz container başlar (altısı bizim, ikisi sahte kurum). RabbitMQ
 paralel kalkar; hiçbiri onu BEKLEMEZ.
 
 ```bash
@@ -115,6 +126,7 @@ curl http://localhost:8092/health/ready   # topup-webhook
 curl http://localhost:8093/health/ready   # withdrawal-orchestrator
 curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, üretimde yok)
 curl http://localhost:8095/health/ready   # bank-webhook
+curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, üretimde yok)
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
@@ -133,7 +145,7 @@ takip ediyor, `curl` varsayılan olarak etmiyor.
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8095`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8096`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 
@@ -207,8 +219,21 @@ curl -X POST http://localhost:8091/v1/transfers \
 **Yetersiz bakiye / limit aşımı** → `422` + `rule` alanı.
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
-**Top-up (dışarıdan para girişi).** Sağlayıcı webhook'u imzalayarak gönderir; imza ham
-gövde baytları üzerinde HMAC-SHA256:
+**Top-up (dışarıdan para girişi).** En kolayı sahte sağlayıcıya söylemek — imzayı
+o hesaplıyor:
+
+```bash
+curl -X POST http://localhost:8096/v1/topups -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"mode\":\"Normal\"}"
+```
+
+`mode`: `Normal` | `Duplicate` | `Delayed` | `OutOfOrder`. `Duplicate` aynı event'i
+iki kez gönderiyor — bakiye **bir kez** artmalı. `OutOfOrder` aynı cüzdana N event'i
+ters sırada gönderiyor.
+
+Bankadan yükleme için aynı uç `8094`'te (`bank-fake`), `clearing/bank-fake`'e yazar.
+
+Elle göndermek istersen imza ham gövde baytları üzerinde HMAC-SHA256:
 
 ```bash
 BODY='{"eventId":"evt_1","walletId":"...","amount":100.00,"currency":"TRY","reference":"pi_1","occurredAt":"2026-03-01T10:00:00+00:00"}'

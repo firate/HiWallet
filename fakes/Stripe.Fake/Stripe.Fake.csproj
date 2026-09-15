@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
+
+         Üretimde YOK: yerine Stripe'ın kendi webhook'ları geçiyor.
+
+         BANKADAN FARKI: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden
+         ne transfer ucu var ne callback alıcısı. Ledger'da da nostro'su yok —
+         nostro bir banka hesabı ve Stripe banka değil; parayı bizim banka
+         hesabımıza yatırıyor (SystemAccounts).
+
+         VERİTABANI YOK, bilerek. Bankanın senaryo tablosu kalıcı olmak zorundaydı
+         çünkü zamanlamayı adaptör sürüyordu ve kayıt kaybolursa kimse yeniden
+         tetikleyemezdi. Burada tetikleyen zaten bir test ya da insan: süreç ölürse
+         yeniden tetiklenir. Kalıcılık eklemek karşılığı olmayan bir parça olurdu. -->
+
+    <PropertyGroup>
+        <RootNamespace>HiWallet.Stripe.Fake</RootNamespace>
+        <AssemblyName>HiWallet.Stripe.Fake</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentValidation"/>
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Fakes.Core\Fakes.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+</Project>

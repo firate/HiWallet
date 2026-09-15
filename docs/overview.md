@@ -69,11 +69,11 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | Idempotent      |
 | bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **üretimde YOK**                      | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
-| provider-fake           | Test için sahte dış sağlayıcı (Stripe/banka muadili)                    | —               |
+| stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **üretimde YOK**                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 
-Dış kurumlar (provider-fake, bank-fake) **ağ sınırının** arkasında durur — bir C# interface'inin değil. Banka ayrı bir process, arada HTTP ve callback var, kendi veritabanı var ve wallet'ı göremiyor. Bizim tarafımızdaki karşılığı `bank-adapter`: gerçek bankaya geçerken değişen tek şey `Bank:BaseUrl`, kod değil (`decisions.md` madde 35).
+Dış kurumlar (stripe-fake, bank-fake) **ağ sınırının** arkasında durur — bir C# interface'inin değil. Banka ayrı bir process, arada HTTP ve callback var, kendi veritabanı var ve wallet'ı göremiyor. Bizim tarafımızdaki karşılığı `bank-adapter`: gerçek bankaya geçerken değişen tek şey `Bank:BaseUrl`, kod değil (`decisions.md` madde 35).
 
 Bu, "interface arkasına al" yaklaşımından bilinçli bir sapma. Bir interface yalnızca derleme zamanı sınırıdır; taklit edilen tarafın gerçekten ayrı bir process olması, süreç ölümünü, ağ hatasını, kısmi başarıyı ve asenkron sonucu da sınanabilir kılıyor. Entegrasyonlarda kırılan şeyler bunlar, metot imzaları değil.
 
@@ -227,17 +227,19 @@ Sıralama yalnızca **aynı cüzdan** için önemlidir; farklı cüzdanlar bağ�
 
 **Sınır.** Bu garanti broker'a VARDIKTAN sonrası için geçerli. Relay çok instance koşarsa `SKIP LOCKED` ile alınan batch'ler farklı hızda yayınlanabiliyor ve sıra daha exchange'e ulaşmadan bozulabiliyor. Bugün relay tek instance ve top-up'lar toplama olduğu için tetiklenmiyor; `decisions.md` madde 30.
 
-## 9. Test Servisleri (provider-fake)
+## 9. Sahte kurumlar (`fakes/`)
 
-Gerçek Stripe/banka yerine, dış dünya kötülüklerini **bilinçli tetikleyebilen** sahte sağlayıcı. "idempotency/retry çalışıyor mu" kanıtı bu servisle verilir.
+Gerçek Stripe/banka yerine, dış dünya kötülüklerini **bilinçli tetikleyebilen** sahte kurumlar. "idempotency/retry çalışıyor mu" kanıtı bu servislerle verilir.
 
-provider-fake şunları tetikleyebilmeli:
+İkisi de `fakes/` altında, `src/` altında DEĞİL; `src/` → `fakes/` referansı derleme hatası (`HIW001`).
+
+`stripe-fake` ve `bank-fake` şunları tetikleyebilmeli (`POST /v1/topups`, `mode` alanı):
 
 - **Başarılı** webhook/komut sonucu.
 - **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için).
-- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı").
-- **Gecikmeli** gönderim (eventual davranışı görünür kılmak).
-- **Sırasız** gönderim (ordering/partitioning testi).
+- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). ✅ `Duplicate`
+- **Gecikmeli** gönderim (eventual davranışı görünür kılmak). ✅ `Delayed`
+- **Sırasız** gönderim (ordering/partitioning testi). ✅ `OutOfOrder`
 - **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek).
 
 bank-fake de aynı şekilde: transfere başarılı / transient-fail / kalıcı-fail / gecikmeli sonuç üretebilmeli. Sonuç SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callback ya da durum sorgusuyla (decisions.md madde 35).

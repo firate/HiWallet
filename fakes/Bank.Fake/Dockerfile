@@ -13,6 +13,7 @@ WORKDIR /src
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
 COPY fakes/Bank.Fake/Bank.Fake.csproj fakes/Bank.Fake/
+COPY fakes/Fakes.Core/Fakes.Core.csproj fakes/Fakes.Core/
 COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
 COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
 RUN dotnet restore fakes/Bank.Fake/Bank.Fake.csproj

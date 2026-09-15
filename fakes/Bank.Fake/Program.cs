@@ -1,6 +1,7 @@
 using FluentValidation;
 using HiWallet.Bank.Fake.Api.Requests;
 using HiWallet.Bank.Fake.Setup;
+using HiWallet.Fakes.Topups;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
@@ -27,8 +28,14 @@ builder.AddHiWalletObservability(ServiceName);
 
 builder.Services.AddBankFake(builder.Configuration);
 
+// PARA GİRİŞİ tarafı: banka havale bildirimini topup-webhook'a gönderiyor.
+// Sağlayıcı kimliği SABİT — bir sahte servis tek bir kurumu temsil eder ve
+// çalışma anında kimliğini değiştiremez.
+builder.Services.AddFakeTopupProvider(builder.Configuration, provider: "bank-fake");
+
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddValidatorsFromAssemblyContaining<ScenarioRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<TopupRequestValidator>();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
