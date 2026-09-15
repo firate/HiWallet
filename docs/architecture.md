@@ -69,6 +69,41 @@ ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor
 **Orchestrator wallet veritabanına dokunmuyor.** Yalnızca komut gönderiyor. Bedeli iki
 veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga taraması (madde 33).
 
+### Neden İKİ public yüzey var
+
+Diyagrama bakan herkesin sorduğu soru bu, çünkü ilk bakışta kuralı deliyor gibi
+duruyor.
+
+Müşteriye dönük uçlar iki uygulamaya dağılmış:
+
+| uç | uygulama |
+| --- | --- |
+| `/v1/accounts`, `/v1/wallets`, `/v1/transfers` | `wallet-api` |
+| `/v1/withdrawals` | `withdrawal-orchestrator` |
+
+Madde 28'in ölçütü erişim seviyesi ve **aynı maruziyet bölünmez** diyor. Bu ikisinin
+maruziyeti aynı: ikisi de public, ikisi de müşteriye dönük, ikisi de aynı istemciden
+çağrılıyor. Kurala bakınca bölünmemeleri gerekirdi.
+
+**Bölünmelerinin sebebi madde 28 değil, madde 7.** Orchestrator'ın kendi veritabanı ve
+kendi sınırı var; saga durumu ile ledger ayrı tutuluyor. Yani burada iki kural
+çakışıyor ve kazanan servis sınırı oluyor.
+
+Bedeli somut: istemci iki base URL biliyor, iki yüzey ayrı ayrı güvenceye alınıyor,
+rate-limit'leniyor ve izleniyor.
+
+İki yoldan biriyle kapanır:
+
+**Uç katman** (BFF / API gateway) geldiğinde istemci tek adres görür; arkada iki
+backend'in olması onu ilgilendirmez. Bugün o katman yok.
+
+**Ya da saga wallet'ın içine taşınır** — madde 33'ün "elenen alternatif"i. O zaman
+`/v1/withdrawals` de `wallet-api`'ye düşer ve ikinci yüzey diye bir şey kalmaz. Madde
+33 bu alternatifi "daha basit" diye niteliyor ve üretim sistemi tasarlanıyorsa
+**tercih edilmesi gerektiğini** açıkça söylüyor. Burada seçilmemesinin sebebi tek:
+bu bir referans uygulaması ve dağıtık saga'yı gerçekten dağıtık kurmak çıktının
+kendisi.
+
 ---
 
 ## 2. Top-up: para dışarıdan giriyor
