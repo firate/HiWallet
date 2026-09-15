@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- BANKAYA BAKAN ADAPTÖR. Bizim kodumuz ve üretimde de deploy ediliyor —
+         `.Fake` son eki ALMIYOR (decisions.md madde 35). Bugün yalnızca testte
+         koşuyor olması son ek sebebi değil; ölçüt "başka bir kurumun yerine mi
+         duruyor".
+
+         Bank.Fake'e referansı YOK ve olmayacak. Sahtelik tamamen Bank:BaseUrl
+         değerinde; gerçek bankaya geçerken burada tek satır değişmiyor. -->
+
+    <ItemGroup>
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+        <PackageReference Include="RabbitMQ.Client"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\BankIntegration.Core\BankIntegration.Core.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Contracts\Shared.Contracts.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Testler bank_transfers'a doğrudan bakıyor: "cevap yayınlandı mı",
+             "sonucu hangi yol getirdi" sorularının cevabı orada ve HTTP yüzeyinden
+             görünmüyor — bu servisin HTTP yüzeyi zaten yok. -->
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+</Project>

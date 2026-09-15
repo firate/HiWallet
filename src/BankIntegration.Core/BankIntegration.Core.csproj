@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- BANKA ENTEGRASYONU SINIRININ ORTAK KISMI: şema, migration'lar ve transferi
+         kapatan kod. İki host bunu paylaşıyor — `bank-adapter` (ingress'siz) ve
+         `bank-webhook` (IP kısıtlı). WalletService.Core / wallet-api / wallet-consumer
+         üçlüsünün aynısı (decisions.md madde 25, 28).
+
+         Neden paylaşılıyor: ikisi de `hiwallet_bank`'a yazıyor. Webhook inbox'a,
+         adaptör transfer satırına. Şema iki yerde ayrı ayrı tanımlansaydı migration
+         sahipliği belirsizleşir ve iki model sessizce ayrışırdı.
+
+         BU KÜTÜPHANE SAHTE BANKAYI GÖRMEZ. Bank.Fake'e referansı yok ve olmayacak;
+         gerçek bankaya geçişte burada tek satır değişmemeli. -->
+
+    <PropertyGroup>
+        <!-- Kök isim alanı proje adından türetilmiyor: "Core" assembly adında
+             duruyor, tip adlarında değil. WalletService.Core ile aynı kalıp. -->
+        <RootNamespace>HiWallet.BankIntegration</RootNamespace>
+        <AssemblyName>HiWallet.BankIntegration.Core</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared\Shared.Contracts\Shared.Contracts.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Microsoft.Extensions.DependencyInjection"/>
+        <Using Include="Microsoft.Extensions.Configuration"/>
+    </ItemGroup>
+
+</Project>
