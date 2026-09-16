@@ -459,6 +459,14 @@ services:
       context: .
       dockerfile: fakes/Bank.Fake/Dockerfile
       target: final
+    depends_on:
+      # İki yöne de webhook gönderiyor: sonuç callback'i bank-webhook'a, para
+      # girişi topup-webhook'a. Gerçek banka böyle beklemezdi; burada ilk
+      # gönderimlerin boşa gitmemesi için (stripe-fake ile aynı gerekçe).
+      bank-webhook:
+        condition: service_healthy
+      topup-webhook:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       # Senaryosu kurulmamış transferlerin sonucu. Varsayılan başarı; telafi
