@@ -116,7 +116,8 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar, beş rol ve dört veritabanı kurulur → dört migrator
+Sırayla: Postgres ayağa kalkar, beş rol, dört uygulama veritabanı ve integration testlerin
+veritabanı (`hiwallet_schema_check`) kurulur → dört migrator
 şemaları uygular → sekiz container başlar (altısı bizim, ikisi sahte kurum). RabbitMQ
 paralel kalkar; hiçbiri onu BEKLEMEZ.
 

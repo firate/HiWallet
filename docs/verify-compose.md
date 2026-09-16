@@ -101,8 +101,10 @@ entegrasyonda böyle bir bağımlılık OLMAZ — banka bizim compose'umuzda de�
 Burada var çünkü sahte banka da bizim stack'imizde ve ilk transfer denemesinin
 boşa gitmemesi için.
 
-Dört veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
-`hiwallet_withdrawal`, `hiwallet_bank`. Sahte servislerin veritabanı yok. Postgres
+Dört uygulama veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
+`hiwallet_withdrawal`, `hiwallet_bank`. Sahte servislerin veritabanı yok. Beşincisi
+`hiwallet_schema_check` boş kalıyor: integration testler her koşuda orada kendi
+schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Postgres
 healthcheck'i `hiwallet_bank`'a soruyor.
 
 ### init ne zaman koşar
