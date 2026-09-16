@@ -130,9 +130,11 @@ public sealed class TopupWebhookSender(
 
         using var response = await client.SendAsync(request, ct);
 
-        // Hata YUTULMUYOR ama istisna da fırlatılmıyor: bir event'in reddedilmesi
-        // (ör. cüzdan yok) kalan event'leri göndermeyi engellememeli. Sahte
-        // sağlayıcının işi göndermek, sonucu yorumlamak değil.
+        // Ret durum kodu İSTİSNA DEĞİL: bir event'in reddedilmesi (401, 400) kalan
+        // event'leri göndermeyi engellememeli — sahte sağlayıcının işi göndermek,
+        // sonucu yorumlamak değil. Bağlantı hatası ise istisna olarak yukarı
+        // çıkıyor ve dizinin geri kalanı gönderilmiyor: karşı uç yoksa sıradaki
+        // istekler de aynı hatayı alırdı.
         logger.LogInformation(
             "Top-up webhook gönderildi. {Provider}/{EventId} → {Status}",
             _options.Provider, body.EventId, (int)response.StatusCode);

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FluentValidation;
 using HiWallet.Fakes.Topups;
 using HiWallet.Shared.Infrastructure.HealthChecks;
@@ -25,10 +26,21 @@ builder.AddHiWalletObservability(ServiceName);
 
 builder.Services.AddFakeTopupProvider(builder.Configuration, provider: "stripe-fake");
 
+// Kayıt ŞART, eklenecek kontrol olmasa bile: MapHiWalletHealthChecks servisleri
+// istiyor ve kayıt yokken uygulama açılışta çöküyordu. Veritabanı olmadığı için
+// hazır olmak yalnızca process'in ayakta olması demek.
+builder.Services.AddHealthChecks();
+
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddValidatorsFromAssemblyContaining<TopupRequestValidator>();
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+        // Enum'lar İSİM olarak geçer ("Failure", "Duplicate"), wallet-api'deki gibi.
+        // Bu ayar yokken string gönderen her istek 400 alıyordu — senaryo ve
+        // tetikleme uçlarının tamamı, elle ya da testten, hiç çalışmıyordu.
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();
 

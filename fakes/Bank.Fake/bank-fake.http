@@ -1,0 +1,105 @@
+# bank-fake — bankanın yerinde duran servis. ÜRETİMDE YOK.
+#
+# Rider'da sağ üstten ortamı seç: "homelab" ya da "local"
+# (fakes/http-client.env.json).
+#
+# İki bölüm var:
+#   A. Bankanın kendisi: bank-adapter'ın konuştuğu uçlar. Normalde sen
+#      çağırmazsın; burada sahtenin nasıl davrandığını görmek için.
+#   B. Kumanda: bankada olmayan, test için var olan uçlar.
+#
+# Uçtan uca çekim senaryoları ayrı dosyada: fakes/akislar.http
+
+# ============================================================================
+# A. Bankanın kendisi
+# ============================================================================
+
+### A1. Transfer başlat
+# Beklenen: 202 ve status "pending". Banka "aldım" diyor, "gönderdim" demiyor.
+# Aynı Idempotency-Key ile tekrar gönderirsen aynı bankReference ve
+# "replayed": true döner.
+POST {{bankFake}}/v1/transfers
+Content-Type: application/json
+Idempotency-Key: {{$uuid}}
+
+{
+  "clientReference": "{{$uuid}}",
+  "amount": 100,
+  "currency": "TRY",
+  "destinationIban": "TR330006100519786457841326"
+}
+
+> {%
+    client.global.set("bankReference", response.body.bankReference);
+%}
+
+### A2. Transfer durumu
+# İlk birkaç saniye "pending", sonra "succeeded". Süreyi BANK_SETTLEMENT_DELAY
+# belirliyor. bank-adapter'ın mutabakat taraması tam olarak bunu soruyor.
+GET {{bankFake}}/v1/transfers/{{bankReference}}
+
+### A3. Anahtarsız istek
+# Beklenen: 400. Banka anahtarsız transfer açmıyor.
+POST {{bankFake}}/v1/transfers
+Content-Type: application/json
+
+{
+  "clientReference": "{{$uuid}}",
+  "amount": 100,
+  "currency": "TRY",
+  "destinationIban": "TR330006100519786457841326"
+}
+
+# ============================================================================
+# B. Kumanda — gerçek bankada YOK
+# ============================================================================
+
+### B1. Senaryo kur: kalıcı red
+# clientReference = saga id. Bu senaryoyu bir sonraki transfer isteğinde
+# (A1'de aynı clientReference ile) görürsün: 202 döner ama sonuç "failed" olur.
+POST {{bankFake}}/v1/scenarios
+Content-Type: application/json
+
+{ "clientReference": "deneme-red", "outcome": "Failure" }
+
+### B2. Senaryo kur: iki kez geçici hata, sonra kabul
+# İlk iki transfer isteği 503 alır ve transfer HİÇ açılmaz; üçüncüsü kabul edilir.
+POST {{bankFake}}/v1/scenarios
+Content-Type: application/json
+
+{ "clientReference": "deneme-gecici", "outcome": "TransientFailure", "transientFailures": 2 }
+
+### B3. Senaryo kur: gecikmeli başarı
+POST {{bankFake}}/v1/scenarios
+Content-Type: application/json
+
+{ "clientReference": "deneme-gecikme", "outcome": "DelayedSuccess", "delayMilliseconds": 15000 }
+
+### B4. B2'yi dene — bu isteği üç kez koş
+# 1. ve 2. seferde 503, 3. seferde 202.
+POST {{bankFake}}/v1/transfers
+Content-Type: application/json
+Idempotency-Key: {{$uuid}}
+
+{
+  "clientReference": "deneme-gecici",
+  "amount": 100,
+  "currency": "TRY",
+  "destinationIban": "TR330006100519786457841326"
+}
+
+### B5. Senaryonun durumu
+# attempts, isteğin kaç kez geldiğini gösteriyor. B4'ten sonra 3 olmalı.
+GET {{bankFake}}/v1/scenarios/deneme-gecici
+
+### B6. Havale ile para girişi
+# Bankanın PARA GİRİŞİ tarafı. stripe-fake ile aynı uç; fark ledger'da:
+# clearing/stripe-fake değil clearing/bank-fake hareket eder.
+# walletId için önce stripe-fake.http'de 1–2'yi ya da akislar.http'de 1–2'yi koş.
+POST {{bankFake}}/v1/topups
+Content-Type: application/json
+
+{ "walletId": "{{walletId}}", "amount": 500, "currency": "TRY", "mode": "Normal" }
+
+### B7. Sağlık
+GET {{bankFake}}/health/ready

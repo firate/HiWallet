@@ -245,10 +245,18 @@ seviyesinde görünüyor: üretimde deploy edilen hiçbir şey `fakes/`'ten çı
 
 ```
 fakes/
-├── Fakes.Core/     -- ortak: top-up webhook'u gönderme ve teslim modları
-├── Bank.Fake/      -- bankanın API'si: para girişi VE çıkışı
-└── Stripe.Fake/    -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
+├── Fakes.Core/              -- ortak: top-up webhook'u gönderme ve teslim modları
+├── Bank.Fake/               -- bankanın API'si: para girişi VE çıkışı
+│   └── bank-fake.http
+├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
+│   └── stripe-fake.http
+├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
+└── http-client.env.json     -- Rider ortamları: homelab, local
 ```
+
+`.http` dosyaları elle deneme için: senaryoyu kur, bizim tarafın tepkisini gör.
+Gizli değer gerekirse `http-client.private.env.json`'a yazılır; o dosya
+`.gitignore`'da.
 
 `Fakes.Core` neden paylaşılıyor: `topup-webhook` bütün sağlayıcılar için tek bir
 gövde şekli kabul ediyor, yani sözleşmeyi BİZ dayatıyoruz — ayrışacak iki taraf yok.

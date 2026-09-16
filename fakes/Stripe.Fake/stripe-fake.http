@@ -1,0 +1,68 @@
+# stripe-fake — kart sağlayıcısının yerinde duran servis. ÜRETİMDE YOK.
+#
+# Rider'da sağ üstten ortamı seç: "homelab" ya da "local"
+# (fakes/http-client.env.json).
+#
+# Sıra: önce 1 ve 2'yi koş, cüzdan kimliği sonraki isteklere otomatik taşınıyor.
+# Sonra 3–6'dan istediğini, her birinin ardından 7 ile bakiyeye bak.
+#
+# Gönderim ARKA PLANDA: 202 döndüğünde webhook henüz gitmedi. Bakiyenin
+# değişmesi için bir iki saniye bekle (webhook → inbox → relay → kuyruk →
+# wallet-consumer → ledger).
+
+### 1. Hesap aç
+POST {{walletApi}}/v1/accounts
+Content-Type: application/json
+
+{ "type": "Person" }
+
+> {%
+    client.global.set("accountId", response.body.accountId);
+%}
+
+### 2. Cüzdan aç
+POST {{walletApi}}/v1/accounts/{{accountId}}/wallets
+Content-Type: application/json
+
+{ "name": "Stripe denemesi", "currency": "TRY" }
+
+> {%
+    client.global.set("walletId", response.body.walletId);
+%}
+
+### 3. Normal — tek event
+# Beklenen: bakiye +100.
+POST {{stripeFake}}/v1/topups
+Content-Type: application/json
+
+{ "walletId": "{{walletId}}", "amount": 100, "currency": "TRY", "mode": "Normal" }
+
+### 4. Duplicate — AYNI event iki kez
+# Beklenen: bakiye YİNE +100, +200 DEĞİL. İki webhook gidiyor ama eventId aynı;
+# topup-webhook'un inbox'ı ikincisini (provider, event_id) UNIQUE ile yutuyor.
+POST {{stripeFake}}/v1/topups
+Content-Type: application/json
+
+{ "walletId": "{{walletId}}", "amount": 100, "currency": "TRY", "mode": "Duplicate" }
+
+### 5. Delayed — gecikmeli
+# Hemen 7'yi koşarsan bakiye henüz DEĞİŞMEMİŞ olmalı. Bu hata değil, eventual
+# davranışın görünür hali. 5 sn sonra tekrar bak.
+POST {{stripeFake}}/v1/topups
+Content-Type: application/json
+
+{ "walletId": "{{walletId}}", "amount": 100, "currency": "TRY", "mode": "Delayed", "delayMilliseconds": 5000 }
+
+### 6. OutOfOrder — 5 event, en yenisi önce
+# Beklenen: bakiye +250 (5 × 50). Top-up'ta sıra nihai bakiyeyi etkilemez; bu
+# senaryo hepsinin iniyor olmasını gösteriyor.
+POST {{stripeFake}}/v1/topups
+Content-Type: application/json
+
+{ "walletId": "{{walletId}}", "amount": 50, "currency": "TRY", "mode": "OutOfOrder", "count": 5 }
+
+### 7. Bakiye
+GET {{walletApi}}/v1/wallets/{{walletId}}
+
+### 8. Sağlık
+GET {{stripeFake}}/health/ready

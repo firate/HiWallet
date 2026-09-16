@@ -1,0 +1,129 @@
+# Uçtan uca çekim akışları. Birden fazla servise dokunuyor: wallet-api,
+# stripe-fake, orchestrator, bank-fake.
+#
+# Rider'da sağ üstten ortamı seç: "homelab" ya da "local".
+# İstekleri SIRAYLA koş; kimlikler bir sonrakine otomatik taşınıyor.
+#
+# ÖNEMLİ — BANKA SENARYOSU ZAMANLAMASI
+# Senaryo saga id'ye bağlı ve saga id'yi ancak 4'ten sonra öğreniyorsun. Ama
+# zincir seni beklemiyor: wallet parayı düşüyor, adaptör bankayı arıyor ve
+# banka senaryoyu O ANDA okuyor. Senaryoyu 4'ten sonra kurarsan büyük
+# ihtimalle geç kalırsın.
+#
+# Bu yüzden reddedilen çekimi denemek için (Akış 2) bankanın VARSAYILANINI
+# değiştirmek gerekiyor:
+#   .env:  BANK_DEFAULT_OUTCOME=Failure
+#   docker compose up -d --no-deps bank-fake
+# Denedikten sonra Success'e geri al.
+
+# ============================================================================
+# Hazırlık: hesap, cüzdan, bakiye
+# ============================================================================
+
+### 1. Hesap aç
+POST {{walletApi}}/v1/accounts
+Content-Type: application/json
+
+{ "type": "Person" }
+
+> {%
+    client.global.set("accountId", response.body.accountId);
+%}
+
+### 2. Cüzdan aç
+POST {{walletApi}}/v1/accounts/{{accountId}}/wallets
+Content-Type: application/json
+
+{ "name": "Çekim denemesi", "currency": "TRY" }
+
+> {%
+    client.global.set("walletId", response.body.walletId);
+%}
+
+### 3. 500 TL yükle (kartla)
+# Bir iki saniye bekle, sonra 6 ile bakiyenin 500 olduğunu gör.
+POST {{stripeFake}}/v1/topups
+Content-Type: application/json
+
+{ "walletId": "{{walletId}}", "amount": 500, "currency": "TRY", "mode": "Normal" }
+
+# ============================================================================
+# Akış 1 — başarılı çekim
+# ============================================================================
+
+### 4. Çekim başlat
+# Beklenen: 202, state "initiated". Dönüldüğünde hiçbir para hareket etmedi.
+POST {{orchestrator}}/v1/withdrawals
+Content-Type: application/json
+Idempotency-Key: {{$uuid}}
+
+{
+  "accountId": "{{accountId}}",
+  "walletId": "{{walletId}}",
+  "amount": 100,
+  "currency": "TRY",
+  "destinationIban": "TR33 0006 1005 1978 6457 8413 26"
+}
+
+> {%
+    client.global.set("withdrawalId", response.body.withdrawalId);
+%}
+
+### 5. Çekimin durumu — birkaç kez koş
+# Sırayla görmen gereken:
+#   initiated → debited → bank_transfer_pending → settling → completed
+#
+# bank_transfer_pending'de birkaç saniye takılması NORMAL ve istenen şey:
+# banka "aldım" dedi, sonucu callback ile sonra bildirecek. Süre
+# BANK_SETTLEMENT_DELAY kadar.
+GET {{orchestrator}}/v1/withdrawals/{{withdrawalId}}
+
+### 6. Bakiye
+# Akış 1'den sonra: 500 − 100 − komisyon.
+GET {{walletApi}}/v1/wallets/{{walletId}}
+
+# ============================================================================
+# Akış 2 — banka reddediyor, telafi
+# Önce dosyanın başındaki BANK_DEFAULT_OUTCOME adımını yap.
+# ============================================================================
+
+### 7. Reddedilecek çekimi başlat
+POST {{orchestrator}}/v1/withdrawals
+Content-Type: application/json
+Idempotency-Key: {{$uuid}}
+
+{
+  "accountId": "{{accountId}}",
+  "walletId": "{{walletId}}",
+  "amount": 100,
+  "currency": "TRY",
+  "destinationIban": "TR33 0006 1005 1978 6457 8413 26"
+}
+
+> {%
+    client.global.set("failedWithdrawalId", response.body.withdrawalId);
+%}
+
+### 8. Durumu — birkaç kez koş
+# Sırayla: initiated → debited → bank_transfer_pending → compensating → failed
+# failureReason dolu olmalı.
+GET {{orchestrator}}/v1/withdrawals/{{failedWithdrawalId}}
+
+### 9. Bakiye — 7'den öncekiyle AYNI olmalı
+# Para düştü, sonra üç bacaklı ters kayıtla geri geldi: komisyon dahil.
+GET {{walletApi}}/v1/wallets/{{walletId}}
+
+# ============================================================================
+# Akış 3 — callback kapalıyken mutabakat taraması
+# Önce:
+#   .env:  BANK_CALLBACK_ENABLED=false
+#   docker compose up -d --no-deps bank-fake
+# 4'ü tekrar koş, sonra 5 ile izle.
+#
+# Beklenen: çekim bank_transfer_pending'de callback gelmediği için bekliyor.
+# BANK_RECONCILIATION_STALE_AFTER (compose'da 30 sn) geçip
+# BANK_RECONCILIATION_INTERVAL (1 dk) dolunca tarama bankaya soruyor ve
+# kapatıyor. Toplamda bir iki dakika.
+#
+# Bitince BANK_CALLBACK_ENABLED=true yap ve bank-fake'i yeniden başlat.
+# ============================================================================
