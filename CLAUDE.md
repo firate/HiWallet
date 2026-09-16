@@ -196,9 +196,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   bilinçli sapma. `bank-webhook`'un tek işi: doğrula, inbox'a yaz, `202`.
 - Webhook modu top-up kalıbının aynısı: HAM gövde üzerinde HMAC, parse etmeden önce,
   inbox'a yaz + `202`, yayını relay yapar. İkinci bir kalıp İCAT EDİLMEZ.
-- Sahte bankanın AYRI veritabanı var (`hiwallet_bank_fake`). `transfer_scenarios`
-  bankanın iç bilgisi; `bank-adapter` ona erişemez — erişebilse simülasyon değerini
-  kaybederdi.
+- Sahte bankanın veritabanı YOK: transferler ve senaryolar bellekte, yeniden
+  başlatınca siliniyor. Senaryolar bankanın iç bilgisi; `bank-adapter` onlara
+  erişemez — erişebilse simülasyon değerini kaybederdi.
 - HTTP istek/yanıt tipleri paylaşılan assembly'de DEĞİL, iki tarafta ayrı ayrı yazılır.
   Gerçek entegrasyonda o tipler bankanın dokümanından gelir; ortak tip "karşı taraf
   sözleşmeyi değiştirdi" hatasını imkânsız gösterirdi.

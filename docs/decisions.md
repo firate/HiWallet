@@ -1368,10 +1368,17 @@ işi kalıyor: doğrula, inbox'a yaz, `202` dön.
 etmeden önce doğrulama, inbox'a yazıp `202`, ayrı bir relay'in yayınlaması. İkinci kez
 yazılmıyor çünkü orada zaten doğru — kopyalanan şey kod değil, karar.
 
-**Sahte bankanın kendi veritabanı var** (`hiwallet_bank_fake`). `transfer_scenarios`
-bankanın iç bilgisi; adaptör onu göremez. Paylaşılan bir veritabanında adaptör
-"senaryo ne diyormuş" diye bakabilirdi ve o an simülasyon değerini kaybederdi — madde 7
-ile aynı gerekçe, aynı sonuç: sınır nezaket kuralı değil, yetki meselesi.
+**Sahte bankanın veritabanı YOK; hafızası bellekte.** Transferler ve senaryolar sahte
+bankanın process'inde duruyor ve yeniden başlatınca siliniyor. Sahte banka elle ve
+integration testlerle denemek için var, geçmiş saklaması gereken bir sistem değil; ayrı
+bir rol, veritabanı ve migrator bu işe değmiyordu. Senaryolar bankanın iç bilgisi olarak
+kalıyor: adaptör başka bir process'teki belleği göremez, yani "senaryo ne diyormuş" diye
+bakamaz.
+
+Bedeli bilerek kabul edildi: yeniden başlatmadan önce `pending` kalmış bir transferi
+banka artık tanımıyor, mutabakat taraması `404` alıyor ve o çekim kapanmıyor. Gerçek
+banka transferini unutmaz; bu davranış sahteye özgü. Sahte bankayı yeniden başlatırken
+bekleyen çekimler gözden çıkarılır.
 
 **HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün istek/yanıt tipleri kendi
 içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o

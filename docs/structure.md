@@ -230,7 +230,7 @@ fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTIN
 ├── Application/               -- AcceptTransferHandler, TransferQueries,
 │                                 ScenarioStore, TransferResolution
 ├── Infrastructure/
-│   ├── Persistence/           -- BankFakeDbContext, transfers, transfer_scenarios
+│   ├── Storage/               -- BankFakeStore (bellekte; veritabanı YOK)
 │   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
 └── Setup/
 

@@ -35,7 +35,6 @@ WALLET_APP_PASSWORD=...
 TOPUP_APP_PASSWORD=...
 WITHDRAWAL_APP_PASSWORD=...
 BANK_APP_PASSWORD=...
-BANK_FAKE_APP_PASSWORD=...      # sahte bankanın KENDİ veritabanı (madde 35)
 
 RabbitMq__Username=...          # compose'daki broker'ın ilk kullanıcısı olur
 RabbitMq__Password=...
@@ -52,7 +51,6 @@ onun adını söylüyor; sırayla düzeltmek uzun sürer. Hepsini birden gör:
 ```bash
 for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
-         BANK_FAKE_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
          STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
@@ -92,8 +90,8 @@ Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 docker compose up --build
 ```
 
-Beklenen sıra: `postgres` sağlıklı olur → beş migrator (`migrator`,
-`topup-migrator`, `withdrawal-migrator`, `bank-migrator`, `bank-fake-migrator`)
+Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
+`topup-migrator`, `withdrawal-migrator`, `bank-migrator`)
 şemaları uygulayıp `exit 0` ile biter → sekiz uygulama başlar (altısı bizim,
 ikisi sahte kurum). `rabbitmq` paralel
 kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
@@ -103,8 +101,8 @@ entegrasyonda böyle bir bağımlılık OLMAZ — banka bizim compose'umuzda de�
 Burada var çünkü sahte banka da bizim stack'imizde ve ilk transfer denemesinin
 boşa gitmemesi için.
 
-Beş veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
-`hiwallet_withdrawal`, `hiwallet_bank`, `hiwallet_bank_fake`. Postgres
+Dört veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
+`hiwallet_withdrawal`, `hiwallet_bank`. Sahte servislerin veritabanı yok. Postgres
 healthcheck'i `hiwallet_bank`'a soruyor.
 
 ### init ne zaman koşar
@@ -131,14 +129,13 @@ Yarım kalma tuzağı: init ortasında bir komut patlarsa (`ON_ERROR_STOP=1`) co
 ölür ama `initdb` çoktan koşmuştur — veri dizini artık boş değil. Sonraki `up` init'i
 ATLAR ve elinde ilk roller olan, sonrakiler olmayan bir cluster kalır. Hatalar alakasız
 görünür ("role withdrawal_app does not exist"). Tekrar denemek düzeltmez, `down -v`
-düzeltir. Altı rolün de kurulduğunu doğrula:
+düzeltir. Beş rolün de kurulduğunu doğrula:
 
 ```bash
 docker compose exec postgres psql -U postgres -c '\du'
 ```
 
-`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app`,
-`bank_fake_app`.
+`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app`.
 
 ## 4. Doğrula
 

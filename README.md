@@ -41,7 +41,7 @@ Bir de **bizim olmayan iki** uygulama var:
 
 | | temsil ettiği kurum | ne yapıyor |
 | --- | --- | --- |
-| `bank-fake` | bankamız | para girişi **ve** çıkışı; kendi veritabanı var |
+| `bank-fake` | bankamız | para girişi **ve** çıkışı; hafızası bellekte, veritabanı yok |
 | `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
 
 İkisi de üretimde yok — yerlerine kurumların kendi uçları geçiyor. `.Fake` son ekinin
@@ -116,7 +116,7 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar, altı rol ve beş veritabanı kurulur → beş migrator
+Sırayla: Postgres ayağa kalkar, beş rol ve dört veritabanı kurulur → dört migrator
 şemaları uygular → sekiz container başlar (altısı bizim, ikisi sahte kurum). RabbitMQ
 paralel kalkar; hiçbiri onu BEKLEMEZ.
 

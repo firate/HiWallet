@@ -73,7 +73,7 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 
-Dış kurumlar (stripe-fake, bank-fake) **ağ sınırının** arkasında durur — bir C# interface'inin değil. Banka ayrı bir process, arada HTTP ve callback var, kendi veritabanı var ve wallet'ı göremiyor. Bizim tarafımızdaki karşılığı `bank-adapter`: gerçek bankaya geçerken değişen tek şey `Bank:BaseUrl`, kod değil (`decisions.md` madde 35).
+Dış kurumlar (stripe-fake, bank-fake) **ağ sınırının** arkasında durur — bir C# interface'inin değil. Banka ayrı bir process, arada HTTP ve callback var, hafızası kendi belleğinde ve wallet'ı göremiyor. Bizim tarafımızdaki karşılığı `bank-adapter`: gerçek bankaya geçerken değişen tek şey `Bank:BaseUrl`, kod değil (`decisions.md` madde 35).
 
 Bu, "interface arkasına al" yaklaşımından bilinçli bir sapma. Bir interface yalnızca derleme zamanı sınırıdır; taklit edilen tarafın gerçekten ayrı bir process olması, süreç ölümünü, ağ hatasını, kısmi başarıyı ve asenkron sonucu da sınanabilir kılıyor. Entegrasyonlarda kırılan şeyler bunlar, metot imzaları değil.
 
