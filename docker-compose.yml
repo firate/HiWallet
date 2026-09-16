@@ -53,7 +53,7 @@
 # stripe-fake bütçede YOK: veritabanı bağlantısı hiç açmıyor.
 #
 # 94, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
-# max_connections'ının yükseltilmesi; compose'daki örnekte 200 veriliyor.
+# max_connections'ının yükseltilmesi; aşağıda postgres servisinde 200 veriliyor.
 # Yükseltilmeseydi doğru yol havuzları kısmak olurdu, sınırı görmezden gelmek
 # değil.
 #
@@ -77,6 +77,9 @@ services:
       TOPUP_APP_PASSWORD: ${TOPUP_APP_PASSWORD:?TOPUP_APP_PASSWORD .env'de tanımlı değil}
       WITHDRAWAL_APP_PASSWORD: ${WITHDRAWAL_APP_PASSWORD:?WITHDRAWAL_APP_PASSWORD .env'de tanımlı değil}
       BANK_APP_PASSWORD: ${BANK_APP_PASSWORD:?BANK_APP_PASSWORD .env'de tanımlı değil}
+      BANK_FAKE_APP_PASSWORD: ${BANK_FAKE_APP_PASSWORD:?BANK_FAKE_APP_PASSWORD .env'de tanımlı değil}
+    # Havuz bütçesi 94 (dosyanın başı); varsayılan 100 psql'e yer bırakmıyor.
+    command: ["postgres", "-c", "max_connections=200"]
     volumes:
       # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
       # volume'u düşürmek gerekiyor: docker compose down -v
@@ -94,7 +97,7 @@ services:
       # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
       # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor. Sonuncu kurulan
       # veritabanı soruluyor ki init'in tamamı bitmiş olsun.
-      test: ["CMD-SHELL", "psql -U postgres -d hiwallet_bank -c 'SELECT 1' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "psql -U postgres -d hiwallet_bank_fake -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 2s
       timeout: 3s
       retries: 30
