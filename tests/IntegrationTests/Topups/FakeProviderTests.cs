@@ -68,6 +68,10 @@ public sealed class FakeProviderTests(InboxFixture inbox) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Cüzdanın satırları <c>routing_key</c> üzerinden bulunuyor: top-up'ta partition
+    /// anahtarı cüzdan kimliği. <c>payload</c> üzerinde metin araması YAPILAMIYOR —
+    /// kolon <c>jsonb</c> ve EF'in <c>Contains</c> çevirisi olan <c>LIKE</c> orada yok.
+    ///
     /// Gönderim ARKA PLANDA: uç <c>202</c> dönüp çekiliyor. Bu yüzden inbox'a
     /// bakmadan önce beklemek gerekiyor — gerçek bir sağlayıcıda da webhook
     /// senin isteğinle aynı anda gelmiyor.
@@ -81,7 +85,7 @@ public sealed class FakeProviderTests(InboxFixture inbox) : IAsyncLifetime
             {
                 var rows = await db.Inbox
                     .AsNoTracking()
-                    .Where(m => m.Payload.Contains(walletId.ToString()))
+                    .Where(m => m.RoutingKey == walletId.ToString())
                     .Select(m => m.EventId)
                     .ToListAsync(ct);
 
@@ -136,7 +140,7 @@ public sealed class FakeProviderTests(InboxFixture inbox) : IAsyncLifetime
 
         var count = await db.Inbox
             .AsNoTracking()
-            .CountAsync(m => m.Payload.Contains(wallet.ToString()), ct);
+            .CountAsync(m => m.RoutingKey == wallet.ToString(), ct);
 
         count.ShouldBe(1, "aynı event_id ikinci satır açmamalı");
         rows.Distinct().Count().ShouldBe(1);
@@ -186,7 +190,7 @@ public sealed class FakeProviderTests(InboxFixture inbox) : IAsyncLifetime
         await using (var db = inbox.CreateContext())
         {
             (await db.Inbox.AsNoTracking()
-                .CountAsync(m => m.Payload.Contains(wallet.ToString()), ct))
+                .CountAsync(m => m.RoutingKey == wallet.ToString(), ct))
                 .ShouldBe(0, "202 döndüğünde webhook henüz gönderilmedi");
         }
 
@@ -229,7 +233,7 @@ public sealed class FakeProviderTests(InboxFixture inbox) : IAsyncLifetime
         await using var db = inbox.CreateContext();
 
         (await db.Inbox.AsNoTracking()
-            .CountAsync(m => m.Payload.Contains(wallet.ToString()), ct))
+            .CountAsync(m => m.RoutingKey == wallet.ToString(), ct))
             .ShouldBe(0, "geçersiz imza inbox'a satır bırakmamalı");
     }
 
