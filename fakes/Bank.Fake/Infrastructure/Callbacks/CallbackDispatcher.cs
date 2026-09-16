@@ -2,8 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using HiWallet.Bank.Fake.Application;
-using HiWallet.Bank.Fake.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using HiWallet.Bank.Fake.Infrastructure.Storage;
 using Microsoft.Extensions.Options;
 
 namespace HiWallet.Bank.Fake.Infrastructure.Callbacks;
@@ -16,17 +15,18 @@ namespace HiWallet.Bank.Fake.Infrastructure.Callbacks;
 /// toplar (decisions.md madde 35).
 ///
 /// <b>Sonsuza kadar denemiyor.</b> <see cref="CallbackOptions.MaxAttempts"/> dolunca
-/// vazgeçiyor ve satır callback'siz kalıyor. Bu bir eksiklik değil, sahte bankanın
+/// vazgeçiyor ve transfer callback'siz kalıyor. Bu bir eksiklik değil, sahte bankanın
 /// en değerli davranışlarından biri: bizim tarafta mutabakat taramasının neden
 /// zorunlu olduğunu kanıtlayan senaryo tam olarak bu.
 ///
-/// <b>Kilit YOK.</b> Sahte banka tek instance koşuyor ve gerçek bankanın iç
-/// tekilliği bizi ilgilendirmiyor. Bizim tarafımızdaki relay ve taramalar
-/// <c>pg_try_advisory_lock</c> kullanıyor; burada aynı şeyi kurmak taklit edilen
-/// tarafa bizim mühendisliğimizi yüklemek olurdu.
+/// <b>Tekillik kilidi YOK.</b> Sahte banka tek instance koşuyor ve hafızası zaten
+/// process'e ait. Bizim tarafımızdaki relay ve taramalar <c>pg_try_advisory_lock</c>
+/// kullanıyor; burada aynı şeyi kurmak taklit edilen tarafa bizim mühendisliğimizi
+/// yüklemek olurdu. HTTP çağrısı depo kilidinin DIŞINDA yapılıyor: yavaş bir uç
+/// bankanın transfer kabulünü bekletmemeli.
 /// </summary>
 internal sealed class CallbackDispatcher(
-    IDbContextFactory<BankFakeDbContext> contextFactory,
+    BankFakeStore store,
     IHttpClientFactory httpClientFactory,
     IOptions<BankFakeOptions> options,
     TimeProvider timeProvider,
@@ -83,17 +83,18 @@ internal sealed class CallbackDispatcher(
     {
         var now = timeProvider.GetUtcNow();
 
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
+        List<BankTransfer> due;
 
-        var due = await db.Transfers
-            .Where(t => t.CallbackSentAt == null
-                        && t.ResolveAt <= now
-                        && t.CallbackAttempts < _callback.MaxAttempts)
-            .OrderBy(t => t.ResolveAt)
-            .Take(BatchSize)
-            .ToListAsync(ct);
-
-        if (due.Count == 0) return;
+        lock (store.Gate)
+        {
+            due = store.TransfersByReference.Values
+                .Where(t => t.CallbackSentAt == null
+                            && t.ResolveAt <= now
+                            && t.CallbackAttempts < _callback.MaxAttempts)
+                .OrderBy(t => t.ResolveAt)
+                .Take(BatchSize)
+                .ToList();
+        }
 
         foreach (var transfer in due)
         {
@@ -101,36 +102,46 @@ internal sealed class CallbackDispatcher(
 
             var status = TransferResolution.StatusOf(transfer, now);
 
-            // Sonucu hâlâ belirsiz olan bir satır buraya düşmemeli; düştüyse
+            // Sonucu hâlâ belirsiz olan bir transfer buraya düşmemeli; düştüyse
             // ResolveAt filtresi ile durum türetmesi ayrışmış demektir.
             if (status is TransferStatus.Pending) continue;
 
-            transfer.CallbackAttempts++;
+            string? error = null;
 
             try
             {
                 await SendAsync(transfer, status, now, ct);
-
-                transfer.CallbackSentAt = timeProvider.GetUtcNow();
-                transfer.LastCallbackError = null;
 
                 logger.LogInformation(
                     "Callback gönderildi. {BankReference} → {Status}", transfer.BankReference, status);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                transfer.LastCallbackError = exception.Message;
+                error = exception.Message;
+            }
 
+            int attempts;
+
+            // Sayaç her denemede artıyor, başarılı ya da değil. Artmasaydı
+            // "vazgeçme" davranışı hiç gerçekleşmez ve gönderici sonsuza kadar denerdi.
+            lock (store.Gate)
+            {
+                attempts = ++transfer.CallbackAttempts;
+                transfer.LastCallbackError = error;
+
+                if (error is null)
+                {
+                    transfer.CallbackSentAt = timeProvider.GetUtcNow();
+                }
+            }
+
+            if (error is not null)
+            {
                 logger.LogWarning(
                     "Callback gönderilemedi. {BankReference}, deneme {Attempt}/{Max}: {Error}",
-                    transfer.BankReference, transfer.CallbackAttempts, _callback.MaxAttempts,
-                    exception.Message);
+                    transfer.BankReference, attempts, _callback.MaxAttempts, error);
             }
         }
-
-        // Başarılı ve başarısız denemeler AYNI commit'te yazılıyor: sayaç kaybolursa
-        // "vazgeçme" davranışı hiç gerçekleşmez ve gönderici sonsuza kadar denerdi.
-        await db.SaveChangesAsync(ct);
     }
 
     private async Task SendAsync(

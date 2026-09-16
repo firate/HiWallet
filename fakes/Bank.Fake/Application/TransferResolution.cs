@@ -1,4 +1,4 @@
-using HiWallet.Bank.Fake.Infrastructure.Persistence;
+using HiWallet.Bank.Fake.Infrastructure.Storage;
 
 namespace HiWallet.Bank.Fake.Application;
 
@@ -17,13 +17,13 @@ internal static class TransferResolution
     /// sonuca göre <c>succeeded</c> ya da <c>failed</c>.
     ///
     /// <see cref="TransferOutcome.TransientFailure"/> burada GÖRÜNMÜYOR: o sonuç
-    /// transferin hiç kabul edilmemesi demek, yani ortada satır yok.
+    /// transferin hiç kabul edilmemesi demek, yani ortada kayıt yok.
     /// </summary>
     public static string StatusOf(BankTransfer transfer, DateTimeOffset now)
     {
         if (now < transfer.ResolveAt) return TransferStatus.Pending;
 
-        return TransferOutcomes.FromText(transfer.Outcome) switch
+        return transfer.Outcome switch
         {
             TransferOutcome.Success or TransferOutcome.DelayedSuccess => TransferStatus.Succeeded,
             TransferOutcome.Failure => TransferStatus.Failed,

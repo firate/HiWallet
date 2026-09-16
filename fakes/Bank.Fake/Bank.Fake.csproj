@@ -12,8 +12,8 @@
          mı" değil, "başka bir kurumun yerine mi duruyor".
 
          SINIRIN GERÇEK OLMASI İÇİN: wallet'ı görmüyor, orchestrator'ı görmüyor,
-         RabbitMQ'ya hiç bağlanmıyor ve KENDİ veritabanında duruyor. Gerçek bir banka
-         da bunların hiçbirine erişemezdi. `Shared.Contracts`'a referansı bile yok —
+         RabbitMQ'ya hiç bağlanmıyor. Gerçek bir banka da bunların hiçbirine
+         erişemezdi. Veritabanı YOK: hafızası bellekte ve yeniden başlatınca siliniyor. `Shared.Contracts`'a referansı bile yok —
          bizim mesaj sözleşmelerimiz onu ilgilendirmiyor. -->
 
     <PropertyGroup>
@@ -27,15 +27,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-
         <PackageReference Include="FluentValidation"/>
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
-        <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
     </ItemGroup>
 
     <ItemGroup>

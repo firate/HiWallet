@@ -6,6 +6,8 @@
 # entegrasyonu geldiğinde bu klasör tamamen siliniyor. Yine de diğerleriyle aynı
 # şekilde paketleniyor: compose'da gerçek bir dış bağımlılık gibi durması, zincirin
 # gerçekten dağıtık koştuğunu gösteriyor.
+#
+# Migrator YOK: sahte bankanın veritabanı yok, hafızası bellekte.
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
@@ -22,24 +24,6 @@ COPY src/ src/
 COPY fakes/ fakes/
 RUN dotnet publish fakes/Bank.Fake/Bank.Fake.csproj \
         -c Release -o /app/publish --no-restore
-
-# ---------------------------------------------------------------------------
-# Migration bundle. Hiçbir uygulama startup'ta migrate etmiyor; şemayı ayrı bir
-# job kuruyor (baseline.md).
-# ---------------------------------------------------------------------------
-FROM build AS migrator-build
-RUN dotnet tool install --global dotnet-ef --version 10.0.11
-ENV PATH="$PATH:/root/.dotnet/tools"
-RUN dotnet ef migrations bundle \
-        --project fakes/Bank.Fake \
-        --startup-project fakes/Bank.Fake \
-        --self-contained -r linux-musl-x64 \
-        -o /app/efbundle
-
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine AS migrator
-WORKDIR /app
-COPY --from=migrator-build /app/efbundle .
-ENTRYPOINT ["./efbundle"]
 
 # ---------------------------------------------------------------------------
 # Uygulama

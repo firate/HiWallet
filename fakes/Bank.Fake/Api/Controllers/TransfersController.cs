@@ -61,18 +61,17 @@ public sealed class TransfersController(
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
         }
 
-        var result = await handler.HandleAsync(
+        var result = handler.Handle(
             new AcceptTransferCommand(
                 request.ClientReference,
                 key.ToString(),
                 request.Amount,
                 request.Currency.ToUpperInvariant(),
-                request.DestinationIban),
-            ct);
+                request.DestinationIban));
 
         if (result.Unavailable)
         {
-            // GEÇİCİ hata: transfer hiç kabul edilmedi, ortada satır yok. Adaptörün
+            // GEÇİCİ hata: transfer hiç kabul edilmedi, ortada kayıt yok. Adaptörün
             // yeniden denemesi bekleniyor ve saga'ya hiçbir şey bildirilmiyor.
             // Kalıcı başarısızlıkla karıştırılırsa her ağ kesintisi müşterinin
             // parasını ileri geri taşır (overview.md madde 6).
@@ -97,10 +96,9 @@ public sealed class TransfersController(
     [HttpGet("{bankReference}")]
     [ProducesResponseType<TransferStatusResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<TransferStatusResponse>> Get(
-        string bankReference, CancellationToken ct)
+    public ActionResult<TransferStatusResponse> Get(string bankReference)
     {
-        var transfer = await transfers.FindAsync(bankReference, ct);
+        var transfer = transfers.Find(bankReference);
 
         return transfer is null ? NotFound() : transfer;
     }

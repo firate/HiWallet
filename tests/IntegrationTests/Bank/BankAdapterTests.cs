@@ -21,7 +21,7 @@ namespace HiWallet.IntegrationTests.Bank;
 /// geliyor (decisions.md madde 35).
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFakeDb) : IAsyncLifetime
+public sealed class BankAdapterTests(BankFixture bankDb) : IAsyncLifetime
 {
     private const string Iban = "TR330006100519786457841326";
 
@@ -30,7 +30,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
 
     public ValueTask InitializeAsync()
     {
-        _bankFake = new BankFakeFactory(bankFakeDb);
+        _bankFake = new BankFakeFactory();
         _adapter = new BankAdapterFactory(bankDb, "http://bank-fake", _bankFake.CreateClient());
 
         return ValueTask.CompletedTask;
@@ -114,10 +114,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         second!.BankReference.ShouldBe(first!.BankReference);
         second.StartedAt.ShouldBe(first.StartedAt);
 
-        await using var fake = bankFakeDb.CreateContext();
-
-        (await fake.Transfers.CountAsync(t => t.ClientReference == command.SagaId.ToString(), ct))
-            .ShouldBe(1, "bankada tek transfer açılmalı");
+        _bankFake.TransferCount(command.SagaId.ToString()).ShouldBe(1, "bankada tek transfer açılmalı");
     }
 
     /// <summary>

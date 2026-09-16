@@ -1,18 +1,15 @@
-namespace HiWallet.Bank.Fake.Infrastructure.Persistence;
+using HiWallet.Bank.Fake.Application;
+
+namespace HiWallet.Bank.Fake.Infrastructure.Storage;
 
 /// <summary>
 /// Bir çekim için önceden kurulmuş senaryo. Kurulmamışsa varsayılan davranış
 /// uygulanıyor (<c>BankFakeOptions.DefaultOutcome</c>, normalde başarı).
 ///
-/// <b>Bu tablo bankanın İÇ bilgisi.</b> <c>bank-adapter</c> ona erişemiyor — ayrı
-/// veritabanı, ayrı kullanıcı (decisions.md madde 35). Paylaşılsaydı adaptör
-/// "senaryo ne diyormuş" diye bakabilirdi ve simülasyon o an değerini kaybederdi:
-/// gerçek bankanın kararını önceden okuyamazsın.
-///
-/// <b>Neden veritabanında.</b> Bellekte tutulsaydı servis yeniden başlayınca
-/// kaybolurdu ve iki instance farklı davranırdı. Özellikle
-/// <see cref="RemainingTransientFailures"/> kalıcı olmak zorunda: "üç denemede
-/// başarılı" davranışı restart'ta başa dönerdi.
+/// <b>Bu kayıt bankanın İÇ bilgisi.</b> <c>bank-adapter</c> ona erişemiyor — sahte
+/// bankanın process belleğinde duruyor (decisions.md madde 35). Erişebilseydi
+/// adaptör "senaryo ne diyormuş" diye bakabilirdi ve simülasyon o an değerini
+/// kaybederdi: gerçek bankanın kararını önceden okuyamazsın.
 ///
 /// <b>Neden çekim (client reference) başına.</b> IBAN'a bağlansaydı aynı hesaba
 /// yapılan iki farklı çekim birbirinin senaryosunu bozardı; paralel koşan testler
@@ -26,7 +23,7 @@ internal sealed class TransferScenario
     /// </summary>
     public required string ClientReference { get; init; }
 
-    public required string Outcome { get; init; }
+    public required TransferOutcome Outcome { get; init; }
 
     /// <summary>
     /// Geçici hata kaç kez üretilecek. Her denemede azalıyor; sıfıra indiğinde
@@ -46,6 +43,4 @@ internal sealed class TransferScenario
     /// inince kaç denemede indiği bilgisi kayboluyor.
     /// </summary>
     public int Attempts { get; set; }
-
-    public required DateTimeOffset CreatedAt { get; init; }
 }

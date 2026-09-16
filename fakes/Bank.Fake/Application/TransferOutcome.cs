@@ -3,10 +3,6 @@ namespace HiWallet.Bank.Fake.Application;
 /// <summary>
 /// Sahte bankanın bir transfere vereceği sonuç. Senaryo kurulmamışsa
 /// <see cref="Success"/>.
-///
-/// Sayılar sabit ama veritabanında METİN duruyor: enum değerinin kayması eski
-/// satırların anlamını değiştirirdi. Proje bu kalıbı saga durumlarında ve inbox
-/// tipinde de uyguluyor.
 /// </summary>
 public enum TransferOutcome
 {
@@ -35,31 +31,6 @@ public enum TransferOutcome
     /// bu; asenkron modelin görünür olması için var.
     /// </summary>
     DelayedSuccess = 4
-}
-
-public static class TransferOutcomes
-{
-    /// <summary>
-    /// Kolona yazılan değer. <c>ToString()</c> YETMEZ: enum yeniden adlandırıldığında
-    /// şema sessizce ayrışırdı.
-    /// </summary>
-    public static string ToText(this TransferOutcome outcome) => outcome switch
-    {
-        TransferOutcome.Success => "success",
-        TransferOutcome.Failure => "failure",
-        TransferOutcome.TransientFailure => "transient_failure",
-        TransferOutcome.DelayedSuccess => "delayed_success",
-        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Eşlemesi yazılmamış sonuç.")
-    };
-
-    public static TransferOutcome FromText(string text) => text switch
-    {
-        "success" => TransferOutcome.Success,
-        "failure" => TransferOutcome.Failure,
-        "transient_failure" => TransferOutcome.TransientFailure,
-        "delayed_success" => TransferOutcome.DelayedSuccess,
-        _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen sonuç.")
-    };
 }
 
 /// <summary>

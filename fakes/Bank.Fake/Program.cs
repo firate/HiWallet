@@ -15,13 +15,17 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 //
 // SINIRI GERÇEK TUTAN ŞEYLER: RabbitMQ'ya hiç bağlanmıyor (gerçek banka müşterisinin
 // broker'ını dinlemez), wallet'ı ve orchestrator'ı görmüyor, Shared.Contracts'a
-// referansı yok ve kendi veritabanında duruyor.
+// referansı yok ve hafızası kendi process'inde.
+//
+// VERİTABANI YOK: transferler ve senaryolar bellekte, yeniden başlatınca siliniyor
+// (decisions.md madde 35). Elle ve testle denemek için var; geçmiş saklamıyor.
 const string ServiceName = "hiwallet-bank-fake";
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Kapanırken gönderilmekte olan callback bitsin. Bitmezse satır "gönderilmedi"
-// kalıyor ve bir sonraki turda yeniden deneniyor — kayıp yok, yalnızca gecikme.
+// Kapanırken gönderilmekte olan callback bitsin. Bekleyen callback'ler bellekle
+// birlikte kayboluyor; o çekimleri adaptörün mutabakat taraması da kapatamaz,
+// çünkü yeniden başlayan banka transferi tanımıyor.
 builder.Services.Configure<HostOptions>(options =>
     options.ShutdownTimeout = TimeSpan.FromSeconds(15));
 
@@ -49,8 +53,6 @@ builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();
 
 var app = builder.Build();
-
-app.ValidateBankFakeConfiguration();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();

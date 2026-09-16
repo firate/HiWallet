@@ -43,8 +43,7 @@ namespace HiWallet.IntegrationTests.Withdrawals;
 public sealed class WithdrawalChainTests(
     PostgresFixture postgres,
     OrchestratorFixture orchestratorDb,
-    BankFixture bankDb,
-    BankFakeFixture bankFakeDb) : IAsyncLifetime
+    BankFixture bankDb) : IAsyncLifetime
 {
     private const string SkipReason =
         "RabbitMQ'ya bağlanılamıyor (RabbitMq__Host ve kimlik bilgileri). Zincir doğrulanmadı.";
@@ -267,7 +266,6 @@ public sealed class WithdrawalChainTests(
         // imza doğrulaması ve inbox dahil. Mutabakat taraması burada devreye
         // girmiyor — adaptörün varsayılan aralığı testin süresinden uzun.
         _bankFake ??= new BankFakeFactory(
-            bankFakeDb,
             bankOutcome,
             callbackUrl: $"http://bank-webhook/v1/webhooks/bank/{TestBankSecrets.Bank}",
             callbackHttpClient: _bankWebhook.CreateClient());

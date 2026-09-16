@@ -1,7 +1,5 @@
-using HiWallet.Bank.Fake.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using HiWallet.Bank.Fake.Infrastructure.Storage;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace HiWallet.Bank.Fake.Application;
 
@@ -15,111 +13,86 @@ namespace HiWallet.Bank.Fake.Application;
 /// çalışmıyor.
 /// </summary>
 public sealed class AcceptTransferHandler(
-    IDbContextFactory<BankFakeDbContext> contextFactory,
+    BankFakeStore store,
     IOptions<BankFakeOptions> options,
     TimeProvider timeProvider,
     ILogger<AcceptTransferHandler> logger)
 {
     private readonly BankFakeOptions _options = options.Value;
 
-    public async Task<AcceptResult> HandleAsync(
-        AcceptTransferCommand command, CancellationToken ct)
+    public AcceptResult Handle(AcceptTransferCommand command)
     {
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
-
-        // Bankanın KENDİ idempotency koruması. Bizim tarafımızdaki dedup'tan
-        // bağımsız: gerçek entegrasyonda karşı tarafın koruma yaptığına güvenilmez,
-        // iki taraf da kendi kaydını tutar.
-        var existing = await db.Transfers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.IdempotencyKey == command.IdempotencyKey, ct);
-
-        if (existing is not null)
-        {
-            return Accepted(existing, replayed: true);
-        }
-
-        var scenario = await db.Scenarios
-            .FirstOrDefaultAsync(s => s.ClientReference == command.ClientReference, ct)
-            ?? MaterializeDefault(db, command.ClientReference);
-
-        var outcome = ResolveOutcome(scenario);
-
-        if (scenario is not null)
-        {
-            scenario.Attempts++;
-        }
-
-        if (outcome is TransferOutcome.TransientFailure)
-        {
-            // Sayaç azaltılıp COMMIT ediliyor: bir sonraki deneme bir eksiğini görsün.
-            // Bellekte tutulsaydı süreç yeniden başladığında senaryo başa döner ve
-            // "üç denemede başarılı" testi sonsuza kadar koşardı.
-            scenario!.RemainingTransientFailures--;
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation(
-                "Banka şu an cevap veremiyor. Client ref {ClientReference}, kalan {Remaining}",
-                command.ClientReference, scenario.RemainingTransientFailures);
-
-            return AcceptResult.TemporarilyUnavailable();
-        }
-
         var now = timeProvider.GetUtcNow();
 
-        var delay = outcome is TransferOutcome.DelayedSuccess && scenario is { DelayMilliseconds: > 0 }
-            ? TimeSpan.FromMilliseconds(scenario.DelayMilliseconds)
-            : _options.SettlementDelay;
+        BankTransfer transfer;
 
-        var transfer = new BankTransfer
+        // Bütün adım TEK kilit altında: iki istek aynı anahtarla aynı anda gelirse
+        // ikincisi birincinin kaydını görmeli. "Önce bak sonra ekle" ancak arada
+        // kimse araya giremiyorsa doğru.
+        lock (store.Gate)
         {
-            BankReference = NewBankReference(),
-            ClientReference = command.ClientReference,
-            IdempotencyKey = command.IdempotencyKey,
-            Amount = command.Amount,
-            Currency = command.Currency,
-            DestinationIban = command.DestinationIban,
-            Outcome = outcome.ToText(),
-            // Sonuç anında hazır olsa bile bir gecikme var: asenkron yapının tek
-            // gözlemlenebilir tarafı bu pencere.
-            ResolveAt = now + delay,
-            Fee = outcome is TransferOutcome.Failure ? 0m : _options.TransferFee,
-            AcceptedAt = now
-        };
+            // Bankanın KENDİ idempotency koruması. Bizim tarafımızdaki dedup'tan
+            // bağımsız: gerçek entegrasyonda karşı tarafın koruma yaptığına
+            // güvenilmez, iki taraf da kendi kaydını tutar.
+            if (store.TransfersByKey.TryGetValue(command.IdempotencyKey, out var existing))
+            {
+                return Accepted(existing, replayed: true, now);
+            }
 
-        db.Transfers.Add(transfer);
+            var scenario = store.Scenarios.GetValueOrDefault(command.ClientReference)
+                           ?? MaterializeDefault(command.ClientReference);
 
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException exception)
-            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            // Aynı anahtarla iki istek aynı anda geldi. "Önce SELECT sonra INSERT"
-            // bu yarışı kapatmıyor; kapatan şey UNIQUE index. Kaybeden taraf
-            // kazananın satırını okuyup onu dönüyor (CLAUDE.md "Idempotency").
-            await using var retry = await contextFactory.CreateDbContextAsync(ct);
+            var outcome = ResolveOutcome(scenario);
 
-            var winner = await retry.Transfers
-                .AsNoTracking()
-                .FirstAsync(t => t.IdempotencyKey == command.IdempotencyKey, ct);
+            if (scenario is not null)
+            {
+                scenario.Attempts++;
+            }
 
-            return Accepted(winner, replayed: true);
+            if (outcome is TransferOutcome.TransientFailure)
+            {
+                // Sayaç azaltılıyor: bir sonraki deneme bir eksiğini görsün.
+                scenario!.RemainingTransientFailures--;
+
+                logger.LogInformation(
+                    "Banka şu an cevap veremiyor. Client ref {ClientReference}, kalan {Remaining}",
+                    command.ClientReference, scenario.RemainingTransientFailures);
+
+                return AcceptResult.TemporarilyUnavailable();
+            }
+
+            var delay = outcome is TransferOutcome.DelayedSuccess && scenario is { DelayMilliseconds: > 0 }
+                ? TimeSpan.FromMilliseconds(scenario.DelayMilliseconds)
+                : _options.SettlementDelay;
+
+            transfer = new BankTransfer
+            {
+                BankReference = NewBankReference(),
+                ClientReference = command.ClientReference,
+                IdempotencyKey = command.IdempotencyKey,
+                Amount = command.Amount,
+                Currency = command.Currency,
+                DestinationIban = command.DestinationIban,
+                Outcome = outcome,
+                // Sonuç anında hazır olsa bile bir gecikme var: asenkron yapının tek
+                // gözlemlenebilir tarafı bu pencere.
+                ResolveAt = now + delay,
+                Fee = outcome is TransferOutcome.Failure ? 0m : _options.TransferFee,
+                AcceptedAt = now
+            };
+
+            store.Add(transfer);
         }
 
         logger.LogInformation(
             "Transfer kabul edildi. {BankReference} ← client ref {ClientReference}, sonuç {Outcome} {ResolveAt}",
             transfer.BankReference, transfer.ClientReference, transfer.Outcome, transfer.ResolveAt);
 
-        return Accepted(transfer, replayed: false);
+        return Accepted(transfer, replayed: false, now);
     }
 
-    private AcceptResult Accepted(BankTransfer transfer, bool replayed) =>
-        AcceptResult.Ok(
-            transfer.BankReference,
-            TransferResolution.StatusOf(transfer, timeProvider.GetUtcNow()),
-            replayed);
+    private static AcceptResult Accepted(BankTransfer transfer, bool replayed, DateTimeOffset now) =>
+        AcceptResult.Ok(transfer.BankReference, TransferResolution.StatusOf(transfer, now), replayed);
 
     /// <summary>
     /// Bankanın kendi referansı. Bizim ürettiğimiz hiçbir kimlikten TÜRETİLMİYOR —
@@ -129,30 +102,29 @@ public sealed class AcceptTransferHandler(
     private static string NewBankReference() => $"BNK{Guid.NewGuid():N}"[..19].ToUpperInvariant();
 
     /// <summary>
-    /// Senaryosu olmayan çekim için varsayılan davranışı satıra dönüştürür.
-    /// Varsayılan başarıysa satır AÇILMIYOR — tablo gereksiz yere şişmesin.
+    /// Senaryosu olmayan çekim için varsayılan davranışı senaryoya dönüştürür.
+    /// Varsayılan başarıysa senaryo AÇILMIYOR.
     ///
-    /// Satır olarak yazılması şart: geçici hata sayacı ve deneme sayısı kalıcı
-    /// olmadan "üç denemede başarılı" davranışı yeniden başlatmada başa dönerdi.
+    /// Senaryo olarak saklanması şart: geçici hata sayacı ve deneme sayısı
+    /// denemeler arasında hatırlanmazsa "üç denemede başarılı" davranışı her
+    /// istekte başa dönerdi. Yalnızca <see cref="BankFakeStore.Gate"/> altında çağrılır.
     /// </summary>
-    private TransferScenario? MaterializeDefault(BankFakeDbContext db, string clientReference)
+    private TransferScenario? MaterializeDefault(string clientReference)
     {
         if (_options.DefaultOutcome is TransferOutcome.Success) return null;
 
         var scenario = new TransferScenario
         {
             ClientReference = clientReference,
-            Outcome = _options.DefaultOutcome.ToText(),
+            Outcome = _options.DefaultOutcome,
             RemainingTransientFailures =
                 _options.DefaultOutcome is TransferOutcome.TransientFailure
                     ? _options.DefaultTransientFailures
                     : 0,
-            DelayMilliseconds = 0,
-            Attempts = 0,
-            CreatedAt = timeProvider.GetUtcNow()
+            DelayMilliseconds = 0
         };
 
-        db.Scenarios.Add(scenario);
+        store.Scenarios.Add(clientReference, scenario);
 
         return scenario;
     }
@@ -163,7 +135,7 @@ public sealed class AcceptTransferHandler(
         // yalnızca ilgilendikleri sapmayı kurmasını sağlıyor.
         if (scenario is null) return TransferOutcome.Success;
 
-        var configured = TransferOutcomes.FromText(scenario.Outcome);
+        var configured = scenario.Outcome;
 
         // Geçici hata kotası dolduysa senaryo başarıya dönüyor: "transient sonra
         // başarılı" tam olarak bu.
@@ -187,7 +159,7 @@ public sealed record AcceptTransferCommand(
 
 /// <param name="Unavailable">
 /// Banka o an cevap veremedi ve transfer HİÇ KABUL EDİLMEDİ. Kalıcı başarısızlıktan
-/// farkı ortada satır olmaması: çağıranın yeniden denemesi bekleniyor.
+/// farkı ortada kayıt olmaması: çağıranın yeniden denemesi bekleniyor.
 /// </param>
 public sealed record AcceptResult(
     string? BankReference, string? Status, bool Replayed, bool Unavailable)

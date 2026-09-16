@@ -1,13 +1,12 @@
 using HiWallet.Bank.Fake.Api.Responses;
-using HiWallet.Bank.Fake.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using HiWallet.Bank.Fake.Infrastructure.Storage;
 
 namespace HiWallet.Bank.Fake.Application;
 
 /// <summary>
-/// Transferin okunması. Ayrı sınıf çünkü yazma yolundan farklı: değişiklik
-/// izlemeye gerek yok ve tek bir satır okunuyor. Orchestrator'daki
-/// <c>WithdrawalQueries</c> ile aynı kalıp — controller veritabanına doğrudan
+/// Transferin okunması. Ayrı sınıf çünkü yazma yolundan farklı: tek bir kayıt
+/// okunuyor ve hiçbir şey değişmiyor. Orchestrator'daki
+/// <c>WithdrawalQueries</c> ile aynı kalıp — controller depoya doğrudan
 /// dokunmuyor.
 ///
 /// <b>Yanıt tipini döndürüyor, entity'yi değil</b> ve bu <c>WithdrawalQueries</c>'ten
@@ -17,17 +16,19 @@ namespace HiWallet.Bank.Fake.Application;
 /// ve ikisi ayrıştığında sahte banka aynı transfer için sorguda başka, callback'te
 /// başka şey söylerdi.
 /// </summary>
-public sealed class TransferQueries(
-    IDbContextFactory<BankFakeDbContext> contextFactory, TimeProvider timeProvider)
+public sealed class TransferQueries(BankFakeStore store, TimeProvider timeProvider)
 {
-    public async Task<TransferStatusResponse?> FindAsync(string bankReference, CancellationToken ct)
+    public TransferStatusResponse? Find(string bankReference)
     {
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
+        BankTransfer? transfer;
 
-        var transfer = await db.Transfers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.BankReference == bankReference, ct);
+        lock (store.Gate)
+        {
+            store.TransfersByReference.TryGetValue(bankReference, out transfer);
+        }
 
+        // Yanıta giren alanların hepsi kabul anında sabitlendi; kilit dışında
+        // okunmaları güvenli. Değişen tek alanlar callback'inkiler, onlar burada yok.
         if (transfer is null) return null;
 
         var status = TransferResolution.StatusOf(transfer, timeProvider.GetUtcNow());

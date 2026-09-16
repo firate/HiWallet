@@ -1,11 +1,13 @@
-namespace HiWallet.Bank.Fake.Infrastructure.Persistence;
+using HiWallet.Bank.Fake.Application;
+
+namespace HiWallet.Bank.Fake.Infrastructure.Storage;
 
 /// <summary>
 /// Bankanın kendi transfer kaydı. Adaptördeki <c>bank_transfers</c> ile KARIŞTIRILMAMALI:
 /// o bizim "ne gönderdik" kaydımız, bu bankanın "ne aldık" kaydı. İkisi ayrı
-/// veritabanlarında ve ikisi de kendi tarafının doğruluk kaynağı.
+/// yerlerde duruyor ve ikisi de kendi tarafının doğruluk kaynağı.
 ///
-/// Gerçek bir entegrasyonda bu satırın karşılığı bankanın sisteminde duruyor ve biz
+/// Gerçek bir entegrasyonda bu kaydın karşılığı bankanın sisteminde duruyor ve biz
 /// onu hiç göremiyoruz — yalnızca <c>bank_reference</c> ile soruyoruz.
 /// </summary>
 internal sealed class BankTransfer
@@ -27,7 +29,7 @@ internal sealed class BankTransfer
     public required string ClientReference { get; init; }
 
     /// <summary>
-    /// Müşterinin gönderdiği idempotency anahtarı (bizde <c>CommandId</c>). UNIQUE —
+    /// Müşterinin gönderdiği idempotency anahtarı (bizde <c>CommandId</c>). Tekil —
     /// aynı anahtarla ikinci istek YENİ transfer açmıyor, mevcut kaydı dönüyor.
     ///
     /// Bankanın kendi koruması bu; bizim tarafımızdaki dedup'tan bağımsız. İki
@@ -47,15 +49,15 @@ internal sealed class BankTransfer
     /// hesaplanmıyor: senaryo sonradan değiştirilse bile başlamış bir transferin
     /// sonucu değişmemeli. Gerçek bankada da öyle olurdu.
     /// </summary>
-    public required string Outcome { get; init; }
+    public required TransferOutcome Outcome { get; init; }
 
     /// <summary>
     /// Sonucun hangi andan itibaren belli olduğu. <see cref="TransferOutcome.DelayedSuccess"/>
-    /// dışında kayıt anı.
+    /// dışında kabul anı + <c>SettlementDelay</c>.
     ///
     /// Gecikmeyi <c>Task.Delay</c> ile beklemek yerine zaman damgası olarak tutmak
-    /// gerekli: sahte banka yeniden başlasa bile gecikme doğru yerden devam ediyor
-    /// ve bekleyen istek bir thread tutmuyor.
+    /// bekleyen isteğin bir thread tutmamasını ve durum sorgusu ile callback'in
+    /// aynı cevabı vermesini sağlıyor.
     /// </summary>
     public required DateTimeOffset ResolveAt { get; init; }
 

@@ -1,73 +1,58 @@
-using HiWallet.Bank.Fake.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using HiWallet.Bank.Fake.Infrastructure.Storage;
 
 namespace HiWallet.Bank.Fake.Application;
 
 /// <summary>
 /// Senaryoların kurulduğu ve okunduğu yer. Test bir çekim için "banka reddedecek"
-/// dediğinde bu tabloya yazılıyor.
+/// dediğinde buraya yazılıyor.
 ///
 /// Gerçek bir bankada bu uç YOKTUR. Sahte servisin tek özel yeteneği bu: dış dünya
 /// kötülüklerini bilinçli tetiklemek. Telafi yolunun çalıştığını kanıtlamanın başka
 /// yolu yok.
 /// </summary>
-public sealed class ScenarioStore(
-    IDbContextFactory<BankFakeDbContext> contextFactory, TimeProvider timeProvider)
+public sealed class ScenarioStore(BankFakeStore store)
 {
     /// <summary>
     /// Senaryoyu YAZAR ya da mevcut olanı DEĞİŞTİRİR. Aynı çekim için ikinci kez
     /// çağrılırsa üzerine yazıyor; test bir senaryoyu kurup sonra fikrini
     /// değiştirebilmeli ve bunun için kaydı silmek zorunda kalmamalı.
     /// </summary>
-    public async Task SetAsync(
-        string clientReference, TransferOutcome outcome, int transientFailures,
-        int delayMilliseconds, CancellationToken ct)
+    public void Set(
+        string clientReference, TransferOutcome outcome, int transientFailures, int delayMilliseconds)
     {
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
-
-        var existing = await db.Scenarios
-            .FirstOrDefaultAsync(s => s.ClientReference == clientReference, ct);
-
-        if (existing is not null)
-        {
-            db.Scenarios.Remove(existing);
-        }
-
-        db.Scenarios.Add(new TransferScenario
+        var scenario = new TransferScenario
         {
             ClientReference = clientReference,
-            Outcome = outcome.ToText(),
+            Outcome = outcome,
             RemainingTransientFailures =
                 outcome is TransferOutcome.TransientFailure ? transientFailures : 0,
-            DelayMilliseconds = delayMilliseconds,
-            Attempts = 0,
-            CreatedAt = timeProvider.GetUtcNow()
-        });
+            DelayMilliseconds = delayMilliseconds
+        };
 
-        await db.SaveChangesAsync(ct);
+        lock (store.Gate)
+        {
+            store.Scenarios[clientReference] = scenario;
+        }
     }
 
     /// <summary>
     /// Senaryonun o anki hali. Testler "kaç denemede sonuçlandı" sorusunu buradan
-    /// cevaplıyor.
+    /// cevaplıyor. Kopya dönüyor: sayaçlar kilit dışında okunmamalı.
     /// </summary>
-    public async Task<ScenarioState?> FindAsync(string clientReference, CancellationToken ct)
+    public ScenarioState? Find(string clientReference)
     {
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
-
-        var scenario = await db.Scenarios
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.ClientReference == clientReference, ct);
-
-        return scenario is null
-            ? null
-            : new ScenarioState(
-                scenario.ClientReference,
-                scenario.Outcome,
-                scenario.RemainingTransientFailures,
-                scenario.Attempts);
+        lock (store.Gate)
+        {
+            return store.Scenarios.TryGetValue(clientReference, out var scenario)
+                ? new ScenarioState(
+                    scenario.ClientReference,
+                    scenario.Outcome,
+                    scenario.RemainingTransientFailures,
+                    scenario.Attempts)
+                : null;
+        }
     }
 }
 
 public sealed record ScenarioState(
-    string ClientReference, string Outcome, int RemainingTransientFailures, int Attempts);
+    string ClientReference, TransferOutcome Outcome, int RemainingTransientFailures, int Attempts);

@@ -34,9 +34,9 @@ public sealed class ScenariosController(
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
         }
 
-        await scenarios.SetAsync(
+        scenarios.Set(
             request.ClientReference, request.Outcome,
-            request.TransientFailures, request.DelayMilliseconds, ct);
+            request.TransientFailures, request.DelayMilliseconds);
 
         return NoContent();
     }
@@ -48,9 +48,9 @@ public sealed class ScenariosController(
     [HttpGet("{clientReference}")]
     [ProducesResponseType<ScenarioState>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ScenarioState>> Get(string clientReference, CancellationToken ct)
+    public ActionResult<ScenarioState> Get(string clientReference)
     {
-        var state = await scenarios.FindAsync(clientReference, ct);
+        var state = scenarios.Find(clientReference);
 
         return state is null ? NotFound() : state;
     }
