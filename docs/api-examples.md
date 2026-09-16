@@ -377,8 +377,10 @@ dönüyor ve **transfer hiç açılmıyor** (adaptör yeniden deniyor, saga bekl
 ikincisinde transfer açılıyor ama sonucu başarısız (saga telafiye giriyor).
 
 Senaryo **çekim başına** kuruluyor ve anahtarı `clientReference` — bizim saga
-kimliğimiz. Yani çekimi başlattıktan sonra kurman gerekiyor. Tüm çekimleri
-reddettirmek istersen varsayılanı değiştir:
+kimliğimiz. Yani çekimi başlattıktan sonra kurman gerekiyor ve bu bir **yarış**:
+zincir seni beklemiyor, banka senaryoyu transfer isteği geldiği anda okuyor.
+Çekim isteğinin hemen ardından aynı betikte kurarsan genelde yetişirsin; elle
+kopyalayıp yapıştırırken geç kalırsın. Garantili yol varsayılanı değiştirmek:
 
 ```bash
 BANK_DEFAULT_OUTCOME=Failure docker compose up -d --force-recreate --no-deps bank-fake
@@ -386,6 +388,11 @@ docker compose exec bank-fake printenv BankFake__DefaultOutcome
 ```
 
 Geri almak için aynı komutu değişkensiz çalıştır.
+
+**Senaryolar ve transferler bellekte** — sahte bankanın veritabanı yok. Yukarıdaki
+gibi container'ı yeniden yaratmak hepsini siler. O anda `bank_transfer_pending`'de
+bekleyen bir çekim varsa kapanmaz: mutabakat taraması sorduğunda banka onu artık
+tanımıyor (`404`). Önce bekleyen çekimlerin bitmesini bekle.
 
 ### Senaryonun durumu
 
@@ -395,7 +402,7 @@ curl -s localhost:8094/v1/scenarios/$WD
 ```json
 {
   "clientReference": "...",
-  "outcome": "transient_failure",
+  "outcome": "TransientFailure",
   "remainingTransientFailures": 0,
   "attempts": 2
 }
@@ -541,6 +548,9 @@ WD=$(curl -s -X POST localhost:8093/v1/withdrawals \
   -H 'Idempotency-Key: cekim-red' -H 'Content-Type: application/json' \
   -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"destinationIban\":\"TR330006100519786457841326\"}" | jq -r .withdrawalId)
 
+# Hemen ardından: zincir bankaya varmadan senaryo kurulmuş olmalı. Yetişmezse
+# çekim başarılı biter — o durumda BANK_DEFAULT_OUTCOME=Failure yolunu kullan
+# (yukarıda, "Senaryo kur").
 curl -s -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
   -d "{\"clientReference\":\"$WD\",\"outcome\":\"Failure\"}"
 

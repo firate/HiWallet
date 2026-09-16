@@ -558,14 +558,16 @@ geri gelsin.
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
 | settlement ve fatura uçları (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
-| **yedi container'lı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
+| **sekiz uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
 | **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
 | **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |
 | **sahte sağlayıcıların top-up tetiklemesi** | `POST :8096/v1/topups` — `Duplicate` bakiyeyi bir kez artırmalı, `OutOfOrder` hepsini indirmeli |
 
-Son üçü bu sürümle geldi ve hiçbiri koşturulmadı. İlki yapısal; diğer ikisi
-madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol".
+Bu beşi bu sürümle geldi ve hiçbiri compose'da koşturulmadı. İlki yapısal; sonraki
+üçü madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol";
+sonuncusu sahte sağlayıcıları. Adımları `fakes/akislar.http` ve
+`fakes/Stripe.Fake/stripe-fake.http`'de hazır.
 
 ### Top-up hattını doğrulama
 

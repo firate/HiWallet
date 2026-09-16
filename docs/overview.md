@@ -233,16 +233,21 @@ Gerçek Stripe/banka yerine, dış dünya kötülüklerini **bilinçli tetikleye
 
 İkisi de `fakes/` altında, `src/` altında DEĞİL; `src/` → `fakes/` referansı derleme hatası (`HIW001`).
 
-`stripe-fake` ve `bank-fake` şunları tetikleyebilmeli (`POST /v1/topups`, `mode` alanı):
+Para girişi — `stripe-fake` ve `bank-fake` (`POST /v1/topups`, `mode` alanı):
 
-- **Başarılı** webhook/komut sonucu.
-- **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için).
+- **Başarılı** webhook. ✅ `Normal`
 - **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). ✅ `Duplicate`
 - **Gecikmeli** gönderim (eventual davranışı görünür kılmak). ✅ `Delayed`
 - **Sırasız** gönderim (ordering/partitioning testi). ✅ `OutOfOrder`
-- **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek).
 
-bank-fake de aynı şekilde: transfere başarılı / transient-fail / kalıcı-fail / gecikmeli sonuç üretebilmeli. Sonuç SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callback ya da durum sorgusuyla (decisions.md madde 35).
+Para çıkışı — yalnızca `bank-fake` (`POST /v1/scenarios`, `outcome` alanı):
+
+- **Başarılı** transfer. ✅ `Success`
+- **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için). ✅ `Failure`
+- **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek). ✅ `TransientFailure`
+- **Gecikmeli** sonuç. ✅ `DelayedSuccess`
+
+Transfer sonucu SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callback ya da durum sorgusuyla (decisions.md madde 35). Sahte bankanın hafızası bellekte; yeniden başlatınca siliniyor.
 
 ## 10. Çıkış Kriteri
 
