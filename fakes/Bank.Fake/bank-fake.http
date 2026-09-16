@@ -55,12 +55,31 @@ Content-Type: application/json
 # ============================================================================
 
 ### B1. Senaryo kur: kalıcı red
-# clientReference = saga id. Bu senaryoyu bir sonraki transfer isteğinde
-# (A1'de aynı clientReference ile) görürsün: 202 döner ama sonuç "failed" olur.
+# clientReference = saga id. Senaryo, aynı clientReference ile gelen transferde
+# uygulanıyor — B1a'da görürsün.
 POST {{bankFake}}/v1/scenarios
 Content-Type: application/json
 
 { "clientReference": "deneme-red", "outcome": "Failure" }
+
+### B1a. B1'i dene
+# Beklenen: 202 ve "pending" — banka reddi de kabul anında söylemiyor. Birkaç
+# saniye sonra A2 ile bak: "failed" ve failureReason dolu.
+# Sahte banka yeniden başlatılırsa senaryo silinir, B1'i tekrar koş.
+POST {{bankFake}}/v1/transfers
+Content-Type: application/json
+Idempotency-Key: {{$uuid}}
+
+{
+  "clientReference": "deneme-red",
+  "amount": 100,
+  "currency": "TRY",
+  "destinationIban": "TR330006100519786457841326"
+}
+
+> {%
+    client.global.set("bankReference", response.body.bankReference);
+%}
 
 ### B2. Senaryo kur: iki kez geçici hata, sonra kabul
 # İlk iki transfer isteği 503 alır ve transfer HİÇ açılmaz; üçüncüsü kabul edilir.
@@ -90,6 +109,8 @@ Idempotency-Key: {{$uuid}}
 
 ### B5. Senaryonun durumu
 # attempts, isteğin kaç kez geldiğini gösteriyor. B4'ten sonra 3 olmalı.
+# Bellekte tutuluyor: sahte banka yeniden başladıysa 404 döner. B2'yi yeniden
+# koşmak sayaçları sıfırlar.
 GET {{bankFake}}/v1/scenarios/deneme-gecici
 
 ### B6. Havale ile para girişi

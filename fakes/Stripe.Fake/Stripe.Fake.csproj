@@ -9,10 +9,9 @@
          nostro bir banka hesabı ve Stripe banka değil; parayı bizim banka
          hesabımıza yatırıyor (SystemAccounts).
 
-         VERİTABANI YOK, bilerek. Bankanın senaryo tablosu kalıcı olmak zorundaydı
-         çünkü zamanlamayı adaptör sürüyordu ve kayıt kaybolursa kimse yeniden
-         tetikleyemezdi. Burada tetikleyen zaten bir test ya da insan: süreç ölürse
-         yeniden tetiklenir. Kalıcılık eklemek karşılığı olmayan bir parça olurdu. -->
+         VERİTABANI YOK, bilerek. Tetikleyen zaten bir test ya da insan: süreç
+         ölürse yeniden tetiklenir. Kalıcılık eklemek karşılığı olmayan bir parça
+         olurdu. -->
 
     <PropertyGroup>
         <RootNamespace>HiWallet.Stripe.Fake</RootNamespace>

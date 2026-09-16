@@ -81,9 +81,11 @@ public static class FakeProviderSetup
 /// webhook'u senin isteğin bitince gönderiyor.
 ///
 /// <b>Kalıcı DEĞİL, bilerek.</b> Süreç ölürse kuyruktakiler kaybolur ve tetikleyen
-/// taraf yeniden tetikler. Bankanın senaryo tablosundan farkı şu: orada zamanlamayı
-/// adaptör sürüyordu ve kayıt kaybolursa kimse yeniden tetikleyemezdi; burada
-/// tetikleyen zaten bir test ya da insan.
+/// taraf — bir test ya da insan — yeniden tetikler.
+///
+/// <b>Gönderimler TEK TEK işleniyor.</b> Gecikmeli bir gönderim beklerken arkasındaki
+/// tetiklemeler de bekliyor (en fazla 30 sn). Bilinen bir sınır; paralel işlemek
+/// aynı cüzdana yapılan tetiklemelerin sırasını da bozardı.
 /// </summary>
 internal sealed class TopupDeliveryWorker(
     Channel<TopupDelivery> queue,

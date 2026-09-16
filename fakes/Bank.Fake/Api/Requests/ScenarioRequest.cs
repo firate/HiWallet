@@ -16,8 +16,9 @@ namespace HiWallet.Bank.Fake.Api.Requests;
 /// <see cref="TransferOutcome.TransientFailure"/> dışında anlamsız.
 /// </param>
 /// <param name="DelayMilliseconds">
-/// Sonucun belli olması için geçecek süre. Sıfır bırakılırsa servisin
-/// <c>SettlementDelay</c> varsayılanı kullanılıyor.
+/// Yalnızca <see cref="TransferOutcome.DelayedSuccess"/>'te kullanılıyor: sonucun
+/// belli olması için geçecek süre. Diğer sonuçlarda ve sıfır bırakılırsa servisin
+/// <c>SettlementDelay</c> varsayılanı geçerli.
 /// </param>
 public sealed record ScenarioRequest(
     string ClientReference,

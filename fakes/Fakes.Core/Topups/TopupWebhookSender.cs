@@ -44,9 +44,7 @@ public sealed class TopupWebhookSender(
             // Gecikme BEKLEYEREK uygulanıyor, zamanlanarak değil: çağıran bu
             // metodu zaten arka planda koşturuyor ve gecikmenin gözlemlenebilir
             // olması gerekiyor. Süreç bu sırada ölürse event kaybolur — kabul
-            // edilebilir, çünkü tetikleyen taraf yeniden tetikleyebilir. Bankanın
-            // senaryo tablosundan farkı bu: orada zamanlamayı BİZ değil adaptör
-            // sürüyordu, o yüzden kalıcı olmak zorundaydı.
+            // edilebilir, çünkü tetikleyen taraf yeniden tetikleyebilir.
             await Task.Delay(TimeSpan.FromMilliseconds(delivery.DelayMilliseconds), timeProvider, ct);
         }
 
