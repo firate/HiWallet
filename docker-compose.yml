@@ -86,6 +86,9 @@ services:
       # çalıştırıyor, script iki kez koşardı (ikincisinde parola değişkenleri
       # tanımsız olduğu için hata vererek).
       - ./docker/postgres-init.sql:/opt/hiwallet/postgres-init.sql:ro
+      # Integration testlerin veritabanı, AYRI dosyada. Üretim kurulumunda bu
+      # satır olmaz ve init betiği dosyayı bulamayıp atlar.
+      - ./docker/postgres-init-tests.sql:/opt/hiwallet/postgres-init-tests.sql:ro
       - postgres-data:/var/lib/postgresql/data
     ports:
       # Host'tan pgAdmin/psql ile bakabilmek için. 5432 mevcut bir Postgres'te olabilir.
@@ -93,8 +96,9 @@ services:
     healthcheck:
       # migrator ve app bunu bekliyor. pg_isready YETMEZ: gerçekten bağlanmıyor,
       # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
-      # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor. Sonuncu kurulan
-      # veritabanı soruluyor ki init'in tamamı bitmiş olsun.
+      # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor. Uygulama
+      # kurulumunun SONUNCU veritabanı soruluyor; test veritabanı bilerek değil,
+      # üretimde o dosya mount edilmiyor.
       test: ["CMD-SHELL", "psql -U postgres -d hiwallet_bank -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 2s
       timeout: 3s

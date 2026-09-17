@@ -112,10 +112,16 @@ Burada var çünkü sahte banka da bizim stack'imizde ve ilk transfer denemesini
 boşa gitmemesi için.
 
 Dört uygulama veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
-`hiwallet_withdrawal`, `hiwallet_bank`. Sahte servislerin veritabanı yok. Beşincisi
-`hiwallet_schema_check` boş kalıyor: integration testler her koşuda orada kendi
-schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Postgres
-healthcheck'i `hiwallet_bank`'a soruyor.
+`hiwallet_withdrawal`, `hiwallet_bank` — hepsi `postgres-init.sql`'den. Sahte
+servislerin veritabanı yok.
+
+Beşinci bir veritabanı daha var ama AYRI dosyadan geliyor:
+`postgres-init-tests.sql` yalnızca `hiwallet_schema_check`'i kuruyor ve init
+betiği o dosyayı ancak MOUNT EDİLMİŞSE koşuyor. Integration testler her koşuda
+orada kendi schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Üretime
+giden kurulumda bu dosya mount edilmez, dolayısıyla test veritabanı da açılmaz.
+
+Postgres healthcheck'i `hiwallet_bank`'a soruyor: uygulama kurulumunun sonuncusu o.
 
 ### init ne zaman koşar
 
