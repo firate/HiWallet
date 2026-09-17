@@ -8,7 +8,7 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 
 ---
 
-## 1. Topoloji: altı uygulama, beş veritabanı, bir broker
+## 1. Topoloji: altı uygulama, dört veritabanı, bir broker
 
 ```mermaid
 flowchart LR
@@ -40,7 +40,6 @@ flowchart LR
     tdb[("hiwallet_topup")]
     odb[("hiwallet_withdrawal")]
     bdb[("hiwallet_bank")]
-    fdb[("hiwallet_bank_fake")]
 
     client -->|HTTPS| api
     client -->|HTTPS| orch
@@ -53,7 +52,6 @@ flowchart LR
     orch --> odb
     adapter --> bdb
     bhook --> bdb
-    bank --> fdb
 
     adapter -->|"HTTP"| bank
 

@@ -487,3 +487,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Rider HTTP client: gizli değerler (varsa) burada, depoya girmez.
+http-client.private.env.json

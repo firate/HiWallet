@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using HiWallet.Bank.Fake.Application;
 using HiWallet.IntegrationTests.Fixtures;
-using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.IntegrationTests.Bank;
 
@@ -14,9 +13,11 @@ namespace HiWallet.IntegrationTests.Bank;
 /// Gerçekçilik burada bir test kolaylığı değil ZORUNLULUK: adaptörün "kabul edildi
 /// ama sonuç sonra" akışını doğru kurduğunu ancak karşı taraf gerçekten öyle
 /// davranırsa kanıtlayabilirsin (decisions.md madde 35).
+///
+/// Postgres koleksiyonunda DEĞİL: sahte bankanın veritabanı yok, bu testler
+/// Postgres ve RabbitMQ olmadan koşuyor.
 /// </summary>
-[Collection(PostgresCollection.Name)]
-public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
+public sealed class BankFakeTests : IAsyncLifetime
 {
     private const string Iban = "TR330006100519786457841326";
 
@@ -25,7 +26,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
 
     public ValueTask InitializeAsync()
     {
-        _factory = new BankFakeFactory(bankFake);
+        _factory = new BankFakeFactory();
         _client = _factory.CreateClient();
 
         return ValueTask.CompletedTask;
@@ -98,8 +99,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
-        await using var db = bankFake.CreateContext();
-        (await db.Transfers.CountAsync(ct)).ShouldBe(0, "reddedilen istek transfer açmamalı");
+        _factory.TransferCount().ShouldBe(0, "reddedilen istek transfer açmamalı");
     }
 
     /// <summary>
@@ -127,10 +127,26 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
         firstBody.GetProperty("replayed").GetBoolean().ShouldBeFalse();
         secondBody.GetProperty("replayed").GetBoolean().ShouldBeTrue();
 
-        await using var db = bankFake.CreateContext();
+        _factory.TransferCount(clientReference).ShouldBe(1, "aynı anahtar ikinci transfer açmamalı");
+    }
 
-        (await db.Transfers.CountAsync(t => t.ClientReference == clientReference, ct))
-            .ShouldBe(1, "aynı anahtar ikinci transfer açmamalı");
+    /// <summary>
+    /// Aynı anahtarla AYNI ANDA gelen istekler de tek transfer açıyor. Sıralı
+    /// tekrarı yukarıdaki test yakalıyor; bu, "önce bak sonra ekle" arasına başka
+    /// bir isteğin girebildiği yarışı yakalıyor. Veritabanı yokken o yarışı
+    /// kapatan şey deponun kilidi.
+    /// </summary>
+    [Fact]
+    public async Task AyniAnahtar_EszamanliIstekler_TekTransferAcar()
+    {
+        var clientReference = Guid.NewGuid().ToString();
+        var key = Guid.NewGuid().ToString();
+
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 20).Select(_ => StartAsync(clientReference, key)));
+
+        responses.ShouldAllBe(r => r.StatusCode == HttpStatusCode.Accepted);
+        _factory.TransferCount(clientReference).ShouldBe(1, "eşzamanlı tekrar ikinci transfer açmamalı");
     }
 
     /// <summary>
@@ -146,17 +162,13 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
 
         var clientReference = Guid.NewGuid().ToString();
 
-        await ArmAsync(clientReference, TransferOutcome.TransientFailure, transientFailures: 1);
+        await SetScenarioAsync(clientReference, TransferOutcome.TransientFailure, transientFailures: 1);
 
         var first = await StartAsync(clientReference, Guid.NewGuid().ToString());
 
         first.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
 
-        await using (var db = bankFake.CreateContext())
-        {
-            (await db.Transfers.CountAsync(t => t.ClientReference == clientReference, ct))
-                .ShouldBe(0, "geçici hatada transfer kaydı oluşmamalı");
-        }
+        _factory.TransferCount(clientReference).ShouldBe(0, "geçici hatada transfer kaydı oluşmamalı");
 
         // Kota doldu: ikinci deneme kabul ediliyor. "Transient sonra başarılı"
         // senaryosu bu ve adaptörün yeniden denemesinin işe yaradığının kanıtı.
@@ -191,7 +203,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         var clientReference = Guid.NewGuid().ToString();
-        await ArmAsync(clientReference, TransferOutcome.Failure);
+        await SetScenarioAsync(clientReference, TransferOutcome.Failure);
 
         var start = await StartAsync(clientReference, Guid.NewGuid().ToString());
         var started = await start.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -211,7 +223,7 @@ public sealed class BankFakeTests(BankFakeFixture bankFake) : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    private async Task ArmAsync(
+    private async Task SetScenarioAsync(
         string clientReference, TransferOutcome outcome, int transientFailures = 1)
     {
         var response = await _client.PostAsJsonAsync("/v1/scenarios", new

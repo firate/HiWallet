@@ -16,9 +16,10 @@
 #   withdrawal-orchestrator  public ingress   — çekim isteği
 #   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
-# Ve bir tane de BİZİM OLMAYAN:
+# Ve iki tane de BİZİM OLMAYAN (ikisi de `fakes/` altında, `src/` altında DEĞİL):
 #
-#   bank-fake                bankanın API'sinin yerinde duruyor — ÜRETİMDE YOK
+#   bank-fake                bankanın API'si — para girişi VE çıkışı; ÜRETİMDE YOK
+#   stripe-fake              kart sağlayıcısı — yalnızca para girişi; ÜRETİMDE YOK
 #
 # Son ekin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor"
 # (decisions.md madde 35). bank-adapter da bugün yalnızca burada koşuyor ama
@@ -28,15 +29,15 @@
 #   wallet-api + wallet-consumer  → WalletService.Core
 #   bank-adapter + bank-webhook   → BankIntegration.Core
 #
-# Beş veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
+# Dört veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
 # tablolarına yazamıyor — saga'nın anlamı buna bağlı (madde 7 ve 33). Sahte
-# bankanınki de ayrı: adaptör senaryo tablosunu göremiyor, görebilseydi
-# simülasyon değerini kaybederdi (madde 35).
+# servislerin veritabanı YOK: bank-fake'in hafızası bellekte ve yeniden
+# başlatınca siliniyor (madde 35).
 
-# Bağlantı havuzu bütçesi. Dört uygulama AYNI Postgres örneğine bakıyor ve
+# Bağlantı havuzu bütçesi. Altı uygulama AYNI Postgres örneğine bakıyor ve
 # `max_connections` örnek bazında, veritabanı bazında DEĞİL — yani havuzlar
 # toplanıyor. Postgres'in varsayılanı 100; sınırsız bırakılan her servis
-# Npgsql'in varsayılanı olan 100'ü isteyebilir ve dördü birden 400'e çıkar.
+# Npgsql'in varsayılanı olan 100'ü isteyebilir ve altısı birden 600'e çıkar.
 # O noktada havuz tükenmeden ÖNCE Postgres "too many connections" der.
 #
 #   wallet-api                30   public, en yüksek eşzamanlılık
@@ -45,12 +46,13 @@
 #   topup-webhook             10   IP kısıtlı, yalnızca inbox yazıyor
 #   bank-adapter              10   tüketici + iki relay + tarama
 #   bank-webhook               6   yalnızca inbox yazıyor, en dar yüzey
-#   bank-fake                  6   sahte, düşük hacim
 #                            ───
-#                             94   psql ve izleme için ~6 pay kalıyor
+#                             88   psql ve izleme için ~12 pay kalıyor
 #
-# 94, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
-# max_connections'ının yükseltilmesi; compose'daki örnekte 200 veriliyor.
+# Sahte servisler bütçede YOK: veritabanı bağlantısı hiç açmıyorlar.
+#
+# 88, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
+# max_connections'ının yükseltilmesi; aşağıda postgres servisinde 200 veriliyor.
 # Yükseltilmeseydi doğru yol havuzları kısmak olurdu, sınırı görmezden gelmek
 # değil.
 #
@@ -74,6 +76,8 @@ services:
       TOPUP_APP_PASSWORD: ${TOPUP_APP_PASSWORD:?TOPUP_APP_PASSWORD .env'de tanımlı değil}
       WITHDRAWAL_APP_PASSWORD: ${WITHDRAWAL_APP_PASSWORD:?WITHDRAWAL_APP_PASSWORD .env'de tanımlı değil}
       BANK_APP_PASSWORD: ${BANK_APP_PASSWORD:?BANK_APP_PASSWORD .env'de tanımlı değil}
+    # Havuz bütçesi 88 (dosyanın başı); varsayılan 100 psql'e yer bırakmıyor.
+    command: ["postgres", "-c", "max_connections=200"]
     volumes:
       # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
       # volume'u düşürmek gerekiyor: docker compose down -v
@@ -182,21 +186,6 @@ services:
     command:
       - --connection
       - Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD}
-    restart: "no"
-
-  # SAHTE BANKANIN şeması, ayrı veritabanında. Üretimde ne bu migrator var ne de
-  # veritabanı (decisions.md madde 35).
-  bank-fake-migrator:
-    build:
-      context: .
-      dockerfile: src/Bank.Fake/Dockerfile
-      target: migrator
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command:
-      - --connection
-      - Host=postgres;Port=5432;Database=hiwallet_bank_fake;Username=bank_fake_app;Password=${BANK_FAKE_APP_PASSWORD}
     restart: "no"
 
   # Public ingress. RabbitMQ ayarı YOK ve olmamalı: tüketici ayrı bir host'a
@@ -462,17 +451,24 @@ services:
   #   POST /v1/scenarios {"clientReference":"<sagaId>","outcome":"Failure"}
   #
   # RabbitMQ ayarı YOK: gerçek banka müşterisinin broker'ını dinlemez.
+  # Veritabanı da YOK: transferler ve senaryolar bellekte. Yeniden başlatınca
+  # siliniyor; o anda pending olan çekimler kapanmaz, çünkü banka onları artık
+  # tanımıyor.
   bank-fake:
     build:
       context: .
-      dockerfile: src/Bank.Fake/Dockerfile
+      dockerfile: fakes/Bank.Fake/Dockerfile
       target: final
     depends_on:
-      bank-fake-migrator:
-        condition: service_completed_successfully
+      # İki yöne de webhook gönderiyor: sonuç callback'i bank-webhook'a, para
+      # girişi topup-webhook'a. Gerçek banka böyle beklemezdi; burada ilk
+      # gönderimlerin boşa gitmemesi için (stripe-fake ile aynı gerekçe).
+      bank-webhook:
+        condition: service_healthy
+      topup-webhook:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__BankFake: Host=postgres;Port=5432;Database=hiwallet_bank_fake;Username=bank_fake_app;Password=${BANK_FAKE_APP_PASSWORD};Application Name=hiwallet-bank-fake;Maximum Pool Size=6
       # Senaryosu kurulmamış transferlerin sonucu. Varsayılan başarı; telafi
       # yolunu tüm sistemde göstermek istersen Failure yap.
       BankFake__DefaultOutcome: ${BANK_DEFAULT_OUTCOME:-Success}
@@ -485,6 +481,11 @@ services:
       BankFake__Callback__Enabled: ${BANK_CALLBACK_ENABLED:-true}
       BankFake__Callback__Url: http://bank-webhook:8080/v1/webhooks/bank/bank-fake
       BankFake__Callback__Secret: ${BANK_CALLBACK_SECRET}
+      # PARA GİRİŞİ tarafı: müşteri havale/EFT ile yüklediğinde banka bize webhook
+      # atıyor. Aynı kurum iki yönde de çalışıyor — clearing/bank-fake iki yönde
+      # de hareket ediyor.
+      Topup__WebhookUrl: http://topup-webhook:8080
+      Topup__WebhookSecret: ${BANK_FAKE_WEBHOOK_SECRET}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-bank-fake
@@ -492,6 +493,45 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${BANK_HOST_PORT:-8094}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, ÜRETİMDE YOK.
+  #
+  # Bankadan farkı: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden ne
+  # transfer ucu var ne callback alıcısı. Ledger'da nostro'su da yok.
+  #
+  # VERİTABANI YOK ve migrator'ı da yok: tetikleyen taraf zaten bir test ya da
+  # insan, süreç ölürse yeniden tetikliyor.
+  stripe-fake:
+    build:
+      context: .
+      dockerfile: fakes/Stripe.Fake/Dockerfile
+      target: final
+    depends_on:
+      # topup-webhook ayakta olmadan webhook gönderilemez. Gerçek Stripe böyle
+      # beklemezdi (bizim ayakta olmamız onun sorunu değil) ama burada ilk
+      # tetiklemenin boşa gitmemesi için.
+      topup-webhook:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Topup__WebhookUrl: http://topup-webhook:8080
+      # topup-webhook'taki Providers__stripe-fake__WebhookSecret ile AYNI olmak
+      # zorunda; ayrışırsa her webhook 401 alır ve hiç para girmez.
+      Topup__WebhookSecret: ${STRIPE_FAKE_WEBHOOK_SECRET}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-stripe-fake
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${STRIPE_HOST_PORT:-8096}:8080"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
       interval: 5s

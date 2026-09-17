@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Sahte servislerin ORTAK kısmı: top-up webhook'u gönderme.
+
+         NEDEN PAYLAŞILIYOR — ve bu, banka HTTP sözleşmesinin bilerek
+         paylaşılmamasıyla (decisions.md madde 35) çelişmiyor.
+
+         Orada sözleşmeyi BANKA dayatıyor: ortak tip, "karşı taraf sözleşmeyi
+         değiştirdi" hatasını imkânsız gösterirdi. Burada sözleşmeyi BİZ
+         dayatıyoruz — `topup-webhook` bütün sağlayıcılar için tek bir gövde şekli
+         ve tek bir imza başlığı kabul ediyor. İki taraf da bizim olduğu için
+         ayrışma diye bir şey yok.
+
+         Paylaşılmasaydı asıl zarar teslim MODLARINDA olurdu: "sırasız gönderim"
+         iki sahtede farklı yazılsa, iki test sonucu karşılaştırılamaz hale gelirdi.
+
+         BU KÜTÜPHANE DE ÜRETİMDE YOK. src/ altından referans verilemez (HIW001). -->
+
+    <PropertyGroup>
+        <RootNamespace>HiWallet.Fakes</RootNamespace>
+        <AssemblyName>HiWallet.Fakes.Core</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="FluentValidation"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Web SDK'sındaki örtük using'ler burada yok (bu bir kütüphane);
+             ihtiyaç duyulanlar elle ekleniyor. WalletService.Core ile aynı kalıp. -->
+        <Using Include="Microsoft.Extensions.DependencyInjection"/>
+        <Using Include="Microsoft.Extensions.Configuration"/>
+        <Using Include="Microsoft.Extensions.Logging"/>
+        <Using Include="Microsoft.Extensions.Hosting"/>
+        <Using Include="Microsoft.AspNetCore.Http"/>
+    </ItemGroup>
+
+</Project>

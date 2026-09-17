@@ -2,6 +2,7 @@ using HiWallet.Bank.Fake;
 using HiWallet.Bank.Fake.Application;
 using Microsoft.AspNetCore.Hosting;
 using HiWallet.Bank.Fake.Infrastructure.Callbacks;
+using HiWallet.Bank.Fake.Infrastructure.Storage;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,9 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// Sahte banka host'u. Adaptör buna HTTP ile bağlanıyor — testte de gerçek bir
 /// HTTP sınırı var, doğrudan handler çağrısı yok. Sınırın gerçek olması önemli:
 /// gerçek entegrasyonda kırılacak yer tam olarak orası.
+///
+/// Veritabanı YOK: sahte bankanın hafızası bellekte ve her fabrika boş bir
+/// bankayla başlıyor. Testler bu yüzden birbirinin transferlerini görmüyor.
 /// </summary>
 /// <param name="defaultOutcome">
 /// Senaryosu kurulmamış çekimlerin sonucu. Zincir testinde yarışı kaldırıyor:
@@ -30,7 +34,6 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// inbox dahil.
 /// </param>
 public sealed class BankFakeFactory(
-    BankFakeFixture bank,
     TransferOutcome? defaultOutcome = null,
     string? callbackUrl = null,
     string? callbackSecret = null,
@@ -46,13 +49,17 @@ public sealed class BankFakeFactory(
         {
             var overrides = new Dictionary<string, string?>
             {
-                ["ConnectionStrings:BankFake"] = bank.ConnectionString,
-
                 // Testte gecikme kısa: asenkron pencere GÖRÜNÜR olmalı ama koşuyu
                 // uzatmamalı. Sıfır verilemez — sıfır olsaydı sonuç kabul anında
                 // hazır olur ve "pending" durumu testlerde hiç gözlemlenemezdi.
                 ["BankFake:SettlementDelay"] =
-                    (settlementDelay ?? TimeSpan.FromMilliseconds(200)).ToString()
+                    (settlementDelay ?? TimeSpan.FromMilliseconds(200)).ToString(),
+
+                // Para girişi tarafı bu testlerde kullanılmıyor, ama ayarı açılışta
+                // doğrulanıyor: verilmezse host hiç başlamaz. Giriş tarafını
+                // FakeProviderTests sınıyor.
+                ["Topup:WebhookUrl"] = "http://topup-webhook",
+                ["Topup:WebhookSecret"] = "kullanilmiyor"
             };
 
             if (defaultOutcome is { } outcome)
@@ -78,6 +85,22 @@ public sealed class BankFakeFactory(
             services.AddHttpClient(CallbackDispatcher.HttpClientName)
                 .ConfigurePrimaryHttpMessageHandler(() =>
                     new PassthroughHandler(callbackHttpClient)));
+    }
+
+    /// <summary>
+    /// Bankanın, belirtilen client reference için açtığı transfer sayısı.
+    /// Verilmezse bütün transferler. Sahte bankanın içine bakmanın tek yolu bu —
+    /// HTTP'de "kaç transfer açtın" ucu yok, gerçek bankada da olmazdı.
+    /// </summary>
+    public int TransferCount(string? clientReference = null)
+    {
+        var store = Services.GetRequiredService<BankFakeStore>();
+
+        lock (store.Gate)
+        {
+            return store.TransfersByKey.Values.Count(t =>
+                clientReference is null || t.ClientReference == clientReference);
+        }
     }
 }
 

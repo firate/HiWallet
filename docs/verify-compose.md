@@ -6,6 +6,13 @@ Geliştirme makinesinde Docker yok, o yüzden koşturmak elle yapılıyor.
 > **Beş uygulamalı stack ayağa kalkıyor, yapısal kontrolleri ve uçtan uca akışları
 > geçiyor.** Top-up, çekimin mutlu yolu ve telafi yolu compose üzerinde
 > doğrulandı. Açık kalanlar aşağıdaki "Hâlâ doğrulanmadı" listesinde.
+>
+> **O doğrulama bankanın SENKRON cevap verdiği sürümde yapıldı.** Banka hattı
+> sonradan üçe bölündü (`bank-adapter`, `bank-webhook`, `bank-fake`) ve sonuç
+> asenkron hale geldi (`decisions.md` madde 35). Yeni hat testlerde koşuyor ama
+> **compose üzerinde tekrarlanmadı**; aşağıdaki kayıtlar eski sürümün ölçümleri
+> ve o haliyle bırakıldı — bir doğrulama kaydı, olmamış bir ölçümü anlatacak
+> şekilde güncellenmez.
 
 ## 1. Kodu Docker'ı olan makineye al
 
@@ -34,6 +41,7 @@ RabbitMq__Password=...
 
 STRIPE_FAKE_WEBHOOK_SECRET=...  # uzun ve rastgele
 BANK_FAKE_WEBHOOK_SECRET=...
+BANK_CALLBACK_SECRET=...        # bankanın sonuç callback'ini imzaladığı secret
 ```
 
 **Elinde eski bir `.env` varsa** `cp` YAPMA — üstüne yazar. Stack her büyüdüğünde
@@ -44,7 +52,7 @@ onun adını söylüyor; sırayla düzeltmek uzun sürer. Hepsini birden gör:
 for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
-         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET; do
+         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -82,14 +90,32 @@ Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 docker compose up --build
 ```
 
-Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
-`topup-migrator`, `withdrawal-migrator`, `bank-migrator`) şemaları uygulayıp
-`exit 0` ile biter → beş uygulama başlar. `rabbitmq` paralel kalkar; hiçbiri onu
-BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
+**Eski bir stack'in üstüne kuruyorsan `--remove-orphans` ekle.** Compose'dan
+çıkarılan ya da adı değişen servislerin container'ları (`bank-service`,
+`bank-fake-migrator`) `down` ile silinmez ve koşmaya devam eder. `bank-service`
+8094'ü tuttuğu sürece `bank-fake` o porta bağlanamaz; `bank-adapter` da onu
+beklediği için hiç başlamaz.
 
-Dört veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
-`hiwallet_withdrawal`, `hiwallet_bank`. Postgres healthcheck'i sonuncusuna soruyor;
-o cevap verdiğinde init'in tamamı bitmiş demektir.
+```bash
+docker compose down -v --remove-orphans && docker compose up --build -d
+```
+
+Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
+`topup-migrator`, `withdrawal-migrator`, `bank-migrator`)
+şemaları uygulayıp `exit 0` ile biter → sekiz uygulama başlar (altısı bizim,
+ikisi sahte kurum). `rabbitmq` paralel
+kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
+
+Tek istisna `bank-adapter`: `bank-fake`'in sağlıklı olmasını bekliyor. Gerçek
+entegrasyonda böyle bir bağımlılık OLMAZ — banka bizim compose'umuzda değil.
+Burada var çünkü sahte banka da bizim stack'imizde ve ilk transfer denemesinin
+boşa gitmemesi için.
+
+Dört uygulama veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
+`hiwallet_withdrawal`, `hiwallet_bank`. Sahte servislerin veritabanı yok. Beşincisi
+`hiwallet_schema_check` boş kalıyor: integration testler her koşuda orada kendi
+schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Postgres
+healthcheck'i `hiwallet_bank`'a soruyor.
 
 ### init ne zaman koşar
 
@@ -542,6 +568,16 @@ geri gelsin.
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
 | settlement ve fatura uçları (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
+| **sekiz uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
+| **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
+| **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
+| **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |
+| **sahte sağlayıcıların top-up tetiklemesi** | `POST :8096/v1/topups` — `Duplicate` bakiyeyi bir kez artırmalı, `OutOfOrder` hepsini indirmeli |
+
+Bu beşi bu sürümle geldi ve hiçbiri compose'da koşturulmadı. İlki yapısal; sonraki
+üçü madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol";
+sonuncusu sahte sağlayıcıları. Adımları `fakes/akislar.http` ve
+`fakes/Stripe.Fake/stripe-fake.http`'de hazır.
 
 ### Top-up hattını doğrulama
 

@@ -21,7 +21,7 @@ namespace HiWallet.IntegrationTests.Bank;
 /// geliyor (decisions.md madde 35).
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFakeDb) : IAsyncLifetime
+public sealed class BankAdapterTests(BankFixture bankDb) : IAsyncLifetime
 {
     private const string Iban = "TR330006100519786457841326";
 
@@ -30,7 +30,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
 
     public ValueTask InitializeAsync()
     {
-        _bankFake = new BankFakeFactory(bankFakeDb);
+        _bankFake = new BankFakeFactory();
         _adapter = new BankAdapterFactory(bankDb, "http://bank-fake", _bankFake.CreateClient());
 
         return ValueTask.CompletedTask;
@@ -114,10 +114,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         second!.BankReference.ShouldBe(first!.BankReference);
         second.StartedAt.ShouldBe(first.StartedAt);
 
-        await using var fake = bankFakeDb.CreateContext();
-
-        (await fake.Transfers.CountAsync(t => t.ClientReference == command.SagaId.ToString(), ct))
-            .ShouldBe(1, "bankada tek transfer açılmalı");
+        _bankFake.TransferCount(command.SagaId.ToString()).ShouldBe(1, "bankada tek transfer açılmalı");
     }
 
     /// <summary>
@@ -134,7 +131,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         var ct = TestContext.Current.CancellationToken;
         var command = Command();
 
-        await ArmAsync(command.SagaId.ToString(), TransferOutcome.TransientFailure);
+        await SetScenarioAsync(command.SagaId.ToString(), TransferOutcome.TransientFailure);
 
         await Should.ThrowAsync<TransientBankException>(() => HandleAsync(command, ct));
 
@@ -158,7 +155,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         var ct = TestContext.Current.CancellationToken;
         var command = Command();
 
-        await ArmAsync(command.SagaId.ToString(), TransferOutcome.Failure);
+        await SetScenarioAsync(command.SagaId.ToString(), TransferOutcome.Failure);
         await HandleAsync(command, ct);
 
         var transfer = await FindAsync(command.CommandId, ct);
@@ -269,7 +266,7 @@ public sealed class BankAdapterTests(BankFixture bankDb, BankFakeFixture bankFak
         throw new TimeoutException($"{bankReference} beş saniyede sonuçlanmadı.");
     }
 
-    private async Task ArmAsync(string clientReference, TransferOutcome outcome)
+    private async Task SetScenarioAsync(string clientReference, TransferOutcome outcome)
     {
         using var client = _bankFake.CreateClient();
 

@@ -65,7 +65,6 @@ src/
 ├── BankIntegration.Core/
 ├── BankAdapter/
 ├── BankWebhook/
-├── Bank.Fake/
 └── Shared/
     ├── Shared.Contracts/
     └── Shared.Infrastructure/
@@ -205,23 +204,88 @@ TopupWebhook/
 │   └── Messaging/             -- TopupRelay
 └── Setup/
 
-Bank.Fake/
-├── Api/Controllers/           -- ScenariosController (senaryo tetikleyicileri)
-├── Api/Requests/
-├── Application/               -- StartBankTransferHandler, ScenarioStore
+BankIntegration.Core/          -- şema ve migration'lar; İKİ host paylaşıyor
+├── Domain/                    -- BankTransferStatus
+├── Persistence/               -- BankDbContext, bank_transfers, bank_callbacks
+└── Setup/                     -- BankPersistenceSetup
+
+BankAdapter/                   -- BİZİM; ingress YOK, bankayı kendisi arıyor
+├── Application/               -- BankClient, StartBankTransferHandler,
+│                                 TransferCompleter, banka HTTP sözleşmesi
 ├── Infrastructure/
-│   ├── Persistence/           -- BankDbContext, bank_transfers, transfer_scenarios
-│   └── Messaging/             -- BankCommandConsumer
+│   ├── Messaging/             -- BankCommandConsumer, ReplyRelay
+│   ├── Callbacks/             -- CallbackRelay (inbox'ı işler)
+│   └── Jobs/                  -- ReconciliationScan
 └── Setup/
 
-ProviderFake/
-├── Api/Controllers/           -- senaryo tetikleme endpoint'leri
-├── Application/               -- webhook üretimi (duplicate, gecikmeli, sırasız)
+BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-202
+├── Api/Controllers/           -- BankWebhookController
+├── Application/               -- BankCallbackSignature, BankSecrets, BankCallbackWriter
 └── Setup/
+
+fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTINDA DEĞİL
+├── Api/Controllers/           -- TransfersController, ScenariosController
+├── Api/Requests/
+├── Api/Responses/
+├── Application/               -- AcceptTransferHandler, TransferQueries,
+│                                 ScenarioStore, TransferResolution
+├── Infrastructure/
+│   ├── Storage/               -- BankFakeStore (bellekte; veritabanı YOK)
+│   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
+└── Setup/
+
+fakes/Stripe.Fake/             -- KART SAĞLAYICISI; üretimde YOK, veritabanı YOK
+└── Api/Controllers/           -- TopupsController (Fakes.Core'dan türüyor)
 ```
 
-`Bank.Fake` ve `ProviderFake` fake olmalarına rağmen `Setup/` alır: logging,
-tracing ve health check onlarda da çalışmalı, yoksa uçtan uca trace kopar.
+### `fakes/` — üretimde olmayan servisler
+
+**Sahte servisler `src/` altında DEĞİL, kökte ayrı bir klasörde.** Sınır dizin
+seviyesinde görünüyor: üretimde deploy edilen hiçbir şey `fakes/`'ten çıkmıyor.
+
+```
+fakes/
+├── Fakes.Core/              -- ortak: top-up webhook'u gönderme ve teslim modları
+├── Bank.Fake/               -- bankanın API'si: para girişi VE çıkışı
+│   └── bank-fake.http
+├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
+│   └── stripe-fake.http
+├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
+└── http-client.env.json     -- Rider ortamları: homelab, local
+```
+
+`.http` dosyaları elle deneme için: senaryoyu kur, bizim tarafın tepkisini gör.
+Gizli değer gerekirse `http-client.private.env.json`'a yazılır; o dosya
+`.gitignore`'da.
+
+`Fakes.Core` neden paylaşılıyor: `topup-webhook` bütün sağlayıcılar için tek bir
+gövde şekli kabul ediyor, yani sözleşmeyi BİZ dayatıyoruz — ayrışacak iki taraf yok.
+Bankanın HTTP sözleşmesinin bilerek paylaşılmamasıyla (madde 35) çelişmiyor: orada
+sözleşmeyi karşı taraf dayatıyor. Asıl kazanç teslim modlarında — "sırasız gönderim"
+iki sahtede ayrı yazılsa iki testin sonucu karşılaştırılamazdı.
+
+**`src/` → `fakes/` referansı DERLEME HATASI.** `src/Directory.Build.targets`
+içindeki `HIW001` kontrolü engelliyor. Yorumda yazmak yetmezdi: bu proje aynı
+gerekçeyle veritabanı sınırlarını da Postgres yetkileriyle zorluyor — sınır
+nezaket kuralıysa baskı altında ilk delinen şey olur.
+
+Ters yön serbest: `fakes/` → `src/Shared`. Sahte servis de log ve trace üretmeli,
+yoksa uçtan uca trace kopar. Bu yüzden `Setup/` klasörü onlarda da var.
+
+`fakes/`'i yalnızca iki şey çağırır: `tests/` ve `docker-compose.yml`.
+
+`Stripe.Fake`'in `Setup/` klasörü yok: kuracağı tek şey `Fakes.Core`'un
+kendi kurulum metodu ve veritabanı hiç yok.
+
+**`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
+duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
+testlerde koşuyor ama üretimde de koşacak — son ek almıyor. `Bank.Fake` üretimde
+silinecek, alıyor.
+
+`BankAdapter` ile `BankWebhook` ayrı klasörler çünkü ayrı deployable'lar: birinin
+IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok (madde 28). Ortak şemaları
+`BankIntegration.Core`'da — `WalletApi` / `WalletConsumer` / `WalletService.Core`
+üçlüsüyle aynı kalıp.
 
 ### Shared/
 

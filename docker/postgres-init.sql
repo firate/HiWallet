@@ -4,8 +4,8 @@
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve
 -- uygulamaların ihtiyaç duyduğu roller ve veritabanları var.
 --
--- Beş veritabanı, beş sınır: wallet-service, topup-webhook,
--- withdrawal-orchestrator, banka entegrasyonu ve sahte banka birbirinin
+-- Dört veritabanı, dört sınır: wallet-service, topup-webhook,
+-- withdrawal-orchestrator ve banka entegrasyonu birbirinin
 -- tablosunu göremiyor (CLAUDE.md "Servis sınırı"). Saga'nın anlamı buna bağlı: orchestrator wallet
 -- tablolarına yazabilseydi compensation gereksizleşirdi (decisions.md madde 7).
 
@@ -19,6 +19,18 @@ CREATE ROLE wallet_owner LOGIN PASSWORD :'wallet_owner_password';
 CREATE ROLE wallet_app   LOGIN PASSWORD :'wallet_app_password';
 
 CREATE DATABASE hiwallet_wallet OWNER wallet_owner ENCODING 'UTF8';
+
+-- ---------------------------------------------------------------------------
+-- integration testler — uygulama değil
+-- ---------------------------------------------------------------------------
+-- Her test koşusu burada kendi schema'sını açıyor, migration'ları uyguluyor ve
+-- sonunda düşürüyor (ConnectionStrings__IntegrationTests). Uygulama veritabanından
+-- AYRI: yarıda kalan bir koşu gerçek verinin yanına çöp bırakmasın.
+--
+-- Sahibi wallet_owner: testler bu rolle bağlanıp schema açıyor. Sahibi postgres
+-- olsaydı CREATE SCHEMA yetki hatası verirdi. Burada kurulması, `down -v`
+-- sonrasında elle yeniden yaratma adımını kaldırıyor.
+CREATE DATABASE hiwallet_schema_check OWNER wallet_owner ENCODING 'UTF8';
 
 -- ---------------------------------------------------------------------------
 -- topup-webhook
@@ -54,19 +66,6 @@ CREATE ROLE bank_app LOGIN PASSWORD :'bank_app_password';
 
 CREATE DATABASE hiwallet_bank OWNER bank_app ENCODING 'UTF8';
 
--- ---------------------------------------------------------------------------
--- bank-fake — BANKANIN KENDİSİ, bizim değil
--- ---------------------------------------------------------------------------
--- AYRI veritabanı ve AYRI rol. transfer_scenarios bankanın iç bilgisi; adaptör
--- ona erişemiyor (decisions.md madde 35). Paylaşsalardı adaptör "senaryo ne
--- diyormuş" diye bakabilirdi ve simülasyon o an değerini kaybederdi — gerçek
--- bankanın kararını önceden okuyamazsın.
---
--- Üretimde bu veritabanı YOK; sahte banka da yok.
-CREATE ROLE bank_fake_app LOGIN PASSWORD :'bank_fake_app_password';
-
-CREATE DATABASE hiwallet_bank_fake OWNER bank_fake_app ENCODING 'UTF8';
-
 -- Hiçbir rol postgres veritabanında tablo yaratamasın.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
@@ -85,7 +84,10 @@ REVOKE CONNECT ON DATABASE hiwallet_wallet FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_topup FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_withdrawal FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_bank FROM PUBLIC;
-REVOKE CONNECT ON DATABASE hiwallet_bank_fake FROM PUBLIC;
+REVOKE CONNECT ON DATABASE hiwallet_schema_check FROM PUBLIC;
+
+-- Append-only testleri uygulamanın gerçek rolüyle koşuyor; sahibe REVOKE işlemiyor.
+GRANT CONNECT ON DATABASE hiwallet_schema_check TO wallet_app;
 
 \connect hiwallet_wallet
 
@@ -113,8 +115,3 @@ GRANT CREATE ON SCHEMA public TO withdrawal_app;
 
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT CREATE ON SCHEMA public TO bank_app;
-
-\connect hiwallet_bank_fake
-
-REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-GRANT CREATE ON SCHEMA public TO bank_fake_app;

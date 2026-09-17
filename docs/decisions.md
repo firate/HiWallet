@@ -1128,7 +1128,7 @@ ledger'ın sahibi olan servis yürütsün, bankaya çağrı outbox üzerinden gi
 ```
 wallet-api ──▶ wallet DB (withdrawal_sagas + ledger_entries + outbox, TEK COMMIT)
                    │
-                   └─ relay ──▶ bank-service ──▶ cevap ──▶ aynı servis saga'yı ilerletir
+                   └─ relay ──▶ bank-adapter ──▶ cevap ──▶ aynı servis saga'yı ilerletir
 ```
 
 Bu alternatif **daha basit ve bir hata sınıfını tamamen ortadan kaldırıyor.** Şu anki
@@ -1309,6 +1309,17 @@ Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca te
 Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
 kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
 
+**Sahte servisler `src/` altında DEĞİL, kökteki `fakes/` klasöründe.** Üretimde
+deploy edilen hiçbir şey oradan çıkmıyor ve bu dizin yerleşiminden okunuyor.
+
+Kural derleme zamanında zorlanıyor: `src/Directory.Build.targets` içindeki `HIW001`
+kontrolü, `src/` altındaki bir projenin `fakes/`'e referans vermesini hata yapıyor.
+Yorum olarak bırakılsaydı ilk acele eden kişi delerdi — projenin veritabanı
+sınırlarını Postgres yetkileriyle zorlamasıyla aynı gerekçe (madde 24).
+
+Ters yön serbest: `fakes/` → `src/Shared`'a bakabiliyor. Sahte servisin de log ve
+trace üretmesi gerekiyor, aksi halde uçtan uca trace onun üzerinde kopar.
+
 **Sonucu iki yol getiriyor ve rolleri EŞİT DEĞİL.**
 
 | yol | nerede | sıklık | rol |
@@ -1357,10 +1368,17 @@ işi kalıyor: doğrula, inbox'a yaz, `202` dön.
 etmeden önce doğrulama, inbox'a yazıp `202`, ayrı bir relay'in yayınlaması. İkinci kez
 yazılmıyor çünkü orada zaten doğru — kopyalanan şey kod değil, karar.
 
-**Sahte bankanın kendi veritabanı var** (`hiwallet_bank_fake`). `transfer_scenarios`
-bankanın iç bilgisi; adaptör onu göremez. Paylaşılan bir veritabanında adaptör
-"senaryo ne diyormuş" diye bakabilirdi ve o an simülasyon değerini kaybederdi — madde 7
-ile aynı gerekçe, aynı sonuç: sınır nezaket kuralı değil, yetki meselesi.
+**Sahte bankanın veritabanı YOK; hafızası bellekte.** Transferler ve senaryolar sahte
+bankanın process'inde duruyor ve yeniden başlatınca siliniyor. Sahte banka elle ve
+integration testlerle denemek için var, geçmiş saklaması gereken bir sistem değil; ayrı
+bir rol, veritabanı ve migrator bu işe değmiyordu. Senaryolar bankanın iç bilgisi olarak
+kalıyor: adaptör başka bir process'teki belleği göremez, yani "senaryo ne diyormuş" diye
+bakamaz.
+
+Bedeli bilerek kabul edildi: yeniden başlatmadan önce `pending` kalmış bir transferi
+banka artık tanımıyor, mutabakat taraması `404` alıyor ve o çekim kapanmıyor. Gerçek
+banka transferini unutmaz; bu davranış sahteye özgü. Sahte bankayı yeniden başlatırken
+bekleyen çekimler gözden çıkarılır.
 
 **HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün istek/yanıt tipleri kendi
 içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o

@@ -3,7 +3,7 @@
 Her uç için istek ve **beklenen** yanıt. Elle denemek ve bir şeyin bozulduğunu
 anlamak için; sözleşmenin kaynağı kod, bu dosya ona uyar.
 
-Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8094`). Kimlikler her
+Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8096`). Kimlikler her
 koşuda değişir.
 
 ```bash
@@ -183,8 +183,12 @@ HTTP/1.1 201 Created
 olarak gönderenden düşülür: `Payment` %2 ise gönderen `-204`, alan `+200`,
 `revenue` `+4`. Ledger'a üç satır düşer, toplamı sıfır.
 
-`Idempotency-Key` opsiyonel ama önerilir. Aynı anahtarla ikinci istek yeni transfer
-yapmaz:
+**`Idempotency-Key` ZORUNLU**; başlık yoksa `400` ve ledger'a hiçbir şey yazılmaz
+(`decisions.md` madde 4). Anahtarsız bir tekrar hiçbir constraint'e takılmaz ve çift
+harcama sessizce ledger'a düşerdi; append-only olduğu için de geri alınamaz, yalnızca
+ters kayıtla düzeltilir.
+
+Aynı anahtarla ikinci istek yeni transfer yapmaz:
 
 ```json
 { "transactionId": "aynı-kimlik", "replayed": true }
@@ -276,9 +280,9 @@ Location: http://localhost:8093/v1/withdrawals/cf13827f-470c-43af-a3b7-e3606e48c
 }
 ```
 
-**`Idempotency-Key` ZORUNLU** — transfer'dekinin aksine. Çekim çok adımlı ve dışarıya
-para çıkarıyor; anahtarsız bir tekrar ikinci bir banka transferi başlatırdı. Başlık
-yoksa `400`.
+**`Idempotency-Key` ZORUNLU** — transfer'de olduğu gibi. Burada bahis daha da yüksek:
+çekim çok adımlı ve dışarıya para çıkarıyor, anahtarsız bir tekrar ikinci bir banka
+transferi başlatırdı. Başlık yoksa `400`.
 
 `202` dönüldüğünde **hiçbir para hareket etmedi**. IBAN boşluklu yazılabilir,
 normalize edilir; mod-97 geçmezse `400`.
@@ -373,8 +377,10 @@ dönüyor ve **transfer hiç açılmıyor** (adaptör yeniden deniyor, saga bekl
 ikincisinde transfer açılıyor ama sonucu başarısız (saga telafiye giriyor).
 
 Senaryo **çekim başına** kuruluyor ve anahtarı `clientReference` — bizim saga
-kimliğimiz. Yani çekimi başlattıktan sonra kurman gerekiyor. Tüm çekimleri
-reddettirmek istersen varsayılanı değiştir:
+kimliğimiz. Yani çekimi başlattıktan sonra kurman gerekiyor ve bu bir **yarış**:
+zincir seni beklemiyor, banka senaryoyu transfer isteği geldiği anda okuyor.
+Çekim isteğinin hemen ardından aynı betikte kurarsan genelde yetişirsin; elle
+kopyalayıp yapıştırırken geç kalırsın. Garantili yol varsayılanı değiştirmek:
 
 ```bash
 BANK_DEFAULT_OUTCOME=Failure docker compose up -d --force-recreate --no-deps bank-fake
@@ -383,6 +389,11 @@ docker compose exec bank-fake printenv BankFake__DefaultOutcome
 
 Geri almak için aynı komutu değişkensiz çalıştır.
 
+**Senaryolar ve transferler bellekte** — sahte bankanın veritabanı yok. Yukarıdaki
+gibi container'ı yeniden yaratmak hepsini siler. O anda `bank_transfer_pending`'de
+bekleyen bir çekim varsa kapanmaz: mutabakat taraması sorduğunda banka onu artık
+tanımıyor (`404`). Önce bekleyen çekimlerin bitmesini bekle.
+
 ### Senaryonun durumu
 
 ```bash
@@ -390,14 +401,139 @@ curl -s localhost:8094/v1/scenarios/$WD
 ```
 ```json
 {
-  "sagaId": "...",
+  "clientReference": "...",
   "outcome": "TransientFailure",
   "remainingTransientFailures": 0,
   "attempts": 2
 }
 ```
 
-`attempts` retry'ın gerçekten çalıştığının kanıtı. Kurulmamış saga için `404`.
+`attempts` retry'ın gerçekten çalıştığının kanıtı. Kurulmamış çekim için `404`.
+
+### Transfer uçları — adaptörün konuştuğu sözleşme
+
+Bunları elle çağırman gerekmiyor; `bank-adapter` çağırıyor. Burada duruyorlar çünkü
+**gerçek entegrasyonda bankanın dokümanından yazılacak kısım** tam olarak bu ikisi.
+
+```bash
+curl -i -X POST localhost:8094/v1/transfers \
+  -H 'Content-Type: application/json' -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"clientReference":"<sagaId>","amount":100,"currency":"TRY","destinationIban":"TR330006100519786457841326"}'
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "bankReference": "BNK4F2A9C1E8B7D6A3", "status": "pending", "replayed": false }
+```
+
+**`status` her zaman `pending`.** Banka "aldım" diyor, "gönderdim" demiyor. Sonuç
+callback ile ya da durum sorgusuyla sonra geliyor (`decisions.md` madde 35).
+
+```bash
+curl -s localhost:8094/v1/transfers/BNK4F2A9C1E8B7D6A3
+```
+```json
+{
+  "bankReference": "BNK4F2A9C1E8B7D6A3",
+  "clientReference": "...",
+  "status": "succeeded",
+  "amount": 100.0000,
+  "fee": 1.5000,
+  "currency": "TRY",
+  "failureReason": null,
+  "acceptedAt": "..."
+}
+```
+
+**Mutabakat taramasının okuduğu uç bu.** Bankanın böyle bir ucu olmasaydı, callback'i
+kaçırılan transferin sonucunu hiçbir şey öğrenemezdi.
+
+`Idempotency-Key` başlıksız istek `400`. Aynı anahtarla ikinci istek yeni transfer
+AÇMAZ: aynı `bankReference` ve `"replayed": true` döner.
+
+`TransientFailure` senaryosunda uç `503` veriyor ve **transfer hiç açılmıyor** —
+kalıcı hatadan farkı bu. Adaptör bunu yeniden deniyor, saga'ya hiçbir şey
+bildirilmiyor.
+
+---
+
+## stripe-fake (BİZİM DEĞİL) — `:8096`
+
+Kart sağlayıcısının yerinde duran servis; üretimde yok. **Tek ucu var** — Stripe'tan
+para çıkmadığı için ne transfer ucu var ne callback alıcısı.
+
+Gerçek Stripe'ta bu uç YOKTUR: webhook müşteri ödeme yaptığında gelir, sen
+istediğinde değil.
+
+### Para girişi tetikle
+
+```bash
+curl -i -X POST localhost:8096/v1/topups \
+  -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"mode\":\"Normal\"}"
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "mode": "Normal", "eventCount": 1 }
+```
+
+`202` çünkü gönderim ARKA PLANDA: dönüldüğünde webhook henüz gitmedi. `eventCount`
+kaç webhook gideceğini söylüyor.
+
+| `mode` | ne yapar | beklenen |
+| --- | --- | --- |
+| `Normal` | tek event | bakiye bir kez artar |
+| `Duplicate` | **aynı** event iki kez (`eventId` de aynı) | bakiye **bir kez** artar |
+| `Delayed` | tek event, `delayMilliseconds` sonra | eventual davranış görünür olur |
+| `OutOfOrder` | aynı cüzdana `count` event, en yenisi önce | hepsi iner, bakiye toplama eşit |
+
+`Duplicate`'in `eventId`'si bilerek aynı: farklı olsaydı bu iki ayrı para girişi
+olurdu, tekrar değil.
+
+`OutOfOrder` "sıra korunuyor" demiyor — top-up'ta toplama değişmeli. Dediği şey ters
+sırada gelen bir dizinin tamamının kabul edildiği; değeri consistent-hash routing'in
+hepsini aynı partition'a düşürmesinde.
+
+Aynı uç `bank-fake`'te de var (`:8094`) ve `clearing/bank-fake`'e yazıyor — aynı
+banka hem gelen havaleyi bildiriyor hem giden transferi kabul ediyor.
+
+---
+
+## bank-webhook — `:8095`
+
+Bankanın transfer sonucunu bildirdiği uç. **Bizim kodumuz**, üretimde de koşuyor;
+`bank-adapter`'dan ayrı bir deployable çünkü ingress'i var (`decisions.md` madde 28).
+
+Elle çağırman gerekmiyor — `bank-fake` çağırıyor. İmza `topup-webhook`'unkiyle aynı
+algoritma ama **ayrı bir sözleşme**: başlık adı `X-Bank-Signature` ve secret
+`BANK_CALLBACK_SECRET`. Orada şemayı biz dayatıyoruz, burada bankanınkini uyguluyoruz.
+
+```bash
+BODY='{"eventId":"evt-BNK4F2A9C1E8B7D6A3","bankReference":"BNK4F2A9C1E8B7D6A3","clientReference":"...","status":"succeeded","fee":1.50,"currency":"TRY","failureReason":null,"occurredAt":"2026-03-01T10:00:00+00:00"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$BANK_CALLBACK_SECRET" -hex | awk '{print $2}')
+curl -i -X POST localhost:8095/v1/webhooks/bank/bank-fake \
+  -H 'Content-Type: application/json' -H "X-Bank-Signature: sha256=$SIG" --data "$BODY"
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "accepted": true, "duplicate": false }
+```
+
+`202`, `200` değil: verilen söz "işledim" değil "kalıcı kaydettim". Bu servis
+**işlemiyor** — inbox'a yazıp bırakıyor, transferi kapatmak `bank-adapter`'daki
+relay'in işi.
+
+`eventId` tekrar denemelerde aynı kalmak zorunda; ikinci kez gelirse yine `202` ama
+`"duplicate": true` ve satır ikinci kez yazılmıyor.
+
+İmza tutmazsa `401` ve inbox'a **hiçbir şey** yazılmaz. Tanınmayan kurum da `401`,
+`404` değil — hangi bankalarla çalıştığımız dışarıya sızmamalı. `eventId` yoksa
+`400`: kimliksiz bir bildirim deduplike edilemez.
 
 ---
 
@@ -412,10 +548,15 @@ WD=$(curl -s -X POST localhost:8093/v1/withdrawals \
   -H 'Idempotency-Key: cekim-red' -H 'Content-Type: application/json' \
   -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"destinationIban\":\"TR330006100519786457841326\"}" | jq -r .withdrawalId)
 
+# Hemen ardından: zincir bankaya varmadan senaryo kurulmuş olmalı. Yetişmezse
+# çekim başarılı biter — o durumda BANK_DEFAULT_OUTCOME=Failure yolunu kullan
+# (yukarıda, "Senaryo kur").
 curl -s -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
   -d "{\"clientReference\":\"$WD\",\"outcome\":\"Failure\"}"
 
-sleep 6
+# Banka sonucu ANINDA vermiyor: BANK_SETTLEMENT_DELAY kadar bekliyor, sonra
+# callback gönderiyor, sonra adaptörün relay'i cevabı yayınlıyor.
+sleep 10
 curl -s localhost:8093/v1/withdrawals/$WD; echo
 echo "önce=$BEFORE sonra=$(curl -s localhost:8091/v1/wallets/$WALLET | jq -r .balance)"
 ```
@@ -458,6 +599,7 @@ curl -s localhost:8092/health/ready   # topup-webhook
 curl -s localhost:8093/health/ready   # orchestrator    — postgres + rabbitmq
 curl -s localhost:8094/health/ready   # bank-fake (üretimde yok)
 curl -s localhost:8095/health/ready   # bank-webhook
+curl -s localhost:8096/health/ready   # stripe-fake (üretimde yok)
 ```
 
 `wallet-api`'nin çıktısında `rabbitmq` **olmamalı** — o uygulamanın broker'a hiç işi
