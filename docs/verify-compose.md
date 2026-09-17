@@ -90,6 +90,16 @@ Boş bırakırsan exporter hiç eklenmez ve uygulama sessizce çalışır.
 docker compose up --build
 ```
 
+**Eski bir stack'in üstüne kuruyorsan `--remove-orphans` ekle.** Compose'dan
+çıkarılan ya da adı değişen servislerin container'ları (`bank-service`,
+`bank-fake-migrator`) `down` ile silinmez ve koşmaya devam eder. `bank-service`
+8094'ü tuttuğu sürece `bank-fake` o porta bağlanamaz; `bank-adapter` da onu
+beklediği için hiç başlamaz.
+
+```bash
+docker compose down -v --remove-orphans && docker compose up --build -d
+```
+
 Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
 `topup-migrator`, `withdrawal-migrator`, `bank-migrator`)
 şemaları uygulayıp `exit 0` ile biter → sekiz uygulama başlar (altısı bizim,
