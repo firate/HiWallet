@@ -162,14 +162,14 @@ WalletConsumer/
 ├── Dockerfile
 ├── Topups/                     -- TopupConsumerService: top-up kuyruklarını dinler
 ├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
-├── WalletConsumerSetup.cs      -- DI + sağlık kontrolleri
+├── WalletConsumerSetup.cs      -- DI + health check'ler
 └── WalletConsumerApp.cs        -- test giriş noktası işaretçisi
 ```
 
 İki kuyruk tek process'te: ikisi de ingress'siz ve ikisi de aynı ledger'a yazıyor,
 yani ayırmanın erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
 
-`Sdk.Web` kullanıyor ama tek HTTP yüzeyi sağlık ucu. Probe olmasaydı "process ayakta
+`Sdk.Web` kullanıyor ama tek HTTP yüzeyi health check ucu. Probe olmasaydı "process ayakta
 ama tüketici tıkanmış" durumu görünmezdi.
 
 Kuyruk plumbing'i (kanal, ack/nack, dead-letter kararı) burada; ledger'a yazan
@@ -303,7 +303,7 @@ Shared/
 │   ├── Events/                -- BankTransferSucceeded, TopupReceived, ...
 │   └── Envelope.cs            -- MessageId, CorrelationId, OccurredAt
 └── Shared.Infrastructure/
-    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, sağlık kontrolü
+    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, health check
     ├── Jobs/                  -- PeriodicTimer tabanı, pg_try_advisory_lock kirası
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta

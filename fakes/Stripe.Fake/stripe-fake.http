@@ -64,5 +64,5 @@ Content-Type: application/json
 ### 7. Bakiye
 GET {{walletApi}}/v1/wallets/{{walletId}}
 
-### 8. Sağlık
+### 8. Health check
 GET {{stripeFake}}/health/ready

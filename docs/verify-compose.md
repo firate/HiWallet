@@ -309,7 +309,7 @@ $ ... psql -U wallet_app -c "UPDATE ledger_entries SET amount = amount + 1;"
 ERROR:  permission denied for table ledger_entries
 ```
 
-Sağlık ucu, Docker host'unun dışındaki bir makineden de doğrulandı.
+Health check ucu, Docker host'unun dışındaki bir makineden de doğrulandı.
 
 ## Doğrulama kaydı (beş uygulamalı sürüm)
 

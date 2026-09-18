@@ -842,7 +842,7 @@ gerektirirdi; kazancı yalnızca bir kutu daha olurdu.
 
 ---
 
-## 26. Sağlık kontrolünde `failureStatus` bağımlılığın kritikliğine göre seçilir
+## 26. Health check'te `failureStatus` bağımlılığın kritikliğine göre seçilir
 
 **Karar.** Bir bağımlılık olmadan servis **hiçbir** iş yapamıyorsa `Unhealthy`;
 yalnızca bir yan akış duruyorsa `Degraded`.
@@ -855,7 +855,7 @@ yalnızca bir yan akış duruyorsa `Degraded`.
 
 **Gerekçe.** `Unhealthy` readiness'ı düşürür ve orchestrator servisi trafikten çeker.
 Bu, çalışmaya devam edebilecek yolları da kapatmak demek — arızayı olduğundan büyük
-yapar. `Degraded` durumu sağlık çıktısında görünür kılıyor ama uç `200` dönmeye devam
+yapar. `Degraded` durumu health check çıktısında görünür kılıyor ama uç `200` dönmeye devam
 ediyor.
 
 Satır satır:
@@ -871,7 +871,7 @@ Satır satır:
   vardı; bağımlılık ortadan kalkınca kontrol de kalktı. Bir tasarım tercihiyken
   yapısal gerçek oldu.
 
-**Testle doğrulandı.** `Readiness_BrokerBagimliligiIcERMEZ` sağlık çıktısında
+**Testle doğrulandı.** `Readiness_BrokerBagimliligiIcERMEZ` health check çıktısında
 `rabbitmq` kaydının BULUNMADIĞINI doğruluyor.
 
 ---
@@ -924,7 +924,7 @@ bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen 
 - Bağlantı havuzları ayrıldı. Kuyruk birikmesi artık HTTP'nin bağlantılarını yiyemiyor.
   Tüketicinin dizesinde `Application Name` ayrı, `pg_stat_activity`'de yük kaynağı
   görünüyor.
-- Tüketici tıkandığında kendi sağlık ucu var; wallet-api'nin sağlıklı görünmesi durumu
+- Tüketici tıkandığında kendi health check ucu var; wallet-api'nin sağlıklı görünmesi durumu
   bitti.
 
 **Ölçüt iki yöne de işliyor.** Farklı maruziyet aynı process'te birleşmiyor; AYNI

@@ -31,8 +31,8 @@ var app = builder.Build();
 
 app.ValidateBankAdapterConfiguration();
 
-// Yalnızca sağlık ucu. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
-// yapıyor. Sağlık ucu da host'a açılmıyor, compose içinde kalıyor.
+// Yalnızca health check ucu. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
+// yapıyor. Health check ucu da host'a açılmıyor, compose içinde kalıyor.
 app.MapHiWalletHealthChecks();
 
 app.Run();

@@ -591,7 +591,7 @@ orijinal işlemin bacakları okunup negatifleniyor.
 
 ---
 
-## Sağlık uçları
+## Health check uçları
 
 ```bash
 curl -s localhost:8091/health/ready   # wallet-api      — yalnızca postgres
@@ -609,5 +609,5 @@ Broker durdurulduğunda orchestrator `Unhealthy` değil `Degraded` döner ve uç
 dönmeye devam eder: çekim isteği kabul edilmeye devam ediyor, komut outbox'ta
 bekliyor ve broker döndüğünde yayınlanıyor (`decisions.md` madde 32).
 
-`wallet-consumer`'ın host'a portu yok; sağlık kontrolü container'ın içinden koşuyor
+`wallet-consumer`'ın host'a portu yok; health check container'ın içinden koşuyor
 (`docker compose ps` ile `healthy` görünür).

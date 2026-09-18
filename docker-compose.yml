@@ -272,7 +272,7 @@ services:
     # gider. Tüketici bunu deduplike ediyor ama süre tanımak nadirleştiriyor.
     stop_grace_period: 20s
 
-  # Ingress'i YOK: ports tanımı yalnızca sağlık ucu için ve host'a AÇILMIYOR.
+  # Ingress'i YOK: ports tanımı yalnızca health check ucu için ve host'a AÇILMIYOR.
   # Ledger'a yazan kod artık dışarıdan erişilebilen bir uygulamanın içinde değil.
   wallet-consumer:
     build:
@@ -364,7 +364,7 @@ services:
   # BİZİM KODUMUZ, üretimde de koşuyor (decisions.md madde 35).
   #
   # INGRESS'İ YOK: komutu kuyruktan alıyor, bankayı kendisi arıyor. ports tanımı
-  # yalnızca sağlık ucu için ve host'a AÇILMIYOR.
+  # yalnızca health check ucu için ve host'a AÇILMIYOR.
   #
   # Sahtelik tamamen Bank__BaseUrl değerinde; gerçek bankaya geçerken bu servisin
   # kodunda tek satır değişmiyor.

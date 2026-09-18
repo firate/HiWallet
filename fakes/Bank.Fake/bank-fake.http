@@ -122,5 +122,5 @@ Content-Type: application/json
 
 { "walletId": "{{walletId}}", "amount": 500, "currency": "TRY", "mode": "Normal" }
 
-### B7. Sağlık
+### B7. Health check
 GET {{bankFake}}/health/ready

@@ -9,7 +9,7 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 ///
 /// Bağlantı uygulama başlarken DEĞİL, ilk ihtiyaç anında kuruluyor. Broker
 /// uygulamadan sonra ayağa kalkarsa servis yine de başlasın diye — broker'a
-/// bağlanamamak sağlık ucunda görünür, başlangıçta çökme sebebi değil.
+/// bağlanamamak health check ucunda görünür, başlangıçta çökme sebebi değil.
 /// </summary>
 public sealed class RabbitMqConnection : IAsyncDisposable
 {
@@ -35,7 +35,7 @@ public sealed class RabbitMqConnection : IAsyncDisposable
             AutomaticRecoveryEnabled = true,
             TopologyRecoveryEnabled = true,
             // Varsayılan 30 sn. Broker kapalıyken her deneme yarım dakika asılı
-            // kalıyor; sağlık kontrolü beklemeyi 2 sn'de bıraksa bile deneme arka
+            // kalıyor; health check beklemeyi 2 sn'de bıraksa bile deneme arka
             // planda _gate'i o kadar süre tutuyordu. Kısa tutmanın bedeli yok:
             // bağlantı kurulamadığında yeniden denenecek zaten.
             RequestedConnectionTimeout = TimeSpan.FromSeconds(5)

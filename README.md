@@ -130,7 +130,7 @@ curl http://localhost:8095/health/ready   # bank-webhook
 curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, üretimde yok)
 ```
 
-`wallet-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
+`wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
 açmasının sebebi olmazdı.
 
