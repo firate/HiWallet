@@ -132,12 +132,12 @@ adlı volume.
 
 | | init koşar mı |
 |---|---|
-| ilk `up` (volume yokken) | ✅ |
-| `down -v` sonrası | ✅ |
-| `down` (`-v` olmadan) sonrası | ❌ |
-| `up --build` | ❌ imajları yeniler, volume'a dokunmaz |
-| `restart`, container'ı silip yeniden yaratmak | ❌ |
-| `postgres-init.sql` düzenlendikten sonra | ❌ |
+| ilk `up` (volume yokken) | evet |
+| `down -v` sonrası | evet |
+| `down` (`-v` olmadan) sonrası | hayır |
+| `up --build` | hayır — imajları yeniler, volume'a dokunmaz |
+| `restart`, container'ı silip yeniden yaratmak | hayır |
+| `postgres-init.sql` düzenlendikten sonra | hayır |
 
 En sinsi hali parola değişikliği: `.env`'de bir parolayı değiştirmek mevcut rolün
 parolasını DEĞİŞTİRMEZ. Uygulama authentication hatası alır, sen de doğru parolayı
@@ -284,12 +284,12 @@ tarafı değişmediği için hâlâ geçerli:
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| `dotnet ef migrations bundle` alpine SDK'da çalışır | ✅ | bir hata çıktı, düzeltildi (aşağıda) |
-| *(yeni)* bundle Core'u kendi startup project'i olarak üretir | ⬜ | üç uygulamalı sürümle geldi, koşturulmadı |
-| `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | ✅ | dört migration uygulandı, seed satırları yerinde |
-| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | ✅ | wallet-service başladı ve istek karşılıyor |
-| init script'i tam olarak bir kez koşar | ✅ | roller kuruldu, "role already exists" yok |
-| `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied` alındı |
+| `dotnet ef migrations bundle` alpine SDK'da çalışır | evet | bir hata çıktı, düzeltildi (aşağıda) |
+| *(yeni)* bundle Core'u kendi startup project'i olarak üretir | denenmedi | üç uygulamalı sürümle geldi, koşturulmadı |
+| `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | evet | dört migration uygulandı, seed satırları yerinde |
+| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | evet | wallet-service başladı ve istek karşılıyor |
+| init script'i tam olarak bir kez koşar | evet | roller kuruldu, "role already exists" yok |
+| `wallet_app` `ledger_entries`'e yazamaz | evet | `permission denied` alındı |
 
 Ölçülen çıktılar:
 
@@ -318,16 +318,16 @@ koşturuldu. Stack ayağa kalktı.
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| init beş rolü ve dört veritabanını kurar | ✅ | `\du`: `wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app` |
-| dört migrator da şemasını uygular | ✅ | dördü de `Done`, `exited (0)` |
-| bundle Core'u kendi startup project'i olarak üretir | ✅ | wallet migrator yedi migration'ı uyguladı |
-| beş uygulama ayağa kalkar | ✅ | `docker compose ps`: beşi de `healthy` |
-| `wallet-consumer` host portu olmadan da sağlıklı | ✅ | `healthy`, yalnızca `8080/tcp` |
-| compose healthcheck'i alpine'de çalışır | ✅ | beş uygulama + iki altyapı `healthy` |
-| `wallet-api`'nin RabbitMQ bağımlılığı yok | ✅ | `health/ready` çıktısında yalnızca `postgres` check'i var |
-| sistem hesapları seed edilir | ✅ | altı satır |
-| `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied for table ledger_entries` |
-| **servis sınırı kapalı** | ✅ | ilk koşuda DÜŞTÜ, düzeltildi, ikinci koşuda geçti (aşağıda) |
+| init beş rolü ve dört veritabanını kurar | evet | `\du`: `wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app` |
+| dört migrator da şemasını uygular | evet | dördü de `Done`, `exited (0)` |
+| bundle Core'u kendi startup project'i olarak üretir | evet | wallet migrator yedi migration'ı uyguladı |
+| beş uygulama ayağa kalkar | evet | `docker compose ps`: beşi de `healthy` |
+| `wallet-consumer` host portu olmadan da sağlıklı | evet | `healthy`, yalnızca `8080/tcp` |
+| compose healthcheck'i alpine'de çalışır | evet | beş uygulama + iki altyapı `healthy` |
+| `wallet-api`'nin RabbitMQ bağımlılığı yok | evet | `health/ready` çıktısında yalnızca `postgres` check'i var |
+| sistem hesapları seed edilir | evet | altı satır |
+| `wallet_app` `ledger_entries`'e yazamaz | evet | `permission denied for table ledger_entries` |
+| **servis sınırı kapalı** | evet | ilk koşuda DÜŞTÜ, düzeltildi, ikinci koşuda geçti (aşağıda) |
 
 **İlk koşuda düşen kontrol.** `withdrawal_app` `hiwallet_wallet`'a bağlanabiliyordu.
 PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e veriyor,
@@ -361,14 +361,14 @@ Beş uygulamalı stack üzerinde, gerçek broker ve gerçek Postgres ile koştur
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| `rabbitmq` eklentisi yükleniyor | ✅ | `rabbit_exchange_type_consistent_hash_registry` boot adımı |
-| `withdrawal-orchestrator` broker'SIZ ayakta kalıyor | ✅ | `stop rabbitmq` sonrası `Degraded`, `Unhealthy` değil |
-| top-up hattının tamamı | ✅ | webhook `202` → relay → broker → tüketici → bakiye `500` |
-| çekim mutlu yolu | ✅ | saga `settling` üzerinden `completed`, cüzdan `398` |
-| çekim settlement'ı ledger'a düşüyor | ✅ | `clearing -100`, `nostro +100`; `Invoiced` modelde gider bacağı YOK |
-| **telafi yolu** | ✅ | saga `failed`, bakiye `500` → `500`, altı satır |
-| ters kaydın `revenue` bacağı | ✅ | `refund / revenue / -2.0000` |
-| beş migration otomatik uygulanıyor | ✅ | dört migrator, `down -v` gerekmedi |
+| `rabbitmq` eklentisi yükleniyor | evet | `rabbit_exchange_type_consistent_hash_registry` boot adımı |
+| `withdrawal-orchestrator` broker'SIZ ayakta kalıyor | evet | `stop rabbitmq` sonrası `Degraded`, `Unhealthy` değil |
+| top-up hattının tamamı | evet | webhook `202` → relay → broker → tüketici → bakiye `500` |
+| çekim mutlu yolu | evet | saga `settling` üzerinden `completed`, cüzdan `398` |
+| çekim settlement'ı ledger'a düşüyor | evet | `clearing -100`, `nostro +100`; `Invoiced` modelde gider bacağı YOK |
+| **telafi yolu** | evet | saga `failed`, bakiye `500` → `500`, altı satır |
+| ters kaydın `revenue` bacağı | evet | `refund / revenue / -2.0000` |
+| beş migration otomatik uygulanıyor | evet | dört migrator, `down -v` gerekmedi |
 
 Telafi ölçümü:
 

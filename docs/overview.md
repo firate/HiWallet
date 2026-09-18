@@ -235,18 +235,16 @@ Gerçek Stripe/banka yerine, dış dünya kötülüklerini **bilinçli tetikleye
 
 Para girişi — `stripe-fake` ve `bank-fake` (`POST /v1/topups`, `mode` alanı):
 
-- **Başarılı** webhook. ✅ `Normal`
-- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). ✅ `Duplicate`
-- **Gecikmeli** gönderim (eventual davranışı görünür kılmak). ✅ `Delayed`
-- **Sırasız** gönderim (ordering/partitioning testi). ✅ `OutOfOrder`
-
+- **Başarılı** webhook. Karşılığı `Normal`.
+- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). Karşılığı `Duplicate`.
+- **Gecikmeli** gönderim (eventual davranışı görünür kılmak). Karşılığı `Delayed`.
+- **Sırasız** gönderim (ordering/partitioning testi). Karşılığı `OutOfOrder`.
 Para çıkışı — yalnızca `bank-fake` (`POST /v1/scenarios`, `outcome` alanı):
 
-- **Başarılı** transfer. ✅ `Success`
-- **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için). ✅ `Failure`
-- **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek). ✅ `TransientFailure`
-- **Gecikmeli** sonuç. ✅ `DelayedSuccess`
-
+- **Başarılı** transfer. Karşılığı `Success`.
+- **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için). Karşılığı `Failure`.
+- **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek). Karşılığı `TransientFailure`.
+- **Gecikmeli** sonuç. Karşılığı `DelayedSuccess`.
 Transfer sonucu SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callback ya da durum sorgusuyla (decisions.md madde 35). Sahte bankanın hafızası bellekte; yeniden başlatınca siliniyor.
 
 ## 10. Çıkış Kriteri

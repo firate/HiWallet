@@ -77,30 +77,30 @@ sadece dışarıyla konuşan kenarı dağıt.**
 
 | | durum |
 | --- | --- |
-| Hesap ve cüzdan uçları (`/v1/accounts`, `/v1/wallets`) | ✅ |
-| Transfer çekirdeği (5 tip), limit ve komisyon | ✅ |
-| Double-entry ledger, zero-sum invariant | ✅ DB trigger + testler |
-| Optimistic lock, retry, idempotency | ✅ |
-| `POST /v1/transfers`, ProblemDetails | ✅ |
-| Baseline: OTel, health, rate limiting, validation | ✅ |
-| Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | ✅ |
-| HMAC imza, iki kademe idempotency, dead-letter | ✅ |
-| Deployable ayrımı erişim seviyesine göre | ✅ |
-| Hattın gerçek bir broker'a karşı uçtan uca koşması | ✅ webhook → RabbitMQ → ledger |
-| Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
-| Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
-| Saga zincirinin uçtan uca koşması | ✅ API → wallet → adaptör → banka → callback → saga |
-| Banka entegrasyonu: asenkron sonuç, callback + mutabakat | ✅ |
-| Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | ✅ |
-| Sekiz container'ın compose'dan ayağa kalkması | ✅ |
-| Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
-| Business günlük özeti | ✅ |
-| Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
-| Settlement: clearing kapanır, `nostro` hareket eder | ✅ top-up ve çekim |
-| Fatura işleme, uyuşmazlıkta `PendingReview` | ✅ |
-| Mutabakat raporu (projeksiyon, yaşlanma, fatura) | ✅ |
-| Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
-| Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
+| Hesap ve cüzdan uçları (`/v1/accounts`, `/v1/wallets`) | evet |
+| Transfer çekirdeği (5 tip), limit ve komisyon | evet |
+| Double-entry ledger, zero-sum invariant | evet — DB trigger + testler |
+| Optimistic lock, retry, idempotency | evet |
+| `POST /v1/transfers`, ProblemDetails | evet |
+| Baseline: OTel, health, rate limiting, validation | evet |
+| Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | evet |
+| HMAC imza, iki kademe idempotency, dead-letter | evet |
+| Deployable ayrımı erişim seviyesine göre | evet |
+| Hattın gerçek bir broker'a karşı uçtan uca koşması | evet — webhook → RabbitMQ → ledger |
+| Withdrawal saga: state machine, outbox, IBAN doğrulama | evet |
+| Compensation: üç bacaklı ters kayıt (komisyon dahil) | evet |
+| Saga zincirinin uçtan uca koşması | evet — API → wallet → adaptör → banka → callback → saga |
+| Banka entegrasyonu: asenkron sonuç, callback + mutabakat | evet |
+| Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | evet |
+| Sekiz container'ın compose'dan ayağa kalkması | evet |
+| Takılmış saga taraması (job altyapısı + advisory lock) | evet |
+| Business günlük özeti | evet |
+| Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
+| Settlement: clearing kapanır, `nostro` hareket eder | evet — top-up ve çekim |
+| Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
+| Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
+| Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
+| Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
 290 test: 96 unit (DB'siz), 194 integration — gerçek Postgres ve gerçek RabbitMQ.
 

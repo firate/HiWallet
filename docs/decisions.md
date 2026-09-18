@@ -361,17 +361,17 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 
 ## 13. Uygulama sırası
 
-1. ✅ wallet çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
+1. (bitti) wallet çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
    `ledger_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
-2. ✅ Baseline'ın 12 maddesi (OTel, health, ProblemDetails, rate limiting, migration,
+2. (bitti) Baseline'ın 12 maddesi (OTel, health, ProblemDetails, rate limiting, migration,
    graceful shutdown). Polly / dış servis dayanıklılığı ertelendi — henüz dış HTTP
    bağımlılığı yok.
-3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
+3. (bitti) Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
-4. ✅ Withdrawal saga + banka entegrasyonu + compensation. Zincir gerçek bir broker'a
+4. (bitti) Withdrawal saga + banka entegrasyonu + compensation. Zincir gerçek bir broker'a
    karşı uçtan uca doğrulandı; compose'dan ayağa kalkıyor, telafi yolu compose
    üzerinden henüz koşturulmadı. Alt adımlar aşağıda.
-5. ✅ Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
+5. (bitti) Settlement akışı + scheduled job'lar: mutabakat, business özeti, stuck saga
    taraması. Alt adımlar aşağıda.
 
 Her adım bir sonrakine geçmeden çıkış kriterini (`overview.md` madde 10) karşılamalı.
@@ -383,17 +383,17 @@ kendi başına commit'lenebilir ve derlenebilir olmalı.
 
 | # | ne | durum |
 | --- | --- | --- |
-| 4.1 | `Iban` değer tipi, mod-97 (madde yok — `overview.md` madde 6'nın taşıyıcısı) | ✅ |
-| 4.2 | Saga state machine: durumlar, geçişler, çelişki ayrımı (madde 31) | ✅ |
-| 4.3 | Mesaj sözleşmeleri: üç komut, beş event | ✅ |
-| 4.4 | Withdrawal topolojisi + paylaşılan `MessagePublisher` | ✅ |
-| 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, `withdrawal_outbox`, migration (madde 32) | ✅ |
-| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | ✅ |
-| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | ✅ |
-| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | ✅ |
-| 4.9 | `bank-adapter` + `bank-webhook` + `bank-fake`: komut → HTTP → callback, dört senaryo (madde 35) | ✅ |
-| 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | ✅ |
-| 4.11 | Compose servisleri, `.env.example`, dokümanlar | ✅ |
+| 4.1 | `Iban` değer tipi, mod-97 (madde yok — `overview.md` madde 6'nın taşıyıcısı) | evet |
+| 4.2 | Saga state machine: durumlar, geçişler, çelişki ayrımı (madde 31) | evet |
+| 4.3 | Mesaj sözleşmeleri: üç komut, beş event | evet |
+| 4.4 | Withdrawal topolojisi + paylaşılan `MessagePublisher` | evet |
+| 4.5 | Orchestrator kalıcılığı: `withdrawal_sagas`, `withdrawal_outbox`, migration (madde 32) | evet |
+| 4.6 | Orchestrator API: `POST /v1/withdrawals`, idempotency, IBAN sınırda | evet |
+| 4.7 | Outbox relay + event tüketicisi (saga'yı ilerleten taraf) | evet |
+| 4.8 | wallet-service komut handler'ları: `DebitForWithdrawal`, `RefundWithdrawal` + ters kayıt, `processed_messages` | evet |
+| 4.9 | `bank-adapter` + `bank-webhook` + `bank-fake`: komut → HTTP → callback, dört senaryo (madde 35) | evet |
+| 4.10 | Uçtan uca testler: wallet ve bank ile TAM zincir (orchestrator tarafı 4.7'de kapandı) | evet |
+| 4.11 | Compose servisleri, `.env.example`, dokümanlar | evet |
 
 **4.8 en riskli adım.** Ters kayıt üç bacaklı olmak zorunda (cüzdan, clearing,
 `revenue`) ve `revenue` bacağını atlamak iki bacakla da DENGELİ bir kayıt üretiyor —
@@ -415,14 +415,14 @@ altyapısını da yerine oturtuyorlar.
 
 | # | ne | durum |
 | --- | --- | --- |
-| 5.1 | Job altyapısı: `PeriodicTimer`, `pg_try_advisory_lock` tekilliği, graceful shutdown (madde 3) | ✅ |
-| 5.2 | Takılmış saga taraması — madde 33'ün zorunlu tamamlayıcısı | ✅ |
-| 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | ✅ |
-| 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | ✅ |
-| 5.5 | Settlement alımı ve ledger kaydı (top-up): clearing kapanır, `nostro` hareket eder | ✅ |
-| 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | ✅ |
-| 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | ✅ |
-| 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | ✅ |
+| 5.1 | Job altyapısı: `PeriodicTimer`, `pg_try_advisory_lock` tekilliği, graceful shutdown (madde 3) | evet |
+| 5.2 | Takılmış saga taraması — madde 33'ün zorunlu tamamlayıcısı | evet |
+| 5.3 | Business günlük özeti: hacim, işlem sayısı, kesilen komisyon | evet |
+| 5.4 | `provider_fees` tablosu + `FeeSettlement: Net \| Invoiced` konfigürasyonu (madde 10) | evet |
+| 5.5 | Settlement alımı ve ledger kaydı (top-up): clearing kapanır, `nostro` hareket eder | evet |
+| 5.5b | Çekim settlement'ı: banka ücreti saga üzerinden dönüyor, ayrı akış | evet |
+| 5.6 | Fatura işleme (invoiced model) + uyuşmazlıkta `PendingReview` (madde 11) | evet |
+| 5.7 | Mutabakat raporu: clearing vs settlement, yaşlanan kalemler | evet |
 
 **5.2 opsiyonel değil.** Ayrı orchestrator veritabanı kararının (madde 7 ve 33)
 faturası iki veritabanı arasında ayrışma ihtimali; karşılığı bu tarama. Yazılmazsa

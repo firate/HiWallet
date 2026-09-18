@@ -227,4 +227,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   yaz, sonra dokümanı ona güncelle — dokümanı korumak için kodda taviz verme.
   İstisna: bu dosyadaki pazarlıksız kurallar ve `decisions.md`'deki kararlar.
   Onlardan sapılacaksa önce karar değiştirilir, gerekçesiyle.
+- **Hiçbir dosyada emoji YOK** — doküman, kod yorumu, commit mesajı, hiçbiri. Onay ve
+  ret işaretleri (tik, çarpı, boş kutu) de girmez: tabloda `evet` / `hayır` /
+  `denenmedi` yazılır. Ağaç ve akış çizimlerindeki kutu ve ok karakterleri bunun
+  dışında; onlar süs değil, çizimin kendisi.
 - Kapsam dışı: Vault, Kubernetes, gerçek ödeme sağlayıcısı, multi-tenancy, caching.
