@@ -1,9 +1,9 @@
--- UYGULAMANIN kurulumu: roller ve veritabanları. Üretimde de bunun karşılığı
+-- UYGULAMANIN kurulumu: roller ve veritabanları. Canlıda da bunun karşılığı
 -- koşar. Yalnızca veri dizini BOŞKEN çalışır (postgres imajının davranışı);
 -- sonraki `docker compose up`'larda atlanır.
 --
 -- Integration testlerin veritabanı burada DEĞİL: postgres-init-tests.sql'de ve
--- yalnızca compose onu mount ettiği için kuruluyor. Üretime giden kurulum, test
+-- yalnızca compose onu mount ettiği için kuruluyor. Canlıya giden kurulum, test
 -- için var olan bir veritabanını açmamalı.
 --
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve

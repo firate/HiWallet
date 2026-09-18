@@ -67,9 +67,9 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
 | bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | Idempotent      |
 | bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | Idempotent      |
-| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **üretimde YOK**                      | —               |
+| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **canlıda YOK**                      | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
-| stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **üretimde YOK**                    | —               |
+| stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **canlıda YOK**                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 

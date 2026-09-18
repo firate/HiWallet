@@ -230,7 +230,7 @@ BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-
 ├── Application/               -- BankCallbackSignature, BankSecrets, BankCallbackWriter
 └── Setup/
 
-fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTINDA DEĞİL
+fakes/Bank.Fake/               -- BANKANIN YERİNDE; canlıda YOK, `src/` ALTINDA DEĞİL
 ├── Api/Controllers/           -- TransfersController, ScenariosController
 ├── Api/Requests/
 ├── Api/Responses/
@@ -241,14 +241,14 @@ fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTIN
 │   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
 └── Setup/
 
-fakes/Stripe.Fake/             -- KART SAĞLAYICISI; üretimde YOK, veritabanı YOK
+fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı YOK
 └── Api/Controllers/           -- TopupsController (Fakes.Core'dan türüyor)
 ```
 
-### `fakes/` — üretimde olmayan servisler
+### `fakes/` — canlıda olmayan servisler
 
 **Sahte servisler `src/` altında DEĞİL, kökte ayrı bir klasörde.** Sınır dizin
-seviyesinde görünüyor: üretimde deploy edilen hiçbir şey `fakes/`'ten çıkmıyor.
+seviyesinde görünüyor: canlıda deploy edilen hiçbir şey `fakes/`'ten çıkmıyor.
 
 ```
 fakes/
@@ -286,7 +286,7 @@ kendi kurulum metodu ve veritabanı hiç yok.
 
 **`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
 duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
-testlerde koşuyor ama üretimde de koşacak — son ek almıyor. `Bank.Fake` üretimde
+testlerde koşuyor ama canlıda da koşacak — son ek almıyor. `Bank.Fake` canlıda
 silinecek, alıyor.
 
 `BankAdapter` ile `BankWebhook` ayrı klasörler çünkü ayrı deployable'lar: birinin

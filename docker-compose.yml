@@ -23,7 +23,7 @@
 #
 # Son ekin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor"
 # (decisions.md madde 35). bank-adapter da bugün yalnızca burada koşuyor ama
-# üretimde de koşacak; o yüzden son ek almıyor.
+# canlıda da koşacak; o yüzden son ek almıyor.
 #
 # İki çift ayrı deployable ama tek kod tabanı:
 #   wallet-api + wallet-consumer  → WalletService.Core
@@ -86,7 +86,7 @@ services:
       # çalıştırıyor, script iki kez koşardı (ikincisinde parola değişkenleri
       # tanımsız olduğu için hata vererek).
       - ./docker/postgres-init.sql:/opt/hiwallet/postgres-init.sql:ro
-      # Integration testlerin veritabanı, AYRI dosyada. Üretim kurulumunda bu
+      # Integration testlerin veritabanı, AYRI dosyada. Canlı kurulumunda bu
       # satır olmaz ve init betiği dosyayı bulamayıp atlar.
       - ./docker/postgres-init-tests.sql:/opt/hiwallet/postgres-init-tests.sql:ro
       - postgres-data:/var/lib/postgresql/data
@@ -98,7 +98,7 @@ services:
       # yalnızca ping atıyor ve init bitmeden "hazır" diyebiliyor. Gerçek bir sorgu
       # hem sunucuyu hem veritabanının VAR OLDUĞUNU doğruluyor. Uygulama
       # kurulumunun SONUNCU veritabanı soruluyor; test veritabanı bilerek değil,
-      # üretimde o dosya mount edilmiyor.
+      # canlıda o dosya mount edilmiyor.
       test: ["CMD-SHELL", "psql -U postgres -d hiwallet_bank -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 2s
       timeout: 3s
@@ -297,7 +297,7 @@ services:
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
-      # Job aralıkları. Varsayılanlar üretim değerleri; .env'den kısaltmak yalnızca
+      # Job aralıkları. Varsayılanlar canlı değerleri; .env'den kısaltmak yalnızca
       # ilk turu gözle görmek için. İlk tur BEKLEMEDEN koşmuyor (ScheduledJob) —
       # kısaltılmazsa mutabakatı görmek için altı saat beklemek gerekirdi.
       Jobs__Reconciliation__Interval: ${JOBS_RECONCILIATION_INTERVAL:-06:00:00}
@@ -361,7 +361,7 @@ services:
     # gider. Alıcı taraf deduplike ediyor ama süre tanımak nadirleştiriyor.
     stop_grace_period: 20s
 
-  # BİZİM KODUMUZ, üretimde de koşuyor (decisions.md madde 35).
+  # BİZİM KODUMUZ, canlıda da koşuyor (decisions.md madde 35).
   #
   # INGRESS'İ YOK: komutu kuyruktan alıyor, bankayı kendisi arıyor. ports tanımı
   # yalnızca health check ucu için ve host'a AÇILMIYOR.
@@ -392,7 +392,7 @@ services:
       Bank__BaseUrl: http://bank-fake:8080
       # Mutabakat taraması KAPATILAMAZ, yalnızca aralığı ayarlanır. Compose'da
       # kısa: callback hattını elle bozup taramanın topladığını görebilmek için.
-      # Üretim varsayılanı 4 saat (appsettings.json).
+      # Canlı varsayılanı 4 saat (appsettings.json).
       Bank__Reconciliation__Interval: ${BANK_RECONCILIATION_INTERVAL:-00:01:00}
       Bank__Reconciliation__StaleAfter: ${BANK_RECONCILIATION_STALE_AFTER:-00:00:30}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -410,9 +410,9 @@ services:
       start_period: 10s
     stop_grace_period: 20s
 
-  # BİZİM KODUMUZ, üretimde de koşuyor. Bankanın bizi çağırdığı uç.
+  # BİZİM KODUMUZ, canlıda da koşuyor. Bankanın bizi çağırdığı uç.
   #
-  # AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR; bank-adapter'ın yok (madde 28). Üretimde
+  # AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR; bank-adapter'ın yok (madde 28). Canlıda
   # yalnızca bankanın IP bloklarına açılır — o kısıt proxy'nin işi, tıpkı
   # topup-webhook'ta olduğu gibi.
   #

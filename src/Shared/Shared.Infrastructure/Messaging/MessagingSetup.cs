@@ -8,7 +8,7 @@ public static class MessagingSetup
 {
     /// <param name="clientName">
     /// Broker'ın yönetim arayüzünde görünecek ad. Her servis kendi adını verir;
-    /// "bu bağlantıyı kim açtı" sorusu üretimde ilk sorulan şey.
+    /// "bu bağlantıyı kim açtı" sorusu canlıda ilk sorulan şey.
     /// </param>
     public static IServiceCollection AddHiWalletMessaging(
         this IServiceCollection services, IConfiguration configuration, string clientName)

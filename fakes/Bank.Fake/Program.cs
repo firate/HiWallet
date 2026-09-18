@@ -9,7 +9,7 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 
 // BANKANIN YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 //
-// Üretimde YOK: yerine gerçek bankanın kendi ucu geçiyor ve bu proje siliniyor.
+// Canlıda YOK: yerine gerçek bankanın kendi ucu geçiyor ve bu proje siliniyor.
 // Bizim tarafımız `bank-adapter`; ayrımın ölçütü "test amaçlı mı" değil, "başka bir
 // kurumun yerine mi duruyor".
 //

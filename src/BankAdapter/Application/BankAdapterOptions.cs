@@ -8,7 +8,7 @@ public sealed class BankAdapterOptions
     public const string SectionName = "Bank";
 
     /// <summary>
-    /// Bankanın API kökü. Bugün <c>Bank.Fake</c>'e bakıyor; üretimde bankanın
+    /// Bankanın API kökü. Bugün <c>Bank.Fake</c>'e bakıyor; canlıda bankanın
     /// kendi adresi. Adaptör kodunda hiçbir değişiklik gerekmiyor — sahtelik
     /// tamamen bu değerde.
     /// </summary>

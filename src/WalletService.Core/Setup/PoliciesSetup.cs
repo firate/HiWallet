@@ -57,7 +57,7 @@ public static class PoliciesSetup
         // Transfer tarafındaki "tarifesi tanımlı olmayan tip serbest" kuralı burada
         // geçerli değil: orada tip başına tarife var ve bazılarının olmaması normal,
         // burada tek tarife var ve yokluğu yapılandırma hatasıdır. Sessizce
-        // düşseydi üretimde her çekim komisyonsuz ve limitsiz işlenirdi.
+        // düşseydi canlıda her çekim komisyonsuz ve limitsiz işlenirdi.
         if (!section.GetChildren().Any())
         {
             throw new InvalidOperationException(

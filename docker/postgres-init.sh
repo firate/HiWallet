@@ -4,7 +4,7 @@
 # parola değişkenleri tanımsız olacağı için hata vererek. O yüzden .sql dosyaları
 # dizin DIŞINDA duruyor ve yalnızca buradan çağrılıyor.
 #
-# İKİ dosya var: uygulamanınki (roller ve veritabanları, üretimde de karşılığı
+# İKİ dosya var: uygulamanınki (roller ve veritabanları, canlıda da karşılığı
 # koşar) ve testlerinki (yalnızca hiwallet_schema_check). İkincisi MOUNT EDİLMİŞSE
 # koşuyor; edilmemişse atlanıyor. Üretim kurulumu böylece test veritabanını hiç
 # görmüyor ve bunun için ayrı bir bayrağa da gerek kalmıyor.

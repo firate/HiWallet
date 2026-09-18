@@ -3,7 +3,7 @@ using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 
-// BANKANIN BİZİ ÇAĞIRDIĞI UÇ — bizim kodumuz, üretimde de koşuyor
+// BANKANIN BİZİ ÇAĞIRDIĞI UÇ — bizim kodumuz, canlıda da koşuyor
 // (decisions.md madde 35).
 //
 // AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR. `bank-adapter`'ın hiç ingress'i yok;

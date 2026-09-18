@@ -5,7 +5,7 @@ using Npgsql;
 namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
-/// topup-webhook'un veritabanı. Üretimde ayrı bir veritabanı (<c>hiwallet_topup</c>);
+/// topup-webhook'un veritabanı. Canlıda ayrı bir veritabanı (<c>hiwallet_topup</c>);
 /// testte aynı sunucuda AYRI BİR SCHEMA — sınır korunuyor (iki context birbirinin
 /// tablosunu görmüyor) ama koşu ikinci bir veritabanı kurmayı gerektirmiyor.
 /// </summary>

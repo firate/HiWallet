@@ -3,7 +3,7 @@ using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 
-// BANKAYA BAKAN ADAPTÖR — BİZİM KODUMUZ, üretimde de koşuyor (decisions.md madde 35).
+// BANKAYA BAKAN ADAPTÖR — BİZİM KODUMUZ, canlıda da koşuyor (decisions.md madde 35).
 //
 // Sahte olan taraf `Bank.Fake`; burada sahtelik yalnızca `Bank:BaseUrl` değerinde.
 // Gerçek bankaya geçerken bu projede tek satır değişmiyor.

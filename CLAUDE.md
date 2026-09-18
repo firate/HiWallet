@@ -92,7 +92,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `topup-webhook` onu görmez.
 - `wallet-api`'nin RabbitMQ bağımlılığı YOK ve eklenmez.
 - **`.Fake` son eki yalnızca BAŞKA BİR KURUMUN yerine duran servise konur**
-  (`decisions.md` madde 35). Kendi yazdığımız ve üretimde de koşacak servis normal ad
+  (`decisions.md` madde 35). Kendi yazdığımız ve canlıda da koşacak servis normal ad
   alır — bugün yalnızca testte koşuyor olması son ek sebebi DEĞİL. `bank-adapter`
   bizim, son ek almaz; `Bank.Fake` bankanın API'sinin yerine duruyor, alır.
 
@@ -178,7 +178,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 
 **Banka entegrasyonu** (`decisions.md` madde 35)
 - Üç deployable: `bank-adapter` ingress'siz, `bank-webhook` IP kısıtlı, `Bank.Fake`
-  bankanın API'sinin yerinde durur (üretimde YOK). İlk ikisi bizim ve üretimde koşar;
+  bankanın API'sinin yerinde durur (canlıda YOK). İlk ikisi bizim ve canlıda koşar;
   ortak kütüphane `BankIntegration.Core` üstündeler. Adaptör bankayı HTTP ile çağırır —
   banka RabbitMQ DİNLEMEZ, öyle modellenmez.
 - Transfer sonucu SENKRON DEĞİL. Adaptör çağrıyı yapar, `bank_transfers` satırını

@@ -24,7 +24,7 @@ public static class OpenApiSetup
     }
 
     /// <summary>
-    /// Development kapısı BURADA, çağıran tarafta değil. Üretimde API yüzeyinin
+    /// Development kapısı BURADA, çağıran tarafta değil. Canlıda API yüzeyinin
     /// şemasını yayınlamak saldırgana harita vermek demek; kapıyı her serviste tekrar
     /// yazmak, bir gün birinde unutulması demekti. Unutulduğunda da hiçbir test
     /// kırılmaz, yalnızca uç sessizce açık kalır.

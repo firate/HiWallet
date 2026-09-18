@@ -12,7 +12,7 @@ namespace HiWallet.IntegrationTests.Baseline;
 /// İki şey sınanıyor: doküman GERÇEKTEN üretiliyor mu (üreteç değişti, Swashbuckle
 /// gitti) ve Development kapısı gerçekten kapanıyor mu. İkincisi asıl önemli olan —
 /// kapı <c>MapHiWalletOpenApi</c>'nin içinde ve unutulduğunda hiçbir şey kırılmaz,
-/// yalnızca üretimde API yüzeyinin şeması sessizce yayınlanır.
+/// yalnızca canlıda API yüzeyinin şeması sessizce yayınlanır.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime

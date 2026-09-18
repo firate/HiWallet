@@ -1153,8 +1153,8 @@ Ayrıca şunlar da gereksizleşirdi: `DebitForWithdrawal`/`WithdrawalDebited` ve
    kendisi; tek veritabanına çökmüş bir saga deseni göstermiyor.
 
 **Dürüst olmak gerekirse** ilk iki gerekçe bugün gerçek bir ihtiyaç değil: projede ne KYC
-var ne ikinci sağlayıcı, banka da sahte. Bugünkü ağırlık üçüncü maddede. Üretim
-sistemi tasarlanıyor ve bu üç koşulun hiçbiri yoksa **alternatif tercih edilmeli.**
+var ne ikinci sağlayıcı, banka da sahte. Bugünkü ağırlık üçüncü maddede. Canlıya çıkacak bir sistem
+tasarlanıyor ve bu üç koşulun hiçbiri yoksa **alternatif tercih edilmeli.**
 
 **Bedelini kim ödüyor.** Ayrımın faturası tek kalemde toplanıyor: iki veritabanı
 arasında ayrışma ihtimali. Karşılığı da tek: takılmış saga taraması. O tarama
@@ -1270,12 +1270,12 @@ Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
 
 ---
 
-## 35. Banka entegrasyonu üretim şeklinde: adaptör ayrı, sonuç asenkron
+## 35. Banka entegrasyonu canlıdaki şekliyle: adaptör ayrı, sonuç asenkron
 
 **Karar.** Banka entegrasyonu üç deployable'a bölünmüş durumda. Öncesinde tek bir
 `BankService.Fake` vardı ve iki ayrı rolü birden taşıyordu:
 
-| deployable | ingress | kimin | üretimde | sorumluluk |
+| deployable | ingress | kimin | canlıda | sorumluluk |
 | --- | --- | --- | --- | --- |
 | `bank-adapter` | **yok** | bizim | deploy edilir | komutu tüketir, bankayı HTTP ile çağırır, mutabakat taraması koşar, cevapları yayınlar |
 | `bank-webhook` | **IP kısıtlı** | bizim | deploy edilir | bankanın callback'ini doğrular, inbox'a yazar, `202` |
@@ -1292,7 +1292,7 @@ Ve transfer sonucu artık **senkron dönmüyor**: adaptör bankayı çağırıp 
 *Birincisi, karşı taraf broker dinliyordu.* Tek uygulama RabbitMQ'dan `StartBankTransfer`
 tüketiyordu. Hiçbir banka müşterisinin broker'ına abone olmaz; entegrasyon her zaman bizden
 onlara giden bir çağrıdır. Bu haliyle "bankaya bağlanmak" diye bir kod yolu hiç yok —
-üretime geçerken yazılacak kısım, bugün gösterilmeyen kısım.
+canlıya geçerken yazılacak kısım, bugün gösterilmeyen kısım.
 
 *İkincisi, sonuç anında dönüyordu.* Handler transferi yapıp cevabı aynı teslimde
 yayınlıyordu, saga `bank_transfer_pending`'den anında çıkıyordu. Gerçek havalede çağrı "aldım" der, kesin
@@ -1300,16 +1300,16 @@ sonuç dakikalar sonra ayrı bir kanaldan gelir. O haliyle `bank_transfer_pendin
 fiilen ölü bir durumdu ve **takılmış saga taraması (madde 33) hiç iş yapmıyordu** —
 asılı kalabilen bir pencere yoktu.
 
-**Fake son ekinin anlamı.** Kendi yazdığımız ve üretimde de koşacak servis normal ad alır.
+**Fake son ekinin anlamı.** Kendi yazdığımız ve canlıda da koşacak servis normal ad alır.
 `.Fake` yalnızca **başka bir kurumun bize erişim vermediği için taklit ettiğimiz** servise
 konur. `bank-adapter` bizim, son ek almaz; `Bank.Fake` bankanın yerine duruyor, alır.
 Bu ölçüt "test amaçlı mı" değil — `bank-adapter` da bugün yalnızca testte koşuyor ama
-üretimde de koşacak.
+canlıda da koşacak.
 
 Kurum adı yeni değil: `bank-fake` zaten nostro'nun sağlayıcısı ve `topup-webhook`'ta
 kayıtlı bir webhook kaynağı. Sahte servis o kurumun API'si, ikinci bir kurum değil.
 
-**Sahte servisler `src/` altında DEĞİL, kökteki `fakes/` klasöründe.** Üretimde
+**Sahte servisler `src/` altında DEĞİL, kökteki `fakes/` klasöründe.** Canlıda
 deploy edilen hiçbir şey oradan çıkmıyor ve bu dizin yerleşiminden okunuyor.
 
 Kural derleme zamanında zorlanıyor: `src/Directory.Build.targets` içindeki `HIW001`

@@ -16,7 +16,7 @@ namespace HiWallet.IntegrationTests.Withdrawals;
 
 /// <summary>
 /// <b>Zincirin tamamı.</b> Üç deployable ayrı ayrı ayağa kalkıyor ve aralarında
-/// yalnızca broker var — üretimdeki gibi:
+/// yalnızca broker var — canlıdaki gibi:
 ///
 /// <code>
 ///   POST /v1/withdrawals → orchestrator → outbox → relay

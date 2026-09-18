@@ -44,7 +44,7 @@ Bir de **bizim olmayan iki** uygulama var:
 | `bank-fake` | bankamız | para girişi **ve** çıkışı; hafızası bellekte, veritabanı yok |
 | `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
 
-İkisi de üretimde yok — yerlerine kurumların kendi uçları geçiyor. `.Fake` son ekinin
+İkisi de canlıda yok — yerlerine kurumların kendi uçları geçiyor. `.Fake` son ekinin
 ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor" (`decisions.md`
 madde 35).
 
@@ -52,7 +52,7 @@ madde 35).
 bildiriyor hem giden transferi kabul ediyor. Ledger'da da öyle — `clearing/bank-fake`
 iki yönde de hareket ediyor. Stripe'ın `nostro`'su yok, çünkü nostro bir banka hesabı.
 
-Kodları da `src/` altında değil, kökteki **`fakes/`** klasöründe: üretimde deploy
+Kodları da `src/` altında değil, kökteki **`fakes/`** klasöründe: canlıda deploy
 edilen hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme hatası
 (`HIW001`) — kural yorumda değil, derleyicide.
 
@@ -125,9 +125,9 @@ paralel kalkar; hiçbiri onu BEKLEMEZ.
 curl http://localhost:8091/health/ready   # wallet-api
 curl http://localhost:8092/health/ready   # topup-webhook
 curl http://localhost:8093/health/ready   # withdrawal-orchestrator
-curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, üretimde yok)
+curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8095/health/ready   # bank-webhook
-curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, üretimde yok)
+curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, canlıda yok)
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
@@ -319,7 +319,7 @@ Integration testler bir Postgres sunucusu ister; bağlantı
 `ConnectionStrings__IntegrationTests`'ten gelir. Her koşu kendi schema'sını açar,
 migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyor, Docker
 gerekmiyor. topup-webhook, withdrawal-orchestrator, banka entegrasyonu ve sahte banka için ayrı schema'lar
-açılıyor: üretimdeki ayrı veritabanı sınırları testte de korunuyor, servisler
+açılıyor: canlıdaki ayrı veritabanı sınırları testte de korunuyor, servisler
 birbirinin tablosunu göremiyor.
 
 Uçtan uca testler ayrıca bir RabbitMQ ister (`RabbitMq__*`). Top-up hattı bir de
@@ -402,6 +402,6 @@ olsa bile çakışıyor (`decisions.md` madde 23).
 
 MIT — [LICENSE](LICENSE).
 
-Bu bir **referans uygulamasıdır**, üretime hazır bir e-para sistemi değil. Yukarıdaki
-bilinçli sınırlamalar okunmadan üretim amacıyla kullanılmamalı. `stripe-fake` ve
+Bu bir **referans uygulamasıdır**, canlıya çıkmaya hazır bir e-para sistemi değil. Yukarıdaki
+bilinçli sınırlamalar okunmadan canlıda kullanılmamalı. `stripe-fake` ve
 `bank-fake` yerel simülatörlerdir; hiçbir ödeme sağlayıcısıyla ilişkisi yoktur.

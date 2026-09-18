@@ -30,7 +30,7 @@ flowchart LR
         adapter["<b>bank-adapter</b><br/>bankayı arar, sonucu yayınlar"]
     end
 
-    subgraph outside["BİZİM DEĞİL — üretimde yok"]
+    subgraph outside["BİZİM DEĞİL — canlıda yok"]
         bank["<b>bank-fake</b><br/>bankanın API'si"]
     end
 
@@ -82,7 +82,7 @@ veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga tarama
 
 **Banka RabbitMQ dinlemiyor** ve bu diyagramdaki en önemli ayrıntı. `bank-adapter`
 onu HTTP ile arıyor, banka da sonucu `bank-webhook`'a callback ile bildiriyor —
-gerçek bir entegrasyonun şekli bu. `bank-fake` üretimde silinecek tek kutu; yerine
+gerçek bir entegrasyonun şekli bu. `bank-fake` canlıda silinecek tek kutu; yerine
 bankanın kendi ucu geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
 
 `bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
@@ -119,7 +119,7 @@ backend'in olması onu ilgilendirmez. Bugün o katman yok.
 
 **Ya da saga wallet'ın içine taşınır** — madde 33'ün "elenen alternatif"i. O zaman
 `/v1/withdrawals` de `wallet-api`'ye düşer ve ikinci yüzey diye bir şey kalmaz. Madde
-33 bu alternatifi "daha basit" diye niteliyor ve üretim sistemi tasarlanıyorsa
+33 bu alternatifi "daha basit" diye niteliyor ve canlıya çıkacak bir sistem tasarlanıyorsa
 **tercih edilmesi gerektiğini** açıkça söylüyor. Burada seçilmemesinin sebebi tek:
 bu bir referans uygulaması ve dağıtık saga'yı gerçekten dağıtık kurmak çıktının
 kendisi.

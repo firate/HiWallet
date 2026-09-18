@@ -1,9 +1,9 @@
 -- INTEGRATION TESTLERİN veritabanı. Uygulamanın kurulumundan (postgres-init.sql)
--- AYRI dosya çünkü ayrı bir amaca hizmet ediyor: üretime giden kurulum, yalnızca
+-- AYRI dosya çünkü ayrı bir amaca hizmet ediyor: canlıya giden kurulum, yalnızca
 -- testler için var olan bir veritabanını açmamalı.
 --
 -- Bu dosya compose'da mount edildiği için koşuyor. Mount edilmezse init betiği
--- onu sessizce atlıyor — üretimde beklenen davranış bu.
+-- onu sessizce atlıyor — canlıda beklenen davranış bu.
 --
 -- Her test koşusu burada kendi schema'sını açıyor, migration'ları uyguluyor ve
 -- sonunda düşürüyor (ConnectionStrings__IntegrationTests). Uygulama

@@ -118,7 +118,7 @@ servislerin veritabanı yok.
 Beşinci bir veritabanı daha var ama AYRI dosyadan geliyor:
 `postgres-init-tests.sql` yalnızca `hiwallet_schema_check`'i kuruyor ve init
 betiği o dosyayı ancak MOUNT EDİLMİŞSE koşuyor. Integration testler her koşuda
-orada kendi schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Üretime
+orada kendi schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Canlıya
 giden kurulumda bu dosya mount edilmez, dolayısıyla test veritabanı da açılmaz.
 
 Postgres healthcheck'i `hiwallet_bank`'a soruyor: uygulama kurulumunun sonuncusu o.
@@ -543,7 +543,7 @@ Faturada iki bacak: `provider_expense -tutar`, `nostro +tutar`.
 #### C. Zamanlanmış işlerin ilk turu
 
 **İlk tur beklemeden koşmuyor** (`ScheduledJob`): dağıtımda ayağa kalkan her instance
-aynı anda tarama başlatmasın diye. Bunun bedeli, üretim aralıklarıyla mutabakatı
+aynı anda tarama başlatmasın diye. Bunun bedeli, canlı aralıklarıyla mutabakatı
 görmek için altı saat beklemek. Aralıklar bu yüzden `.env`'den kısaltılabiliyor:
 
 ```bash
@@ -564,7 +564,7 @@ Beklenen: her job önce kaydını basıyor (`... her 00:00:30 sürede bir koşac
 sonra ilk turunu koşuyor. Temiz bir sistemde mutabakat `Mutabakat temiz: bulgu yok.`
 diyor, takılmış saga taraması ise hiçbir şey basmıyor — bulgu yoksa log da yok.
 
-Bittiğinde üç satırı `.env`'den sil ve servisleri yeniden başlat; üretim aralıkları
+Bittiğinde üç satırı `.env`'den sil ve servisleri yeniden başlat; canlı aralıkları
 geri gelsin.
 
 ### Hâlâ doğrulanmadı

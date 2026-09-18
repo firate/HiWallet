@@ -56,7 +56,7 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-// Development kapısı MapHiWalletOpenApi'nin içinde; üretimde iki uç da yok.
+// Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki uç da yok.
 app.MapHiWalletOpenApi();
 
 app.MapHiWalletHealthChecks();

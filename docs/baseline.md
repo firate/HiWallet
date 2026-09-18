@@ -14,7 +14,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - `appsettings.json` + environment variable override.
 - Secret koda gömülmez; connection string vb. env'den gelir.
 - Startup'ta basit config validation: kritik config eksikse uygulama ayağa kalkmadan patlar (fail fast).
-- **Kapsam:** Vault/secret manager yok. `.env` + Docker Compose yeterli. (Üretimde böyle yapılmaz: local'de User Secrets, prod'da Vault/secret manager; `.gitignore` + gitleaks ile sızıntı koruması.)
+- **Kapsam:** Vault/secret manager yok. `.env` + Docker Compose yeterli. (Canlıda böyle yapılmaz: local'de User Secrets, prod'da Vault/secret manager; `.gitignore` + gitleaks ile sızıntı koruması.)
 
 ### 2. Structured Logging
 
@@ -72,7 +72,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
   üreteci. Swashbuckle KULLANILMAZ: .NET 9'dan beri şablonlardan da çıkarıldı ve aynı
   işi üçüncü parti bir pakete yaptırmanın karşılığı yok.
 - Arayüz Scalar. Üreteç yalnızca JSON dokümanı veriyor, UI ayrı bir bağımlılık.
-- İkisi de YALNIZCA Development'ta açılır. Üretimde API yüzeyinin şemasını yayınlamak
+- İkisi de YALNIZCA Development'ta açılır. Canlıda API yüzeyinin şemasını yayınlamak
   saldırgana harita vermektir; kapı varsayılan olarak kapalı.
 - Tutarlı response yapısı (zarf var ya da bilinçli olarak yok — ama tutarlı).
 - **Kapsam:** İstemcisi olan iki serviste (`wallet-api`, `withdrawal-orchestrator`)

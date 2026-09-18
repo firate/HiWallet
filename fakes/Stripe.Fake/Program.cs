@@ -7,7 +7,7 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 
 // KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 //
-// Üretimde YOK. Yalnızca PARA GİRİŞİ yapıyor: komutla topup-webhook'a imzalı
+// Canlıda YOK. Yalnızca PARA GİRİŞİ yapıyor: komutla topup-webhook'a imzalı
 // webhook gönderiyor. Stripe'tan para çıkmadığı için transfer ucu da yok,
 // callback alıcısı da.
 //

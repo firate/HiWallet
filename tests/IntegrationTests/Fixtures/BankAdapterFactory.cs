@@ -17,11 +17,11 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// başlıklar, durum kodları) yine de koşuyor.
 /// </param>
 /// <param name="reconciliationInterval">
-/// Testte kısa. Üretimde saatler mertebesinde — callback asıl yol, tarama kontrol
+/// Testte kısa. Canlıda saatler mertebesinde — callback asıl yol, tarama kontrol
 /// (decisions.md madde 35).
 /// </param>
 /// <param name="staleAfter">
-/// Testte sıfıra yakın: tarama ilk turda bekleyen transferi görsün. Üretimde
+/// Testte sıfıra yakın: tarama ilk turda bekleyen transferi görsün. Canlıda
 /// dakikalar mertebesinde, çünkü callback'in gelmesine zaman tanınması gerekiyor.
 /// </param>
 public sealed class BankAdapterFactory(

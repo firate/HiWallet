@@ -349,7 +349,7 @@ Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 
 ## bank-fake (BİZİM DEĞİL) — `:8094`
 
-Bankanın API'sinin yerinde duran servis; üretimde yok (`decisions.md` madde 35).
+Bankanın API'sinin yerinde duran servis; canlıda yok (`decisions.md` madde 35).
 Senaryo ucu gerçek bir bankada bulunmaz — varlık sebebi "banka reddetti" durumunun
 denenebilmesi.
 
@@ -460,7 +460,7 @@ bildirilmiyor.
 
 ## stripe-fake (BİZİM DEĞİL) — `:8096`
 
-Kart sağlayıcısının yerinde duran servis; üretimde yok. **Tek ucu var** — Stripe'tan
+Kart sağlayıcısının yerinde duran servis; canlıda yok. **Tek ucu var** — Stripe'tan
 para çıkmadığı için ne transfer ucu var ne callback alıcısı.
 
 Gerçek Stripe'ta bu uç YOKTUR: webhook müşteri ödeme yaptığında gelir, sen
@@ -504,7 +504,7 @@ banka hem gelen havaleyi bildiriyor hem giden transferi kabul ediyor.
 
 ## bank-webhook — `:8095`
 
-Bankanın transfer sonucunu bildirdiği uç. **Bizim kodumuz**, üretimde de koşuyor;
+Bankanın transfer sonucunu bildirdiği uç. **Bizim kodumuz**, canlıda da koşuyor;
 `bank-adapter`'dan ayrı bir deployable çünkü ingress'i var (`decisions.md` madde 28).
 
 Elle çağırman gerekmiyor — `bank-fake` çağırıyor. İmza `topup-webhook`'unkiyle aynı
@@ -597,9 +597,9 @@ orijinal işlemin bacakları okunup negatifleniyor.
 curl -s localhost:8091/health/ready   # wallet-api      — yalnızca postgres
 curl -s localhost:8092/health/ready   # topup-webhook
 curl -s localhost:8093/health/ready   # orchestrator    — postgres + rabbitmq
-curl -s localhost:8094/health/ready   # bank-fake (üretimde yok)
+curl -s localhost:8094/health/ready   # bank-fake (canlıda yok)
 curl -s localhost:8095/health/ready   # bank-webhook
-curl -s localhost:8096/health/ready   # stripe-fake (üretimde yok)
+curl -s localhost:8096/health/ready   # stripe-fake (canlıda yok)
 ```
 
 `wallet-api`'nin çıktısında `rabbitmq` **olmamalı** — o uygulamanın broker'a hiç işi
