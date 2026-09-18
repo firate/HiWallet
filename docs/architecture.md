@@ -85,7 +85,6 @@ veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga tarama
 **Bankayla iletişim HTTP.** Orchestrator `StartBankTransfer` komutunu RabbitMQ'ya
 yazıyor (komutun ayrıntısı bölüm 3'te). `bank-adapter` komutu kuyruktan okuyor ve
 bankayı HTTP ile arıyor. Banka sonucu `bank-webhook`'a HTTP callback ile bildiriyor.
-RabbitMQ bizim servislerimiz arasında çalışıyor.
 
 Canlıda silinen servisler `bank-fake` ile `stripe-fake`; yerlerine kurumların kendi
 endpoint'leri geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
