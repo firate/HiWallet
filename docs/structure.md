@@ -107,7 +107,8 @@ WalletService.Core/
 │   ├── Balances/              -- cüzdan sorgulama (bakiye projeksiyondan okunur)
 │   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
 │   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
-│   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
+│   ├── Settlements/           -- ProcessSettlementHandler, ProcessInvoiceHandler
+│   └── Abstractions/          -- IClock
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
 │   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
@@ -122,11 +123,11 @@ WalletService.Core/
 │   │   ├── WalletDbContext.cs
 │   │   ├── Configurations/    -- IEntityTypeConfiguration<T> başına bir dosya
 │   │   └── Migrations/        -- EF Core üretir, elle düzenlenmez
-│   ├── Providers/             -- IPaymentProvider'ın HTTP implementasyonu
-│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob
+│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob + ayarları
 └── Setup/
     ├── PersistenceSetup.cs    -- iki host da kullanıyor
-    └── PoliciesSetup.cs       -- iki host da kullanıyor
+    ├── PoliciesSetup.cs       -- iki host da kullanıyor
+    └── WalletJobsSetup.cs     -- job tipleri internal, kaydı burada
 ```
 
 Host'a özel kurulum Core'a GİRMEZ: rate limiting, ProblemDetails, model doğrulama

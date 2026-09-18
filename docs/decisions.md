@@ -1376,9 +1376,8 @@ kalıyor: adaptör başka bir process'teki belleği göremez, yani "senaryo ne d
 bakamaz.
 
 Bedeli bilerek kabul edildi: yeniden başlatmadan önce `pending` kalmış bir transferi
-banka artık tanımıyor, mutabakat taraması `404` alıyor ve o çekim kapanmıyor. Gerçek
-banka transferini unutmaz; bu davranış sahteye özgü. Sahte bankayı yeniden başlatırken
-bekleyen çekimler gözden çıkarılır.
+banka artık tanımıyor, mutabakat taraması `404` alıyor ve o çekim açık kalıyor. Gerçek
+banka transferini unutmaz; bu davranış sahteye özgü.
 
 **HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün request/response tipleri kendi
 içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o

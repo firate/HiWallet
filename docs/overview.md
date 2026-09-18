@@ -24,10 +24,11 @@ production kalitesinde.
 
 Sınırlı olması yalnızca **kapsamı ve dış bağımlılıkları** kısaltır, mimariyi değil:
 
-- Dış servisler simüle edilir (KYC `true` döner, fraud-check fake, Stripe/banka
-  `provider-fake`). Ama her fake bir **interface arkasında** durur (`IKycService`,
-  `IPaymentProvider`) — yarın gerçek implementasyon takılınca üst akış değişmez.
-  Fake bile production mimarisine uygun (geçici hack değil, interface'li stub).
+- Dış kurumların yerinde sahte servisler duruyor: `bank-fake` bankanın API'sinin,
+  `stripe-fake` kart sağlayıcısının (`fakes/` altında, `decisions.md` madde 35).
+  Aradaki sınır gerçek HTTP; `bank-adapter` bankaya `Bank__BaseUrl` ile bağlanıyor ve
+  canlıda o ayar kurumun kendi adresini gösteriyor. Sahte servislerin HTTP sözleşmesi
+  gerçeğinin şeklinde: transfer `202 pending` döner, sonuç callback ile gelir.
 - Kapsam daraltılır: tek para birimi, tek tenant, tek instance yeter.
 - Her katman "gösterilebilir en sade hali" ile alınır — ama varlığı ve doğru kurgusu görünür.
 
@@ -121,13 +122,14 @@ Limit ve komisyon kuralları çekirdeğin dışında bir **policy** bileşeninde
 Para sisteme dışarıdan girer. Tek adımlı olduğu için saga değil; idempotent consumer yeterli.
 
 ```
-Dış sağlayıcı (provider-fake)
+Dış sağlayıcı (`stripe-fake`, `bank-fake`)
   → topup-webhook:
        1. İmza doğrula (HMAC: paylaşılan secret ile payload imzalanır;
           sahte webhook'u engeller). Geçersiz → 401.
        2. DB transaction: inbox tablosuna yaz (dış event_id UNIQUE).
           Duplicate event_id → çakışmayı yakala, yine başarı say.
-       3. Commit başarılı → 200 dön. (200, ancak kalıcılık garanti olduktan SONRA.)
+       3. Commit başarılı → 202 dön. (202, ancak kalıcılık garanti olduktan SONRA;
+          decisions.md madde 29.)
   → relay (background worker):
        inbox'taki "unpublished" satırları RabbitMQ'ya publish eder
        (publisher confirms ile), sonra "published" işaretler.
@@ -150,7 +152,7 @@ X = çekilen tutar, k = müşteriden alınan komisyon (yoksa k = 0).
 [Initiated]
   → Girdi doğrulaması: IBAN mod-97 checksum'ı SINIRDA kontrol edilir (baseline.md
     madde 6). Geçersizse 400; saga başlamaz, bankaya request gitmez, ücret doğmaz.
-  → Limit/kural kontrolü (günlük çekim limiti, KYC vb.). Aşılırsa → [Rejected] (hiç para hareketi olmaz).
+  → Limit kontrolü (hesap bazında günlük çekim limiti). Aşılırsa → [Rejected] (hiç para hareketi olmaz).
   → wallet-service: cüzdandan X+k düş (lokal ACID)
        cüzdan -(X+k), clearing +X, revenue +k    (para "yolda", komisyon tahakkuk etti)
   → [Debited]
