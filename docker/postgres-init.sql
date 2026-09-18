@@ -57,7 +57,7 @@ CREATE DATABASE hiwallet_withdrawal OWNER withdrawal_app ENCODING 'UTF8';
 --
 -- İki uygulamanın aynı role bağlanması sınırı zayıflatmıyor: ikisi de AYNI veri
 -- sahibinin parçası (BankIntegration.Core) ve ayrılma sebepleri veri değil ağ
--- maruziyeti (decisions.md madde 28).
+-- erişim seviyesi (decisions.md madde 28).
 CREATE ROLE bank_app LOGIN PASSWORD :'bank_app_password';
 
 CREATE DATABASE hiwallet_bank OWNER bank_app ENCODING 'UTF8';

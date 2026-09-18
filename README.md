@@ -34,7 +34,7 @@ olduğu yere taşınmıyor.
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
 
-Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
+Ayrımın sebebi erişim seviyesi: banka webhook'u belirli IP bloklarına açılacak, cüzdan
 API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
 
 Bir de **bizim olmayan iki** uygulama var:
@@ -56,8 +56,8 @@ Kodları da `src/` altında değil, kökteki **`fakes/`** klasöründe: canlıda
 edilen hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme hatası
 (`HIW001`) — kural yorumda değil, derleyicide.
 
-Ölçüt iki yöne de işliyor: farklı maruziyet aynı process'te birleşmiyor, **aynı
-maruziyet de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
+Ölçüt iki yöne de işliyor: farklı erişim seviyesi aynı process'te birleşmiyor, **aynı
+erişim seviyesi de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
 top-up event'leri ve çekim komutları — çünkü ikisi de ingress'siz ve aynı ledger'a
 aynı kütüphaneyle yazıyor.
 

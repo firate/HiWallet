@@ -9,8 +9,8 @@ using HiWallet.Shared.Infrastructure.Observability;
 // Gerçek bankaya geçerken bu projede tek satır değişmiyor.
 //
 // INGRESS'İ YOK. Komutu kuyruktan alıyor, bankayı kendisi arıyor. Bankanın bizi
-// çağırdığı endpoint AYRI bir deployable (`bank-webhook`) — maruziyetleri farklı ve
-// farklı maruziyet aynı process'te birleşmiyor (madde 28).
+// çağırdığı endpoint AYRI bir deployable (`bank-webhook`) — erişim seviyeleri farklı ve
+// farklı erişim seviyesi aynı process'te birleşmiyor (madde 28).
 const string ServiceName = "hiwallet-bank-adapter";
 
 var builder = WebApplication.CreateBuilder(args);

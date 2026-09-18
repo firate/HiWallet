@@ -66,7 +66,7 @@ flowchart LR
 
 
 **Ayrım ölçütü erişim seviyesi, işlevsellik değil** (`decisions.md` madde 28). Farklı
-ağ maruziyeti aynı process'te birleşmiyor; aynı maruziyet de gereksiz bölünmüyor —
+erişim seviyesi aynı process'te birleşmiyor; aynı erişim seviyesi de gereksiz bölünmüyor —
 `wallet-consumer` hem top-up event'lerini hem çekim komutlarını hem settlement'ı
 dinliyor, üçü de ingress'siz ve aynı ledger'a yazıyor.
 
@@ -90,7 +90,7 @@ arasında.
 Canlıda silinen servisler `bank-fake` ile `stripe-fake`; yerlerine kurumların kendi
 endpoint'leri geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
 
-`bank-adapter` ile `bank-webhook` ayrı uygulamalar çünkü **maruziyetleri farklı**:
+`bank-adapter` ile `bank-webhook` ayrı uygulamalar çünkü **erişim seviyeleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
 `hiwallet_bank`; doğrudan çağrı yok.
 
@@ -106,8 +106,8 @@ Müşteriye dönük endpoint'ler iki uygulamaya dağılmış:
 | `/v1/accounts`, `/v1/wallets`, `/v1/transfers` | `wallet-api` |
 | `/v1/withdrawals` | `withdrawal-orchestrator` |
 
-Madde 28'in ölçütü erişim seviyesi ve **aynı maruziyet bölünmez** diyor. Bu ikisinin
-maruziyeti aynı: ikisi de public, ikisi de müşteriye dönük, ikisi de aynı istemciden
+Madde 28'in ölçütü erişim seviyesi ve **aynı erişim seviyesi bölünmez** diyor. Bu ikisinin
+erişim seviyesi aynı: ikisi de public, ikisi de müşteriye dönük, ikisi de aynı istemciden
 çağrılıyor. Kurala bakınca bölünmemeleri gerekirdi.
 
 **Bölünmelerinin sebebi madde 28 değil, madde 7.** Orchestrator'ın kendi veritabanı ve

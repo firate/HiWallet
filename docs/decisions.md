@@ -431,7 +431,7 @@ yok, saga "bekliyor" görünüyor, müşteri parasını göremiyor.
 
 **Wallet tarafındaki job'lar `wallet-consumer`'da.** Ayrı bir `wallet-jobs`
 deployable'ı AÇILMIYOR: madde 28'in ölçütü erişim seviyesi ve job'ların da ingress'i
-yok, aynı ledger'a aynı kütüphaneyle yazıyorlar. "Aynı maruziyet bölünmez" kuralı iki
+yok, aynı ledger'a aynı kütüphaneyle yazıyorlar. "Aynı erişim seviyesi bölünmez" kuralı iki
 yöne de işliyor. Consumer ölçeklendiğinde job'ın iki kez koşmasını engelleyen şey
 deployable ayrımı değil, advisory lock (5.1).
 
@@ -442,7 +442,7 @@ saga'da yeni bir alan ve wallet'a yeni bir komut demek. Aynı dalda yapmak, çal
 bir akışı yazılmamış bir akışın riskine bağlardı.
 
 **5.5'in giriş noktası `topup-webhook`.** Settlement de sağlayıcıdan gelen, imzalı,
-IP kısıtlı bir bildirim — top-up webhook'uyla aynı maruziyet. Yeni bir public endpoint
+IP kısıtlı bir bildirim — top-up webhook'uyla aynı erişim seviyesi. Yeni bir public endpoint
 açmak ya da wallet-api'ye sağlayıcı yüzeyi eklemek madde 28'i deler.
 
 ---
@@ -907,13 +907,13 @@ her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakal
 | `topup-webhook` | **IP kısıtlı** (sağlayıcı) | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 
-**Birincil gerekçe: farklı ağ maruziyeti aynı process'te olamaz.** Banka webhook'u
+**Birincil gerekçe: farklı erişim seviyesi aynı process'te olamaz.** Banka webhook'u
 belirli IP bloklarına açılacak, cüzdan API'si herkese. IP kısıtı process seviyesinde
 uygulanamaz, yalnızca deployable seviyesinde. Bu tek başına webhook'un ayrılmasını
 gerektiriyor — o zaten ayrıydı.
 
 **Tüketicinin ayrılma gerekçesi farklı.** Onun hiç ingress'i yok; mesajları kendisi
-çekiyor. Ama wallet-api'nin İÇİNDE koştuğu sürece o uygulamanın maruziyetini ve blast
+çekiyor. Ama wallet-api'nin İÇİNDE koştuğu sürece o uygulamanın erişim seviyesini ve blast
 radius'unu miras alıyordu: public ingress'i olan bir uygulamanın içinde ledger'a yazan
 bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen bir sürece taşındı.
 
@@ -927,8 +927,8 @@ bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen 
 - Tüketici tıkandığında kendi health check endpoint'i var; wallet-api'nin sağlıklı görünmesi durumu
   bitti.
 
-**Ölçüt iki yöne de işliyor.** Farklı maruziyet aynı process'te birleşmiyor; AYNI
-maruziyet de gereksiz yere bölünmüyor. `wallet-consumer` bugün iki kuyruk dinliyor —
+**Ölçüt iki yöne de işliyor.** Farklı erişim seviyesi aynı process'te birleşmiyor; AYNI
+erişim seviyesi de gereksiz yere bölünmüyor. `wallet-consumer` bugün iki kuyruk dinliyor —
 top-up event'leri ve withdrawal saga'sının komutları. İkisi de ingress'siz, ikisi de
 `hiwallet_wallet`'a aynı kütüphaneyle yazıyor; ayırmayı gerektiren hiçbir şey yok.
 Ayrı süreç açmanın gerekçeleri (bağımsız ölçekleme, biri çökerken diğerinin ayakta
@@ -1348,7 +1348,7 @@ saga `bank_transfer_pending`'de asılır ve müşteri parası clearing'de durur.
 seçimi çekim tarifesinde de yapıyor — eksik konfigürasyonla açılmaktansa açılmamak.
 
 **Callback endpoint'i AYRI DEPLOYABLE.** Bu, madde 28'in ölçütünün doğrudan sonucu ve ilk
-yazımda ölçüt TERS uygulanmıştı: ikisinin maruziyeti aynı değil. Callback alıcısının
+yazımda ölçüt TERS uygulanmıştı: ikisinin erişim seviyesi aynı değil. Callback alıcısının
 IP kısıtlı bir ingress'i var, tarama ve komut tüketicisinin hiç ingress'i yok — yalnızca
 dışarı çağrı yapıyorlar. Madde 28 `wallet-consumer`'ı `wallet-api`'den tam olarak bu
 ayrımla ayırmıştı.

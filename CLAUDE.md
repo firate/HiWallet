@@ -83,7 +83,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Ayrım ölçütü ERİŞİM SEVİYESİ (`decisions.md` madde 28): `wallet-api` public,
   `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz,
   `withdrawal-orchestrator` kendi sınırı ve kendi veritabanı (madde 7 ve 33).
-  Farklı ağ maruziyeti aynı process'te BİRLEŞTİRİLMEZ. Aynı maruziyet ise ayrı
+  Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı
   process'e BÖLÜNMEZ — `wallet-consumer` hem top-up event'lerini hem çekim
   komutlarını dinliyor, ikisi de ingress'siz ve aynı ledger'a yazıyor.
 - `wallet-api` ve `wallet-consumer` ortak kütüphane `WalletService.Core` üstünde.
