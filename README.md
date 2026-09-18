@@ -221,9 +221,9 @@ curl -X POST http://localhost:8091/v1/transfers \
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
 **Elle denemenin en kolay yolu:** Rider'da `fakes/akislar.http`,
-`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ
-üstten ortam seç (`homelab` / `local`), request'leri sırayla koş; kimlikler bir
-sonrakine kendiliğinden taşınıyor. Aşağıdaki `curl` örnekleri aynı işi yapıyor.
+`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ üstten
+ortamı seç, request'leri sırayla koş; kimlikler bir sonrakine kendiliğinden taşınıyor.
+Aşağıdaki `curl` örnekleri aynı işi yapıyor.
 
 **Top-up (dışarıdan para girişi).** En kolayı sahte sağlayıcıya söylemek — imzayı
 o hesaplıyor:

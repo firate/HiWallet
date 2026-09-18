@@ -258,7 +258,7 @@ fakes/
 ├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
 │   └── stripe-fake.http
 ├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
-└── http-client.env.json     -- Rider ortamları: homelab, local
+└── http-client.env.json     -- Rider ortamı: local
 ```
 
 `.http` dosyaları elle deneme için: senaryoyu kur, bizim tarafın tepkisini gör.

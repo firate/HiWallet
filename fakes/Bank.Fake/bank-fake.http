@@ -1,7 +1,7 @@
 # bank-fake — bankanın yerinde duran servis. ÜRETİMDE YOK.
 #
-# Rider'da sağ üstten ortamı seç: "homelab" ya da "local"
-# (fakes/http-client.env.json).
+# Rider'da sağ üstten ortamı seç (fakes/http-client.env.json). Depoda "local" var;
+# stack başka bir makinedeyse kendi ortamını http-client.private.env.json'a ekle.
 #
 # İki bölüm var:
 #   A. Bankanın kendisi: bank-adapter'ın konuştuğu endpoint'ler. Normalde sen

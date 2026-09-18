@@ -6,10 +6,8 @@ anlamak için; sözleşmenin kaynağı kod, bu dosya ona uyar.
 Response'lar compose'da koşan sistemden alındı (`localhost:8091-8096`). Kimlikler her
 koşuda değişir.
 
-**`localhost`, compose'un koştuğu makine demek.** Stack'i başka bir makinede
-kaldırdıysan bütün adreslerde onun adını kullan (`homelab:8091` gibi); `docker
-compose ps` ve `docker compose exec` ile başlayan komutlar da o makinede koşar,
-uzaktan çalışmaz.
+Adresler ve `docker compose` komutları stack'in koştuğu makineye ait; hepsi orada
+çalışır.
 
 ```bash
 set -a; . ./.env; set +a          # webhook secret'ları kabuğa gelsin

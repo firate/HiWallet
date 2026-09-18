@@ -1,7 +1,8 @@
 # Uçtan uca çekim akışları. Birden fazla servise dokunuyor: wallet-api,
 # stripe-fake, orchestrator, bank-fake.
 #
-# Rider'da sağ üstten ortamı seç: "homelab" ya da "local".
+# Rider'da sağ üstten ortamı seç. Depoda "local" var; stack başka bir makinedeyse
+# kendi ortamını http-client.private.env.json'a ekle (gitignore'da).
 # Request'leri SIRAYLA koş; kimlikler bir sonrakine otomatik taşınıyor.
 #
 # ÖNEMLİ — BANKA SENARYOSU ZAMANLAMASI
