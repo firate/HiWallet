@@ -454,7 +454,7 @@ services:
   # Host portu açık çünkü senaryo ucu dışarıdan çağrılıyor:
   #   POST /v1/scenarios {"clientReference":"<sagaId>","outcome":"Failure"}
   #
-  # RabbitMQ ayarı YOK: gerçek banka müşterisinin broker'ını dinlemez.
+  # RabbitMQ ayarı YOK: bankayla tek bağ HTTP.
   # Veritabanı da YOK: transferler ve senaryolar bellekte. Yeniden başlatınca
   # siliniyor; o anda pending olan çekimler kapanmaz, çünkü banka onları artık
   # tanımıyor.

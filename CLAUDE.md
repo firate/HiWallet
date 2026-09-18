@@ -179,8 +179,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 **Banka entegrasyonu** (`decisions.md` madde 35)
 - Üç deployable: `bank-adapter` ingress'siz, `bank-webhook` IP kısıtlı, `Bank.Fake`
   bankanın API'sinin yerinde durur (canlıda YOK). İlk ikisi bizim ve canlıda koşar;
-  ortak kütüphane `BankIntegration.Core` üstündeler. Adaptör bankayı HTTP ile çağırır —
-  banka RabbitMQ DİNLEMEZ, öyle modellenmez.
+  ortak kütüphane `BankIntegration.Core` üstündeler. Kuyruk BİZDE biter: komutu
+  adaptör tüketir, bankayı HTTP ile o çağırır.
 - Transfer sonucu SENKRON DEĞİL. Adaptör çağrıyı yapar, `bank_transfers` satırını
   `pending` yazar ve HİÇBİR ŞEY yayınlamaz; saga gerçekten `bank_transfer_pending`'de
   bekler. Kesin sonuç öğrenildiğinde cevap yayınlanır.

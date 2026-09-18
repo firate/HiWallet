@@ -13,9 +13,9 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 // Bizim tarafımız `bank-adapter`; ayrımın ölçütü "test amaçlı mı" değil, "başka bir
 // kurumun yerine mi duruyor".
 //
-// SINIRI GERÇEK TUTAN ŞEYLER: RabbitMQ'ya hiç bağlanmıyor (gerçek banka müşterisinin
-// broker'ını dinlemez), wallet'ı ve orchestrator'ı görmüyor, Shared.Contracts'a
-// referansı yok ve hafızası kendi process'inde.
+// SINIRI GERÇEK TUTAN ŞEYLER: RabbitMQ'ya hiç bağlanmıyor, wallet'ı ve
+// orchestrator'ı görmüyor, Shared.Contracts'a referansı yok ve hafızası kendi
+// process'inde.
 //
 // VERİTABANI YOK: transferler ve senaryolar bellekte, yeniden başlatınca siliniyor
 // (decisions.md madde 35). Elle ve testle denemek için var; geçmiş saklamıyor.

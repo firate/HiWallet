@@ -81,11 +81,11 @@ ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor
 **Orchestrator wallet veritabanına dokunmuyor.** Yalnızca komut gönderiyor. Bedeli iki
 veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga taraması (madde 33).
 
-**Banka RabbitMQ dinlemiyor** ve bu diyagramdaki en önemli ayrıntı. `bank-adapter`
-onu HTTP ile arıyor, banka da sonucu `bank-webhook`'a callback ile bildiriyor —
-gerçek bir entegrasyonun şekli bu. Canlıda silinen kutular `bank-fake` ile
-`stripe-fake`; yerlerine kurumların kendi endpoint'leri geçiyor ve adaptörün kodunda
-tek satır değişmiyor (madde 35).
+**Bankaya giden yol HTTP; kuyruk bizde bitiyor.** `StartBankTransfer` komutunu
+kuyruktan `bank-adapter` alıyor ve bankayı o arıyor. Banka sonucu `bank-webhook`'a
+callback ile bildiriyor. Canlıda silinen kutular `bank-fake` ile `stripe-fake`;
+yerlerine kurumların kendi endpoint'leri geçiyor ve adaptörün kodunda tek satır
+değişmiyor (madde 35).
 
 `bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
