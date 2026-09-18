@@ -193,7 +193,7 @@ sequenceDiagram
 
     B->>H: callback + HMAC
     H-->>B: 202 (inbox'a yazıldı)
-    Note over H,A: tek bağ veritabanı;<br/>relay adaptörde
+    Note over H,A: tek bağ veritabanı,<br/>relay adaptörde
 
     alt banka kabul etti
         A->>O: BankTransferSucceeded
