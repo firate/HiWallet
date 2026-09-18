@@ -596,7 +596,7 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SEC
 curl -s -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Paranın gerçekten geldiğini `psql` yerine uçtan görebilirsin — hat asenkron,
+Paranın gerçekten geldiğini `psql` yerine endpoint'ten görebilirsin — hat asenkron,
 birkaç saniye sürebilir:
 
 ```bash

@@ -147,7 +147,7 @@ curl -s localhost:8091/v1/wallets/$WALLET
 
 Bakiye `ledger_balances` projeksiyonundan okunur, `ledger_entries` toplanarak değil.
 
-**Sistem hesabı bu uçtan görünmez.** `revenue` ya da `clearing` kimliğiyle sorarsan
+**Sistem hesabı bu endpoint'ten görünmez.** `revenue` ya da `clearing` kimliğiyle sorarsan
 `404` dönerler — aynı tabloda duruyorlar ama iç muhasebe, public API'nin
 cevaplayacağı soru değil.
 
