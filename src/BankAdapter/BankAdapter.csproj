@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-    <!-- BANKAYA BAKAN ADAPTÖR. Bizim kodumuz ve üretimde de deploy ediliyor —
+    <!-- BANKAYA BAKAN ADAPTÖR. Bizim kodumuz ve canlıda da deploy ediliyor —
          `.Fake` son eki ALMIYOR (decisions.md madde 35). Bugün yalnızca testte
          koşuyor olması son ek sebebi değil; ölçüt "başka bir kurumun yerine mi
          duruyor".
@@ -10,6 +10,9 @@
 
     <ItemGroup>
         <PackageReference Include="AspNetCore.HealthChecks.NpgSql"/>
+        <!-- Bankaya giden çağrının timeout/retry/circuit breaker'ı (baseline.md
+             madde 11). Dış HTTP bağımlılığı olan tek servis bu. -->
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience"/>
         <PackageReference Include="RabbitMQ.Client"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
     </ItemGroup>
