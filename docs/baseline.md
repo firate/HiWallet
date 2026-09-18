@@ -68,12 +68,9 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 - Versiyonlama: `/v1` prefix.
 - Liste endpoint'lerinde pagination.
-- OpenAPI dokümanı `Microsoft.AspNetCore.OpenApi` ile üretilir — framework'ün kendi
-  üreteci. Swashbuckle KULLANILMAZ: .NET 9'dan beri şablonlardan da çıkarıldı ve aynı
-  işi üçüncü parti bir pakete yaptırmanın karşılığı yok.
+- OpenAPI dokümanı `Microsoft.AspNetCore.OpenApi` ile üretilir — framework'ün kendi üreteci.
 - Arayüz Scalar. Üreteç yalnızca JSON dokümanı veriyor, UI ayrı bir bağımlılık.
-- İkisi de YALNIZCA Development'ta açılır. Canlıda API yüzeyinin şemasını yayınlamak
-  saldırgana harita vermektir; kapı varsayılan olarak kapalı.
+- İkisi de YALNIZCA Development'ta açılır; canlıda API yüzeyinin şeması yayınlanmıyor.
 - Tutarlı response yapısı (zarf var ya da bilinçli olarak yok — ama tutarlı).
 - **Kapsam:** İstemcisi olan iki serviste (`wallet-api`, `withdrawal-orchestrator`)
   açık. `topup-webhook`'ta YOK: sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
