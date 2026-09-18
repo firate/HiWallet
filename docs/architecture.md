@@ -84,9 +84,10 @@ veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga tarama
 **Bankayla iletişim HTTP.** Orchestrator `StartBankTransfer` komutunu RabbitMQ'ya
 yazıyor, `bank-adapter` onu kuyruktan okuyup bankayı HTTP ile arıyor. Banka da sonucu
 `bank-webhook`'a HTTP callback ile bildiriyor. RabbitMQ yalnızca bizim servislerimiz
-arasında. Canlıda silinen kutular `bank-fake` ile `stripe-fake`;
-yerlerine kurumların kendi endpoint'leri geçiyor ve adaptörün kodunda tek satır
-değişmiyor (madde 35).
+arasında.
+
+Canlıda silinen kutular `bank-fake` ile `stripe-fake`; yerlerine kurumların kendi
+endpoint'leri geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
 
 `bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
