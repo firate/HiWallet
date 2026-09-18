@@ -594,20 +594,57 @@ orijinal işlemin bacakları okunup negatifleniyor.
 ## Health check uçları
 
 ```bash
-curl -s localhost:8091/health/ready   # wallet-api      — yalnızca postgres
-curl -s localhost:8092/health/ready   # topup-webhook
-curl -s localhost:8093/health/ready   # orchestrator    — postgres + rabbitmq
-curl -s localhost:8094/health/ready   # bank-fake (canlıda yok)
-curl -s localhost:8095/health/ready   # bank-webhook
-curl -s localhost:8096/health/ready   # stripe-fake (canlıda yok)
+curl -s localhost:8091/health/ready
+```
+```json
+{
+  "status": "Healthy",
+  "durationMs": 0.4953,
+  "checks": [
+    { "name": "postgres", "status": "Healthy", "durationMs": 0.4189, "error": null }
+  ]
+}
 ```
 
-`wallet-api`'nin çıktısında `rabbitmq` **olmamalı** — o uygulamanın broker'a hiç işi
-yok (`decisions.md` madde 28).
+**`checks` listesi, o uygulamanın gerçekten neye bağlı olduğunu gösteriyor.**
+`wallet-api` yalnızca `postgres` sayıyor; broker'a hiç bağlanmıyor, mesajları ayrı
+bir uygulama olan `wallet-consumer` çekiyor. Burada bir gün `rabbitmq` belirirse
+public API'ye broker bağımlılığı eklenmiş demektir ve broker düştüğünde cüzdan
+API'si de birlikte düşer — deployable ayrımının tek sebebi buydu
+(`decisions.md` madde 28).
 
-Broker durdurulduğunda orchestrator `Unhealthy` değil `Degraded` döner ve uç `200`
-dönmeye devam eder: çekim isteği kabul edilmeye devam ediyor, komut outbox'ta
-bekliyor ve broker döndüğünde yayınlanıyor (`decisions.md` madde 32).
+Orchestrator ikisini birden sayıyor:
 
-`wallet-consumer`'ın host'a portu yok; health check container'ın içinden koşuyor
-(`docker compose ps` ile `healthy` görünür).
+```bash
+curl -s localhost:8093/health/ready
+```
+```json
+{
+  "status": "Healthy",
+  "durationMs": 2.0093,
+  "checks": [
+    { "name": "postgres", "status": "Healthy", "durationMs": 0.4396, "error": null },
+    { "name": "rabbitmq", "status": "Healthy", "durationMs": 1.9646, "error": null }
+  ]
+}
+```
+
+Broker durdurulduğunda bu uç `200` dönmeye devam eder, yalnızca `status` alanı
+`Degraded` olur. Çekim isteği kabul edilmeye devam ediyor çünkü komut outbox'a
+yazılıyor ve broker döndüğünde yayınlanıyor (`decisions.md` madde 26 ve 32).
+
+Kalan uçlar aynı gövdeyi döndürüyor, yalnızca `checks` içerikleri farklı:
+
+```bash
+curl -s localhost:8092/health/ready   # topup-webhook  — postgres + rabbitmq
+curl -s localhost:8094/health/ready   # bank-fake      — checks BOŞ (canlıda yok)
+curl -s localhost:8095/health/ready   # bank-webhook   — postgres
+curl -s localhost:8096/health/ready   # stripe-fake    — checks BOŞ (canlıda yok)
+```
+
+Sahte kurumların `checks` listesi boş çünkü ikisinin de veritabanı yok: sağlıklı
+olmaları yalnızca process'in ayakta olduğu anlamına geliyor, başka bir şey iddia
+etmiyorlar.
+
+`wallet-consumer`'ın host'a açılmış portu yok; onun health check'i container'ın
+içinden koşuyor ve sonucu `docker compose ps` çıktısında `healthy` olarak görünüyor.
