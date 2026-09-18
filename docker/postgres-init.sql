@@ -1,12 +1,20 @@
--- Compose ile ayağa kalkan Postgres'in ilk kurulumu. Yalnızca veri dizini BOŞKEN
--- çalışır (postgres imajının davranışı); sonraki `docker compose up`'larda atlanır.
+-- UYGULAMANIN kurulumu: roller ve veritabanları. Üretimde de bunun karşılığı
+-- koşar. Yalnızca veri dizini BOŞKEN çalışır (postgres imajının davranışı);
+-- sonraki `docker compose up`'larda atlanır.
+--
+-- Integration testlerin veritabanı burada DEĞİL: postgres-init-tests.sql'de ve
+-- yalnızca compose onu mount ettiği için kuruluyor. Üretime giden kurulum, test
+-- için var olan bir veritabanını açmamalı.
 --
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve
 -- uygulamaların ihtiyaç duyduğu roller ve veritabanları var.
 --
--- Dört veritabanı, dört sınır: wallet-service, topup-webhook,
--- withdrawal-orchestrator ve banka entegrasyonu birbirinin
--- tablosunu göremiyor (CLAUDE.md "Servis sınırı"). Saga'nın anlamı buna bağlı: orchestrator wallet
+-- Dört veritabanı, dört sınır:
+-- wallet-service,
+-- topup-webhook,
+-- withdrawal-orchestrator
+-- banka entegrasyonu
+-- birbirinin tablosunu göremiyor (CLAUDE.md "Servis sınırı"). Saga'nın anlamı buna bağlı: orchestrator wallet
 -- tablolarına yazabilseydi compensation gereksizleşirdi (decisions.md madde 7).
 
 -- ---------------------------------------------------------------------------
@@ -19,18 +27,6 @@ CREATE ROLE wallet_owner LOGIN PASSWORD :'wallet_owner_password';
 CREATE ROLE wallet_app   LOGIN PASSWORD :'wallet_app_password';
 
 CREATE DATABASE hiwallet_wallet OWNER wallet_owner ENCODING 'UTF8';
-
--- ---------------------------------------------------------------------------
--- integration testler — uygulama değil
--- ---------------------------------------------------------------------------
--- Her test koşusu burada kendi schema'sını açıyor, migration'ları uyguluyor ve
--- sonunda düşürüyor (ConnectionStrings__IntegrationTests). Uygulama veritabanından
--- AYRI: yarıda kalan bir koşu gerçek verinin yanına çöp bırakmasın.
---
--- Sahibi wallet_owner: testler bu rolle bağlanıp schema açıyor. Sahibi postgres
--- olsaydı CREATE SCHEMA yetki hatası verirdi. Burada kurulması, `down -v`
--- sonrasında elle yeniden yaratma adımını kaldırıyor.
-CREATE DATABASE hiwallet_schema_check OWNER wallet_owner ENCODING 'UTF8';
 
 -- ---------------------------------------------------------------------------
 -- topup-webhook
@@ -84,10 +80,6 @@ REVOKE CONNECT ON DATABASE hiwallet_wallet FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_topup FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_withdrawal FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_bank FROM PUBLIC;
-REVOKE CONNECT ON DATABASE hiwallet_schema_check FROM PUBLIC;
-
--- Append-only testleri uygulamanın gerçek rolüyle koşuyor; sahibe REVOKE işlemiyor.
-GRANT CONNECT ON DATABASE hiwallet_schema_check TO wallet_app;
 
 \connect hiwallet_wallet
 

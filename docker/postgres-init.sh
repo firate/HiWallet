@@ -1,8 +1,13 @@
 #!/bin/bash
 # postgres imajı /docker-entrypoint-initdb.d altındaki .sh VE .sql dosyalarını ilk
 # açılışta çalıştırıyor. .sql da o dizinde olsaydı iki kez koşardı — ikincisinde
-# parola değişkenleri tanımsız olacağı için hata vererek. O yüzden .sql dizin
-# DIŞINDA duruyor ve yalnızca buradan çağrılıyor.
+# parola değişkenleri tanımsız olacağı için hata vererek. O yüzden .sql dosyaları
+# dizin DIŞINDA duruyor ve yalnızca buradan çağrılıyor.
+#
+# İKİ dosya var: uygulamanınki (roller ve veritabanları, üretimde de karşılığı
+# koşar) ve testlerinki (yalnızca hiwallet_schema_check). İkincisi MOUNT EDİLMİŞSE
+# koşuyor; edilmemişse atlanıyor. Üretim kurulumu böylece test veritabanını hiç
+# görmüyor ve bunun için ayrı bir bayrağa da gerek kalmıyor.
 #
 # Parolalar dosyaya gömülü değil: ortamdan alınıp psql değişkeni olarak geçiriliyor.
 set -euo pipefail
@@ -22,3 +27,12 @@ psql -v ON_ERROR_STOP=1 \
      -v withdrawal_app_password="$WITHDRAWAL_APP_PASSWORD" \
      -v bank_app_password="$BANK_APP_PASSWORD" \
      -f /opt/hiwallet/postgres-init.sql
+
+if [ -f /opt/hiwallet/postgres-init-tests.sql ]; then
+    echo "Integration testlerin veritabanı kuruluyor."
+
+    psql -v ON_ERROR_STOP=1 \
+         --username "$POSTGRES_USER" \
+         --dbname "$POSTGRES_DB" \
+         -f /opt/hiwallet/postgres-init-tests.sql
+fi
