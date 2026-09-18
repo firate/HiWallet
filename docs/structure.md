@@ -36,7 +36,7 @@ docs/
 ├── decisions.md         -- kararlar, gerekçeler, elenen alternatifler
 ├── ledger-schema.md     -- DDL, invariant zorlaması, settlement kayıtları
 ├── structure.md         -- bu dosya
-├── api-examples.md      -- her uç için istek ve beklenen yanıt
+├── api-examples.md      -- her endpoint için request ve beklenen response
 └── verify-compose.md    -- compose'u ayağa kaldırma ve doğrulama
 ```
 
@@ -169,7 +169,7 @@ WalletConsumer/
 İki kuyruk tek process'te: ikisi de ingress'siz ve ikisi de aynı ledger'a yazıyor,
 yani ayırmanın erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
 
-`Sdk.Web` kullanıyor ama tek HTTP yüzeyi health check ucu. Probe olmasaydı "process ayakta
+`Sdk.Web` kullanıyor ama tek HTTP yüzeyi health check endpoint'i. Probe olmasaydı "process ayakta
 ama tüketici tıkanmış" durumu görünmezdi.
 
 Kuyruk plumbing'i (kanal, ack/nack, dead-letter kararı) burada; ledger'a yazan
@@ -307,7 +307,7 @@ Shared/
     ├── Jobs/                  -- PeriodicTimer tabanı, pg_try_advisory_lock kirası
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
-    └── HealthChecks/          -- /health/live ve /health/ready uçları
+    └── HealthChecks/          -- /health/live ve /health/ready endpoint'leri
 ```
 
 `Shared.Infrastructure` `FrameworkReference` ile `Microsoft.AspNetCore.App`'e bağlanıyor:

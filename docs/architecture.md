@@ -83,7 +83,7 @@ veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga tarama
 **Banka RabbitMQ dinlemiyor** ve bu diyagramdaki en önemli ayrıntı. `bank-adapter`
 onu HTTP ile arıyor, banka da sonucu `bank-webhook`'a callback ile bildiriyor —
 gerçek bir entegrasyonun şekli bu. `bank-fake` canlıda silinecek tek kutu; yerine
-bankanın kendi ucu geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
+bankanın kendi endpoint'i geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
 
 `bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
@@ -94,9 +94,9 @@ birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarınd
 Diyagrama bakan herkesin sorduğu soru bu, çünkü ilk bakışta kuralı deliyor gibi
 duruyor.
 
-Müşteriye dönük uçlar iki uygulamaya dağılmış:
+Müşteriye dönük endpoint'ler iki uygulamaya dağılmış:
 
-| uç | uygulama |
+| endpoint | uygulama |
 | --- | --- |
 | `/v1/accounts`, `/v1/wallets`, `/v1/transfers` | `wallet-api` |
 | `/v1/withdrawals` | `withdrawal-orchestrator` |
@@ -114,7 +114,7 @@ rate-limit'leniyor ve izleniyor.
 
 İki yoldan biriyle kapanır:
 
-**Uç katman** (BFF / API gateway) geldiğinde istemci tek adres görür; arkada iki
+**Endpoint katman** (BFF / API gateway) geldiğinde istemci tek adres görür; arkada iki
 backend'in olması onu ilgilendirmez. Bugün o katman yok.
 
 **Ya da saga wallet'ın içine taşınır** — madde 33'ün "elenen alternatif"i. O zaman
@@ -154,7 +154,7 @@ sequenceDiagram
 
 `relay` ayrı bir uygulama değil, `topup-webhook`'un içinde koşan bir
 `BackgroundService` — ama ayrı çizildi, çünkü **zincirin koptuğu yer orası**: HTTP
-isteği `202` ile bitiyor, yayın sonra ve başka bir turda oluyor.
+request'i `202` ile bitiyor, yayın sonra ve başka bir turda oluyor.
 
 Routing key cüzdan kimliği: aynı cüzdanın mesajları hep aynı partition'a düşüyor ve
 sıra orada korunuyor. Bu yüzden relay **tek instance** koşuyor — iki relay ayrı
@@ -227,7 +227,7 @@ callback hattının sağlık göstergesi (madde 35).
 negatifleniyor. `revenue` bacağı atlanırsa kayıt yine dengeli çıkar ve trigger susar —
 ama müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş kalır.
 
-**Yanıtların hepsi saklanıyor** (`processed_messages`, `bank_transfers`). Tekrar
+**Response'ların hepsi saklanıyor** (`processed_messages`, `bank_transfers`). Tekrar
 teslimde iş ikinci kez yapılmıyor ama aynı cevap yeniden yayınlanıyor; cevapsız
 kalan saga müşteriyi sonsuza kadar "işleniyor"da bırakırdı.
 

@@ -69,7 +69,7 @@ Portların varsayılanı alışıldık portlardan bilerek kaçıyor, dokunmana g
 WALLET_HOST_PORT=8091        # 8080/8090 çoğu makinede dolu
 TOPUP_HOST_PORT=8092
 WITHDRAWAL_HOST_PORT=8093
-BANK_HOST_PORT=8094          # sahte bankanın senaryo ucu
+BANK_HOST_PORT=8094          # sahte bankanın senaryo endpoint'i
 POSTGRES_HOST_PORT=5433      # 5432 mevcut Postgres'te olabilir
 RABBITMQ_HOST_PORT=5673      # 5672 mevcut broker'da olabilir
 RABBITMQ_MGMT_HOST_PORT=15673
@@ -224,7 +224,7 @@ echo "$ACCOUNT / $WALLET"
 ```
 
 Cüzdan sıfır bakiyeyle açılır; para aşağıdaki top-up akışıyla girer. Doğrudan
-bakiyeye yazan bir uç YOK — olsaydı zero-sum invariant'ı delerdi.
+bakiyeye yazan bir endpoint YOK — olsaydı zero-sum invariant'ı delerdi.
 
 ### Çekim akışını uçtan uca koşturma
 
@@ -261,7 +261,7 @@ curl -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
   -d '{"clientReference":"<ID>","outcome":"Failure"}'
 ```
 
-Senaryoyu çekim isteğinden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
+Senaryoyu çekim request'inden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
 bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=Failure` yapıp
 `docker compose up -d bank-fake` ile yeniden başlat.
 
@@ -287,7 +287,7 @@ tarafı değişmediği için hâlâ geçerli:
 | `dotnet ef migrations bundle` alpine SDK'da çalışır | evet | bir hata çıktı, düzeltildi (aşağıda) |
 | *(yeni)* bundle Core'u kendi startup project'i olarak üretir | denenmedi | üç uygulamalı sürümle geldi, koşturulmadı |
 | `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | evet | dört migration uygulandı, seed satırları yerinde |
-| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | evet | wallet-service başladı ve istek karşılıyor |
+| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | evet | wallet-service başladı ve request karşılıyor |
 | init script'i tam olarak bir kez koşar | evet | roller kuruldu, "role already exists" yok |
 | `wallet_app` `ledger_entries`'e yazamaz | evet | `permission denied` alındı |
 
@@ -309,7 +309,7 @@ $ ... psql -U wallet_app -c "UPDATE ledger_entries SET amount = amount + 1;"
 ERROR:  permission denied for table ledger_entries
 ```
 
-Health check ucu, Docker host'unun dışındaki bir makineden de doğrulandı.
+Health check endpoint'i, Docker host'unun dışındaki bir makineden de doğrulandı.
 
 ## Doğrulama kaydı (beş uygulamalı sürüm)
 
@@ -414,7 +414,7 @@ Compose'da ölçüldü, istemcisi olan iki serviste de:
 `302` beklenen davranış: eğik çizgisiz adres `scalar/`'a yönleniyor, arayüz göreli
 varlık yüklediği için. Tarayıcı takip ediyor, `curl` varsayılan olarak etmiyor.
 
-OpenAPI dokümanları da uçları gerçekten görüyor:
+OpenAPI dokümanları da endpoint'leri gerçekten görüyor:
 
 ```
 wallet-api                /v1/accounts, /v1/accounts/{accountId},
@@ -431,7 +431,7 @@ varsayılan olarak takip ettiği için. Compose'da `curl` `302` gösterdi. Test 
 yönlendirmeyi takip etmeden sınıyor; dokümante edilen adres ile sınanan adres
 aynı olmak zorunda.
 
-### Üç açık ucun koşturulması
+### Üç açık maddenin koşturulması
 
 Aşağıdaki üçü compose ayaktayken sırayla koşturulur. Hepsi `.env` yüklü bir kabuk
 istiyor:
@@ -474,7 +474,7 @@ curl -s localhost:8091/v1/wallets/$W1; echo; curl -s localhost:8091/v1/wallets/$
 Beklenen: top-up `{"accepted":true,"duplicate":false}`, transfer `201`, sonra
 gönderen `60`, alan `40` (P2P komisyonsuz).
 
-#### B. Settlement ve fatura uçları
+#### B. Settlement ve fatura endpoint'leri
 
 **Settlement — `stripe-fake`, `Net` model.** 100 TRY'lik top-up'ın ücreti
 %2.9 + 0.30 = `3.20`, banka hesabına giren `96.80`.
@@ -572,7 +572,7 @@ geri gelsin.
 | ne | nasıl bakılır |
 | --- | --- |
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
-| settlement ve fatura uçları (5.5–5.6) | yukarıdaki **B** |
+| settlement ve fatura endpoint'leri (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
 | **sekiz uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |

@@ -121,7 +121,7 @@ Aynı DB'de olduğu için TTL sorunu yok; bağlantı koparsa advisory lock otoma
 
 **Gerekçe.** Transfer senkron ve atomik: ledger yazımı ile idempotency kaydı aynı satırda,
 aynı transaction'da. Ayrı bir tablo ikinci yazma ve ikinci tutarlılık noktası demek olurdu.
-Withdrawal'da istek bir ledger transaction'ı değil bir saga başlatıyor, dolayısıyla kolonun
+Withdrawal'da request bir ledger transaction'ı değil bir saga başlatıyor, dolayısıyla kolonun
 yeri saga tablosu. Saga'nın kendi `state` kolonu "iş nerede" bilgisini zaten taşıdığı için
 replay'de saklanmış response gövdesi de gerekmiyor — saga id + güncel state dönülür.
 
@@ -137,17 +137,17 @@ ON CONFLICT (ledger_account_id, idempotency_key) DO NOTHING;
 **Elenen alternatif.** Önce `SELECT`, yoksa `INSERT`. Tek instance'ta bile TOCTOU açığı var.
 
 **Neden composite.** Key'i client üretiyor. Yalnız `idempotency_key` UNIQUE olsaydı iki farklı
-kullanıcının aynı key'i üretmesi durumunda birinin isteği diğerininkiyle karışırdı.
+kullanıcının aynı key'i üretmesi durumunda birinin request'i diğerininkiyle karışırdı.
 
 **Anahtar ZORUNLU — transfer'de de.** `Idempotency-Key` başlığı yoksa `400`. Kolon
 da NOT NULL ve index artık **partial değil**.
 
-Uzun süre transfer'de opsiyoneldi ve bu savunulmuş bir tercih değildi: transfer ucu
-adım 1'de yazıldı, çekim ucu adım 4'te. At-least-once üzerine düşünce aradaki
+Uzun süre transfer'de opsiyoneldi ve bu savunulmuş bir tercih değildi: transfer endpoint'i
+adım 1'de yazıldı, çekim endpoint'i adım 4'te. At-least-once üzerine düşünce aradaki
 adımlarda olgunlaştı, çekim anahtarı zorunlu kıldı, ama transfer'e geri dönülmedi.
 `CLAUDE.md` de yalnızca karşıtlık kurarak değiniyordu — "transfer'dekinin aksine".
 
-Opsiyonel olmasının bedeli şu senaryoydu: ledger commit oldu, yanıt dönerken bağlantı
+Opsiyonel olmasının bedeli şu senaryoydu: ledger commit oldu, response dönerken bağlantı
 koptu, istemci "oldu mu olmadı mı" bilmediği için tekrar denedi. Anahtarsız tekrar
 hiçbir constraint'e takılmaz — ikinci transfer yazılır, hiçbir uyarı çıkmaz, müşteri
 aynı parayı iki kez gönderir. Ve ledger append-only olduğu için bu kayıt kalıcıdır:
@@ -155,7 +155,7 @@ aynı parayı iki kez gönderir. Ve ledger append-only olduğu için bu kayıt k
 kalır, çünkü ayırt edecek bilgi hiç yazılmamıştır.
 
 Kolonun NOT NULL olması yalnızca controller'ı sertleştirmenin ötesinde: kural orada
-kalsaydı yeni bir uç ya da yeni bir handler yine `NULL` yazabilirdi ve index —
+kalsaydı yeni bir endpoint ya da yeni bir handler yine `NULL` yazabilirdi ve index —
 partial olduğu için — o satırları sessizce kapsam dışı bırakırdı. Dedup çalışmaz,
 hata da vermezdi.
 
@@ -442,7 +442,7 @@ saga'da yeni bir alan ve wallet'a yeni bir komut demek. Aynı dalda yapmak, çal
 bir akışı yazılmamış bir akışın riskine bağlardı.
 
 **5.5'in giriş noktası `topup-webhook`.** Settlement de sağlayıcıdan gelen, imzalı,
-IP kısıtlı bir bildirim — top-up webhook'uyla aynı maruziyet. Yeni bir public uç
+IP kısıtlı bir bildirim — top-up webhook'uyla aynı maruziyet. Yeni bir public endpoint
 açmak ya da wallet-api'ye sağlayıcı yüzeyi eklemek madde 28'i deler.
 
 ---
@@ -475,7 +475,7 @@ kolonunun elenme gerekçesiyle aynı (`ledger-schema.md`, `ledger_entries`).
 
 ## 15. `ledger_transactions.ledger_account_id` iç işlemlerde ne olur
 
-**Karar.** Kolon NOT NULL kalır. Anlamı "isteği başlatan hesap" değil,
+**Karar.** Kolon NOT NULL kalır. Anlamı "request'i başlatan hesap" değil,
 **işlemin idempotency kapsamı olan hesap**:
 
 | `type`             | `ledger_account_id`                          | `idempotency_key`  |
@@ -588,7 +588,7 @@ sağlayıcı bazındadır: `FeeOnFailure: Charged | Waived`.
 
 **Neden müşteri komisyonu konfigüre edilmiyor.** Başarısızlığın sebebi ya bizde ya
 bankadadır. Müşteri kaynaklı tek gerçekçi senaryo yanlış IBAN, o da mod-97 checksum'ı ile
-sınırda eleniyor — saga başlamıyor, bankaya istek gitmiyor, ücret doğmuyor. Geriye kalan
+sınırda eleniyor — saga başlamıyor, bankaya request gitmiyor, ücret doğmuyor. Geriye kalan
 (yapısal olarak geçerli ama kapalı hesap) nadir; kalıcı bir konfigürasyon kolunu hak etmiyor.
 Gerçekleşmemiş bir hizmet için komisyon almak zaten ödeme kurumlarının pratiği değil.
 
@@ -709,10 +709,10 @@ kolon adlarıyla geçiyor.
 hesaplamasından ÖNCE yapılır. `ledger-schema.md`'deki referans akış bunu sonra
 gösteriyordu; o sıralama bozuk.
 
-**Gerekçe.** Tekrar eden bir istek hiçbir kuralı yeniden değerlendirmemeli, sadece
+**Gerekçe.** Tekrar eden bir request hiçbir kuralı yeniden değerlendirmemeli, sadece
 mevcut işlemi dönmeli. Policy önce koşarsa şu senaryo kırılıyor: günlük limit 10.000,
 müşteri 10.000 gönderiyor, ağ kopuyor, client aynı `Idempotency-Key` ile tekrar
-deniyor. İkinci istekte `spentToday` artık 10.000 — limit aşımı görünüyor ve `422`
+deniyor. İkinci request'te `spentToday` artık 10.000 — limit aşımı görünüyor ve `422`
 dönüyor. Oysa doğru cevap ilk transferin kimliği.
 
 Hata sessiz değil ama yanlış: client "limit doldu" sanıyor, gerçekte işlemi başarılı.
@@ -855,7 +855,7 @@ yalnızca bir yan akış duruyorsa `Degraded`.
 
 **Gerekçe.** `Unhealthy` readiness'ı düşürür ve orchestrator servisi trafikten çeker.
 Bu, çalışmaya devam edebilecek yolları da kapatmak demek — arızayı olduğundan büyük
-yapar. `Degraded` durumu health check çıktısında görünür kılıyor ama uç `200` dönmeye devam
+yapar. `Degraded` durumu health check çıktısında görünür kılıyor ama endpoint `200` dönmeye devam
 ediyor.
 
 Satır satır:
@@ -924,7 +924,7 @@ bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen 
 - Bağlantı havuzları ayrıldı. Kuyruk birikmesi artık HTTP'nin bağlantılarını yiyemiyor.
   Tüketicinin dizesinde `Application Name` ayrı, `pg_stat_activity`'de yük kaynağı
   görünüyor.
-- Tüketici tıkandığında kendi health check ucu var; wallet-api'nin sağlıklı görünmesi durumu
+- Tüketici tıkandığında kendi health check endpoint'i var; wallet-api'nin sağlıklı görünmesi durumu
   bitti.
 
 **Ölçüt iki yöne de işliyor.** Farklı maruziyet aynı process'te birleşmiyor; AYNI
@@ -963,13 +963,13 @@ uygulama startup'ta migrate etmiyor) ama koordine edilecek şey ikiye çıktı.
 **Karar.** `POST /v1/webhooks/topup/{provider}` başarıda `202 Accepted` dönüyor,
 gövde `{"accepted": true, "duplicate": false}`.
 
-**Gerekçe.** Yanıt döndüğünde para henüz cüzdanda değil: ledger'a yazan kod başka bir
+**Gerekçe.** Response döndüğünde para henüz cüzdanda değil: ledger'a yazan kod başka bir
 deployable'da, arada broker var. `200 OK` "istediğin işi yaptım" demek ve bu doğru
 değil. `202` tam olarak verilen sözü söylüyor — **kabul edildi ve kalıcı kaydedildi,
 işlenmesi sonra.**
 
 İşlevsel fark yok (sağlayıcıların çoğu 2xx'in hepsini başarı sayıyor); fark
-sözleşmenin dürüstlüğünde. Yanıtın anlamını olduğundan güçlü göstermek, ileride
+sözleşmenin dürüstlüğünde. Response'un anlamını olduğundan güçlü göstermek, ileride
 "200 aldım, neden bakiyem artmadı" tartışmasının kaynağı olur.
 
 **Tekrar eden event de `202`.** Sağlayıcı için yeniden gönderim beklenen bir davranış,
@@ -1075,7 +1075,7 @@ saga taraması yakalıyor. Outbox ikisini de kapatıyor — durum ve niyet aynı
 tüketip event yayınlıyor; event yayınlanamazsa mesaj ack'lenmiyor ve komut yeniden
 teslim ediliyor. Yani orada güvenilirlik zaten broker'ın redelivery'sinden geliyor,
 ikinci bir tablo gereksiz olurdu. Saga'da öyle değil: geçişi tetikleyen şey her zaman
-bir mesaj olmayabilir (API isteği, zamanlanmış tarama) ve o durumda geri alınacak bir
+bir mesaj olmayabilir (API request'i, zamanlanmış tarama) ve o durumda geri alınacak bir
 teslim yok.
 
 **Inbox ile ilişkisi.** İkisi aynı kalıbın iki yönü ve karıştırılmamalı: inbox
@@ -1225,7 +1225,7 @@ tanımıyor. `IClock` ile aynı kalıp: dış dünyayı çağıran veriyor.
 okuma erişimi — bunlar log ve SIEM işi. Ledger yalnızca **para hareketinin** aktörünü
 tutuyor.
 
-Yetki devri zinciri de (hangi uç API çağrıyı taşıdı) yazılmıyor: o taşıma detayı ve
+Yetki devri zinciri de (hangi endpoint API çağrıyı taşıdı) yazılmıyor: o taşıma detayı ve
 trace'e ait. Ledger sorumluyu kaydediyor, güzergâhı değil.
 
 **Elenen alternatifler.**
@@ -1266,7 +1266,7 @@ backoffice müşteri adına çekim açtığında ikisi ayrışıyor.
 de `Refunded` geçişine varıyor, aradaki fark yalnızca komutun taşıdığı aktörde
 kalıyor. Telafi aynı olsa da sebep aynı değil ve "bu ay kaç çekim banka tarafından
 reddedildi" ile "kaç çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli.
-Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
+Ayrı bir geçiş gerekiyor; backoffice endpoint'i yazılırken eklenecek.
 
 ---
 
@@ -1279,7 +1279,7 @@ Ayrı bir geçiş gerekiyor; backoffice ucu yazılırken eklenecek.
 | --- | --- | --- | --- | --- |
 | `bank-adapter` | **yok** | bizim | deploy edilir | komutu tüketir, bankayı HTTP ile çağırır, mutabakat taraması koşar, cevapları yayınlar |
 | `bank-webhook` | **IP kısıtlı** | bizim | deploy edilir | bankanın callback'ini doğrular, inbox'a yazar, `202` |
-| `bank-fake` (`Bank.Fake`) | iç | bankanın taklidi | **yok** | bankanın API'si; yerine gerçek bankanın ucu geçer |
+| `bank-fake` (`Bank.Fake`) | iç | bankanın taklidi | **yok** | bankanın API'si; yerine gerçek bankanın endpoint'i geçer |
 
 İlk ikisi `hiwallet_bank` üzerinde ortak kütüphane `BankIntegration.Core` ile —
 `wallet-api` / `wallet-consumer` / `WalletService.Core` üçlüsünün aynısı (madde 25, 28).
@@ -1347,14 +1347,14 @@ kaçırılan callback kalıcı bir kayıp olurdu: `bank_transfers` satırı `pen
 saga `bank_transfer_pending`'de asılır ve müşteri parası clearing'de durur. Proje aynı
 seçimi çekim tarifesinde de yapıyor — eksik konfigürasyonla açılmaktansa açılmamak.
 
-**Callback ucu AYRI DEPLOYABLE.** Bu, madde 28'in ölçütünün doğrudan sonucu ve ilk
+**Callback endpoint'i AYRI DEPLOYABLE.** Bu, madde 28'in ölçütünün doğrudan sonucu ve ilk
 yazımda ölçüt TERS uygulanmıştı: ikisinin maruziyeti aynı değil. Callback alıcısının
 IP kısıtlı bir ingress'i var, tarama ve komut tüketicisinin hiç ingress'i yok — yalnızca
 dışarı çağrı yapıyorlar. Madde 28 `wallet-consumer`'ı `wallet-api`'den tam olarak bu
 ayrımla ayırmıştı.
 
 Dağıtım tarafında da karşılığı var: tarama mantığındaki bir değişiklik bankanın çağırdığı
-ucu yeniden başlatmayı gerektirmemeli. Adaptör yeniden başladığında mesajlar kuyrukta
+endpoint'i yeniden başlatmayı gerektirmemeli. Adaptör yeniden başladığında mesajlar kuyrukta
 bekler, kayıp yok; callback alıcısı yeniden başladığında banka **bağlantı hatası** alır.
 Yeniden başlatılması en pahalı olan parça tek başına duruyor.
 
@@ -1380,7 +1380,7 @@ banka artık tanımıyor, mutabakat taraması `404` alıyor ve o çekim kapanmı
 banka transferini unutmaz; bu davranış sahteye özgü. Sahte bankayı yeniden başlatırken
 bekleyen çekimler gözden çıkarılır.
 
-**HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün istek/yanıt tipleri kendi
+**HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün request/response tipleri kendi
 içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o
 tipler bankanın dokümanından yazılır, ortak bir projeden gelmez. Paylaşılsalardı
 derleyici iki tarafı senkron tutar ve "karşı taraf sözleşmeyi değiştirdi" hatası

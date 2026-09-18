@@ -149,7 +149,7 @@ X = çekilen tutar, k = müşteriden alınan komisyon (yoksa k = 0).
 
 [Initiated]
   → Girdi doğrulaması: IBAN mod-97 checksum'ı SINIRDA kontrol edilir (baseline.md
-    madde 6). Geçersizse 400; saga başlamaz, bankaya istek gitmez, ücret doğmaz.
+    madde 6). Geçersizse 400; saga başlamaz, bankaya request gitmez, ücret doğmaz.
   → Limit/kural kontrolü (günlük çekim limiti, KYC vb.). Aşılırsa → [Rejected] (hiç para hareketi olmaz).
   → wallet-service: cüzdandan X+k düş (lokal ACID)
        cüzdan -(X+k), clearing +X, revenue +k    (para "yolda", komisyon tahakkuk etti)
@@ -201,7 +201,7 @@ kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 1
 
 **Idempotency (saga):**
 
-- API girişinde `Idempotency-Key`: aynı çekme isteği iki kez → yeni saga başlatma, mevcut durumu dön.
+- API girişinde `Idempotency-Key`: aynı çekme request'i iki kez → yeni saga başlatma, mevcut durumu dön.
 - Komut tüketiminde `CommandId`: bank-adapter ve wallet-service aynı komutu iki kez işlemez (`processed_messages`).
 - Saga event tüketiminde: state + correlation ile değerlendirilir. Zararsız tekrar (aynı event, ya da saga çoktan ilerlemiş) yok sayılır; **çelişkili** event (telafiden sonra gelen "başarılı" gibi) yok SAYILMAZ — durum olduğu yerde bırakılıp alarm üretilir, çünkü para kaybına işaret ediyor (`decisions.md` madde 31).
 

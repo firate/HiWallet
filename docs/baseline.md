@@ -80,7 +80,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 ### 10. Graceful Shutdown
 
-- SIGTERM'de yeni istek alımı durur, in-flight işler biter.
+- SIGTERM'de yeni request alımı durur, in-flight işler biter.
 - Background worker'lar (varsa) temiz kapanır (`IHostedService` + `CancellationToken`).
 - **Kapsam:** .NET host'un default graceful shutdown davranışı + worker'larda token'a uyum yeterli.
 
@@ -93,7 +93,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 ### 12. Idempotency & Consistency
 
 - Yazma işlemlerinde idempotency key; at-least-once mesajlaşmada dedup; gerektiğinde Outbox.
-- Aynı isteğin/aynı mesajın iki kez işlenmesi engellenir.
+- Aynı request'in/aynı mesajın iki kez işlenmesi engellenir.
 - **Kapsam:** Idempotency key ilgili tablonun kolonu, ayrı store yok (`decisions.md` madde 4). Outbox sadece async yayın yapanlarda devreye girer.
 - **Not.** Bu katman burada baseline'dan çıkıp **ana konu** oluyor: idempotency + inbox/outbox/relay + saga consistency dominant temanın kendisi. Ayrıntı `overview.md` madde 5 ve 6.
 

@@ -30,7 +30,7 @@ olduğu yere taşınmıyor.
 | `wallet-api` | **public** — mobil/web | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
-| `withdrawal-orchestrator` | public — çekim isteği | `hiwallet_withdrawal` | ikisi de |
+| `withdrawal-orchestrator` | public — çekim request'i | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
 
@@ -44,7 +44,7 @@ Bir de **bizim olmayan iki** uygulama var:
 | `bank-fake` | bankamız | para girişi **ve** çıkışı; hafızası bellekte, veritabanı yok |
 | `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
 
-İkisi de canlıda yok — yerlerine kurumların kendi uçları geçiyor. `.Fake` son ekinin
+İkisi de canlıda yok — yerlerine kurumların kendi endpoint'leri geçiyor. `.Fake` son ekinin
 ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor" (`decisions.md`
 madde 35).
 
@@ -77,7 +77,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 
 | | durum |
 | --- | --- |
-| Hesap ve cüzdan uçları (`/v1/accounts`, `/v1/wallets`) | evet |
+| Hesap ve cüzdan endpoint'leri (`/v1/accounts`, `/v1/wallets`) | evet |
 | Transfer çekirdeği (5 tip), limit ve komisyon | evet |
 | Double-entry ledger, zero-sum invariant | evet — DB trigger + testler |
 | Optimistic lock, retry, idempotency | evet |
@@ -191,7 +191,7 @@ curl -s http://localhost:8091/v1/wallets/$WALLET
 ```
 
 Cüzdan sıfır bakiyeyle açılır ve **para yalnızca ledger üzerinden girer** — top-up ya da
-transfer. Bakiyeye doğrudan yazan bir uç yok, olsaydı zero-sum invariant'ı delerdi.
+transfer. Bakiyeye doğrudan yazan bir endpoint yok, olsaydı zero-sum invariant'ı delerdi.
 
 Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir (`decisions.md` madde 20);
 `GET /v1/accounts/{id}` hepsini bakiyeleriyle listeler. Günlük limit bu yüzden cüzdan
@@ -208,21 +208,21 @@ curl -X POST http://localhost:8091/v1/transfers \
 
 Ledger'a üç satır düşer: gönderen `-204`, alan `+200`, `revenue` `+4`. Toplam sıfır.
 
-**Idempotency.** Aynı `Idempotency-Key` ile ikinci istek yeni transfer yapmaz:
+**Idempotency.** Aynı `Idempotency-Key` ile ikinci request yeni transfer yapmaz:
 
 ```bash
 curl -X POST http://localhost:8091/v1/transfers \
   -H 'Idempotency-Key: ayni-istek' -H 'Content-Type: application/json' -d '{...}'
 ```
 
-İkinci yanıt aynı `transactionId` ve `"replayed": true` döner.
+İkinci response aynı `transactionId` ve `"replayed": true` döner.
 
 **Yetersiz bakiye / limit aşımı** → `422` + `rule` alanı.
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
 **Elle denemenin en kolay yolu:** Rider'da `fakes/akislar.http`,
 `fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ
-üstten ortam seç (`homelab` / `local`), istekleri sırayla koş; kimlikler bir
+üstten ortam seç (`homelab` / `local`), request'leri sırayla koş; kimlikler bir
 sonrakine kendiliğinden taşınıyor. Aşağıdaki `curl` örnekleri aynı işi yapıyor.
 
 **Top-up (dışarıdan para girişi).** En kolayı sahte sağlayıcıya söylemek — imzayı
@@ -237,7 +237,7 @@ curl -X POST http://localhost:8096/v1/topups -H 'Content-Type: application/json'
 iki kez gönderiyor — bakiye **bir kez** artmalı. `OutOfOrder` aynı cüzdana N event'i
 ters sırada gönderiyor.
 
-Bankadan yükleme için aynı uç `8094`'te (`bank-fake`), `clearing/bank-fake`'e yazar.
+Bankadan yükleme için aynı endpoint `8094`'te (`bank-fake`), `clearing/bank-fake`'e yazar.
 
 Elle göndermek istersen imza ham gövde baytları üzerinde HMAC-SHA256:
 
@@ -247,8 +247,8 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SEC
 curl -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Yanıt **`202 Accepted`** — `200` değil, bilerek: verilen söz "işledim" değil "kalıcı
-kaydettim". Para yanıt döndüğünde henüz cüzdanda değil.
+Response **`202 Accepted`** — `200` değil, bilerek: verilen söz "işledim" değil "kalıcı
+kaydettim". Para response döndüğünde henüz cüzdanda değil.
 
 Yol: **202 (inbox commit'inden sonra) → relay → RabbitMQ → tüketici → ledger.**
 Ledger'a iki satır düşer: cüzdan `+100`, `clearing/stripe-fake` `-100` (sağlayıcıdan
@@ -271,7 +271,7 @@ curl -X POST http://localhost:8093/v1/withdrawals \
        "destinationIban":"TR33 0006 1005 1978 6457 8413 26"}'
 ```
 
-Yanıt **`202 Accepted`**: döndüğünde hiçbir para hareket etmemiş durumda. IBAN sınırda
+Response **`202 Accepted`**: döndüğünde hiçbir para hareket etmemiş durumda. IBAN sınırda
 mod-97 ile doğrulanıyor; geçersizse `400` ve saga hiç başlamıyor.
 
 Mutlu yolda ledger'a üç satır düşer: cüzdan `-102`, `clearing/bank-fake` `+100`,
@@ -354,7 +354,7 @@ dotnet test
 | [docs/decisions.md](docs/decisions.md) | kararlar, gerekçeler, **elenen alternatifler** |
 | [docs/ledger-schema.md](docs/ledger-schema.md) | şemanın okunabilir karşılığı |
 | [docs/structure.md](docs/structure.md) | yeni dosya nereye konur |
-| [docs/api-examples.md](docs/api-examples.md) | her uç için istek ve beklenen yanıt |
+| [docs/api-examples.md](docs/api-examples.md) | her endpoint için request ve beklenen response |
 | [docs/verify-compose.md](docs/verify-compose.md) | compose'u ayağa kaldırma ve doğrulama |
 | [CLAUDE.md](CLAUDE.md) | pazarlıksız kurallar |
 
@@ -377,7 +377,7 @@ baştan sona OKUNMAZ — 1400 satır ve referans niteliğinde; merak ettiğin ma
 
 **Elle denerken:** `fakes/` altındaki `.http` dosyaları → `api-examples.md` →
 `verify-compose.md`. İlki Rider'da en hızlı yol, ikincisi bir şey bozulduğunda
-karşılaştırman için beklenen yanıtları veriyor.
+karşılaştırman için beklenen response'ları veriyor.
 
 **Yeni karar alırken:** `decisions.md`. Karar oraya gerekçesiyle yazılıyor, sonra
 `CLAUDE.md`'ye ve ilgili dokümanlara yayılıyor.

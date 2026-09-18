@@ -4,9 +4,9 @@
 # (fakes/http-client.env.json).
 #
 # İki bölüm var:
-#   A. Bankanın kendisi: bank-adapter'ın konuştuğu uçlar. Normalde sen
+#   A. Bankanın kendisi: bank-adapter'ın konuştuğu endpoint'ler. Normalde sen
 #      çağırmazsın; burada sahtenin nasıl davrandığını görmek için.
-#   B. Kumanda: bankada olmayan, test için var olan uçlar.
+#   B. Kumanda: bankada olmayan, test için var olan endpoint'ler.
 #
 # Uçtan uca çekim senaryoları ayrı dosyada: fakes/akislar.http
 
@@ -38,7 +38,7 @@ Idempotency-Key: {{$uuid}}
 # belirliyor. bank-adapter'ın mutabakat taraması tam olarak bunu soruyor.
 GET {{bankFake}}/v1/transfers/{{bankReference}}
 
-### A3. Anahtarsız istek
+### A3. Anahtarsız request
 # Beklenen: 400. Banka anahtarsız transfer açmıyor.
 POST {{bankFake}}/v1/transfers
 Content-Type: application/json
@@ -82,7 +82,7 @@ Idempotency-Key: {{$uuid}}
 %}
 
 ### B2. Senaryo kur: iki kez geçici hata, sonra kabul
-# İlk iki transfer isteği 503 alır ve transfer HİÇ açılmaz; üçüncüsü kabul edilir.
+# İlk iki transfer request'i 503 alır ve transfer HİÇ açılmaz; üçüncüsü kabul edilir.
 POST {{bankFake}}/v1/scenarios
 Content-Type: application/json
 
@@ -94,7 +94,7 @@ Content-Type: application/json
 
 { "clientReference": "deneme-gecikme", "outcome": "DelayedSuccess", "delayMilliseconds": 15000 }
 
-### B4. B2'yi dene — bu isteği üç kez koş
+### B4. B2'yi dene — bu request'i üç kez koş
 # 1. ve 2. seferde 503, 3. seferde 202.
 POST {{bankFake}}/v1/transfers
 Content-Type: application/json
@@ -108,13 +108,13 @@ Idempotency-Key: {{$uuid}}
 }
 
 ### B5. Senaryonun durumu
-# attempts, isteğin kaç kez geldiğini gösteriyor. B4'ten sonra 3 olmalı.
+# attempts, request'in kaç kez geldiğini gösteriyor. B4'ten sonra 3 olmalı.
 # Bellekte tutuluyor: sahte banka yeniden başladıysa 404 döner. B2'yi yeniden
 # koşmak sayaçları sıfırlar.
 GET {{bankFake}}/v1/scenarios/deneme-gecici
 
 ### B6. Havale ile para girişi
-# Bankanın PARA GİRİŞİ tarafı. stripe-fake ile aynı uç; fark ledger'da:
+# Bankanın PARA GİRİŞİ tarafı. stripe-fake ile aynı endpoint; fark ledger'da:
 # clearing/stripe-fake değil clearing/bank-fake hareket eder.
 # walletId için önce stripe-fake.http'de 1–2'yi ya da akislar.http'de 1–2'yi koş.
 POST {{bankFake}}/v1/topups

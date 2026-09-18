@@ -1,9 +1,9 @@
 # API örnekleri
 
-Her uç için istek ve **beklenen** yanıt. Elle denemek ve bir şeyin bozulduğunu
+Her endpoint için request ve **beklenen** response. Elle denemek ve bir şeyin bozulduğunu
 anlamak için; sözleşmenin kaynağı kod, bu dosya ona uyar.
 
-Yanıtlar compose'da koşan sistemden alındı (`localhost:8091-8096`). Kimlikler her
+Response'lar compose'da koşan sistemden alındı (`localhost:8091-8096`). Kimlikler her
 koşuda değişir.
 
 **`localhost`, compose'un koştuğu makine demek.** Stack'i başka bir makinede
@@ -17,7 +17,7 @@ set -a; . ./.env; set +a          # webhook secret'ları kabuğa gelsin
 
 **Durum kodları neden bu şekilde:** `201` yaratıldı, `202` kalıcı olarak alındı ama
 henüz işlenmedi, `400` girdi bozuk, `404` kayıt yok, `409` eşzamanlılık çakışması,
-`422` istek geçerli ama iş kuralı reddetti. `409` ile `422` karıştırılmaz — birincisi
+`422` request geçerli ama iş kuralı reddetti. `409` ile `422` karıştırılmaz — birincisi
 "tekrar dene", ikincisi "tekrar denemenin faydası yok".
 
 ---
@@ -117,7 +117,7 @@ curl -i -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets \
 }
 ```
 
-`400` değil `422`: `USD` geçerli bir ISO 4217 kodu, istek kusursuz. Reddin sebebi
+`400` değil `422`: `USD` geçerli bir ISO 4217 kodu, request kusursuz. Reddin sebebi
 o para biriminde `clearing` ve `revenue` hesaplarının seed edilmemiş olması — bu
 ledger'ın bilgisi, sınırdaki doğrulayıcı bilemez.
 </details>
@@ -193,7 +193,7 @@ olarak gönderenden düşülür: `Payment` %2 ise gönderen `-204`, alan `+200`,
 harcama sessizce ledger'a düşerdi; append-only olduğu için de geri alınamaz, yalnızca
 ters kayıtla düzeltilir.
 
-Aynı anahtarla ikinci istek yeni transfer yapmaz:
+Aynı anahtarla ikinci request yeni transfer yapmaz:
 
 ```json
 { "transactionId": "aynı-kimlik", "replayed": true }
@@ -235,7 +235,7 @@ HTTP/1.1 202 Accepted
 ```
 
 **`200` değil `202`, bilerek.** Verilen söz "işledim" değil "kalıcı kaydettim".
-Yanıt döndüğünde para henüz cüzdanda yok; hat webhook → inbox → relay → RabbitMQ →
+Response döndüğünde para henüz cüzdanda yok; hat webhook → inbox → relay → RabbitMQ →
 wallet-consumer → ledger. Birkaç saniye sonra bakiyeye bak.
 
 İmza **ham gövde baytları** üzerinde HMAC-SHA256. Gövdeyi yeniden serialize edersen
@@ -245,7 +245,7 @@ Sağlayıcılar: `stripe-fake`, `bank-fake` — her birinin kendi secret'ı var.
 
 <details><summary>Tekrar eden event → yine <code>202</code></summary>
 
-Aynı `eventId` ile ikinci istek:
+Aynı `eventId` ile ikinci request:
 
 ```json
 { "accepted": true, "duplicate": true }
@@ -319,7 +319,7 @@ Telafi yolunda: `debited` → `compensating` → `failed`. Reddedilmişse `rejec
 `totalDebited` cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi
 yapana kadar `null` — `0` yazılmıyor, "komisyonsuz çekildi" ile karışırdı.
 
-IBAN **maskeli** döner: müşteri zaten kendi girdi, tam hali yanıtta dolaşınca log'a,
+IBAN **maskeli** döner: müşteri zaten kendi girdi, tam hali response'ta dolaşınca log'a,
 hata izlemeye ve tarayıcı geçmişine de düşer.
 
 <details><summary>Aynı anahtarla tekrar → <code>202</code>, <code>replayed: true</code></summary>
@@ -332,7 +332,7 @@ Yeni çekim AÇILMADI.
 
 <details><summary>Yetersiz bakiye / limit aşımı → saga <code>rejected</code></summary>
 
-`POST` yine `202` döner — istek geçerliydi ve kalıcı olarak alındı. Ret sonradan
+`POST` yine `202` döner — request geçerliydi ve kalıcı olarak alındı. Ret sonradan
 ortaya çıkıyor:
 
 ```json
@@ -355,7 +355,7 @@ Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 ## bank-fake (BİZİM DEĞİL) — `:8094`
 
 Bankanın API'sinin yerinde duran servis; canlıda yok (`decisions.md` madde 35).
-Senaryo ucu gerçek bir bankada bulunmaz — varlık sebebi "banka reddetti" durumunun
+Senaryo endpoint'i gerçek bir bankada bulunmaz — varlık sebebi "banka reddetti" durumunun
 denenebilmesi.
 
 **Transfer sonucu artık senkron dönmüyor.** `POST /v1/transfers` `202 pending`
@@ -383,8 +383,8 @@ ikincisinde transfer açılıyor ama sonucu başarısız (saga telafiye giriyor)
 
 Senaryo **çekim başına** kuruluyor ve anahtarı `clientReference` — bizim saga
 kimliğimiz. Yani çekimi başlattıktan sonra kurman gerekiyor ve bu bir **yarış**:
-zincir seni beklemiyor, banka senaryoyu transfer isteği geldiği anda okuyor.
-Çekim isteğinin hemen ardından aynı betikte kurarsan genelde yetişirsin; elle
+zincir seni beklemiyor, banka senaryoyu transfer request'i geldiği anda okuyor.
+Çekim request'inin hemen ardından aynı betikte kurarsan genelde yetişirsin; elle
 kopyalayıp yapıştırırken geç kalırsın. Garantili yol varsayılanı değiştirmek:
 
 ```bash
@@ -415,7 +415,7 @@ curl -s localhost:8094/v1/scenarios/$WD
 
 `attempts` retry'ın gerçekten çalıştığının kanıtı. Kurulmamış çekim için `404`.
 
-### Transfer uçları — adaptörün konuştuğu sözleşme
+### Transfer endpoint'leri — adaptörün konuştuğu sözleşme
 
 Bunları elle çağırman gerekmiyor; `bank-adapter` çağırıyor. Burada duruyorlar çünkü
 **gerçek entegrasyonda bankanın dokümanından yazılacak kısım** tam olarak bu ikisi.
@@ -451,13 +451,13 @@ curl -s localhost:8094/v1/transfers/BNK4F2A9C1E8B7D6A3
 }
 ```
 
-**Mutabakat taramasının okuduğu uç bu.** Bankanın böyle bir ucu olmasaydı, callback'i
+**Mutabakat taramasının okuduğu endpoint bu.** Bankanın böyle bir endpoint'i olmasaydı, callback'i
 kaçırılan transferin sonucunu hiçbir şey öğrenemezdi.
 
-`Idempotency-Key` başlıksız istek `400`. Aynı anahtarla ikinci istek yeni transfer
+`Idempotency-Key` başlıksız request `400`. Aynı anahtarla ikinci request yeni transfer
 AÇMAZ: aynı `bankReference` ve `"replayed": true` döner.
 
-`TransientFailure` senaryosunda uç `503` veriyor ve **transfer hiç açılmıyor** —
+`TransientFailure` senaryosunda endpoint `503` veriyor ve **transfer hiç açılmıyor** —
 kalıcı hatadan farkı bu. Adaptör bunu yeniden deniyor, saga'ya hiçbir şey
 bildirilmiyor.
 
@@ -465,10 +465,10 @@ bildirilmiyor.
 
 ## stripe-fake (BİZİM DEĞİL) — `:8096`
 
-Kart sağlayıcısının yerinde duran servis; canlıda yok. **Tek ucu var** — Stripe'tan
-para çıkmadığı için ne transfer ucu var ne callback alıcısı.
+Kart sağlayıcısının yerinde duran servis; canlıda yok. **Tek endpoint'i var** — Stripe'tan
+para çıkmadığı için ne transfer endpoint'i var ne callback alıcısı.
 
-Gerçek Stripe'ta bu uç YOKTUR: webhook müşteri ödeme yaptığında gelir, sen
+Gerçek Stripe'ta bu endpoint YOKTUR: webhook müşteri ödeme yaptığında gelir, sen
 istediğinde değil.
 
 ### Para girişi tetikle
@@ -502,14 +502,14 @@ olurdu, tekrar değil.
 sırada gelen bir dizinin tamamının kabul edildiği; değeri consistent-hash routing'in
 hepsini aynı partition'a düşürmesinde.
 
-Aynı uç `bank-fake`'te de var (`:8094`) ve `clearing/bank-fake`'e yazıyor — aynı
+Aynı endpoint `bank-fake`'te de var (`:8094`) ve `clearing/bank-fake`'e yazıyor — aynı
 banka hem gelen havaleyi bildiriyor hem giden transferi kabul ediyor.
 
 ---
 
 ## bank-webhook — `:8095`
 
-Bankanın transfer sonucunu bildirdiği uç. **Bizim kodumuz**, canlıda da koşuyor;
+Bankanın transfer sonucunu bildirdiği endpoint. **Bizim kodumuz**, canlıda da koşuyor;
 `bank-adapter`'dan ayrı bir deployable çünkü ingress'i var (`decisions.md` madde 28).
 
 Elle çağırman gerekmiyor — `bank-fake` çağırıyor. İmza `topup-webhook`'unkiyle aynı
@@ -596,7 +596,7 @@ orijinal işlemin bacakları okunup negatifleniyor.
 
 ---
 
-## Health check uçları
+## Health check endpoint'leri
 
 ```bash
 curl -s localhost:8091/health/ready
@@ -631,11 +631,11 @@ curl -s localhost:8093/health/ready
 }
 ```
 
-Broker durdurulduğunda bu uç `200` dönmeye devam eder, yalnızca `status` alanı
-`Degraded` olur. Çekim isteği kabul edilmeye devam ediyor çünkü komut outbox'a
+Broker durdurulduğunda bu endpoint `200` dönmeye devam eder, yalnızca `status` alanı
+`Degraded` olur. Çekim request'i kabul edilmeye devam ediyor çünkü komut outbox'a
 yazılıyor ve broker döndüğünde yayınlanıyor (`decisions.md` madde 26 ve 32).
 
-Kalan uçlar aynı gövdeyi döndürüyor, yalnızca `checks` içerikleri farklı:
+Kalan endpoint'ler aynı gövdeyi döndürüyor, yalnızca `checks` içerikleri farklı:
 
 ```bash
 curl -s localhost:8092/health/ready   # topup-webhook  — postgres + rabbitmq

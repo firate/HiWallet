@@ -3,7 +3,7 @@
 # Rider'da sağ üstten ortamı seç: "homelab" ya da "local"
 # (fakes/http-client.env.json).
 #
-# Sıra: önce 1 ve 2'yi koş, cüzdan kimliği sonraki isteklere otomatik taşınıyor.
+# Sıra: önce 1 ve 2'yi koş, cüzdan kimliği sonraki request'lere otomatik taşınıyor.
 # Sonra 3–6'dan istediğini, her birinin ardından 7 ile bakiyeye bak.
 #
 # Gönderim ARKA PLANDA: 202 döndüğünde webhook henüz gitmedi. Bakiyenin
