@@ -172,8 +172,8 @@ public sealed class WithdrawalChainTests(
     }
 
     /// <summary>
-    /// Geçici banka hatası telafi BAŞLATMAMALI. Saga bekliyor, bank-service kendi
-    /// içinde yeniden deniyor ve sonunda başarıyor.
+    /// Geçici banka hatası telafi BAŞLATMAMALI. Saga bekliyor, `bank-adapter` çağrıyı
+    /// yeniden deniyor ve sonunda başarıyor.
     /// </summary>
     [Fact]
     public async Task GeciciBankaHatasi_TelafiBaslatmaz_SonundaTamamlanir()

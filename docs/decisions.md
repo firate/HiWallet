@@ -364,8 +364,8 @@ migration, `fee_type` kolonu şimdilik hep `provider` ama yerinde duruyor.
 1. ✅ wallet çekirdeği: `accounts`, `ledger_transactions`, `ledger_entries`,
    `ledger_balances`, transfer + policy (limit, komisyon). Broker yok, saga yok.
 2. ✅ Baseline'ın 12 maddesi (OTel, health, ProblemDetails, rate limiting, migration,
-   graceful shutdown). Polly / dış servis dayanıklılığı ertelendi — henüz dış HTTP
-   bağımlılığı yok.
+   graceful shutdown). Resilience o adımda kapsam dışındaydı, sistemde dış HTTP
+   bağımlılığı yoktu; adım 4'te `bank-adapter` bankayı aramaya başlayınca eklendi.
 3. ✅ Top-up hattı: webhook (HMAC + inbox) → relay → RabbitMQ → consumer. Broker ilk
    burada. Zincir gerçek bir broker'a karşı uçtan uca doğrulandı.
 4. ✅ Withdrawal saga + banka entegrasyonu + compensation. Zincir gerçek bir broker'a
@@ -1379,6 +1379,21 @@ Bedeli bilerek kabul edildi: yeniden başlatmadan önce `pending` kalmış bir t
 banka artık tanımıyor, mutabakat taraması `404` alıyor ve o çekim kapanmıyor. Gerçek
 banka transferini unutmaz; bu davranış sahteye özgü. Sahte bankayı yeniden başlatırken
 bekleyen çekimler gözden çıkarılır.
+
+**Banka çağrısında timeout, yeniden deneme ve circuit breaker var** (baseline.md madde
+11). `Microsoft.Extensions.Http.Resilience`'in standart handler'ı adaptörün
+`HttpClient`'ına takılı: deneme başına timeout `Bank:RequestTimeout`, iki yeniden
+deneme, üstünde circuit breaker. Yeniden denemenin ölçütü adaptörünkiyle aynı — 5xx,
+429, 408 ve cevapsızlık.
+
+Transfer request'i POST olduğu halde yeniden deneniyor çünkü her çağrı
+`Idempotency-Key` taşıyor ve banka aynı anahtarla ikinci transfer açmıyor. Anahtar
+olmasaydı yeniden deneme müşterinin parasını iki kez gönderirdi.
+
+İki kademe var: anlık kesinti process içinde kapanıyor, süren kesintide
+`TransientBankException` çıkıyor ve mesaj kuyruğa dönüyor. Pipeline'ın kendi
+istisnaları (açık devre, timeout) da aynı istisnaya çevriliyor; tüketici tanımadığı
+bir istisnada mesajı dead-letter'a yollardı.
 
 **HTTP sözleşmesi paylaşılan assembly'de DEĞİL.** Adaptörün istek/yanıt tipleri kendi
 içinde, sahte bankanınkiler kendi içinde — bilerek iki kopya. Gerçek entegrasyonda o
