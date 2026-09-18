@@ -611,12 +611,9 @@ curl -s localhost:8091/health/ready
 }
 ```
 
-**`checks` listesi, o uygulamanın gerçekten neye bağlı olduğunu gösteriyor.**
-`wallet-api` yalnızca `postgres` sayıyor; broker'a hiç bağlanmıyor, mesajları ayrı
-bir uygulama olan `wallet-consumer` çekiyor. Burada bir gün `rabbitmq` belirirse
-public API'ye broker bağımlılığı eklenmiş demektir ve broker düştüğünde cüzdan
-API'si de birlikte düşer — deployable ayrımının tek sebebi buydu
-(`decisions.md` madde 28).
+**`checks` listesi uygulamanın bağımlılıklarını sayıyor.** `wallet-api` yalnızca
+Postgres'e bağlanıyor. Broker bağlantısı `wallet-consumer`'da; mesajları o çekiyor
+ve ledger'a o yazıyor (`decisions.md` madde 28).
 
 Orchestrator ikisini birden sayıyor:
 
@@ -647,9 +644,8 @@ curl -s localhost:8095/health/ready   # bank-webhook   — postgres
 curl -s localhost:8096/health/ready   # stripe-fake    — checks BOŞ (canlıda yok)
 ```
 
-Sahte kurumların `checks` listesi boş çünkü ikisinin de veritabanı yok: sağlıklı
-olmaları yalnızca process'in ayakta olduğu anlamına geliyor, başka bir şey iddia
-etmiyorlar.
+Sahte kurumların `checks` listesi boş: ikisinin de veritabanı yok, sağlıklı olmaları
+process'in ayakta olduğunu söylüyor.
 
 `wallet-consumer`'ın host'a açılmış portu yok; onun health check'i container'ın
 içinden koşuyor ve sonucu `docker compose ps` çıktısında `healthy` olarak görünüyor.
