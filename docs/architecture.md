@@ -134,7 +134,7 @@ kendisi.
 
 **Akışı sağlayıcı başlatıyor, biz değil.** Müşteri kartıyla ödeme yapıyor ya da
 banka hesabımıza havale gönderiyor; parayı alan kurum bunu bize webhook ile
-bildiriyor. Bizim tarafımızda bir istek yok, ilk temas gelen webhook.
+bildiriyor. Bizim tarafımızdan giden bir request yok; ilk temas gelen webhook.
 
 Compose'da bu bildirimi sahte kurumlar üretiyor: `POST :8096/v1/topups` (stripe-fake)
 ya da `POST :8094/v1/topups` (bank-fake). İkisi de arkadan `topup-webhook`'a imzalı
