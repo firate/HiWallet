@@ -81,8 +81,9 @@ ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor
 **Orchestrator wallet veritabanına dokunmuyor.** Yalnızca komut gönderiyor. Bedeli iki
 veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga taraması (madde 33).
 
-**Bankayla iletişim HTTP.** Orchestrator `StartBankTransfer` komutunu RabbitMQ'ya
-yazıyor, `bank-adapter` onu kuyruktan okuyup bankayı HTTP ile arıyor. Banka da sonucu
+**Bankayla iletişim HTTP.** Orchestrator bankaya doğrudan bağlanmıyor:
+`StartBankTransfer` komutunu RabbitMQ'ya yazıyor, `bank-adapter` onu kuyruktan okuyup
+bankayı HTTP ile arıyor (komutun ayrıntısı bölüm 3'te). Banka da sonucu
 `bank-webhook`'a HTTP callback ile bildiriyor. RabbitMQ yalnızca bizim servislerimiz
 arasında.
 
@@ -230,6 +231,16 @@ sequenceDiagram
 
 Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
 Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
+
+**`StartBankTransfer` bir endpoint değil, kuyruktan geçen bir komut mesajı**
+(`Shared.Contracts`; alanları `CommandId`, `SagaId`, `Amount`, `Currency`,
+`DestinationIban`). Tetikleyen şey bir çağrı değil, saga'nın durum değişimi: wallet
+parayı düşüp `WithdrawalDebited` dönünce saga `debited`'a geçiyor ve orchestrator
+komutu `withdrawal_outbox`'a bu geçişle **aynı transaction'da** yazıyor. Outbox
+relay'i satırı `hiwallet.withdrawals` exchange'ine `StartBankTransfer` routing
+key'iyle yayınlıyor, `hiwallet.withdrawals.bank` kuyruğundan `bank-adapter`
+tüketiyor. Diğer komutlar da (`DebitForWithdrawal`, `SettleWithdrawal`,
+`RefundWithdrawal`) aynı yoldan gidiyor.
 
 **Saga `bank_transfer_pending` durumunda gerçekten bekliyor.** Banka "aldım" diyor,
 sonucu callback ile sonra bildiriyor. Önceki tasarımda banka aynı teslimde cevap
