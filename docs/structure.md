@@ -258,12 +258,16 @@ fakes/
 ├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
 │   └── stripe-fake.http
 ├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
-└── http-client.env.json     -- Rider ortamı: local
+├── http-client.env.json     -- Rider ortamı: local
+└── http-client.private.env.json.example
+                             -- stack başka bir makinedeyse: kopyala, .example'ı at,
+                                STACK-HOST'u doldur. Kopya gitignore'da.
 ```
 
 `.http` dosyaları elle deneme için: senaryoyu kur, bizim tarafın tepkisini gör.
-Gizli değer gerekirse `http-client.private.env.json`'a yazılır; o dosya
-`.gitignore`'da.
+Adresler `http-client.env.json`'daki ortamdan geliyor; depoda yalnızca `local` var.
+Stack başka bir makinede koşuyorsa ya da gizli bir değer gerekiyorsa
+`http-client.private.env.json` kullanılır — örneği yanında, kendisi `.gitignore`'da.
 
 `Fakes.Core` neden paylaşılıyor: `topup-webhook` bütün sağlayıcılar için tek bir
 gövde şekli kabul ediyor, yani sözleşmeyi BİZ dayatıyoruz — ayrışacak iki taraf yok.
