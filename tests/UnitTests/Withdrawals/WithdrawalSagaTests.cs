@@ -202,7 +202,7 @@ public sealed class WithdrawalSagaTests
         var saga = NewSaga();
         saga.Rejected("limit", Now);
 
-        // Reddedilen istekte bankaya hiç komut gitmedi; bir cevap gelmesi mümkün değil.
+        // Reddedilen request'te bankaya hiç komut gitmedi; bir cevap gelmesi mümkün değil.
         saga.Debited(Guid.NewGuid(), 102m, Now).ShouldBe(TransitionResult.Conflict);
         saga.BankTransferSucceeded("BNK-1", 1.50m, Now).ShouldBe(TransitionResult.Conflict);
         saga.State.ShouldBe(WithdrawalState.Rejected);

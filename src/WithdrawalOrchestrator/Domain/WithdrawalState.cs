@@ -7,7 +7,7 @@ namespace HiWallet.WithdrawalOrchestrator.Domain;
 /// </summary>
 public enum WithdrawalState
 {
-    /// <summary>İstek alındı, henüz para hareketi yok.</summary>
+    /// <summary>Request alındı, henüz para hareketi yok.</summary>
     Initiated = 1,
 
     /// <summary>Kural/limit reddi. HİÇBİR para hareketi olmadı — terminal.</summary>
@@ -54,7 +54,7 @@ public static class WithdrawalStates
 
     /// <summary>
     /// Durumun dış dünyadaki adı. TEK yerde duruyor çünkü üç tüketicisi var:
-    /// veritabanı kolonu, HTTP yanıtı ve index filtresi. Üçü ayrı yazılsaydı
+    /// veritabanı kolonu, HTTP response'u ve index filtresi. Üçü ayrı yazılsaydı
     /// biri değiştiğinde diğerleri sessizce eskir; kolon ile filtre ayrıştığında
     /// hiçbir derleme hatası çıkmaz.
     ///

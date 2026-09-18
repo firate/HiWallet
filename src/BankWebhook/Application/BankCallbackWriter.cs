@@ -28,7 +28,7 @@ public sealed class BankCallbackWriter(
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         // "Önce SELECT sonra INSERT" YOK (CLAUDE.md "Idempotency"): iki eşzamanlı
-        // istek arasında TOCTOU açığı var ve callback'ler tam da paralel gelir.
+        // request arasında TOCTOU açığı var ve callback'ler tam da paralel gelir.
         var inserted = await db.Database.ExecuteSqlAsync(
             $"""
              INSERT INTO bank_callbacks

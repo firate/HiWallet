@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiWallet.Bank.Fake.Api.Controllers;
 
 /// <summary>
-/// Senaryo tetikleyicileri (overview.md madde 9). <b>Gerçek bir bankada bu uç
+/// Senaryo tetikleyicileri (overview.md madde 9). <b>Gerçek bir bankada bu endpoint
 /// YOKTUR</b> — varlık sebebi "banka reddetti" durumunun test edilebilir olması.
 ///
 /// Sahte servisin tek özel yeteneği bu. Telafi yolunun çalıştığını kanıtlamanın

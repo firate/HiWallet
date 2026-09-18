@@ -6,7 +6,7 @@ namespace HiWallet.Bank.Fake.Application;
 /// Senaryoların kurulduğu ve okunduğu yer. Test bir çekim için "banka reddedecek"
 /// dediğinde buraya yazılıyor.
 ///
-/// Gerçek bir bankada bu uç YOKTUR. Sahte servisin tek özel yeteneği bu: dış dünya
+/// Gerçek bir bankada bu endpoint YOKTUR. Sahte servisin tek özel yeteneği bu: dış dünya
 /// kötülüklerini bilinçli tetiklemek. Telafi yolunun çalıştığını kanıtlamanın başka
 /// yolu yok.
 /// </summary>

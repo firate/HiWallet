@@ -59,7 +59,7 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <param name="omitKey">
-    /// Yalnızca "anahtarsız istek reddediliyor mu" testi için. Varsayılan davranış
+    /// Yalnızca "anahtarsız request reddediliyor mu" testi için. Varsayılan davranış
     /// anahtar ÜRETMEK: başlık zorunlu (decisions.md madde 4) ve diğer testlerin
     /// konusu idempotency değil.
     /// </param>
@@ -79,9 +79,9 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Anahtarsız istek <c>400</c> ile reddediliyor (<c>decisions.md</c> madde 4).
+    /// Anahtarsız request <c>400</c> ile reddediliyor (<c>decisions.md</c> madde 4).
     ///
-    /// Kabul edilseydi şu sessizce çift harcama üretirdi: ledger commit oldu, yanıt
+    /// Kabul edilseydi şu sessizce çift harcama üretirdi: ledger commit oldu, response
     /// dönerken bağlantı koptu, istemci "oldu mu olmadı mı" bilmediği için tekrar
     /// denedi. Anahtarsız tekrar hiçbir constraint'e takılmaz — ikinci transfer
     /// yazılır ve hiçbir uyarı çıkmaz.

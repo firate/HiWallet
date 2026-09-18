@@ -48,7 +48,7 @@ public static class MessagingSetup
     /// Broker'ın o servis için ne kadar hayati olduğuna göre seçilir ve seçim
     /// önemli: <c>Unhealthy</c> servisi trafikten çektirir. Broker yalnızca bir
     /// yan akış için gerekiyorsa <c>Degraded</c> doğrusu — durum health check çıktısında
-    /// görünür ama uç 200 dönmeye devam eder, çalışan yollar kapanmaz.
+    /// görünür ama endpoint 200 dönmeye devam eder, çalışan yollar kapanmaz.
     /// </param>
     public static IHealthChecksBuilder AddRabbitMqCheck(
         this IHealthChecksBuilder builder,

@@ -55,7 +55,7 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseRateLimiter();
 
-// Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki uç da yok.
+// Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();
 
 // Health check'lere rate limit UYGULANMIYOR: probe'un limite takılması sağlıklı bir

@@ -13,7 +13,7 @@ namespace HiWallet.BankIntegration.Persistence;
 /// <b>İşlemeyi webhook DEĞİL relay yapıyor</b> ve bu <c>topup-webhook</c>'un
 /// şeklinden bilinçli sapma: callback yolu ile mutabakat taraması AYNI kapanış
 /// koduna varmak zorunda ve o kodun tek kopyası olmalı. Ayrıca yayın mantığındaki
-/// her değişiklik aksi halde bankanın çağırdığı ucu yeniden başlatmayı gerektirirdi
+/// her değişiklik aksi halde bankanın çağırdığı endpoint'i yeniden başlatmayı gerektirirdi
 /// (decisions.md madde 35).
 /// </summary>
 public sealed class BankCallback

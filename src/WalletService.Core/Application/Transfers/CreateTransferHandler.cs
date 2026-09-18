@@ -67,8 +67,8 @@ public sealed class CreateTransferHandler(
 
         // --- Idempotency kapısı: policy'den ÖNCE ---------------------------------
         // ledger-schema.md'nin referans akışı bunu policy'den SONRA gösteriyor ama bu
-        // bozuk: ilk transfer günlük limiti doldurduysa aynı isteğin tekrarı limit
-        // aşımına takılır ve orijinal işlemi dönmek yerine 422 verir. Tekrar eden istek
+        // bozuk: ilk transfer günlük limiti doldurduysa aynı request'in tekrarı limit
+        // aşımına takılır ve orijinal işlemi dönmek yerine 422 verir. Tekrar eden request
         // hiçbir kuralı yeniden değerlendirmemeli, sadece olanı dönmeli.
         if (command.IdempotencyKey is { } key)
         {

@@ -7,10 +7,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiWallet.Bank.Fake.Api.Controllers;
 
 /// <summary>
-/// Bankanın transfer ucu. Gerçek entegrasyonda bu controller'ın yerini bankanın
+/// Bankanın transfer endpoint'i. Gerçek entegrasyonda bu controller'ın yerini bankanın
 /// kendi API'si alıyor ve bu proje siliniyor.
 ///
-/// Kimlik doğrulama YOK: sahte bankanın ucunu korumak, korunacak bir şey olmadığı
+/// Kimlik doğrulama YOK: sahte bankanın endpoint'ini korumak, korunacak bir şey olmadığı
 /// için tören olurdu. Gerçeğinde burada mTLS ya da OAuth olurdu ve o kısım
 /// <c>bank-adapter</c>'ın işi.
 /// </summary>
@@ -32,7 +32,7 @@ public sealed class TransfersController(
     /// durum sorgusuyla, sonra (decisions.md madde 35).
     ///
     /// <c>202</c>, <c>200</c> değil: "aldım" ile "yaptım" aynı şey değil ve para bu
-    /// yanıt döndüğünde henüz hareket etmedi.
+    /// response döndüğünde henüz hareket etmedi.
     /// </summary>
     [HttpPost]
     [ProducesResponseType<StartTransferResponse>(StatusCodes.Status202Accepted)]
@@ -41,7 +41,7 @@ public sealed class TransfersController(
     public async Task<IActionResult> Start(
         [FromBody] StartTransferRequest request, CancellationToken ct)
     {
-        // Anahtarsız istek reddediliyor. Kabul edilseydi ağ kesintisinden sonraki
+        // Anahtarsız request reddediliyor. Kabul edilseydi ağ kesintisinden sonraki
         // tekrar İKİNCİ BİR TRANSFER açardı — sahte de olsa bu davranışı taklit
         // etmek şart: adaptörün anahtarı gerçekten gönderdiğini bu kontrol kanıtlıyor.
         if (!Request.Headers.TryGetValue(IdempotencyHeader, out var key)
@@ -87,10 +87,10 @@ public sealed class TransfersController(
     }
 
     /// <summary>
-    /// Transferin o anki durumu. <b>Mutabakat taramasının okuduğu uç.</b>
+    /// Transferin o anki durumu. <b>Mutabakat taramasının okuduğu endpoint.</b>
     ///
     /// Callback'i kaçırılmış bir transferin sonucu yalnızca buradan öğrenilebiliyor;
-    /// bu yüzden bankanın böyle bir ucu olmadığı durumda taramanın yapacak bir şeyi
+    /// bu yüzden bankanın böyle bir endpoint'i olmadığı durumda taramanın yapacak bir şeyi
     /// kalmıyor (decisions.md madde 35).
     /// </summary>
     [HttpGet("{bankReference}")]

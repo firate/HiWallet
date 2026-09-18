@@ -8,7 +8,7 @@ namespace HiWallet.WalletService.Domain.Ledger;
 /// </summary>
 public enum ActorType
 {
-    /// <summary>Hesap sahibi, müşteriye dönük bir uçtan.</summary>
+    /// <summary>Hesap sahibi, müşteriye dönük bir endpoint'ten.</summary>
     Customer = 1,
 
     /// <summary>Şirket çalışanı, backoffice'ten.</summary>

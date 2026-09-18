@@ -9,7 +9,7 @@ using HiWallet.Shared.Infrastructure.Observability;
 // Gerçek bankaya geçerken bu projede tek satır değişmiyor.
 //
 // INGRESS'İ YOK. Komutu kuyruktan alıyor, bankayı kendisi arıyor. Bankanın bizi
-// çağırdığı uç AYRI bir deployable (`bank-webhook`) — maruziyetleri farklı ve
+// çağırdığı endpoint AYRI bir deployable (`bank-webhook`) — maruziyetleri farklı ve
 // farklı maruziyet aynı process'te birleşmiyor (madde 28).
 const string ServiceName = "hiwallet-bank-adapter";
 
@@ -31,8 +31,8 @@ var app = builder.Build();
 
 app.ValidateBankAdapterConfiguration();
 
-// Yalnızca health check ucu. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
-// yapıyor. Health check ucu da host'a açılmıyor, compose içinde kalıyor.
+// Yalnızca health check endpoint'i. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
+// yapıyor. Health check endpoint'i da host'a açılmıyor, compose içinde kalıyor.
 app.MapHiWalletHealthChecks();
 
 app.Run();

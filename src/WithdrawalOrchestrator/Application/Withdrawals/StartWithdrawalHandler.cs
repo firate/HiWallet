@@ -67,7 +67,7 @@ public sealed class StartWithdrawalHandler(
         {
             // "Önce SELECT sonra INSERT" YOK (CLAUDE.md "Idempotency"): tekilliğe
             // veritabanı karar veriyor, uygulama değil. Kontrolü önce yapsaydık iki
-            // eşzamanlı istek arasında TOCTOU açığı kalırdı ve müşteri iki kez
+            // eşzamanlı request arasında TOCTOU açığı kalırdı ve müşteri iki kez
             // para çekerdi.
             //
             // Çakışan commit tamamen geri alındı — outbox satırı da yazılmadı.

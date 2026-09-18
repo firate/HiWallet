@@ -60,7 +60,7 @@ public sealed class BankAdapterFactory(
         {
             // İki in-memory host arasında gerçek soket yok. Adaptörün adlandırılmış
             // istemcisinin handler'ı sahte bankanın test sunucusununkiyle
-            // değiştiriliyor; istek/yanıt boru hattının geri kalanı olduğu gibi
+            // değiştiriliyor; request/response boru hattının geri kalanı olduğu gibi
             // koşuyor.
             services.AddHttpClient(HiWallet.BankAdapter.Application.BankClient.HttpClientName)
                 .ConfigurePrimaryHttpMessageHandler(() =>

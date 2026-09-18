@@ -5,7 +5,7 @@ namespace HiWallet.Bank.Fake.Application;
 /// <summary>
 /// "Bu transferin şu an durumu ne" sorusunun TEK cevabı.
 ///
-/// Tek yerde duruyor çünkü iki tüketicisi var: durum sorgusu ucu ve callback
+/// Tek yerde duruyor çünkü iki tüketicisi var: durum sorgusu endpoint'i ve callback
 /// göndericisi. İkisi ayrı ayrı hesaplasaydı, sahte banka aynı transfer için
 /// sorguda başka callback'te başka şey söyleyebilirdi — ve o tutarsızlık bizim
 /// tarafımızda saga çelişkisi olarak görünürdü (madde 31), oysa hata bankada olurdu.

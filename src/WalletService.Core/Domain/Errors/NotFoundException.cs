@@ -1,9 +1,9 @@
 namespace HiWallet.WalletService.Domain.Errors;
 
 /// <summary>
-/// Var olmayan bir kayda atıf. <see cref="DomainException"/> DEĞİL: o "istek geçerliydi,
+/// Var olmayan bir kayda atıf. <see cref="DomainException"/> DEĞİL: o "request geçerliydi,
 /// kural izin vermedi" demek ve <c>422</c>'ye eşleniyor. Burada kural işlemedi bile,
-/// istek geçersiz — <c>404</c> (CLAUDE.md "API").
+/// request geçersiz — <c>404</c> (CLAUDE.md "API").
 ///
 /// Ortak taban olmasının sebebi HTTP eşlemesi: <c>ProblemDetailsSetup</c> tek tip
 /// yakalıyor. Yeni bir "bulunamadı" türü eklendiğinde eşleme kendiliğinden çalışsın

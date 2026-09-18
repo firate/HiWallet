@@ -9,7 +9,7 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 ///
 /// Bağlantı uygulama başlarken DEĞİL, ilk ihtiyaç anında kuruluyor. Broker
 /// uygulamadan sonra ayağa kalkarsa servis yine de başlasın diye — broker'a
-/// bağlanamamak health check ucunda görünür, başlangıçta çökme sebebi değil.
+/// bağlanamamak health check endpoint'inde görünür, başlangıçta çökme sebebi değil.
 /// </summary>
 public sealed class RabbitMqConnection : IAsyncDisposable
 {

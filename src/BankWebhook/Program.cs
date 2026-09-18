@@ -8,7 +8,7 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 //
 // AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR. `bank-adapter`'ın hiç ingress'i yok;
 // farklı maruziyet aynı process'te birleşmiyor (madde 28). Dağıtım tarafında da
-// karşılığı var: tarama ya da yayın mantığı değişince bankanın çağırdığı uç
+// karşılığı var: tarama ya da yayın mantığı değişince bankanın çağırdığı endpoint
 // yeniden başlatılmıyor.
 //
 // TEK İŞİ: doğrula, inbox'a yaz, 202. Broker'a hiç bağlanmıyor.

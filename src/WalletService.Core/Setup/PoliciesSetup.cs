@@ -31,7 +31,7 @@ public static class PoliciesSetup
                 kv => kv.Key,
                 kv => new CommissionRate(kv.Value.Rate, kv.Value.Minimum, kv.Value.Maximum));
 
-        // Tarifeler çalışma anında değişmiyor; singleton yeterli ve her istekte yeniden
+        // Tarifeler çalışma anında değişmiyor; singleton yeterli ve her request'te yeniden
         // sözlük kurmaktan iyi.
         services.AddSingleton(new LimitPolicy(limits));
         services.AddSingleton(new CommissionPolicy(commissions));

@@ -6,12 +6,12 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiWallet.BankWebhook.Api.Controllers;
 
 /// <summary>
-/// Bankanın transfer sonucu bildirimi. <b>Bu servisin TEK ucu ve tek işi:</b>
+/// Bankanın transfer sonucu bildirimi. <b>Bu servisin TEK endpoint'i ve tek işi:</b>
 /// doğrula, inbox'a yaz, <c>202</c> (decisions.md madde 35).
 ///
 /// İşleme, transferin kapatılması ve cevabın yayınlanması <c>bank-adapter</c>'da.
 /// <c>topup-webhook</c>'ta relay webhook'un içinde koşuyor; burada bilinçli olarak
-/// sapılıyor — yayın mantığındaki her değişiklik aksi halde bankanın çağırdığı ucu
+/// sapılıyor — yayın mantığındaki her değişiklik aksi halde bankanın çağırdığı endpoint'i
 /// yeniden başlatmayı gerektirirdi.
 /// </summary>
 [ApiController]
@@ -23,7 +23,7 @@ public sealed class BankWebhookController(
 {
     /// <summary>
     /// Gövde sınırı. İmza gövdenin tamamı üzerinde hesaplandığı için sınırsız gövde
-    /// doğrudan CPU tüketimi demek; kimliği doğrulanmamış bir uçta bu bir saldırı yüzeyi.
+    /// doğrudan CPU tüketimi demek; kimliği doğrulanmamış bir endpoint'te bu bir saldırı yüzeyi.
     /// </summary>
     private const int MaxBodyBytes = 32 * 1024;
 
@@ -33,11 +33,11 @@ public sealed class BankWebhookController(
     /// <b>İmza en başta</b>, parse'tan bile önce: doğrulanmamış gövdeyi işlemeye
     /// başlamak saldırganın kontrolündeki veriyi işlemeye başlamak olurdu.
     ///
-    /// <b>Yanıt en sonda</b>, commit'ten sonra: bankaya "aldım" demek "kaybetmem"
+    /// <b>Response en sonda</b>, commit'ten sonra: bankaya "aldım" demek "kaybetmem"
     /// sözü vermektir ve banka sınırlı sayıda deneyip vazgeçiyor.
     ///
     /// <b>Neden <c>202</c>.</b> Verilen söz "işledim" değil "kalıcı olarak
-    /// kaydettim". Saga bu yanıt döndüğünde henüz ilerlemedi; transferi kapatan kod
+    /// kaydettim". Saga bu response döndüğünde henüz ilerlemedi; transferi kapatan kod
     /// başka bir serviste.
     /// </summary>
     [HttpPost("{bank}")]

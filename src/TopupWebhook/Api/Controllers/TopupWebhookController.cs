@@ -18,7 +18,7 @@ public sealed class TopupWebhookController(
 {
     /// <summary>
     /// Gövde sınırı. İmza gövdenin tamamı üzerinde hesaplandığı için sınırsız gövde
-    /// doğrudan CPU tüketimi demek; kimliği doğrulanmamış bir uçta bu bir saldırı yüzeyi.
+    /// doğrudan CPU tüketimi demek; kimliği doğrulanmamış bir endpoint'te bu bir saldırı yüzeyi.
     /// </summary>
     private const int MaxBodyBytes = 32 * 1024;
 
@@ -30,13 +30,13 @@ public sealed class TopupWebhookController(
     /// <b>İmza en başta</b>, parse'tan bile önce: doğrulanmamış gövdeyi parse etmek
     /// saldırganın kontrolündeki veriyi işlemeye başlamak olurdu.
     ///
-    /// <b>Yanıt en sonda</b>, commit'ten sonra: sağlayıcıya "aldım" demek "kaybetmem"
-    /// sözü vermektir. Çoğu sağlayıcı başarı yanıtından sonra bir daha denemiyor.
+    /// <b>Response en sonda</b>, commit'ten sonra: sağlayıcıya "aldım" demek "kaybetmem"
+    /// sözü vermektir. Çoğu sağlayıcı başarı response'undan sonra bir daha denemiyor.
     ///
     /// <b>Neden 202, 200 değil.</b> Verilen söz "işledim" değil "kalıcı olarak
-    /// kaydettim". Para bu yanıt döndüğünde henüz cüzdanda değil; ledger'a yazan
+    /// kaydettim". Para bu response döndüğünde henüz cüzdanda değil; ledger'a yazan
     /// kod başka bir serviste, arada broker var. 202 tam olarak bunu söylüyor:
-    /// kabul edildi, işlenmesi sonra. 200 dönmek yanıtın anlamını olduğundan
+    /// kabul edildi, işlenmesi sonra. 200 dönmek response'un anlamını olduğundan
     /// güçlü gösterirdi.
     /// </summary>
     [HttpPost("{provider}")]

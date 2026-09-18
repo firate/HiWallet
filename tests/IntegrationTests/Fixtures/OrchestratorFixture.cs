@@ -71,7 +71,7 @@ public sealed class OrchestratorFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// İstek kapsamı dışında koşan bileşenler (relay, takılmış saga taraması)
+    /// Request kapsamı dışında koşan bileşenler (relay, takılmış saga taraması)
     /// factory bekliyor. <see cref="BankFixture"/> ile aynı kalıp.
     /// </summary>
     public IDbContextFactory<OrchestratorDbContext> ContextFactory => new Factory(this);

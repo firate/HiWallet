@@ -9,7 +9,7 @@ using HiWallet.WalletService.Infrastructure.Persistence;
 namespace HiWallet.IntegrationTests.Accounts;
 
 /// <summary>
-/// Hesap ve cüzdan açma uçları. Bunlardan önce cüzdan yalnızca doğrudan DB'ye
+/// Hesap ve cüzdan açma endpoint'leri. Bunlardan önce cüzdan yalnızca doğrudan DB'ye
 /// yazarak kuruluyordu — yani compose'dan koşan sistemde hiç kurulamıyordu.
 /// </summary>
 [Collection(PostgresCollection.Name)]
@@ -92,7 +92,7 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Asıl kanıt: uçtan açılan cüzdan ledger'da GERÇEKTEN kullanılabiliyor mu.
+    /// Asıl kanıt: endpoint'ten açılan cüzdan ledger'da GERÇEKTEN kullanılabiliyor mu.
     /// Bakiye satırı açılmasaydı cüzdan yaratılırdı ama ilk transfer
     /// "Bakiye satırı yok" ile 500 verirdi — sessiz ve geç ortaya çıkan kusur.
     /// </summary>
@@ -114,7 +114,7 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
         }
 
         // Idempotency-Key zorunlu (decisions.md madde 4); bu testin konusu değil ama
-        // başlıksız istek 400 döner.
+        // başlıksız request 400 döner.
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/transfers")
         {
             Content = JsonContent.Create(new
@@ -210,7 +210,7 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Sistem hesabı bu uçtan görünmemeli: clearing ve revenue bakiyeleri iç muhasebe.
+    /// Sistem hesabı bu endpoint'ten görünmemeli: clearing ve revenue bakiyeleri iç muhasebe.
     /// Aynı tabloda durdukları için (decisions.md madde 20) filtre olmasa sızarlardı.
     /// </summary>
     [Fact]

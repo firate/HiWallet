@@ -15,7 +15,7 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Mevcut saga'ların hepsi müşteri isteğiyle açıldı — o dönemde backoffice
+            // Mevcut saga'ların hepsi müşteri request'iyle açıldı — o dönemde backoffice
             // yoktu ve çekim başlatmanın tek yolu POST /v1/withdrawals'tı. Yani
             // buradaki backfill ledger'daki `legacy:pre-migration`'ın aksine bir
             // tahmin değil, bilinen bir gerçek: başlatan hesabın kendisi.

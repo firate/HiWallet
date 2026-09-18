@@ -9,7 +9,7 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 
 // BANKANIN YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 //
-// Canlıda YOK: yerine gerçek bankanın kendi ucu geçiyor ve bu proje siliniyor.
+// Canlıda YOK: yerine gerçek bankanın kendi endpoint'i geçiyor ve bu proje siliniyor.
 // Bizim tarafımız `bank-adapter`; ayrımın ölçütü "test amaçlı mı" değil, "başka bir
 // kurumun yerine mi duruyor".
 //
@@ -46,8 +46,8 @@ builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
         // Enum'lar İSİM olarak geçer ("Failure", "Duplicate"), wallet-api'deki gibi.
-        // Bu ayar yokken string gönderen her istek 400 alıyordu — senaryo ve
-        // tetikleme uçlarının tamamı, elle ya da testten, hiç çalışmıyordu.
+        // Bu ayar yokken string gönderen her request 400 alıyordu — senaryo ve
+        // tetikleme endpoint'lerinin tamamı, elle ya da testten, hiç çalışmıyordu.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();

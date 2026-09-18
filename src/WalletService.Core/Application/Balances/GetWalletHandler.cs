@@ -13,7 +13,7 @@ public sealed class GetWalletHandler(IDbContextFactory<WalletDbContext> contextF
 
         var row = await db.LedgerAccounts
             .AsNoTracking()
-            // Sistem hesabı bu uçtan görünmüyor: clearing ve revenue bakiyeleri iç
+            // Sistem hesabı bu endpoint'ten görünmüyor: clearing ve revenue bakiyeleri iç
             // muhasebe, public API'nin cevaplayacağı soru değil.
             .Where(a => a.Id == query.WalletId && a.Type == LedgerAccountType.UserWallet)
             .Join(

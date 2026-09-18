@@ -30,7 +30,7 @@ public sealed class StripeFakeFactory(
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                // Gerçek adres değil; istekler aşağıdaki handler ile test
+                // Gerçek adres değil; request'ler aşağıdaki handler ile test
                 // sunucusuna yönleniyor. Yine de dolu olmak zorunda —
                 // ValidateOnStart boş bırakılmasına izin vermiyor.
                 ["Topup:WebhookUrl"] = "http://topup-webhook",

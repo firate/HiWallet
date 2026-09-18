@@ -39,7 +39,7 @@ public sealed class LedgerTransaction
     public LedgerTransactionType Type { get; private set; }
 
     /// <summary>
-    /// İşlemin idempotency KAPSAMI olan hesap — "isteği başlatan hesap" değil.
+    /// İşlemin idempotency KAPSAMI olan hesap — "request'i başlatan hesap" değil.
     /// İç işlemlerde de dolar; nullable yapılmaz (decisions.md madde 15).
     /// </summary>
     public Guid LedgerAccountId { get; private set; }

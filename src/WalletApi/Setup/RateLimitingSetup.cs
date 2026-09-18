@@ -41,7 +41,7 @@ public static class RateLimitingSetup
                     new TokenBucketRateLimiterOptions
                     {
                         // Token bucket, fixed window yerine: pencere sınırında iki katı
-                        // isteğin geçmesine izin vermiyor ve kısa patlamaları da
+                        // request'in geçmesine izin vermiyor ve kısa patlamaları da
                         // boğmuyor. Para transferi tam olarak böyle bir trafik.
                         TokenLimit = limits.BurstSize,
                         TokensPerPeriod = limits.SustainedPerMinute,

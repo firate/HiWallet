@@ -203,7 +203,7 @@ public sealed class TransferTests(PostgresFixture postgres)
     public async Task Transfer_LimitAsimindanSonraTekrar_LimitDegilMevcutIslemiDoner()
     {
         // Idempotency kapısı policy'den ÖNCE olmalı: ilk transfer limiti doldurduysa,
-        // aynı isteğin tekrarı 422 değil orijinal işlemi dönmeli.
+        // aynı request'in tekrarı 422 değil orijinal işlemi dönmeli.
         var ct = TestContext.Current.CancellationToken;
         Guid from, to;
 

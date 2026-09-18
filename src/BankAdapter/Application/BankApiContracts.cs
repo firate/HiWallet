@@ -22,7 +22,7 @@ internal sealed record StartTransferRequest(
     string DestinationIban);
 
 /// <summary>
-/// Bankanın kabul yanıtı. <c>Status</c> burada her zaman <c>pending</c> —
+/// Bankanın kabul response'u. <c>Status</c> burada her zaman <c>pending</c> —
 /// "aldım" demek "gönderdim" demek değil.
 /// </summary>
 internal sealed record StartTransferResponse(
@@ -30,7 +30,7 @@ internal sealed record StartTransferResponse(
     string Status,
     bool Replayed);
 
-/// <summary>Durum sorgusu yanıtı. Mutabakat taramasının okuduğu şey.</summary>
+/// <summary>Durum sorgusu response'u. Mutabakat taramasının okuduğu şey.</summary>
 internal sealed record TransferStatusResponse(
     string BankReference,
     string ClientReference,

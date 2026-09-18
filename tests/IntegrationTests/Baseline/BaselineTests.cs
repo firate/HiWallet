@@ -88,7 +88,7 @@ public sealed class BaselineTests(PostgresFixture postgres) : IAsyncLifetime
 
         var raw = await _client.GetStringAsync("/health/ready", ct);
 
-        // Bağlantı dizesi ya da parola yanıtta görünmemeli.
+        // Bağlantı dizesi ya da parola response'ta görünmemeli.
         raw.ShouldNotContain("Password", Case.Insensitive);
         raw.ShouldNotContain("Host=", Case.Insensitive);
     }
@@ -98,7 +98,7 @@ public sealed class BaselineTests(PostgresFixture postgres) : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        // BurstSize 20; aynı IP'den arka arkaya istek atınca kova boşalmalı.
+        // BurstSize 20; aynı IP'den arka arkaya request atınca kova boşalmalı.
         // İstekler geçersiz (400) olsa bile limiter'dan geçiyorlar — limiter
         // middleware, controller'dan önce.
         HttpResponseMessage? limited = null;

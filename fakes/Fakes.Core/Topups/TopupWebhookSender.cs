@@ -131,8 +131,8 @@ public sealed class TopupWebhookSender(
         // Ret durum kodu İSTİSNA DEĞİL: bir event'in reddedilmesi (401, 400) kalan
         // event'leri göndermeyi engellememeli — sahte sağlayıcının işi göndermek,
         // sonucu yorumlamak değil. Bağlantı hatası ise istisna olarak yukarı
-        // çıkıyor ve dizinin geri kalanı gönderilmiyor: karşı uç yoksa sıradaki
-        // istekler de aynı hatayı alırdı.
+        // çıkıyor ve dizinin geri kalanı gönderilmiyor: karşı endpoint yoksa sıradaki
+        // request'ler de aynı hatayı alırdı.
         logger.LogInformation(
             "Top-up webhook gönderildi. {Provider}/{EventId} → {Status}",
             _options.Provider, body.EventId, (int)response.StatusCode);

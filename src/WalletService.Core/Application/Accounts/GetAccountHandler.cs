@@ -16,7 +16,7 @@ public sealed class GetAccountHandler(IDbContextFactory<WalletDbContext> context
             ?? throw new AccountNotFoundException(query.AccountId);
 
         // Cüzdan sayısı hesap başına küçük; pagination gerekmiyor. Sınırsız
-        // büyüyebilen liste uçlarında (işlem geçmişi) durum farklı olacak.
+        // büyüyebilen liste endpoint'lerinde (işlem geçmişi) durum farklı olacak.
         var wallets = await db.LedgerAccounts
             .AsNoTracking()
             .Where(a => a.AccountId == query.AccountId)

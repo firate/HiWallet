@@ -9,7 +9,7 @@ namespace HiWallet.Bank.Fake.Application;
 /// <c>WithdrawalQueries</c> ile aynı kalıp — controller depoya doğrudan
 /// dokunmuyor.
 ///
-/// <b>Yanıt tipini döndürüyor, entity'yi değil</b> ve bu <c>WithdrawalQueries</c>'ten
+/// <b>Response tipini döndürüyor, entity'yi değil</b> ve bu <c>WithdrawalQueries</c>'ten
 /// sapma. Sebebi burada durumun TÜRETİLMİŞ olması: <see cref="TransferResolution"/>
 /// zamana bakarak karar veriyor ve o karar tek yerde kalmalı. Entity dönseydi
 /// türetmeyi controller yapardı; callback göndericisi de kendi tarafında yapıyor

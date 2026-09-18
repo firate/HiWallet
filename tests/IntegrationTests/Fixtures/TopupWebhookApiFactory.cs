@@ -30,7 +30,7 @@ public sealed class TopupWebhookApiFactory(InboxFixture inbox) : WebApplicationF
                 ["ConnectionStrings:Topup"] = inbox.ConnectionString,
                 [$"Providers:{StripeProvider}:WebhookSecret"] = StripeSecret,
 
-                // Rate limiter testin kendi isteklerini boğmasın: burada ölçülen şey
+                // Rate limiter testin kendi request'lerini boğmasın: burada ölçülen şey
                 // limitleme değil, imza ve inbox davranışı.
                 ["RateLimiting:Webhooks:BurstSize"] = "10000",
                 ["RateLimiting:Webhooks:SustainedPerMinute"] = "10000"

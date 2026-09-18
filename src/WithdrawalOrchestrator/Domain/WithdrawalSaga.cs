@@ -25,7 +25,7 @@ public sealed class WithdrawalSaga
 
     /// <summary>
     /// Idempotency kapsamı. Key'i client üretiyor; yalnız key UNIQUE olsaydı iki
-    /// müşterinin aynı key'i üretmesi isteklerini karıştırırdı (decisions.md madde 4).
+    /// müşterinin aynı key'i üretmesi request'lerini karıştırırdı (decisions.md madde 4).
     /// </summary>
     public Guid AccountId { get; private set; }
 

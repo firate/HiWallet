@@ -19,7 +19,7 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// </summary>
 /// <param name="defaultOutcome">
 /// Senaryosu kurulmamış çekimlerin sonucu. Zincir testinde yarışı kaldırıyor:
-/// saga kimliği ancak çekim isteği kabul edildikten sonra öğrenilebiliyor, yani
+/// saga kimliği ancak çekim request'i kabul edildikten sonra öğrenilebiliyor, yani
 /// senaryoyu API'den kurmak teorik olarak banka çağrısına geç kalabilir.
 /// Varsayılanı servis başlamadan vermek bu pencereyi tamamen kapatıyor.
 /// </param>
@@ -90,7 +90,7 @@ public sealed class BankFakeFactory(
     /// <summary>
     /// Bankanın, belirtilen client reference için açtığı transfer sayısı.
     /// Verilmezse bütün transferler. Sahte bankanın içine bakmanın tek yolu bu —
-    /// HTTP'de "kaç transfer açtın" ucu yok, gerçek bankada da olmazdı.
+    /// HTTP'de "kaç transfer açtın" endpoint'i yok, gerçek bankada da olmazdı.
     /// </summary>
     public int TransferCount(string? clientReference = null)
     {

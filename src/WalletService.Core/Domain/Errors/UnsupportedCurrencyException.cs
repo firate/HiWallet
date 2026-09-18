@@ -5,7 +5,7 @@ namespace HiWallet.WalletService.Domain.Errors;
 /// <summary>
 /// İstenen para biriminde sistem hesapları (clearing, revenue) açılmamış.
 ///
-/// Girdi kuralı DEĞİL — kod ISO 4217'ye uygun, istek biçimsel olarak kusursuz.
+/// Girdi kuralı DEĞİL — kod ISO 4217'ye uygun, request biçimsel olarak kusursuz.
 /// Sınırdaki validator bunu bilemez: cevap ledger'da, hangi sistem hesaplarının
 /// seed edildiğinde. Bu yüzden <see cref="DomainException"/> ve <c>422</c>.
 /// </summary>

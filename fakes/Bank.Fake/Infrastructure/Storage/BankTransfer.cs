@@ -30,7 +30,7 @@ internal sealed class BankTransfer
 
     /// <summary>
     /// Müşterinin gönderdiği idempotency anahtarı (bizde <c>CommandId</c>). Tekil —
-    /// aynı anahtarla ikinci istek YENİ transfer açmıyor, mevcut kaydı dönüyor.
+    /// aynı anahtarla ikinci request YENİ transfer açmıyor, mevcut kaydı dönüyor.
     ///
     /// Bankanın kendi koruması bu; bizim tarafımızdaki dedup'tan bağımsız. İki
     /// taraf da kendi kaydını tutuyor, çünkü gerçek entegrasyonda karşı tarafın
@@ -56,7 +56,7 @@ internal sealed class BankTransfer
     /// dışında kabul anı + <c>SettlementDelay</c>.
     ///
     /// Gecikmeyi <c>Task.Delay</c> ile beklemek yerine zaman damgası olarak tutmak
-    /// bekleyen isteğin bir thread tutmamasını ve durum sorgusu ile callback'in
+    /// bekleyen request'in bir thread tutmamasını ve durum sorgusu ile callback'in
     /// aynı cevabı vermesini sağlıyor.
     /// </summary>
     public required DateTimeOffset ResolveAt { get; init; }
