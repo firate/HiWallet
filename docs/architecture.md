@@ -13,7 +13,6 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 ```mermaid
 flowchart LR
     client["Mobil / Web<br/>istemci"]
-    provider["Ödeme sağlayıcısı<br/>(stripe-fake)"]
 
     subgraph public["public ingress"]
         api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
@@ -31,7 +30,8 @@ flowchart LR
     end
 
     subgraph outside["BİZİM DEĞİL — canlıda yok"]
-        bank["<b>bank-fake</b><br/>bankanın API'si"]
+        bank["<b>bank-fake</b><br/>bankanın API'si:<br/>havale girişi ve transfer"]
+        stripe["<b>stripe-fake</b><br/>kart sağlayıcısı:<br/>yalnızca giriş"]
     end
 
     mq[["RabbitMQ"]]
@@ -43,7 +43,8 @@ flowchart LR
 
     client -->|HTTPS| api
     client -->|HTTPS| orch
-    provider -->|"webhook + HMAC"| hook
+    stripe -->|"webhook + HMAC"| hook
+    bank -->|"webhook + HMAC"| hook
     bank -->|"callback + HMAC"| bhook
 
     api --> wdb
@@ -82,8 +83,9 @@ veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga tarama
 
 **Banka RabbitMQ dinlemiyor** ve bu diyagramdaki en önemli ayrıntı. `bank-adapter`
 onu HTTP ile arıyor, banka da sonucu `bank-webhook`'a callback ile bildiriyor —
-gerçek bir entegrasyonun şekli bu. `bank-fake` canlıda silinecek tek kutu; yerine
-bankanın kendi endpoint'i geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
+gerçek bir entegrasyonun şekli bu. Canlıda silinen kutular `bank-fake` ile
+`stripe-fake`; yerlerine kurumların kendi endpoint'leri geçiyor ve adaptörün kodunda
+tek satır değişmiyor (madde 35).
 
 `bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
@@ -237,7 +239,7 @@ kalan saga müşteriyi sonsuza kadar "işleniyor"da bırakırdı.
 
 Diyagramların en önemlisi bu: **her akışta toplam sıfır.**
 
-Beş hesap rolü var ve ikisi "gerçek para", üçü "iddia":
+Beş hesap rolü var: ikisi "iddia", üçü "gerçekleşmiş".
 
 ```mermaid
 flowchart LR
@@ -264,7 +266,7 @@ Her işlem tipinin yazdığı bacaklar — **toplamı her satırda sıfır**:
 | `payment` | `gönderen −102`, `alan +100`, `revenue +2` |
 | `withdrawal` | `cüzdan −102`, `clearing +100`, `revenue +2` |
 | `refund` | orijinalin bacakları negatiflenerek — üçü de |
-| `settlement` (top-up) | `clearing +gross`, `nostro −net`, `provider_expense −fee` |
+| `settlement` (top-up) | `clearing +gross`, `nostro −net`; `Net` modelde ayrıca `provider_expense −fee` |
 | `settlement` (çekim) | `clearing −owed`, `nostro +owed` |
 | `provider_invoice` | `provider_expense −tutar`, `nostro +tutar` |
 
@@ -289,7 +291,7 @@ bir banka hesabı. Stripe parayı bizim banka hesabımıza yatırıyor.
 | mutabakat | wallet-consumer | 6 saat | projeksiyon sapması, gelmeyen settlement, geciken fatura |
 | işletme günlük özeti | wallet-consumer | 1 saat | hacim, işlem sayısı, kesilen komisyon |
 
-Üçü de `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve **ilk turu beklemeden
+Dördü de `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve **ilk turu beklemeden
 koşmuyor** — dağıtımda ayağa kalkan her instance aynı anda tarama başlatmasın diye.
 
 Takılmış saga taraması opsiyonel bir iyileştirme **değil**: ayrı orchestrator
