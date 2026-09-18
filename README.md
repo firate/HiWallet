@@ -360,6 +360,30 @@ dotnet test
 
 Şemanın tek kaynağı EF migration'ları; `ledger-schema.md` onları açıklar, üretmez.
 
+### Hangi sırayla okunur
+
+**Baştan sona okunacak tek doküman yok.** Hangisini açacağın ne yaptığına bağlı:
+
+**Sistemi tanımak ya da hatırlamak için:** `architecture.md` → `overview.md` →
+`ledger-schema.md`. İlki en hızlı resmi veriyor, hepsi diyagram. `overview.md`'nin
+1–10 numaralı maddeleri sistemi anlatıyor; o numaralara `decisions.md` ve kod
+yorumları atıf yapıyor, bu yüzden sabitler. Üçüncüsünü ancak tablo yapısı
+gerektiğinde aç.
+
+**Kod yazarken:** `CLAUDE.md` → `structure.md` → `decisions.md`'de ilgili madde.
+İlki kuralların listesi, ikincisi yeni dosyanın nereye konacağı. `decisions.md`
+baştan sona OKUNMAZ — 1400 satır ve referans niteliğinde; merak ettiğin maddeyi ara
+(banka entegrasyonu 35, servis sınırı 7 ve 33, aktör 34).
+
+**Elle denerken:** `fakes/` altındaki `.http` dosyaları → `api-examples.md` →
+`verify-compose.md`. İlki Rider'da en hızlı yol, ikincisi bir şey bozulduğunda
+karşılaştırman için beklenen yanıtları veriyor.
+
+**Yeni karar alırken:** `decisions.md`. Karar oraya gerekçesiyle yazılıyor, sonra
+`CLAUDE.md`'ye ve ilgili dokümanlara yayılıyor.
+
+`baseline.md` nadiren açılır: uygulamadan bağımsız ve neredeyse hiç değişmiyor.
+
 ## Bilinçli sınırlamalar
 
 Eksik değil, **elenmiş** — gerekçeleri `decisions.md` madde 12'de:

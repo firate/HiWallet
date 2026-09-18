@@ -30,12 +30,19 @@ dosyalarında `Version` attribute'u YAZILMAZ, yalnızca `PackageReference Includ
 
 ```
 docs/
+├── architecture.md      -- diyagramlar: topoloji, akışlar, paranın nerede durduğu
 ├── overview.md          -- sistem: kapsam, servisler, akışlar, saga, çıkış kriteri
 ├── baseline.md          -- uygulamadan bağımsız 12 zorunlu katman
 ├── decisions.md         -- kararlar, gerekçeler, elenen alternatifler
 ├── ledger-schema.md     -- DDL, invariant zorlaması, settlement kayıtları
-└── structure.md         -- bu dosya
+├── structure.md         -- bu dosya
+├── api-examples.md      -- her uç için istek ve beklenen yanıt
+└── verify-compose.md    -- compose'u ayağa kaldırma ve doğrulama
 ```
+
+Klasörde alfabetik duruyorlar; okuma sırası README'nin "Hangi sırayla okunur"
+bölümünde. Sıra dosya adlarına numara olarak GÖMÜLMÜYOR: aradan bir doküman
+eklendiğinde bütün adlar ve onlara verilen linkler kayardı.
 
 **`overview.md` ile `baseline.md` ayrımı:** birincisi sistemin ne yaptığı, ikincisi ne
 yaptığından bağımsız olarak her serviste beklenen production hijyeni. Bir şey "wallet
