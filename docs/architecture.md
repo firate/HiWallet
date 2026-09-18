@@ -86,17 +86,17 @@ yazıyor, `bank-adapter` onu kuyruktan okuyup bankayı HTTP ile arıyor. Banka d
 `bank-webhook`'a HTTP callback ile bildiriyor. RabbitMQ yalnızca bizim servislerimiz
 arasında.
 
-Canlıda silinen kutular `bank-fake` ile `stripe-fake`; yerlerine kurumların kendi
+Canlıda silinen servisler `bank-fake` ile `stripe-fake`; yerlerine kurumların kendi
 endpoint'leri geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
 
-`bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
+`bank-adapter` ile `bank-webhook` ayrı uygulamalar çünkü **maruziyetleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
 `hiwallet_bank`; doğrudan çağrı yok.
 
 ### Neden İKİ public yüzey var
 
-Diyagrama bakan herkesin sorduğu soru bu, çünkü ilk bakışta kuralı deliyor gibi
-duruyor.
+Diyagrama bakan herkesin sorduğu soru bu, çünkü ilk bakışta madde 28'e aykırı
+görünüyor.
 
 Müşteriye dönük endpoint'ler iki uygulamaya dağılmış:
 
@@ -110,8 +110,8 @@ maruziyeti aynı: ikisi de public, ikisi de müşteriye dönük, ikisi de aynı 
 çağrılıyor. Kurala bakınca bölünmemeleri gerekirdi.
 
 **Bölünmelerinin sebebi madde 28 değil, madde 7.** Orchestrator'ın kendi veritabanı ve
-kendi sınırı var; saga durumu ile ledger ayrı tutuluyor. Yani burada iki kural
-çakışıyor ve kazanan servis sınırı oluyor.
+kendi sınırı var; saga durumu ile ledger ayrı tutuluyor. İki kural aynı anda
+uygulanamıyor ve burada servis sınırı öncelikli.
 
 Bedeli somut: istemci iki base URL biliyor, iki yüzey ayrı ayrı güvenceye alınıyor,
 rate-limit'leniyor ve izleniyor.
@@ -131,6 +131,14 @@ kendisi.
 ---
 
 ## 2. Top-up: para dışarıdan giriyor
+
+**Akışı sağlayıcı başlatıyor, biz değil.** Müşteri kartıyla ödeme yapıyor ya da
+banka hesabımıza havale gönderiyor; parayı alan kurum bunu bize webhook ile
+bildiriyor. Bizim tarafımızda bir istek yok, ilk temas gelen webhook.
+
+Compose'da bu bildirimi sahte kurumlar üretiyor: `POST :8096/v1/topups` (stripe-fake)
+ya da `POST :8094/v1/topups` (bank-fake). İkisi de arkadan `topup-webhook`'a imzalı
+webhook gönderiyor — gerçek kurumun yapacağı çağrının aynısı.
 
 ```mermaid
 sequenceDiagram
@@ -157,8 +165,9 @@ sequenceDiagram
 ```
 
 `relay` ayrı bir uygulama değil, `topup-webhook`'un içinde koşan bir
-`BackgroundService` — ama ayrı çizildi, çünkü **zincirin koptuğu yer orası**: HTTP
-request'i `202` ile bitiyor, yayın sonra ve başka bir turda oluyor.
+`BackgroundService`. Ayrı çizilmesinin sebebi akışın orada ikiye ayrılması: HTTP
+request'i inbox'a yazıldığında `202` ile bitiyor, yayın ise relay'in sonraki turunda
+ve ayrı bir transaction'da oluyor.
 
 Routing key cüzdan kimliği: aynı cüzdanın mesajları hep aynı partition'a düşüyor ve
 sıra orada korunuyor. Bu yüzden relay **tek instance** koşuyor — iki relay ayrı
@@ -171,6 +180,11 @@ sıra garantisi bunu düzeltmez (madde 30).
 ---
 
 ## 3. Çekim: para dışarı çıkıyor
+
+**Akışı müşteri başlatıyor:** `POST /v1/withdrawals`, `withdrawal-orchestrator`
+üzerinde, `Idempotency-Key` başlığı zorunlu. Orchestrator saga satırını ve ilk komutu
+aynı transaction'da yazıp `202` dönüyor; o an hiçbir para hareket etmiyor. Geri kalan
+adımların hepsi kuyruk üzerinden, müşteri beklemeden ilerliyor.
 
 ```mermaid
 sequenceDiagram
@@ -217,8 +231,8 @@ sequenceDiagram
 Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
 Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
 
-**`bank_transfer_pending` gerçek bir pencere.** Banka "aldım" diyor, sonucu sonra
-bildiriyor; o arada saga bekliyor. Önceki tasarımda banka aynı teslimde cevap
+**Saga `bank_transfer_pending` durumunda gerçekten bekliyor.** Banka "aldım" diyor,
+sonucu callback ile sonra bildiriyor. Önceki tasarımda banka aynı teslimde cevap
 verdiği için bu durumdan hiç geçilmiyordu ve takılmış saga taraması (madde 33)
 yakalayacak bir şey bulamıyordu.
 
@@ -228,8 +242,8 @@ Callback asıl yol, tarama kontrol — ve taramanın bulduğu satır sayısı do
 callback hattının sağlık göstergesi (madde 35).
 
 **Ters kayıt politikadan yeniden üretilmiyor**, orijinal işlemin bacakları okunup
-negatifleniyor. `revenue` bacağı atlanırsa kayıt yine dengeli çıkar ve trigger susar —
-ama müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş kalır.
+negatifleniyor. `revenue` bacağı atlanırsa kayıt yine dengeli çıkar, zero-sum trigger
+hata vermez ve müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş kalır.
 
 **Response'ların hepsi saklanıyor** (`processed_messages`, `bank_transfers`). Tekrar
 teslimde iş ikinci kez yapılmıyor ama aynı cevap yeniden yayınlanıyor; cevapsız
