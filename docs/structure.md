@@ -291,7 +291,7 @@ kendi kurulum metodu ve veritabanı hiç yok.
 **`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
 duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
 testlerde koşuyor ama canlıda da koşacak — son ek almıyor. `Bank.Fake` canlıda
-silinecek, alıyor.
+yok, alıyor.
 
 `BankAdapter` ile `BankWebhook` ayrı klasörler çünkü ayrı deployable'lar: birinin
 IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok (madde 28). Ortak şemaları

@@ -18,8 +18,8 @@
 #
 # Ve iki tane de BİZİM OLMAYAN (ikisi de `fakes/` altında, `src/` altında DEĞİL):
 #
-#   bank-fake                bankanın API'si — para girişi VE çıkışı; ÜRETİMDE YOK
-#   stripe-fake              kart sağlayıcısı — yalnızca para girişi; ÜRETİMDE YOK
+#   bank-fake                bankanın API'si — para girişi VE çıkışı; CANLIDA YOK
+#   stripe-fake              kart sağlayıcısı — yalnızca para girişi; CANLIDA YOK
 #
 # Son ekin ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor"
 # (decisions.md madde 35). bank-adapter da bugün yalnızca burada koşuyor ama
@@ -388,7 +388,7 @@ services:
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
-      # ÜRETİMDE BURAYA BANKANIN ADRESİ YAZILIR ve bank-fake silinir.
+      # CANLIDA BURAYA BANKANIN KENDİ ADRESİ YAZILIR.
       Bank__BaseUrl: http://bank-fake:8080
       # Mutabakat taraması KAPATILAMAZ, yalnızca aralığı ayarlanır. Compose'da
       # kısa: callback hattını elle bozup taramanın topladığını görebilmek için.
@@ -447,9 +447,9 @@ services:
       start_period: 10s
     stop_grace_period: 20s
 
-  # BANKANIN YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, ÜRETİMDE YOK.
-  # Gerçek entegrasyonda bu blok tamamen silinir ve bank-adapter'ın
-  # Bank__BaseUrl'ü bankanın adresine çevrilir.
+  # BANKANIN YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, CANLIDA YOK.
+  # Canlıda bu servisin yerinde bankanın kendi API'si var ve bank-adapter'ın
+  # Bank__BaseUrl'ü onun adresini gösteriyor.
   #
   # Host portu açık çünkü senaryo ucu dışarıdan çağrılıyor:
   #   POST /v1/scenarios {"clientReference":"<sagaId>","outcome":"Failure"}
@@ -505,7 +505,7 @@ services:
       start_period: 10s
     stop_grace_period: 20s
 
-  # KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, ÜRETİMDE YOK.
+  # KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, CANLIDA YOK.
   #
   # Bankadan farkı: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden ne
   # transfer ucu var ne callback alıcısı. Ledger'da nostro'su da yok.

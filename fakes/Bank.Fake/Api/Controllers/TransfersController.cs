@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiWallet.Bank.Fake.Api.Controllers;
 
 /// <summary>
-/// Bankanın transfer endpoint'i. Gerçek entegrasyonda bu controller'ın yerini bankanın
-/// kendi API'si alıyor ve bu proje siliniyor.
+/// Bankanın transfer endpoint'i. Canlıda bu controller'ın yerinde bankanın kendi
+/// API'si var.
 ///
 /// Kimlik doğrulama YOK: sahte bankanın endpoint'ini korumak, korunacak bir şey olmadığı
 /// için tören olurdu. Gerçeğinde burada mTLS ya da OAuth olurdu ve o kısım

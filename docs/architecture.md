@@ -86,8 +86,8 @@ saga taraması (madde 33).
 yazıyor (komutun ayrıntısı bölüm 3'te). `bank-adapter` komutu kuyruktan okuyor ve
 bankayı HTTP ile arıyor. Banka sonucu `bank-webhook`'a HTTP callback ile bildiriyor.
 
-Canlıda silinen servisler `bank-fake` ile `stripe-fake`; yerlerine kurumların kendi
-endpoint'leri geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
+`bank-fake` ile `stripe-fake` canlıda yok; adaptörler oradaki adres ayarıyla kurumların
+kendi endpoint'lerine bakıyor ve kodda tek satır değişmiyor (madde 35).
 
 `bank-adapter` ile `bank-webhook` ayrı uygulamalar çünkü **erişim seviyeleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ

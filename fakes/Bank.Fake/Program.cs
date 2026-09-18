@@ -9,7 +9,7 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 
 // BANKANIN YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 //
-// Canlıda YOK: yerine gerçek bankanın kendi endpoint'i geçiyor ve bu proje siliniyor.
+// Canlıda YOK: orada adaptör bankanın kendi endpoint'ini çağırıyor.
 // Bizim tarafımız `bank-adapter`; ayrımın ölçütü "test amaçlı mı" değil, "başka bir
 // kurumun yerine mi duruyor".
 //
