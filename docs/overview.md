@@ -215,7 +215,7 @@ kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 1
 
 ## 7. Scheduled Raporlar (Background Jobs)
 
-`IHostedService` + scheduler (Quartz.NET ya da `PeriodicTimer`) ile periyodik çalışan job'lar. Wallet'ın doğal ihtiyaçları, yapay değil:
+Periyodik job'lar `ScheduledJob` üzerinde çalışıyor: `BackgroundService` + `PeriodicTimer`. Birden fazla instance'ta tek turu `pg_try_advisory_lock` (`JobLease`) garanti ediyor. Wallet'ın doğal ihtiyaçları, yapay değil:
 
 - **Mutabakat (reconciliation) raporu:** Clearing hesabı bakiyesi ile dış sağlayıcının settlement kayıtları karşılaştırılır. Tutmuyorsa eksik/hatalı işlem işaretlenir. Clearing hesabı konseptini kapatan job budur.
 - **Business günlük özeti:** Her business için günlük işlem hacmi, işlem sayısı, kesilen komisyon toplamı.
