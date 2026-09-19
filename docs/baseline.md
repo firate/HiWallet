@@ -51,8 +51,19 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 ### 7. Rate Limiting
 
-- ASP.NET Core built-in rate limiting middleware (fixed/sliding window veya token bucket).
-- Limit aşımında `429` + `Retry-After`.
+- ASP.NET Core built-in rate limiting middleware, token bucket.
+- Limit aşımında `429` + `Retry-After` + ProblemDetails gövdesi. Reddin şekli her serviste aynı (`Shared.Infrastructure` içinde `RateLimitRejection`).
+- Ingress'i olan dört serviste var. Kovanın neye göre bölündüğü servise özgü:
+
+  | servis | anahtar | varsayılan (anlık / dakikada) |
+  | --- | --- | --- |
+  | `wallet-api` | IP | 20 / 60 |
+  | `withdrawal-orchestrator` | IP | 10 / 30 |
+  | `topup-webhook` | sağlayıcı adı | 100 / 600 |
+  | `bank-webhook` | banka adı | 100 / 600 |
+
+  Public servislerde anahtar IP, çünkü authn yok ve bölünecek bir hesap kimliği de yok. Webhook'larda karşı taraf değişken IP'lerle gönderiyor; bir sağlayıcının ya da bankanın patlaması diğerini etkilemesin diye anahtar kurumun adı.
+- Health check'ler limitin dışında: probe'un limite takılması sağlıklı bir servisi trafikten çektirir.
 - **Kapsam:** In-memory limiter yeterli. Çok instance'ta efektif limit instance başına düşer; dağıtık limiter Redis gerektirir ve bu sistemin konusu değil (`decisions.md` madde 12).
 
 ### 8. Data Layer Discipline
