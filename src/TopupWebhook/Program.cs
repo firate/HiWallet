@@ -25,7 +25,7 @@ builder.Services.AddTopupPersistence();
 builder.Services.AddWebhookSecrets();
 builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
 builder.Services.AddTopupHealthChecks();
-builder.Services.AddTopupRateLimiting(builder.Configuration);
+builder.Services.AddTopupRateLimiting();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<TopupInboxWriter>();

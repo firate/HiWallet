@@ -312,6 +312,7 @@ Shared/
     ├── Jobs/                  -- PeriodicTimer tabanı, pg_try_advisory_lock kirası
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
+    ├── RateLimiting/          -- 429 gövdesi + Retry-After, token bucket ayarı
     └── HealthChecks/          -- /health/live ve /health/ready endpoint'leri
 ```
 
