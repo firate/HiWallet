@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Threading.RateLimiting;
+using HiWallet.Shared.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace HiWallet.TopupWebhook.Setup;
@@ -44,28 +44,7 @@ public static class RateLimitingSetup
                     });
             });
 
-            options.OnRejected = async (context, ct) =>
-            {
-                // Retry-After olmadan sağlayıcı ne zaman deneyeceğini bilemez.
-                // Webhook'ta bu özellikle önemli: çoğu sağlayıcı 429'u geçici sayıp
-                // tekrar dener, ama ne kadar sonra deneyeceğini başlıktan öğrenir.
-                var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var value)
-                    ? value
-                    : TimeSpan.FromMinutes(1);
-
-                context.HttpContext.Response.Headers.RetryAfter =
-                    ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
-
-                context.HttpContext.Response.ContentType = "application/problem+json";
-
-                await context.HttpContext.Response.WriteAsync(
-                    $$"""
-                      {"type":"https://hiwallet.dev/problems/rate-limit",
-                       "title":"Çok fazla istek",
-                       "status":429,
-                       "detail":"İstek sınırı aşıldı. {{(int)retryAfter.TotalSeconds}} saniye sonra tekrar deneyin."}
-                      """, ct);
-            };
+            options.OnRejected = RateLimitRejection.WriteAsync;
         });
 
         return services;
