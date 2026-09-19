@@ -131,7 +131,11 @@ public sealed class BankAdapterTests(BankFixture bankDb) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var command = Command();
 
-        await SetScenarioAsync(command.SagaId.ToString(), TransferOutcome.TransientFailure);
+        // Kota pipeline'ın deneme sayısını karşılıyor: bir ilk çağrı + iki yeniden
+        // deneme (baseline.md madde 11). Daha düşük bir kotada banka son denemede
+        // cevap verirdi ve istisna hiç çıkmazdı.
+        await SetScenarioAsync(
+            command.SagaId.ToString(), TransferOutcome.TransientFailure, transientFailures: 3);
 
         await Should.ThrowAsync<TransientBankException>(() => HandleAsync(command, ct));
 
@@ -266,7 +270,8 @@ public sealed class BankAdapterTests(BankFixture bankDb) : IAsyncLifetime
         throw new TimeoutException($"{bankReference} beş saniyede sonuçlanmadı.");
     }
 
-    private async Task SetScenarioAsync(string clientReference, TransferOutcome outcome)
+    private async Task SetScenarioAsync(
+        string clientReference, TransferOutcome outcome, int transientFailures = 1)
     {
         using var client = _bankFake.CreateClient();
 
@@ -277,7 +282,7 @@ public sealed class BankAdapterTests(BankFixture bankDb) : IAsyncLifetime
                 {
                     clientReference,
                     outcome = outcome.ToString(),
-                    transientFailures = 1,
+                    transientFailures,
                     delayMilliseconds = 0
                 }),
                 Encoding.UTF8,

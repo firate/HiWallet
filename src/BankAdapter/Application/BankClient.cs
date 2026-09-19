@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using HiWallet.BankIntegration.Domain;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace HiWallet.BankAdapter.Application;
 
@@ -59,8 +61,7 @@ internal sealed class BankClient(
         {
             response = await Client.SendAsync(message, ct);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
-                                          && !ct.IsCancellationRequested)
+        catch (Exception exception) when (IsNoAnswer(exception, ct))
         {
             // Bankaya HİÇ ULAŞAMADIK. Transfer başlamış olabilir de olmayabilir de —
             // ve bu belirsizlik tam olarak idempotency anahtarının çözdüğü şey.
@@ -113,8 +114,7 @@ internal sealed class BankClient(
         {
             response = await Client.GetAsync($"v1/transfers/{Uri.EscapeDataString(bankReference)}", ct);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
-                                          && !ct.IsCancellationRequested)
+        catch (Exception exception) when (IsNoAnswer(exception, ct))
         {
             throw new TransientBankException("Bankaya ulaşılamadı.", exception);
         }
@@ -132,6 +132,23 @@ internal sealed class BankClient(
             return await response.Content.ReadFromJsonAsync<TransferStatusResponse>(JsonOptions, ct);
         }
     }
+
+    /// <summary>
+    /// "Bankadan cevap alamadık" sayılan istisnalar. Resilience pipeline'ı
+    /// denemeleri tükettiğinde kendi istisnasını atıyor; dışarıya çıkan tek şey
+    /// <see cref="TransientBankException"/> olmalı, yoksa tüketici tanımadığı
+    /// istisnayı görüp mesajı dead-letter'a yollar.
+    ///
+    /// <c>BrokenCircuitException</c> açık devreyi, <c>TimeoutRejectedException</c>
+    /// deneme ya da toplam süre sınırını temsil ediyor. Servisin kendi kapanışı
+    /// (<paramref name="ct"/> iptal edilmişse) bunların dışında.
+    /// </summary>
+    private static bool IsNoAnswer(Exception exception, CancellationToken ct) =>
+        !ct.IsCancellationRequested
+        && exception is HttpRequestException
+            or TaskCanceledException
+            or TimeoutRejectedException
+            or BrokenCircuitException;
 
     /// <summary>
     /// Bankanın durum kelimesini bizim durumumuza çevirir. TEK YERDE: sözleşme
