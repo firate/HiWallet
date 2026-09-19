@@ -7,7 +7,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace HiWallet.IntegrationTests.Baseline;
 
 /// <summary>
-/// Broker erişilemezken sağlık ucunun NE KADAR SÜREDE cevap verdiği.
+/// Broker erişilemezken health check endpoint'inin NE KADAR SÜREDE cevap verdiği.
 ///
 /// Compose koşarken çıkan kusur: <c>docker compose stop rabbitmq</c>
 /// sonrası <c>/health/ready</c> 5005 ms sürüyordu, compose'un probe timeout'u ise
@@ -64,12 +64,12 @@ public sealed class RabbitMqHealthCheckTests
         report.Status.ShouldBe(HealthStatus.Degraded);
         stopwatch.Elapsed.ShouldBeLessThan(
             ProbeTimeout,
-            $"Sağlık kontrolü {stopwatch.ElapsedMilliseconds} ms sürdü; compose probe'u " +
+            $"Health check {stopwatch.ElapsedMilliseconds} ms sürdü; compose probe'u " +
             $"{ProbeTimeout.TotalSeconds:0} sn'de kesiyor ve container unhealthy işaretleniyor.");
     }
 
     /// <summary>
-    /// Broker yokken <c>Unhealthy</c> DEĞİL <c>Degraded</c>: uç 200 dönmeye devam
+    /// Broker yokken <c>Unhealthy</c> DEĞİL <c>Degraded</c>: endpoint 200 dönmeye devam
     /// etmeli. Orchestrator broker'sız da çekim kabul edebiliyor, komut outbox'ta
     /// bekliyor (decisions.md madde 32).
     /// </summary>

@@ -222,7 +222,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
         var blocked = await Debit(policy).HandleAsync(DebitCommand(walletId, 25_000m, accountId: accountId), ct);
         blocked.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
 
-        // İadeden sonra aynı istek geçmeli.
+        // İadeden sonra aynı request geçmeli.
         await Refund().HandleAsync(new RefundWithdrawal
         {
             CommandId = Guid.NewGuid(),

@@ -18,7 +18,7 @@ namespace HiWallet.BankWebhook.Application;
 /// kalıbın sonucu, ortak bir sözleşme olduğu anlamına gelmiyor: banka yarın
 /// şemasını değiştirdiğinde yalnızca bu dosya değişmeli, top-up hattı değil.
 ///
-/// <b>Zaman damgası yok.</b> Yakalanan bir isteğin tekrar gönderilmesi bu hatta
+/// <b>Zaman damgası yok.</b> Yakalanan bir request'in tekrar gönderilmesi bu hatta
 /// zararsız: aynı <c>event_id</c> inbox'ta UNIQUE'e takılıyor. Zaman damgası
 /// eklemek aynı korumayı ikinci kez, üstelik saat senkronizasyonuna bağımlı
 /// biçimde kurmak olurdu.

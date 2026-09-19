@@ -16,7 +16,7 @@ namespace HiWallet.IntegrationTests.Topups;
 /// <summary>
 /// Uçtan uca: webhook → inbox → relay → RabbitMQ → tüketici → ledger.
 /// Zincirin tamamı gerçek; topup-webhook ve wallet-consumer ayrı ayrı ayağa
-/// kalkıyor (üretimdeki gibi ayrı deployable) ve aralarında yalnızca broker var.
+/// kalkıyor (canlıdaki gibi ayrı deployable) ve aralarında yalnızca broker var.
 ///
 /// <b>Broker yoksa atlanıyor.</b> Kurulumu zorunlu kılmak yerine, varsa doğrulanıyor
 /// (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım). Atlanan test yeşil görünmüyor,

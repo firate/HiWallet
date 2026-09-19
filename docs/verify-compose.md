@@ -69,7 +69,7 @@ Portların varsayılanı alışıldık portlardan bilerek kaçıyor, dokunmana g
 WALLET_HOST_PORT=8091        # 8080/8090 çoğu makinede dolu
 TOPUP_HOST_PORT=8092
 WITHDRAWAL_HOST_PORT=8093
-BANK_HOST_PORT=8094          # sahte bankanın senaryo ucu
+BANK_HOST_PORT=8094          # sahte bankanın senaryo endpoint'i
 POSTGRES_HOST_PORT=5433      # 5432 mevcut Postgres'te olabilir
 RABBITMQ_HOST_PORT=5673      # 5672 mevcut broker'da olabilir
 RABBITMQ_MGMT_HOST_PORT=15673
@@ -118,7 +118,7 @@ servislerin veritabanı yok.
 Beşinci bir veritabanı daha var ama AYRI dosyadan geliyor:
 `postgres-init-tests.sql` yalnızca `hiwallet_schema_check`'i kuruyor ve init
 betiği o dosyayı ancak MOUNT EDİLMİŞSE koşuyor. Integration testler her koşuda
-orada kendi schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Üretime
+orada kendi schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Canlıya
 giden kurulumda bu dosya mount edilmez, dolayısıyla test veritabanı da açılmaz.
 
 Postgres healthcheck'i `hiwallet_bank`'a soruyor: uygulama kurulumunun sonuncusu o.
@@ -132,12 +132,12 @@ adlı volume.
 
 | | init koşar mı |
 |---|---|
-| ilk `up` (volume yokken) | ✅ |
-| `down -v` sonrası | ✅ |
-| `down` (`-v` olmadan) sonrası | ❌ |
-| `up --build` | ❌ imajları yeniler, volume'a dokunmaz |
-| `restart`, container'ı silip yeniden yaratmak | ❌ |
-| `postgres-init.sql` düzenlendikten sonra | ❌ |
+| ilk `up` (volume yokken) | evet |
+| `down -v` sonrası | evet |
+| `down` (`-v` olmadan) sonrası | hayır |
+| `up --build` | hayır — imajları yeniler, volume'a dokunmaz |
+| `restart`, container'ı silip yeniden yaratmak | hayır |
+| `postgres-init.sql` düzenlendikten sonra | hayır |
 
 En sinsi hali parola değişikliği: `.env`'de bir parolayı değiştirmek mevcut rolün
 parolasını DEĞİŞTİRMEZ. Uygulama authentication hatası alır, sen de doğru parolayı
@@ -224,7 +224,7 @@ echo "$ACCOUNT / $WALLET"
 ```
 
 Cüzdan sıfır bakiyeyle açılır; para aşağıdaki top-up akışıyla girer. Doğrudan
-bakiyeye yazan bir uç YOK — olsaydı zero-sum invariant'ı delerdi.
+bakiyeye yazan bir endpoint YOK — olsaydı zero-sum invariant'ı delerdi.
 
 ### Çekim akışını uçtan uca koşturma
 
@@ -261,7 +261,7 @@ curl -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
   -d '{"clientReference":"<ID>","outcome":"Failure"}'
 ```
 
-Senaryoyu çekim isteğinden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
+Senaryoyu çekim request'inden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
 bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=Failure` yapıp
 `docker compose up -d bank-fake` ile yeniden başlat.
 
@@ -284,12 +284,12 @@ tarafı değişmediği için hâlâ geçerli:
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| `dotnet ef migrations bundle` alpine SDK'da çalışır | ✅ | bir hata çıktı, düzeltildi (aşağıda) |
-| *(yeni)* bundle Core'u kendi startup project'i olarak üretir | ⬜ | üç uygulamalı sürümle geldi, koşturulmadı |
-| `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | ✅ | dört migration uygulandı, seed satırları yerinde |
-| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | ✅ | wallet-service başladı ve istek karşılıyor |
-| init script'i tam olarak bir kez koşar | ✅ | roller kuruldu, "role already exists" yok |
-| `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied` alındı |
+| `dotnet ef migrations bundle` alpine SDK'da çalışır | evet | bir hata çıktı, düzeltildi (aşağıda) |
+| *(yeni)* bundle Core'u kendi startup project'i olarak üretir | denenmedi | üç uygulamalı sürümle geldi, koşturulmadı |
+| `efbundle` (musl, self-contained) `runtime-deps:10.0-alpine`'de koşar | evet | dört migration uygulandı, seed satırları yerinde |
+| `aspnet:10.0-alpine` imajında `app` kullanıcısı var | evet | wallet-service başladı ve request karşılıyor |
+| init script'i tam olarak bir kez koşar | evet | roller kuruldu, "role already exists" yok |
+| `wallet_app` `ledger_entries`'e yazamaz | evet | `permission denied` alındı |
 
 Ölçülen çıktılar:
 
@@ -309,7 +309,7 @@ $ ... psql -U wallet_app -c "UPDATE ledger_entries SET amount = amount + 1;"
 ERROR:  permission denied for table ledger_entries
 ```
 
-Sağlık ucu, Docker host'unun dışındaki bir makineden de doğrulandı.
+Health check endpoint'i, Docker host'unun dışındaki bir makineden de doğrulandı.
 
 ## Doğrulama kaydı (beş uygulamalı sürüm)
 
@@ -318,16 +318,16 @@ koşturuldu. Stack ayağa kalktı.
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| init beş rolü ve dört veritabanını kurar | ✅ | `\du`: `wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app` |
-| dört migrator da şemasını uygular | ✅ | dördü de `Done`, `exited (0)` |
-| bundle Core'u kendi startup project'i olarak üretir | ✅ | wallet migrator yedi migration'ı uyguladı |
-| beş uygulama ayağa kalkar | ✅ | `docker compose ps`: beşi de `healthy` |
-| `wallet-consumer` host portu olmadan da sağlıklı | ✅ | `healthy`, yalnızca `8080/tcp` |
-| compose healthcheck'i alpine'de çalışır | ✅ | beş uygulama + iki altyapı `healthy` |
-| `wallet-api`'nin RabbitMQ bağımlılığı yok | ✅ | `health/ready` çıktısında yalnızca `postgres` check'i var |
-| sistem hesapları seed edilir | ✅ | altı satır |
-| `wallet_app` `ledger_entries`'e yazamaz | ✅ | `permission denied for table ledger_entries` |
-| **servis sınırı kapalı** | ✅ | ilk koşuda DÜŞTÜ, düzeltildi, ikinci koşuda geçti (aşağıda) |
+| init beş rolü ve dört veritabanını kurar | evet | `\du`: `wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app` |
+| dört migrator da şemasını uygular | evet | dördü de `Done`, `exited (0)` |
+| bundle Core'u kendi startup project'i olarak üretir | evet | wallet migrator yedi migration'ı uyguladı |
+| beş uygulama ayağa kalkar | evet | `docker compose ps`: beşi de `healthy` |
+| `wallet-consumer` host portu olmadan da sağlıklı | evet | `healthy`, yalnızca `8080/tcp` |
+| compose healthcheck'i alpine'de çalışır | evet | beş uygulama + iki altyapı `healthy` |
+| `wallet-api`'nin RabbitMQ bağımlılığı yok | evet | `health/ready` çıktısında yalnızca `postgres` check'i var |
+| sistem hesapları seed edilir | evet | altı satır |
+| `wallet_app` `ledger_entries`'e yazamaz | evet | `permission denied for table ledger_entries` |
+| **servis sınırı kapalı** | evet | ilk koşuda DÜŞTÜ, düzeltildi, ikinci koşuda geçti (aşağıda) |
 
 **İlk koşuda düşen kontrol.** `withdrawal_app` `hiwallet_wallet`'a bağlanabiliyordu.
 PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e veriyor,
@@ -361,14 +361,14 @@ Beş uygulamalı stack üzerinde, gerçek broker ve gerçek Postgres ile koştur
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| `rabbitmq` eklentisi yükleniyor | ✅ | `rabbit_exchange_type_consistent_hash_registry` boot adımı |
-| `withdrawal-orchestrator` broker'SIZ ayakta kalıyor | ✅ | `stop rabbitmq` sonrası `Degraded`, `Unhealthy` değil |
-| top-up hattının tamamı | ✅ | webhook `202` → relay → broker → tüketici → bakiye `500` |
-| çekim mutlu yolu | ✅ | saga `settling` üzerinden `completed`, cüzdan `398` |
-| çekim settlement'ı ledger'a düşüyor | ✅ | `clearing -100`, `nostro +100`; `Invoiced` modelde gider bacağı YOK |
-| **telafi yolu** | ✅ | saga `failed`, bakiye `500` → `500`, altı satır |
-| ters kaydın `revenue` bacağı | ✅ | `refund / revenue / -2.0000` |
-| beş migration otomatik uygulanıyor | ✅ | dört migrator, `down -v` gerekmedi |
+| `rabbitmq` eklentisi yükleniyor | evet | `rabbit_exchange_type_consistent_hash_registry` boot adımı |
+| `withdrawal-orchestrator` broker'SIZ ayakta kalıyor | evet | `stop rabbitmq` sonrası `Degraded`, `Unhealthy` değil |
+| top-up hattının tamamı | evet | webhook `202` → relay → broker → tüketici → bakiye `500` |
+| çekim mutlu yolu | evet | saga `settling` üzerinden `completed`, cüzdan `398` |
+| çekim settlement'ı ledger'a düşüyor | evet | `clearing -100`, `nostro +100`; `Invoiced` modelde gider bacağı YOK |
+| **telafi yolu** | evet | saga `failed`, bakiye `500` → `500`, altı satır |
+| ters kaydın `revenue` bacağı | evet | `refund / revenue / -2.0000` |
+| beş migration otomatik uygulanıyor | evet | dört migrator, `down -v` gerekmedi |
 
 Telafi ölçümü:
 
@@ -414,7 +414,7 @@ Compose'da ölçüldü, istemcisi olan iki serviste de:
 `302` beklenen davranış: eğik çizgisiz adres `scalar/`'a yönleniyor, arayüz göreli
 varlık yüklediği için. Tarayıcı takip ediyor, `curl` varsayılan olarak etmiyor.
 
-OpenAPI dokümanları da uçları gerçekten görüyor:
+OpenAPI dokümanları da endpoint'leri gerçekten görüyor:
 
 ```
 wallet-api                /v1/accounts, /v1/accounts/{accountId},
@@ -431,7 +431,7 @@ varsayılan olarak takip ettiği için. Compose'da `curl` `302` gösterdi. Test 
 yönlendirmeyi takip etmeden sınıyor; dokümante edilen adres ile sınanan adres
 aynı olmak zorunda.
 
-### Üç açık ucun koşturulması
+### Üç açık maddenin koşturulması
 
 Aşağıdaki üçü compose ayaktayken sırayla koşturulur. Hepsi `.env` yüklü bir kabuk
 istiyor:
@@ -474,7 +474,7 @@ curl -s localhost:8091/v1/wallets/$W1; echo; curl -s localhost:8091/v1/wallets/$
 Beklenen: top-up `{"accepted":true,"duplicate":false}`, transfer `201`, sonra
 gönderen `60`, alan `40` (P2P komisyonsuz).
 
-#### B. Settlement ve fatura uçları
+#### B. Settlement ve fatura endpoint'leri
 
 **Settlement — `stripe-fake`, `Net` model.** 100 TRY'lik top-up'ın ücreti
 %2.9 + 0.30 = `3.20`, banka hesabına giren `96.80`.
@@ -543,7 +543,7 @@ Faturada iki bacak: `provider_expense -tutar`, `nostro +tutar`.
 #### C. Zamanlanmış işlerin ilk turu
 
 **İlk tur beklemeden koşmuyor** (`ScheduledJob`): dağıtımda ayağa kalkan her instance
-aynı anda tarama başlatmasın diye. Bunun bedeli, üretim aralıklarıyla mutabakatı
+aynı anda tarama başlatmasın diye. Bunun bedeli, canlı aralıklarıyla mutabakatı
 görmek için altı saat beklemek. Aralıklar bu yüzden `.env`'den kısaltılabiliyor:
 
 ```bash
@@ -564,7 +564,7 @@ Beklenen: her job önce kaydını basıyor (`... her 00:00:30 sürede bir koşac
 sonra ilk turunu koşuyor. Temiz bir sistemde mutabakat `Mutabakat temiz: bulgu yok.`
 diyor, takılmış saga taraması ise hiçbir şey basmıyor — bulgu yoksa log da yok.
 
-Bittiğinde üç satırı `.env`'den sil ve servisleri yeniden başlat; üretim aralıkları
+Bittiğinde üç satırı `.env`'den sil ve servisleri yeniden başlat; canlı aralıkları
 geri gelsin.
 
 ### Hâlâ doğrulanmadı
@@ -572,7 +572,7 @@ geri gelsin.
 | ne | nasıl bakılır |
 | --- | --- |
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
-| settlement ve fatura uçları (5.5–5.6) | yukarıdaki **B** |
+| settlement ve fatura endpoint'leri (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
 | **sekiz uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
@@ -596,7 +596,7 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SEC
 curl -s -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Paranın gerçekten geldiğini `psql` yerine uçtan görebilirsin — hat asenkron,
+Paranın gerçekten geldiğini `psql` yerine endpoint'ten görebilirsin — hat asenkron,
 birkaç saniye sürebilir:
 
 ```bash

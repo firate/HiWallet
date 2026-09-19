@@ -17,7 +17,7 @@ public static class WalletJobsSetup
     /// Şu an tek çağıran <c>wallet-consumer</c>: job'ların ingress'i yok ve aynı
     /// ledger'a yazıyorlar, yani ayrı bir deployable açmanın gerekçesi yok
     /// (<c>decisions.md</c> madde 28). <c>wallet-api</c> BU METODU ÇAĞIRMAMALI —
-    /// public bir uygulamada arka plan toplu işi koşturmak, istek trafiğiyle
+    /// public bir uygulamada arka plan toplu işi koşturmak, request trafiğiyle
     /// raporlamayı aynı sürecin kaynaklarına bağlar.
     /// </summary>
     public static IServiceCollection AddWalletJobs(

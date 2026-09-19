@@ -81,7 +81,7 @@ public sealed class BankFakeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Anahtarsız istek reddediliyor. Sahte de olsa bu kontrol şart: adaptörün
+    /// Anahtarsız request reddediliyor. Sahte de olsa bu kontrol şart: adaptörün
     /// anahtarı gerçekten gönderdiğini kanıtlayan tek şey bu.
     /// </summary>
     [Fact]
@@ -103,7 +103,7 @@ public sealed class BankFakeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Aynı anahtarla ikinci istek YENİ transfer açmıyor — bankanın kendi koruması.
+    /// Aynı anahtarla ikinci request YENİ transfer açmıyor — bankanın kendi koruması.
     /// Süreç bankayı arayıp kaydı yazmadan ölse bile tekrar teslimde aynı transferi
     /// geri alıyoruz; bu davranış olmasaydı o senaryoda para iki kez giderdi.
     /// </summary>
@@ -131,9 +131,9 @@ public sealed class BankFakeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Aynı anahtarla AYNI ANDA gelen istekler de tek transfer açıyor. Sıralı
+    /// Aynı anahtarla AYNI ANDA gelen request'ler de tek transfer açıyor. Sıralı
     /// tekrarı yukarıdaki test yakalıyor; bu, "önce bak sonra ekle" arasına başka
-    /// bir isteğin girebildiği yarışı yakalıyor. Veritabanı yokken o yarışı
+    /// bir request'in girebildiği yarışı yakalıyor. Veritabanı yokken o yarışı
     /// kapatan şey deponun kilidi.
     /// </summary>
     [Fact]
@@ -179,7 +179,7 @@ public sealed class BankFakeTests : IAsyncLifetime
 
     /// <summary>
     /// Sonuç gecikmeyle belli oluyor ve durum sorgusu onu gösteriyor. Mutabakat
-    /// taramasının okuduğu uç bu; çalışmazsa kaçırılan callback kalıcı kayıp olur.
+    /// taramasının okuduğu endpoint bu; çalışmazsa kaçırılan callback kalıcı kayıp olur.
     /// </summary>
     [Fact]
     public async Task DurumSorgusu_GecikmeSonrasi_Sonuclanir()

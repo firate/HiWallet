@@ -38,7 +38,7 @@ internal sealed class TransferScenario
     public required int DelayMilliseconds { get; init; }
 
     /// <summary>
-    /// Bu çekim için bankaya kaç istek ulaştı — geçici hatayla sonuçlananlar dahil.
+    /// Bu çekim için bankaya kaç request ulaştı — geçici hatayla sonuçlananlar dahil.
     /// <see cref="RemainingTransientFailures"/>'tan TÜRETİLEMEZ: o sayaç sıfıra
     /// inince kaç denemede indiği bilgisi kayboluyor.
     /// </summary>

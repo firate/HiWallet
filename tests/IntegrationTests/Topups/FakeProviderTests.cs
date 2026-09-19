@@ -10,7 +10,7 @@ namespace HiWallet.IntegrationTests.Topups;
 /// <summary>
 /// Sahte sağlayıcının <c>topup-webhook</c>'u tetiklemesi.
 ///
-/// <b>Bu dosyaya kadar top-up hattının dış ucu hiç sınanmamıştı.</b> Testler
+/// <b>Bu dosyaya kadar top-up hattının dış endpoint'i hiç sınanmamıştı.</b> Testler
 /// gövdeyi kendi kurup HMAC'i kendi hesaplayıp POST ediyordu — yani sınanan şey
 /// webhook'un davranışıydı, sağlayıcının değil. Şimdi araya gerçek bir HTTP
 /// sınırı ve gerçek bir imzalayan giriyor.
@@ -72,9 +72,9 @@ public sealed class FakeProviderTests(InboxFixture inbox) : IAsyncLifetime
     /// anahtarı cüzdan kimliği. <c>payload</c> üzerinde metin araması YAPILAMIYOR —
     /// kolon <c>jsonb</c> ve EF'in <c>Contains</c> çevirisi olan <c>LIKE</c> orada yok.
     ///
-    /// Gönderim ARKA PLANDA: uç <c>202</c> dönüp çekiliyor. Bu yüzden inbox'a
+    /// Gönderim ARKA PLANDA: endpoint <c>202</c> dönüp çekiliyor. Bu yüzden inbox'a
     /// bakmadan önce beklemek gerekiyor — gerçek bir sağlayıcıda da webhook
-    /// senin isteğinle aynı anda gelmiyor.
+    /// senin request'inle aynı anda gelmiyor.
     /// </summary>
     private async Task<List<string>> WaitForInboxAsync(
         Guid walletId, int expected, CancellationToken ct)

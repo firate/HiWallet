@@ -22,7 +22,7 @@ namespace HiWallet.Bank.Fake.Infrastructure.Callbacks;
 /// <b>Tekillik kilidi YOK.</b> Sahte banka tek instance koşuyor ve hafızası zaten
 /// process'e ait. Bizim tarafımızdaki relay ve taramalar <c>pg_try_advisory_lock</c>
 /// kullanıyor; burada aynı şeyi kurmak taklit edilen tarafa bizim mühendisliğimizi
-/// yüklemek olurdu. HTTP çağrısı depo kilidinin DIŞINDA yapılıyor: yavaş bir uç
+/// yüklemek olurdu. HTTP çağrısı depo kilidinin DIŞINDA yapılıyor: yavaş bir endpoint
 /// bankanın transfer kabulünü bekletmemeli.
 /// </summary>
 internal sealed class CallbackDispatcher(
@@ -180,7 +180,7 @@ internal sealed class CallbackDispatcher(
         using var response = await client.SendAsync(request, ct);
 
         // 2xx dışındaki her şey başarısız sayılıyor — 4xx dahil. Gerçek banka da
-        // imzayı reddeden bir uçla karşılaştığında "gönderdim" diye işaretlemez.
+        // imzayı reddeden bir endpoint'le karşılaştığında "gönderdim" diye işaretlemez.
         response.EnsureSuccessStatusCode();
     }
 

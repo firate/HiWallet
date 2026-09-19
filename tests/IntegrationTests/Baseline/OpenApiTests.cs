@@ -12,7 +12,7 @@ namespace HiWallet.IntegrationTests.Baseline;
 /// İki şey sınanıyor: doküman GERÇEKTEN üretiliyor mu (üreteç değişti, Swashbuckle
 /// gitti) ve Development kapısı gerçekten kapanıyor mu. İkincisi asıl önemli olan —
 /// kapı <c>MapHiWalletOpenApi</c>'nin içinde ve unutulduğunda hiçbir şey kırılmaz,
-/// yalnızca üretimde API yüzeyinin şeması sessizce yayınlanır.
+/// yalnızca canlıda API yüzeyinin şeması sessizce yayınlanır.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
@@ -77,7 +77,7 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
         response.Headers.Location?.ToString().ShouldBe("scalar/");
     }
 
-    /// <summary>Yönlendirmenin ucundaki sayfa gerçekten açılıyor.</summary>
+    /// <summary>Yönlendirmenin endpoint'indeki sayfa gerçekten açılıyor.</summary>
     [Fact]
     public async Task ScalarArayuzu_Aciliyor()
     {
@@ -90,8 +90,8 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <summary>
-    /// <b>Asıl kanıt.</b> Development dışında iki uç da YOK. Şemayı yayınlamak
-    /// saldırgana hangi ucun var olduğunu, hangi alanları beklediğini ve hangi
+    /// <b>Asıl kanıt.</b> Development dışında iki endpoint da YOK. Şemayı yayınlamak
+    /// saldırgana hangi endpoint'in var olduğunu, hangi alanları beklediğini ve hangi
     /// doğrulamaların çalıştığını hazır veriyor.
     /// </summary>
     [Theory]
@@ -106,7 +106,7 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
             builder => builder.UseEnvironment("Production"));
 
         // Yönlendirme takip EDİLMİYOR: takip edilseydi bir yönlendirme zinciri
-        // sonunda 404'e varır ve uç "yok" görünürdü — oysa ilk uç var demektir.
+        // sonunda 404'e varır ve endpoint "yok" görünürdü — oysa ilk endpoint var demektir.
         using var client = production.CreateClient(
             new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 

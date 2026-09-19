@@ -8,7 +8,7 @@ namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
 /// Tüketici host'u. Ayrı bir deployable olduğu için testte de ayrı ayağa
-/// kaldırılıyor — wallet-api ile aynı süreçte koşsaydı test, üretimde olmayan bir
+/// kaldırılıyor — wallet-api ile aynı süreçte koşsaydı test, canlıda olmayan bir
 /// yakınlığı doğrulamış olurdu.
 /// </summary>
 public sealed class WalletConsumerFactory(PostgresFixture postgres)

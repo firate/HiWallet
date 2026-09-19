@@ -12,7 +12,7 @@ namespace HiWallet.IntegrationTests.Fixtures;
 public sealed class TopupWebhookApiFactory(InboxFixture inbox) : WebApplicationFactory<TopupWebhookApp>
 {
     /// <summary>
-    /// Testlerin imzaladığı secret. Gerçek bir sır değil — üretimde ortamdan gelir,
+    /// Testlerin imzaladığı secret. Gerçek bir sır değil — canlıda ortamdan gelir,
     /// burada testin kendi kontrolünde olması gerekiyor ki imzayı üretebilsin.
     /// </summary>
     public const string StripeSecret = "test-secret-stripe";
@@ -30,7 +30,7 @@ public sealed class TopupWebhookApiFactory(InboxFixture inbox) : WebApplicationF
                 ["ConnectionStrings:Topup"] = inbox.ConnectionString,
                 [$"Providers:{StripeProvider}:WebhookSecret"] = StripeSecret,
 
-                // Rate limiter testin kendi isteklerini boğmasın: burada ölçülen şey
+                // Rate limiter testin kendi request'lerini boğmasın: burada ölçülen şey
                 // limitleme değil, imza ve inbox davranışı.
                 ["RateLimiting:Webhooks:BurstSize"] = "10000",
                 ["RateLimiting:Webhooks:SustainedPerMinute"] = "10000"

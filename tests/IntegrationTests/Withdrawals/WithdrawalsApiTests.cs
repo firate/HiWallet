@@ -193,7 +193,7 @@ public sealed class WithdrawalsApiTests(OrchestratorFixture fixture) : IAsyncLif
         body.Amount.ShouldBe(250.75m);
         body.TotalDebited.ShouldBeNull();
 
-        // Tam IBAN yanıtta dolaşmıyor: log'a, hata izlemeye ve tarayıcı geçmişine düşer.
+        // Tam IBAN response'ta dolaşmıyor: log'a, hata izlemeye ve tarayıcı geçmişine düşer.
         body.DestinationIban.ShouldBe("TR33******************1326");
         body.DestinationIban.ShouldNotContain("6457");
     }

@@ -24,10 +24,10 @@ public static class OpenApiSetup
     }
 
     /// <summary>
-    /// Development kapısı BURADA, çağıran tarafta değil. Üretimde API yüzeyinin
+    /// Development kapısı BURADA, çağıran tarafta değil. Canlıda API yüzeyinin
     /// şemasını yayınlamak saldırgana harita vermek demek; kapıyı her serviste tekrar
     /// yazmak, bir gün birinde unutulması demekti. Unutulduğunda da hiçbir test
-    /// kırılmaz, yalnızca uç sessizce açık kalır.
+    /// kırılmaz, yalnızca endpoint sessizce açık kalır.
     /// </summary>
     public static WebApplication MapHiWalletOpenApi(this WebApplication app)
     {
@@ -39,7 +39,7 @@ public static class OpenApiSetup
         // Doküman: /openapi/v1.json
         app.MapOpenApi();
 
-        // Arayüz: /scalar — dokümanı yukarıdaki uçtan okuyor.
+        // Arayüz: /scalar — dokümanı yukarıdaki endpoint'ten okuyor.
         app.MapScalarApiReference(options => options.WithTitle(app.Environment.ApplicationName));
 
         return app;

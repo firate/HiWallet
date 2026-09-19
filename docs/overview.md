@@ -24,10 +24,11 @@ production kalitesinde.
 
 Sınırlı olması yalnızca **kapsamı ve dış bağımlılıkları** kısaltır, mimariyi değil:
 
-- Dış servisler simüle edilir (KYC `true` döner, fraud-check fake, Stripe/banka
-  `provider-fake`). Ama her fake bir **interface arkasında** durur (`IKycService`,
-  `IPaymentProvider`) — yarın gerçek implementasyon takılınca üst akış değişmez.
-  Fake bile production mimarisine uygun (geçici hack değil, interface'li stub).
+- Dış kurumların yerinde sahte servisler duruyor: `bank-fake` bankanın API'sinin,
+  `stripe-fake` kart sağlayıcısının (`fakes/` altında, `decisions.md` madde 35).
+  Aradaki sınır gerçek HTTP; `bank-adapter` bankaya `Bank__BaseUrl` ile bağlanıyor ve
+  canlıda o ayar kurumun kendi adresini gösteriyor. Sahte servislerin HTTP sözleşmesi
+  gerçeğinin şeklinde: transfer `202 pending` döner, sonuç callback ile gelir.
 - Kapsam daraltılır: tek para birimi, tek tenant, tek instance yeter.
 - Her katman "gösterilebilir en sade hali" ile alınır — ama varlığı ve doğru kurgusu görünür.
 
@@ -67,9 +68,9 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
 | bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | Idempotent      |
 | bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | Idempotent      |
-| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **üretimde YOK**                      | —               |
+| bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **canlıda YOK**                      | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
-| stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **üretimde YOK**                    | —               |
+| stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **canlıda YOK**                    | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 
@@ -121,13 +122,14 @@ Limit ve komisyon kuralları çekirdeğin dışında bir **policy** bileşeninde
 Para sisteme dışarıdan girer. Tek adımlı olduğu için saga değil; idempotent consumer yeterli.
 
 ```
-Dış sağlayıcı (provider-fake)
+Dış sağlayıcı (`stripe-fake`, `bank-fake`)
   → topup-webhook:
        1. İmza doğrula (HMAC: paylaşılan secret ile payload imzalanır;
           sahte webhook'u engeller). Geçersiz → 401.
        2. DB transaction: inbox tablosuna yaz (dış event_id UNIQUE).
           Duplicate event_id → çakışmayı yakala, yine başarı say.
-       3. Commit başarılı → 200 dön. (200, ancak kalıcılık garanti olduktan SONRA.)
+       3. Commit başarılı → 202 dön. (202, ancak kalıcılık garanti olduktan SONRA;
+          decisions.md madde 29.)
   → relay (background worker):
        inbox'taki "unpublished" satırları RabbitMQ'ya publish eder
        (publisher confirms ile), sonra "published" işaretler.
@@ -149,8 +151,8 @@ X = çekilen tutar, k = müşteriden alınan komisyon (yoksa k = 0).
 
 [Initiated]
   → Girdi doğrulaması: IBAN mod-97 checksum'ı SINIRDA kontrol edilir (baseline.md
-    madde 6). Geçersizse 400; saga başlamaz, bankaya istek gitmez, ücret doğmaz.
-  → Limit/kural kontrolü (günlük çekim limiti, KYC vb.). Aşılırsa → [Rejected] (hiç para hareketi olmaz).
+    madde 6). Geçersizse 400; saga başlamaz, bankaya request gitmez, ücret doğmaz.
+  → Limit kontrolü (hesap bazında günlük çekim limiti). Aşılırsa → [Rejected] (hiç para hareketi olmaz).
   → wallet-service: cüzdandan X+k düş (lokal ACID)
        cüzdan -(X+k), clearing +X, revenue +k    (para "yolda", komisyon tahakkuk etti)
   → [Debited]
@@ -201,7 +203,7 @@ kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 1
 
 **Idempotency (saga):**
 
-- API girişinde `Idempotency-Key`: aynı çekme isteği iki kez → yeni saga başlatma, mevcut durumu dön.
+- API girişinde `Idempotency-Key`: aynı çekme request'i iki kez → yeni saga başlatma, mevcut durumu dön.
 - Komut tüketiminde `CommandId`: bank-adapter ve wallet-service aynı komutu iki kez işlemez (`processed_messages`).
 - Saga event tüketiminde: state + correlation ile değerlendirilir. Zararsız tekrar (aynı event, ya da saga çoktan ilerlemiş) yok sayılır; **çelişkili** event (telafiden sonra gelen "başarılı" gibi) yok SAYILMAZ — durum olduğu yerde bırakılıp alarm üretilir, çünkü para kaybına işaret ediyor (`decisions.md` madde 31).
 
@@ -213,7 +215,7 @@ kaçırılmış webhook sanır ve yanlış alarm üretir (`decisions.md` madde 1
 
 ## 7. Scheduled Raporlar (Background Jobs)
 
-`IHostedService` + scheduler (Quartz.NET ya da `PeriodicTimer`) ile periyodik çalışan job'lar. Wallet'ın doğal ihtiyaçları, yapay değil:
+Periyodik job'lar `ScheduledJob` üzerinde çalışıyor: `BackgroundService` + `PeriodicTimer`. Birden fazla instance'ta tek turu `pg_try_advisory_lock` (`JobLease`) garanti ediyor. Wallet'ın doğal ihtiyaçları, yapay değil:
 
 - **Mutabakat (reconciliation) raporu:** Clearing hesabı bakiyesi ile dış sağlayıcının settlement kayıtları karşılaştırılır. Tutmuyorsa eksik/hatalı işlem işaretlenir. Clearing hesabı konseptini kapatan job budur.
 - **Business günlük özeti:** Her business için günlük işlem hacmi, işlem sayısı, kesilen komisyon toplamı.
@@ -235,18 +237,16 @@ Gerçek Stripe/banka yerine, dış dünya kötülüklerini **bilinçli tetikleye
 
 Para girişi — `stripe-fake` ve `bank-fake` (`POST /v1/topups`, `mode` alanı):
 
-- **Başarılı** webhook. ✅ `Normal`
-- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). ✅ `Duplicate`
-- **Gecikmeli** gönderim (eventual davranışı görünür kılmak). ✅ `Delayed`
-- **Sırasız** gönderim (ordering/partitioning testi). ✅ `OutOfOrder`
-
+- **Başarılı** webhook. Karşılığı `Normal`.
+- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). Karşılığı `Duplicate`.
+- **Gecikmeli** gönderim (eventual davranışı görünür kılmak). Karşılığı `Delayed`.
+- **Sırasız** gönderim (ordering/partitioning testi). Karşılığı `OutOfOrder`.
 Para çıkışı — yalnızca `bank-fake` (`POST /v1/scenarios`, `outcome` alanı):
 
-- **Başarılı** transfer. ✅ `Success`
-- **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için). ✅ `Failure`
-- **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek). ✅ `TransientFailure`
-- **Gecikmeli** sonuç. ✅ `DelayedSuccess`
-
+- **Başarılı** transfer. Karşılığı `Success`.
+- **Başarısız** sonuç (withdrawal'da compensation'ı tetiklemek için). Karşılığı `Failure`.
+- **Transient sonra başarılı** (retry'ın devreye girip sonunda başardığını göstermek). Karşılığı `TransientFailure`.
+- **Gecikmeli** sonuç. Karşılığı `DelayedSuccess`.
 Transfer sonucu SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callback ya da durum sorgusuyla (decisions.md madde 35). Sahte bankanın hafızası bellekte; yeniden başlatınca siliniyor.
 
 ## 10. Çıkış Kriteri

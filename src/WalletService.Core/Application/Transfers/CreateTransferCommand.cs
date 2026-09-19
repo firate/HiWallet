@@ -13,10 +13,10 @@ namespace HiWallet.WalletService.Application.Transfers;
 /// tam <paramref name="Amount"/> alır.
 /// </param>
 /// <param name="IdempotencyKey">
-/// Client üretir ve ZORUNLU (decisions.md madde 4). Aynı key ile ikinci istek yeni
+/// Client üretir ve ZORUNLU (decisions.md madde 4). Aynı key ile ikinci request yeni
 /// transfer YAPMAZ, mevcut işlemi döner. Kapsam gönderen cüzdan.
 ///
-/// Varsayılanı YOK: opsiyonel olsaydı anahtarsız bir istek sessizce geçer ve o
+/// Varsayılanı YOK: opsiyonel olsaydı anahtarsız bir request sessizce geçer ve o
 /// transferin tekrarı hiçbir şeye takılmadan ikinci kez yazılırdı.
 /// </param>
 public sealed record CreateTransferCommand(
@@ -28,7 +28,7 @@ public sealed record CreateTransferCommand(
     string IdempotencyKey);
 
 /// <param name="Replayed">
-/// <c>true</c> ise bu istek daha önce işlenmişti; yeni bir şey yazılmadı, mevcut
+/// <c>true</c> ise bu request daha önce işlenmişti; yeni bir şey yazılmadı, mevcut
 /// işlemin kimliği dönüyor.
 /// </param>
 public sealed record TransferResult(Guid TransactionId, bool Replayed);

@@ -30,12 +30,19 @@ dosyalarında `Version` attribute'u YAZILMAZ, yalnızca `PackageReference Includ
 
 ```
 docs/
+├── architecture.md      -- diyagramlar: topoloji, akışlar, paranın nerede durduğu
 ├── overview.md          -- sistem: kapsam, servisler, akışlar, saga, çıkış kriteri
 ├── baseline.md          -- uygulamadan bağımsız 12 zorunlu katman
 ├── decisions.md         -- kararlar, gerekçeler, elenen alternatifler
 ├── ledger-schema.md     -- DDL, invariant zorlaması, settlement kayıtları
-└── structure.md         -- bu dosya
+├── structure.md         -- bu dosya
+├── api-examples.md      -- her endpoint için request ve beklenen response
+└── verify-compose.md    -- compose'u ayağa kaldırma ve doğrulama
 ```
+
+Klasörde alfabetik duruyorlar; okuma sırası README'nin "Hangi sırayla okunur"
+bölümünde. Sıra dosya adlarına numara olarak GÖMÜLMÜYOR: aradan bir doküman
+eklendiğinde bütün adlar ve onlara verilen linkler kayardı.
 
 **`overview.md` ile `baseline.md` ayrımı:** birincisi sistemin ne yaptığı, ikincisi ne
 yaptığından bağımsız olarak her serviste beklenen production hijyeni. Bir şey "wallet
@@ -100,7 +107,8 @@ WalletService.Core/
 │   ├── Balances/              -- cüzdan sorgulama (bakiye projeksiyondan okunur)
 │   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
 │   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
-│   └── Abstractions/          -- IPaymentProvider, IBankProvider, IClock
+│   ├── Settlements/           -- ProcessSettlementHandler, ProcessInvoiceHandler
+│   └── Abstractions/          -- IClock
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
 │   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
@@ -115,11 +123,11 @@ WalletService.Core/
 │   │   ├── WalletDbContext.cs
 │   │   ├── Configurations/    -- IEntityTypeConfiguration<T> başına bir dosya
 │   │   └── Migrations/        -- EF Core üretir, elle düzenlenmez
-│   ├── Providers/             -- IPaymentProvider'ın HTTP implementasyonu
-│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob
+│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob + ayarları
 └── Setup/
     ├── PersistenceSetup.cs    -- iki host da kullanıyor
-    └── PoliciesSetup.cs       -- iki host da kullanıyor
+    ├── PoliciesSetup.cs       -- iki host da kullanıyor
+    └── WalletJobsSetup.cs     -- job tipleri internal, kaydı burada
 ```
 
 Host'a özel kurulum Core'a GİRMEZ: rate limiting, ProblemDetails, model doğrulama
@@ -155,14 +163,14 @@ WalletConsumer/
 ├── Dockerfile
 ├── Topups/                     -- TopupConsumerService: top-up kuyruklarını dinler
 ├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
-├── WalletConsumerSetup.cs      -- DI + sağlık kontrolleri
+├── WalletConsumerSetup.cs      -- DI + health check'ler
 └── WalletConsumerApp.cs        -- test giriş noktası işaretçisi
 ```
 
 İki kuyruk tek process'te: ikisi de ingress'siz ve ikisi de aynı ledger'a yazıyor,
 yani ayırmanın erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
 
-`Sdk.Web` kullanıyor ama tek HTTP yüzeyi sağlık ucu. Probe olmasaydı "process ayakta
+`Sdk.Web` kullanıyor ama tek HTTP yüzeyi health check endpoint'i. Probe olmasaydı "process ayakta
 ama tüketici tıkanmış" durumu görünmezdi.
 
 Kuyruk plumbing'i (kanal, ack/nack, dead-letter kararı) burada; ledger'a yazan
@@ -223,7 +231,7 @@ BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-
 ├── Application/               -- BankCallbackSignature, BankSecrets, BankCallbackWriter
 └── Setup/
 
-fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTINDA DEĞİL
+fakes/Bank.Fake/               -- BANKANIN YERİNDE; canlıda YOK, `src/` ALTINDA DEĞİL
 ├── Api/Controllers/           -- TransfersController, ScenariosController
 ├── Api/Requests/
 ├── Api/Responses/
@@ -234,14 +242,14 @@ fakes/Bank.Fake/               -- BANKANIN YERİNDE; üretimde YOK, `src/` ALTIN
 │   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
 └── Setup/
 
-fakes/Stripe.Fake/             -- KART SAĞLAYICISI; üretimde YOK, veritabanı YOK
+fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı YOK
 └── Api/Controllers/           -- TopupsController (Fakes.Core'dan türüyor)
 ```
 
-### `fakes/` — üretimde olmayan servisler
+### `fakes/` — canlıda olmayan servisler
 
 **Sahte servisler `src/` altında DEĞİL, kökte ayrı bir klasörde.** Sınır dizin
-seviyesinde görünüyor: üretimde deploy edilen hiçbir şey `fakes/`'ten çıkmıyor.
+seviyesinde görünüyor: canlıda deploy edilen hiçbir şey `fakes/`'ten çıkmıyor.
 
 ```
 fakes/
@@ -251,12 +259,16 @@ fakes/
 ├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
 │   └── stripe-fake.http
 ├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
-└── http-client.env.json     -- Rider ortamları: homelab, local
+├── http-client.env.json     -- Rider ortamı: local
+└── http-client.private.env.json.example
+                             -- stack başka bir makinedeyse: kopyala, .example'ı at,
+                                STACK-HOST'u doldur. Kopya gitignore'da.
 ```
 
 `.http` dosyaları elle deneme için: senaryoyu kur, bizim tarafın tepkisini gör.
-Gizli değer gerekirse `http-client.private.env.json`'a yazılır; o dosya
-`.gitignore`'da.
+Adresler `http-client.env.json`'daki ortamdan geliyor; depoda yalnızca `local` var.
+Stack başka bir makinede koşuyorsa ya da gizli bir değer gerekiyorsa
+`http-client.private.env.json` kullanılır — örneği yanında, kendisi `.gitignore`'da.
 
 `Fakes.Core` neden paylaşılıyor: `topup-webhook` bütün sağlayıcılar için tek bir
 gövde şekli kabul ediyor, yani sözleşmeyi BİZ dayatıyoruz — ayrışacak iki taraf yok.
@@ -279,8 +291,8 @@ kendi kurulum metodu ve veritabanı hiç yok.
 
 **`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
 duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
-testlerde koşuyor ama üretimde de koşacak — son ek almıyor. `Bank.Fake` üretimde
-silinecek, alıyor.
+testlerde koşuyor ama canlıda da koşacak — son ek almıyor. `Bank.Fake` canlıda
+yok, alıyor.
 
 `BankAdapter` ile `BankWebhook` ayrı klasörler çünkü ayrı deployable'lar: birinin
 IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok (madde 28). Ortak şemaları
@@ -296,11 +308,11 @@ Shared/
 │   ├── Events/                -- BankTransferSucceeded, TopupReceived, ...
 │   └── Envelope.cs            -- MessageId, CorrelationId, OccurredAt
 └── Shared.Infrastructure/
-    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, sağlık kontrolü
+    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, health check
     ├── Jobs/                  -- PeriodicTimer tabanı, pg_try_advisory_lock kirası
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
-    └── HealthChecks/          -- /health/live ve /health/ready uçları
+    └── HealthChecks/          -- /health/live ve /health/ready endpoint'leri
 ```
 
 `Shared.Infrastructure` `FrameworkReference` ile `Microsoft.AspNetCore.App`'e bağlanıyor:

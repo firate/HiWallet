@@ -15,7 +15,7 @@ namespace HiWallet.BankAdapter.Infrastructure.Callbacks;
 /// <list type="number">
 /// <item>Callback yolu ile mutabakat taraması AYNI kapanış koduna varmak zorunda
 /// (<see cref="TransferCompleter"/>) ve o kodun tek kopyası olmalı.</item>
-/// <item>İşleme mantığındaki her değişiklik aksi halde bankanın çağırdığı ucu
+/// <item>İşleme mantığındaki her değişiklik aksi halde bankanın çağırdığı endpoint'i
 /// yeniden başlatmayı gerektirirdi. Adaptör yeniden başlarken kayıp yok; callback
 /// alıcısı yeniden başlarken banka bağlantı hatası alıyor.</item>
 /// </list>

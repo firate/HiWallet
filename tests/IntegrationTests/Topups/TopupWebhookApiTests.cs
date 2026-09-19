@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HiWallet.IntegrationTests.Topups;
 
 /// <summary>
-/// Webhook ucu: imza doğrulama, inbox yazımı, idempotency (overview.md madde 5).
+/// Webhook endpoint'i: imza doğrulama, inbox yazımı, idempotency (overview.md madde 5).
 /// Uygulama gerçek haliyle ayakta — rate limiter, model doğrulama ve controller
 /// zinciri dahil.
 /// </summary>
@@ -169,7 +169,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         var eventId = NewEventId();
         var payload = Payload(eventId, Guid.NewGuid());
 
-        // "Önce SELECT sonra INSERT" olsaydı burası kırılırdı: iki istek de
+        // "Önce SELECT sonra INSERT" olsaydı burası kırılırdı: iki request de
         // "yok" görüp ikisi de yazmaya çalışırdı. ON CONFLICT DO NOTHING kararı
         // tek adımda DB'ye verdiriyor.
         var responses = await Task.WhenAll(

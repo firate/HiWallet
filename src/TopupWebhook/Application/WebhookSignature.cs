@@ -12,7 +12,7 @@ namespace HiWallet.TopupWebhook.Application;
 /// üzerinde hesaplanamaz: boşluk, alan sırası, sayı biçimi değişir ve imza tutmaz.
 /// Bu yüzden controller gövdeyi bayt olarak okuyup önce doğruluyor, sonra parse ediyor.
 ///
-/// <b>Zaman damgası yok.</b> Yakalanan bir isteğin tekrar gönderilmesi (replay) bu
+/// <b>Zaman damgası yok.</b> Yakalanan bir request'in tekrar gönderilmesi (replay) bu
 /// hatta zaten zararsız: aynı <c>event_id</c> inbox'ta UNIQUE'e takılıyor ve ikinci
 /// kez işlenmiyor. Zaman damgası eklemek aynı korumayı ikinci kez, üstelik saat
 /// senkronizasyonuna bağımlı biçimde kurmak olurdu.

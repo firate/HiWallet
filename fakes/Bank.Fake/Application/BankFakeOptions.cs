@@ -12,7 +12,7 @@ public sealed class BankFakeOptions
     /// Senaryosu kurulmamış transferlerin davranışı.
     ///
     /// <b>Neden var.</b> Senaryo çekim başına kuruluyor ama saga kimliğini ancak
-    /// çekim isteği kabul edildikten SONRA öğrenebiliyorsun. Araya banka çağrısının
+    /// çekim request'i kabul edildikten SONRA öğrenebiliyorsun. Araya banka çağrısının
     /// sığması mümkün ve o zaman senaryo geç kalırdı. Varsayılanı önceden
     /// ayarlayabilmek bu yarışı tamamen kaldırıyor: "bu ayaktaki banka her şeyi
     /// reddeder" denip servis öyle başlatılıyor.
@@ -56,7 +56,7 @@ public sealed class CallbackOptions
 {
     public bool Enabled { get; init; }
 
-    /// <summary>Adaptörün callback ucu. Örnek: <c>http://bank-webhook:8080/v1/webhooks/bank/bank-fake</c>.</summary>
+    /// <summary>Adaptörün callback endpoint'i. Örnek: <c>http://bank-webhook:8080/v1/webhooks/bank/bank-fake</c>.</summary>
     public string? Url { get; init; }
 
     /// <summary>

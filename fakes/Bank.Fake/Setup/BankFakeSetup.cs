@@ -12,7 +12,7 @@ public static class BankFakeSetup
         services.Configure<BankFakeOptions>(configuration.GetSection(BankFakeOptions.SectionName));
 
         // Bankanın bütün hafızası. SINGLETON olmak zorunda: scoped olsaydı her
-        // istek boş bir bankayla karşılaşırdı.
+        // request boş bir bankayla karşılaşırdı.
         services.AddSingleton<BankFakeStore>();
 
         services.AddScoped<AcceptTransferHandler>();
@@ -20,7 +20,7 @@ public static class BankFakeSetup
         services.AddScoped<TransferQueries>();
 
         // Callback göndericisi kendi HTTP istemcisini kullanıyor. Timeout kısa:
-        // ulaşılamayan bir uca takılıp kalmak, sırada bekleyen callback'leri de
+        // ulaşılamayan bir endpoint'e takılıp kalmak, sırada bekleyen callback'leri de
         // geciktirirdi.
         services.AddHttpClient(CallbackDispatcher.HttpClientName, client =>
             client.Timeout = TimeSpan.FromSeconds(10));

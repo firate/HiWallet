@@ -6,8 +6,8 @@ using Microsoft.Extensions.Configuration;
 namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
-/// Bankanın bizi çağırdığı uç. Adaptörle AYNI veritabanına bakıyor ama AYRI host —
-/// üretimdeki ayrımın aynısı (decisions.md madde 28, 35).
+/// Bankanın bizi çağırdığı endpoint. Adaptörle AYNI veritabanına bakıyor ama AYRI host —
+/// canlıdaki ayrımın aynısı (decisions.md madde 28, 35).
 /// </summary>
 public sealed class BankWebhookFactory(BankFixture bank, string? callbackSecret = null)
     : WebApplicationFactory<BankWebhookApp>

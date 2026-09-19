@@ -11,7 +11,7 @@ namespace HiWallet.TopupWebhook.Api.Controllers;
 /// <summary>
 /// Sağlayıcının dönem sonu faturası (adım 5.6).
 ///
-/// <b>Gövde sınırı diğer uçlardan büyük.</b> Fatura binlerce kalem referansı
+/// <b>Gövde sınırı diğer endpoint'lerden büyük.</b> Fatura binlerce kalem referansı
 /// taşıyabiliyor; 32 KB o listeyi kesip faturayı sessizce eksik kapsamlı yapardı.
 /// İmza yine gövdenin tamamı üzerinde, yani sınır bir CPU tavanı olarak duruyor.
 /// </summary>

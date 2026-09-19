@@ -30,11 +30,11 @@ olduğu yere taşınmıyor.
 | `wallet-api` | **public** — mobil/web | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
-| `withdrawal-orchestrator` | public — çekim isteği | `hiwallet_withdrawal` | ikisi de |
+| `withdrawal-orchestrator` | public — çekim request'i | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
 
-Ayrımın sebebi ağ maruziyeti: banka webhook'u belirli IP bloklarına açılacak, cüzdan
+Ayrımın sebebi erişim seviyesi: banka webhook'u belirli IP bloklarına açılacak, cüzdan
 API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
 
 Bir de **bizim olmayan iki** uygulama var:
@@ -44,7 +44,7 @@ Bir de **bizim olmayan iki** uygulama var:
 | `bank-fake` | bankamız | para girişi **ve** çıkışı; hafızası bellekte, veritabanı yok |
 | `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
 
-İkisi de üretimde yok — yerlerine kurumların kendi uçları geçiyor. `.Fake` son ekinin
+İkisi de canlıda yok — yerlerine kurumların kendi endpoint'leri geçiyor. `.Fake` son ekinin
 ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor" (`decisions.md`
 madde 35).
 
@@ -52,12 +52,12 @@ madde 35).
 bildiriyor hem giden transferi kabul ediyor. Ledger'da da öyle — `clearing/bank-fake`
 iki yönde de hareket ediyor. Stripe'ın `nostro`'su yok, çünkü nostro bir banka hesabı.
 
-Kodları da `src/` altında değil, kökteki **`fakes/`** klasöründe: üretimde deploy
+Kodları da `src/` altında değil, kökteki **`fakes/`** klasöründe: canlıda deploy
 edilen hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme hatası
 (`HIW001`) — kural yorumda değil, derleyicide.
 
-Ölçüt iki yöne de işliyor: farklı maruziyet aynı process'te birleşmiyor, **aynı
-maruziyet de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
+Ölçüt iki yöne de işliyor: farklı erişim seviyesi aynı process'te birleşmiyor, **aynı
+erişim seviyesi de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
 top-up event'leri ve çekim komutları — çünkü ikisi de ingress'siz ve aynı ledger'a
 aynı kütüphaneyle yazıyor.
 
@@ -77,30 +77,30 @@ sadece dışarıyla konuşan kenarı dağıt.**
 
 | | durum |
 | --- | --- |
-| Hesap ve cüzdan uçları (`/v1/accounts`, `/v1/wallets`) | ✅ |
-| Transfer çekirdeği (5 tip), limit ve komisyon | ✅ |
-| Double-entry ledger, zero-sum invariant | ✅ DB trigger + testler |
-| Optimistic lock, retry, idempotency | ✅ |
-| `POST /v1/transfers`, ProblemDetails | ✅ |
-| Baseline: OTel, health, rate limiting, validation | ✅ |
-| Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | ✅ |
-| HMAC imza, iki kademe idempotency, dead-letter | ✅ |
-| Deployable ayrımı erişim seviyesine göre | ✅ |
-| Hattın gerçek bir broker'a karşı uçtan uca koşması | ✅ webhook → RabbitMQ → ledger |
-| Withdrawal saga: state machine, outbox, IBAN doğrulama | ✅ |
-| Compensation: üç bacaklı ters kayıt (komisyon dahil) | ✅ |
-| Saga zincirinin uçtan uca koşması | ✅ API → wallet → adaptör → banka → callback → saga |
-| Banka entegrasyonu: asenkron sonuç, callback + mutabakat | ✅ |
-| Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | ✅ |
-| Sekiz container'ın compose'dan ayağa kalkması | ✅ |
-| Takılmış saga taraması (job altyapısı + advisory lock) | ✅ |
-| Business günlük özeti | ✅ |
-| Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | ✅ |
-| Settlement: clearing kapanır, `nostro` hareket eder | ✅ top-up ve çekim |
-| Fatura işleme, uyuşmazlıkta `PendingReview` | ✅ |
-| Mutabakat raporu (projeksiyon, yaşlanma, fatura) | ✅ |
-| Çekim settlement'ı (banka ücreti saga üzerinden) | ✅ |
-| Relay tekilliği: sıra broker'a varmadan bozulmuyor | ✅ advisory lock |
+| Hesap ve cüzdan endpoint'leri (`/v1/accounts`, `/v1/wallets`) | evet |
+| Transfer çekirdeği (5 tip), limit ve komisyon | evet |
+| Double-entry ledger, zero-sum invariant | evet — DB trigger + testler |
+| Optimistic lock, retry, idempotency | evet |
+| `POST /v1/transfers`, ProblemDetails | evet |
+| Baseline: OTel, health, rate limiting, validation | evet |
+| Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | evet |
+| HMAC imza, iki kademe idempotency, dead-letter | evet |
+| Deployable ayrımı erişim seviyesine göre | evet |
+| Hattın gerçek bir broker'a karşı uçtan uca koşması | evet — webhook → RabbitMQ → ledger |
+| Withdrawal saga: state machine, outbox, IBAN doğrulama | evet |
+| Compensation: üç bacaklı ters kayıt (komisyon dahil) | evet |
+| Saga zincirinin uçtan uca koşması | evet — API → wallet → adaptör → banka → callback → saga |
+| Banka entegrasyonu: asenkron sonuç, callback + mutabakat | evet |
+| Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | evet |
+| Sekiz container'ın compose'dan ayağa kalkması | evet |
+| Takılmış saga taraması (job altyapısı + advisory lock) | evet |
+| Business günlük özeti | evet |
+| Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
+| Settlement: clearing kapanır, `nostro` hareket eder | evet — top-up ve çekim |
+| Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
+| Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
+| Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
+| Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
 290 test: 96 unit (DB'siz), 194 integration — gerçek Postgres ve gerçek RabbitMQ.
 
@@ -125,12 +125,12 @@ paralel kalkar; hiçbiri onu BEKLEMEZ.
 curl http://localhost:8091/health/ready   # wallet-api
 curl http://localhost:8092/health/ready   # topup-webhook
 curl http://localhost:8093/health/ready   # withdrawal-orchestrator
-curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, üretimde yok)
+curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8095/health/ready   # bank-webhook
-curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, üretimde yok)
+curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, canlıda yok)
 ```
 
-`wallet-consumer`'ın host'a açılmış portu yok — sağlık kontrolü container'ın içinden
+`wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
 açmasının sebebi olmazdı.
 
@@ -191,7 +191,7 @@ curl -s http://localhost:8091/v1/wallets/$WALLET
 ```
 
 Cüzdan sıfır bakiyeyle açılır ve **para yalnızca ledger üzerinden girer** — top-up ya da
-transfer. Bakiyeye doğrudan yazan bir uç yok, olsaydı zero-sum invariant'ı delerdi.
+transfer. Bakiyeye doğrudan yazan bir endpoint yok, olsaydı zero-sum invariant'ı delerdi.
 
 Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir (`decisions.md` madde 20);
 `GET /v1/accounts/{id}` hepsini bakiyeleriyle listeler. Günlük limit bu yüzden cüzdan
@@ -208,22 +208,22 @@ curl -X POST http://localhost:8091/v1/transfers \
 
 Ledger'a üç satır düşer: gönderen `-204`, alan `+200`, `revenue` `+4`. Toplam sıfır.
 
-**Idempotency.** Aynı `Idempotency-Key` ile ikinci istek yeni transfer yapmaz:
+**Idempotency.** Aynı `Idempotency-Key` ile ikinci request yeni transfer yapmaz:
 
 ```bash
 curl -X POST http://localhost:8091/v1/transfers \
   -H 'Idempotency-Key: ayni-istek' -H 'Content-Type: application/json' -d '{...}'
 ```
 
-İkinci yanıt aynı `transactionId` ve `"replayed": true` döner.
+İkinci response aynı `transactionId` ve `"replayed": true` döner.
 
 **Yetersiz bakiye / limit aşımı** → `422` + `rule` alanı.
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
 **Elle denemenin en kolay yolu:** Rider'da `fakes/akislar.http`,
-`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ
-üstten ortam seç (`homelab` / `local`), istekleri sırayla koş; kimlikler bir
-sonrakine kendiliğinden taşınıyor. Aşağıdaki `curl` örnekleri aynı işi yapıyor.
+`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ üstten
+ortamı seç, request'leri sırayla koş; kimlikler bir sonrakine kendiliğinden taşınıyor.
+Aşağıdaki `curl` örnekleri aynı işi yapıyor.
 
 **Top-up (dışarıdan para girişi).** En kolayı sahte sağlayıcıya söylemek — imzayı
 o hesaplıyor:
@@ -237,7 +237,7 @@ curl -X POST http://localhost:8096/v1/topups -H 'Content-Type: application/json'
 iki kez gönderiyor — bakiye **bir kez** artmalı. `OutOfOrder` aynı cüzdana N event'i
 ters sırada gönderiyor.
 
-Bankadan yükleme için aynı uç `8094`'te (`bank-fake`), `clearing/bank-fake`'e yazar.
+Bankadan yükleme için aynı endpoint `8094`'te (`bank-fake`), `clearing/bank-fake`'e yazar.
 
 Elle göndermek istersen imza ham gövde baytları üzerinde HMAC-SHA256:
 
@@ -247,8 +247,8 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SEC
 curl -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Yanıt **`202 Accepted`** — `200` değil, bilerek: verilen söz "işledim" değil "kalıcı
-kaydettim". Para yanıt döndüğünde henüz cüzdanda değil.
+Response **`202 Accepted`** — `200` değil, bilerek: verilen söz "işledim" değil "kalıcı
+kaydettim". Para response döndüğünde henüz cüzdanda değil.
 
 Yol: **202 (inbox commit'inden sonra) → relay → RabbitMQ → tüketici → ledger.**
 Ledger'a iki satır düşer: cüzdan `+100`, `clearing/stripe-fake` `-100` (sağlayıcıdan
@@ -271,7 +271,7 @@ curl -X POST http://localhost:8093/v1/withdrawals \
        "destinationIban":"TR33 0006 1005 1978 6457 8413 26"}'
 ```
 
-Yanıt **`202 Accepted`**: döndüğünde hiçbir para hareket etmemiş durumda. IBAN sınırda
+Response **`202 Accepted`**: döndüğünde hiçbir para hareket etmemiş durumda. IBAN sınırda
 mod-97 ile doğrulanıyor; geçersizse `400` ve saga hiç başlamıyor.
 
 Mutlu yolda ledger'a üç satır düşer: cüzdan `-102`, `clearing/bank-fake` `+100`,
@@ -319,7 +319,7 @@ Integration testler bir Postgres sunucusu ister; bağlantı
 `ConnectionStrings__IntegrationTests`'ten gelir. Her koşu kendi schema'sını açar,
 migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyor, Docker
 gerekmiyor. topup-webhook, withdrawal-orchestrator, banka entegrasyonu ve sahte banka için ayrı schema'lar
-açılıyor: üretimdeki ayrı veritabanı sınırları testte de korunuyor, servisler
+açılıyor: canlıdaki ayrı veritabanı sınırları testte de korunuyor, servisler
 birbirinin tablosunu göremiyor.
 
 Uçtan uca testler ayrıca bir RabbitMQ ister (`RabbitMq__*`). Top-up hattı bir de
@@ -354,11 +354,35 @@ dotnet test
 | [docs/decisions.md](docs/decisions.md) | kararlar, gerekçeler, **elenen alternatifler** |
 | [docs/ledger-schema.md](docs/ledger-schema.md) | şemanın okunabilir karşılığı |
 | [docs/structure.md](docs/structure.md) | yeni dosya nereye konur |
-| [docs/api-examples.md](docs/api-examples.md) | her uç için istek ve beklenen yanıt |
+| [docs/api-examples.md](docs/api-examples.md) | her endpoint için request ve beklenen response |
 | [docs/verify-compose.md](docs/verify-compose.md) | compose'u ayağa kaldırma ve doğrulama |
 | [CLAUDE.md](CLAUDE.md) | pazarlıksız kurallar |
 
 Şemanın tek kaynağı EF migration'ları; `ledger-schema.md` onları açıklar, üretmez.
+
+### Hangi sırayla okunur
+
+**Baştan sona okunacak tek doküman yok.** Hangisini açacağın ne yaptığına bağlı:
+
+**Sistemi tanımak ya da hatırlamak için:** `architecture.md` → `overview.md` →
+`ledger-schema.md`. İlki en hızlı resmi veriyor, hepsi diyagram. `overview.md`'nin
+1–10 numaralı maddeleri sistemi anlatıyor; o numaralara `decisions.md` ve kod
+yorumları atıf yapıyor, bu yüzden sabitler. Üçüncüsünü ancak tablo yapısı
+gerektiğinde aç.
+
+**Kod yazarken:** `CLAUDE.md` → `structure.md` → `decisions.md`'de ilgili madde.
+İlki kuralların listesi, ikincisi yeni dosyanın nereye konacağı. `decisions.md`
+baştan sona OKUNMAZ — 1400 satır ve referans niteliğinde; merak ettiğin maddeyi ara
+(banka entegrasyonu 35, servis sınırı 7 ve 33, aktör 34).
+
+**Elle denerken:** `fakes/` altındaki `.http` dosyaları → `api-examples.md` →
+`verify-compose.md`. İlki Rider'da en hızlı yol, ikincisi bir şey bozulduğunda
+karşılaştırman için beklenen response'ları veriyor.
+
+**Yeni karar alırken:** `decisions.md`. Karar oraya gerekçesiyle yazılıyor, sonra
+`CLAUDE.md`'ye ve ilgili dokümanlara yayılıyor.
+
+`baseline.md` nadiren açılır: uygulamadan bağımsız ve neredeyse hiç değişmiyor.
 
 ## Bilinçli sınırlamalar
 
@@ -378,6 +402,6 @@ olsa bile çakışıyor (`decisions.md` madde 23).
 
 MIT — [LICENSE](LICENSE).
 
-Bu bir **referans uygulamasıdır**, üretime hazır bir e-para sistemi değil. Yukarıdaki
-bilinçli sınırlamalar okunmadan üretim amacıyla kullanılmamalı. `stripe-fake` ve
+Bu bir **referans uygulamasıdır**, canlıya çıkmaya hazır bir e-para sistemi değil. Yukarıdaki
+bilinçli sınırlamalar okunmadan canlıda kullanılmamalı. `stripe-fake` ve
 `bank-fake` yerel simülatörlerdir; hiçbir ödeme sağlayıcısıyla ilişkisi yoktur.

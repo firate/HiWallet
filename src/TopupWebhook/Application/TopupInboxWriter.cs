@@ -82,7 +82,7 @@ public sealed class TopupInboxWriter(
 
         var payload = JsonSerializer.Serialize(message, PayloadJsonOptions);
 
-        // "Önce SELECT sonra INSERT" YOK (CLAUDE.md): iki eşzamanlı istek arasında
+        // "Önce SELECT sonra INSERT" YOK (CLAUDE.md): iki eşzamanlı request arasında
         // TOCTOU açığı var ve webhook'lar tam da paralel gelir.
         var inserted = await db.Database.ExecuteSqlAsync(
             $"""

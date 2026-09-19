@@ -16,7 +16,7 @@ namespace HiWallet.IntegrationTests.Withdrawals;
 
 /// <summary>
 /// <b>Zincirin tamamı.</b> Üç deployable ayrı ayrı ayağa kalkıyor ve aralarında
-/// yalnızca broker var — üretimdeki gibi:
+/// yalnızca broker var — canlıdaki gibi:
 ///
 /// <code>
 ///   POST /v1/withdrawals → orchestrator → outbox → relay
@@ -137,7 +137,7 @@ public sealed class WithdrawalChainTests(
         Assert.SkipUnless(await BrokerSettings.IsReachableAsync(ct), SkipReason);
 
         // Banka REDDEDİCİ olarak başlatılıyor. Senaryoyu API'den kurmak da mümkündü
-        // ama saga kimliği ancak istek kabul edildikten sonra biliniyor ve banka
+        // ama saga kimliği ancak request kabul edildikten sonra biliniyor ve banka
         // komutu teorik olarak araya girebilirdi. Varsayılanı servis başlamadan
         // vermek o pencereyi tamamen kapatıyor.
         await StartAsync(ct, TransferOutcome.Failure);

@@ -10,7 +10,7 @@ public static class PersistenceSetup
 
     public static IServiceCollection AddOrchestratorPersistence(this IServiceCollection services)
     {
-        // Yalnızca factory: context'e ihtiyaç duyan yerlerin çoğu istek kapsamı
+        // Yalnızca factory: context'e ihtiyaç duyan yerlerin çoğu request kapsamı
         // DIŞINDA (outbox relay, takılmış saga taraması) ve hepsinin kendi ömrünü
         // yönetmesi tek kalıp bırakıyor.
         //

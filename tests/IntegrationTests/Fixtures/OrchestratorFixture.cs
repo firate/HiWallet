@@ -5,7 +5,7 @@ using Npgsql;
 namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
-/// withdrawal-orchestrator'ın veritabanı. Üretimde ayrı bir veritabanı
+/// withdrawal-orchestrator'ın veritabanı. Canlıda ayrı bir veritabanı
 /// (<c>hiwallet_withdrawal</c>); testte aynı sunucuda AYRI BİR SCHEMA — sınır
 /// korunuyor (context'ler birbirinin tablosunu görmüyor) ama koşu ikinci bir
 /// veritabanı kurmayı gerektirmiyor. <see cref="InboxFixture"/> ile aynı kalıp.
@@ -71,7 +71,7 @@ public sealed class OrchestratorFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// İstek kapsamı dışında koşan bileşenler (relay, takılmış saga taraması)
+    /// Request kapsamı dışında koşan bileşenler (relay, takılmış saga taraması)
     /// factory bekliyor. <see cref="BankFixture"/> ile aynı kalıp.
     /// </summary>
     public IDbContextFactory<OrchestratorDbContext> ContextFactory => new Factory(this);

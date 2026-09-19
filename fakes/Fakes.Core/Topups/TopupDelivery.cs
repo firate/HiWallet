@@ -22,7 +22,7 @@ public enum TopupDeliveryMode
     Duplicate = 2,
 
     /// <summary>
-    /// Tek event, gecikmeli. Eventual davranışı görünür kılıyor: yanıt döndüğünde
+    /// Tek event, gecikmeli. Eventual davranışı görünür kılıyor: response döndüğünde
     /// para henüz cüzdanda değil ve bu bir hata değil.
     /// </summary>
     Delayed = 3,
@@ -43,7 +43,7 @@ public enum TopupDeliveryMode
 }
 
 /// <summary>
-/// Gönderilecek top-up isteği. Sağlayıcının kendi iç modeli — bu tip
+/// Gönderilecek top-up request'i. Sağlayıcının kendi iç modeli — bu tip
 /// <c>topup-webhook</c>'un gövdesine çevriliyor.
 /// </summary>
 /// <param name="Count">

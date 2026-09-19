@@ -5,10 +5,10 @@ using HiWallet.Fakes.Topups;
 namespace HiWallet.Stripe.Fake.Api.Controllers;
 
 /// <summary>
-/// Kart sağlayıcısının para girişi bildirimi. <b>Bu servisin TEK ucu</b> — Stripe'tan
+/// Kart sağlayıcısının para girişi bildirimi. <b>Bu servisin TEK endpoint'i</b> — Stripe'tan
 /// para çıkmıyor, dolayısıyla transfer ya da callback tarafı yok.
 ///
-/// Gerçek Stripe'ta bu uç YOKTUR: webhook müşteri kartla ödeme yaptığında gelir,
+/// Gerçek Stripe'ta bu endpoint YOKTUR: webhook müşteri kartla ödeme yaptığında gelir,
 /// sen istediğinde değil.
 /// </summary>
 public sealed class TopupsController(

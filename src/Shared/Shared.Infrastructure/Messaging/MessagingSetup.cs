@@ -8,7 +8,7 @@ public static class MessagingSetup
 {
     /// <param name="clientName">
     /// Broker'ın yönetim arayüzünde görünecek ad. Her servis kendi adını verir;
-    /// "bu bağlantıyı kim açtı" sorusu üretimde ilk sorulan şey.
+    /// "bu bağlantıyı kim açtı" sorusu canlıda ilk sorulan şey.
     /// </param>
     public static IServiceCollection AddHiWalletMessaging(
         this IServiceCollection services, IConfiguration configuration, string clientName)
@@ -47,8 +47,8 @@ public static class MessagingSetup
     /// <param name="failureStatus">
     /// Broker'ın o servis için ne kadar hayati olduğuna göre seçilir ve seçim
     /// önemli: <c>Unhealthy</c> servisi trafikten çektirir. Broker yalnızca bir
-    /// yan akış için gerekiyorsa <c>Degraded</c> doğrusu — durum sağlık çıktısında
-    /// görünür ama uç 200 dönmeye devam eder, çalışan yollar kapanmaz.
+    /// yan akış için gerekiyorsa <c>Degraded</c> doğrusu — durum health check çıktısında
+    /// görünür ama endpoint 200 dönmeye devam eder, çalışan yollar kapanmaz.
     /// </param>
     public static IHealthChecksBuilder AddRabbitMqCheck(
         this IHealthChecksBuilder builder,

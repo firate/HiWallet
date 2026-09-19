@@ -39,7 +39,7 @@ public sealed class PostgresFixture : IAsyncLifetime
             // Concurrency testi yüzlerce transfer'i aynı anda başlatıyor. Havuz sınırsız
             // olsaydı her biri kendi bağlantısını açmaya çalışır ve sunucunun slot'ları
             // tükenirdi (53300) — bu testin ölçmek istediği şey değil. Sınırlı havuz
-            // gerçek servisin davranışı: fazla istek bağlantı bekler, hata almaz.
+            // gerçek servisin davranışı: fazla request bağlantı bekler, hata almaz.
             MaxPoolSize = 20
         }.ConnectionString;
 

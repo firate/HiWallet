@@ -9,7 +9,7 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence;
 /// Durum enum'u DB'de metin: operasyonun elle bakacağı bir alan ve <c>state = 4</c>
 /// bir insana hiçbir şey söylemiyor. Ayrıca enum'a ortadan bir değer eklemek int
 /// eşlemesini sessizce kaydırırdı. Metnin kendisi
-/// <see cref="WithdrawalStates.ToText"/>'te — kolon, HTTP yanıtı ve index filtresi
+/// <see cref="WithdrawalStates.ToText"/>'te — kolon, HTTP response'u ve index filtresi
 /// aynı kaynaktan besleniyor.
 /// </summary>
 internal static class ValueConverters

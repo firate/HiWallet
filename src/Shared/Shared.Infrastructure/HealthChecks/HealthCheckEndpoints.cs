@@ -15,8 +15,8 @@ namespace HiWallet.Shared.Infrastructure.HealthChecks;
 /// broker geçici olarak erişilemezse yeniden başlatmak durumu düzeltmez, sadece
 /// kötüleştirir — o yüzden bağımlılık kontrolleri readiness'ta, liveness'ta değil.
 ///
-/// Hangi kontrollerin kaydedileceği servise özel; uçların şekli değil. Kayıt her
-/// serviste, uçlar burada.
+/// Hangi kontrollerin kaydedileceği servise özel; endpoint'lerin şekli değil. Kayıt her
+/// serviste, endpoint'ler burada.
 /// </summary>
 public static class HealthCheckEndpoints
 {

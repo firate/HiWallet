@@ -3,12 +3,12 @@ using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 
-// BANKANIN BİZİ ÇAĞIRDIĞI UÇ — bizim kodumuz, üretimde de koşuyor
+// BANKANIN BİZİ ÇAĞIRDIĞI UÇ — bizim kodumuz, canlıda da koşuyor
 // (decisions.md madde 35).
 //
 // AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR. `bank-adapter`'ın hiç ingress'i yok;
-// farklı maruziyet aynı process'te birleşmiyor (madde 28). Dağıtım tarafında da
-// karşılığı var: tarama ya da yayın mantığı değişince bankanın çağırdığı uç
+// farklı erişim seviyesi aynı process'te birleşmiyor (madde 28). Dağıtım tarafında da
+// karşılığı var: tarama ya da yayın mantığı değişince bankanın çağırdığı endpoint
 // yeniden başlatılmıyor.
 //
 // TEK İŞİ: doğrula, inbox'a yaz, 202. Broker'a hiç bağlanmıyor.

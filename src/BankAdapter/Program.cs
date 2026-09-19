@@ -3,14 +3,14 @@ using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 
-// BANKAYA BAKAN ADAPTÖR — BİZİM KODUMUZ, üretimde de koşuyor (decisions.md madde 35).
+// BANKAYA BAKAN ADAPTÖR — BİZİM KODUMUZ, canlıda da koşuyor (decisions.md madde 35).
 //
 // Sahte olan taraf `Bank.Fake`; burada sahtelik yalnızca `Bank:BaseUrl` değerinde.
 // Gerçek bankaya geçerken bu projede tek satır değişmiyor.
 //
 // INGRESS'İ YOK. Komutu kuyruktan alıyor, bankayı kendisi arıyor. Bankanın bizi
-// çağırdığı uç AYRI bir deployable (`bank-webhook`) — maruziyetleri farklı ve
-// farklı maruziyet aynı process'te birleşmiyor (madde 28).
+// çağırdığı endpoint AYRI bir deployable (`bank-webhook`) — erişim seviyeleri farklı ve
+// farklı erişim seviyesi aynı process'te birleşmiyor (madde 28).
 const string ServiceName = "hiwallet-bank-adapter";
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,8 +31,8 @@ var app = builder.Build();
 
 app.ValidateBankAdapterConfiguration();
 
-// Yalnızca sağlık ucu. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
-// yapıyor. Sağlık ucu da host'a açılmıyor, compose içinde kalıyor.
+// Yalnızca health check endpoint'i. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
+// yapıyor. Health check endpoint'i da host'a açılmıyor, compose içinde kalıyor.
 app.MapHiWalletHealthChecks();
 
 app.Run();

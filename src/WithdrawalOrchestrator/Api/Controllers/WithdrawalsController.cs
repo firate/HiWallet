@@ -14,13 +14,13 @@ public sealed class WithdrawalsController(
     IValidator<CreateWithdrawalRequest> validator) : ControllerBase
 {
     /// <summary>
-    /// Para çekme başlatır. Saga ile yürüyor (overview.md madde 6): bu yanıt
+    /// Para çekme başlatır. Saga ile yürüyor (overview.md madde 6): bu response
     /// döndüğünde henüz hiçbir para hareket etmedi.
     /// </summary>
     /// <param name="idempotencyKey">
     /// ZORUNLU — transfer'dekinin aksine. Çekim çok adımlı ve dışarıya para
     /// çıkarıyor; anahtarsız bir tekrar gerçekten ikinci bir banka transferi
-    /// başlatırdı. Aynı anahtarla ikinci istek yeni çekim AÇMAZ, mevcut olanı döner.
+    /// başlatırdı. Aynı anahtarla ikinci request yeni çekim AÇMAZ, mevcut olanı döner.
     /// </param>
     [HttpPost]
     [ProducesResponseType<WithdrawalAcceptedResponse>(StatusCodes.Status202Accepted)]
@@ -53,7 +53,7 @@ public sealed class WithdrawalsController(
         var response = WithdrawalAcceptedResponse.From(result);
 
         // 202, 201 değil: kaynak yaratıldı ama işin kendisi bitmedi. Tekrar eden
-        // istek de 202 — istemci için tekrar göndermek başarılı bir sonuçtur, ayrım
+        // request de 202 — istemci için tekrar göndermek başarılı bir sonuçtur, ayrım
         // gövdedeki `replayed` alanında (decisions.md madde 29 ile aynı gerekçe).
         return AcceptedAtAction(
             actionName: nameof(GetById),
@@ -61,7 +61,7 @@ public sealed class WithdrawalsController(
             value: response);
     }
 
-    /// <summary>Çekimin son durumu. <c>POST</c> yanıtındaki <c>Location</c> buraya işaret ediyor.</summary>
+    /// <summary>Çekimin son durumu. <c>POST</c> response'undaki <c>Location</c> buraya işaret ediyor.</summary>
     [HttpGet("{withdrawalId:guid}")]
     [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

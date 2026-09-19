@@ -1,9 +1,9 @@
--- UYGULAMANIN kurulumu: roller ve veritabanları. Üretimde de bunun karşılığı
+-- UYGULAMANIN kurulumu: roller ve veritabanları. Canlıda da bunun karşılığı
 -- koşar. Yalnızca veri dizini BOŞKEN çalışır (postgres imajının davranışı);
 -- sonraki `docker compose up`'larda atlanır.
 --
 -- Integration testlerin veritabanı burada DEĞİL: postgres-init-tests.sql'de ve
--- yalnızca compose onu mount ettiği için kuruluyor. Üretime giden kurulum, test
+-- yalnızca compose onu mount ettiği için kuruluyor. Canlıya giden kurulum, test
 -- için var olan bir veritabanını açmamalı.
 --
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve
@@ -57,7 +57,7 @@ CREATE DATABASE hiwallet_withdrawal OWNER withdrawal_app ENCODING 'UTF8';
 --
 -- İki uygulamanın aynı role bağlanması sınırı zayıflatmıyor: ikisi de AYNI veri
 -- sahibinin parçası (BankIntegration.Core) ve ayrılma sebepleri veri değil ağ
--- maruziyeti (decisions.md madde 28).
+-- erişim seviyesi (decisions.md madde 28).
 CREATE ROLE bank_app LOGIN PASSWORD :'bank_app_password';
 
 CREATE DATABASE hiwallet_bank OWNER bank_app ENCODING 'UTF8';

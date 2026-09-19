@@ -46,7 +46,7 @@ public static class FakeProviderSetup
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.WebhookSecret),
                 // İmzasız gönderen bir sağlayıcı, doğrulayıcımızın hiç sınanmaması
-                // demek olurdu: her istek 401 alır ve sebebi aranırdı.
+                // demek olurdu: her request 401 alır ve sebebi aranırdı.
                 $"{FakeProviderOptions.SectionName}:WebhookSecret boş; imzasız webhook 401 alır.")
             .ValidateOnStart();
 
@@ -62,7 +62,7 @@ public static class FakeProviderSetup
         services.AddSingleton<TopupWebhookSender>();
 
         // Gönderim kuyruğu sınırlı: sınırsız bırakılsaydı bir döngüyle tetiklenen
-        // binlerce istek bellekte birikirdi. Dolduğunda yazan bekliyor — sahte
+        // binlerce request bellekte birikirdi. Dolduğunda yazan bekliyor — sahte
         // servisin yavaşlaması, sessizce event düşürmesinden iyi.
         services.AddSingleton(Channel.CreateBounded<TopupDelivery>(
             new BoundedChannelOptions(capacity: 256) { FullMode = BoundedChannelFullMode.Wait }));
@@ -76,9 +76,9 @@ public static class FakeProviderSetup
 /// <summary>
 /// Kuyruğa düşen gönderimleri sırayla işler.
 ///
-/// <b>Neden arka planda.</b> HTTP ucu <c>202</c> dönüp çekiliyor; gecikmeli ve
-/// çok event'li modlar isteği saniyelerce açık tutardı. Gerçek bir sağlayıcı da
-/// webhook'u senin isteğin bitince gönderiyor.
+/// <b>Neden arka planda.</b> HTTP endpoint'i <c>202</c> dönüp çekiliyor; gecikmeli ve
+/// çok event'li modlar request'i saniyelerce açık tutardı. Gerçek bir sağlayıcı da
+/// webhook'u senin request'in bitince gönderiyor.
 ///
 /// <b>Kalıcı DEĞİL, bilerek.</b> Süreç ölürse kuyruktakiler kaybolur ve tetikleyen
 /// taraf — bir test ya da insan — yeniden tetikler.

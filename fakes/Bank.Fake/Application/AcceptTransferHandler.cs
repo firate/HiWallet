@@ -26,7 +26,7 @@ public sealed class AcceptTransferHandler(
 
         BankTransfer transfer;
 
-        // Bütün adım TEK kilit altında: iki istek aynı anahtarla aynı anda gelirse
+        // Bütün adım TEK kilit altında: iki request aynı anahtarla aynı anda gelirse
         // ikincisi birincinin kaydını görmeli. "Önce bak sonra ekle" ancak arada
         // kimse araya giremiyorsa doğru.
         lock (store.Gate)
@@ -107,7 +107,7 @@ public sealed class AcceptTransferHandler(
     ///
     /// Senaryo olarak saklanması şart: geçici hata sayacı ve deneme sayısı
     /// denemeler arasında hatırlanmazsa "üç denemede başarılı" davranışı her
-    /// istekte başa dönerdi. Yalnızca <see cref="BankFakeStore.Gate"/> altında çağrılır.
+    /// request'te başa dönerdi. Yalnızca <see cref="BankFakeStore.Gate"/> altında çağrılır.
     /// </summary>
     private TransferScenario? MaterializeDefault(string clientReference)
     {

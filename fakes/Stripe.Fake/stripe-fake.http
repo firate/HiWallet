@@ -1,9 +1,9 @@
 # stripe-fake — kart sağlayıcısının yerinde duran servis. ÜRETİMDE YOK.
 #
-# Rider'da sağ üstten ortamı seç: "homelab" ya da "local"
-# (fakes/http-client.env.json).
+# Rider'da sağ üstten ortamı seç (fakes/http-client.env.json). Depoda "local" var;
+# stack başka bir makinedeyse kendi ortamını http-client.private.env.json'a ekle.
 #
-# Sıra: önce 1 ve 2'yi koş, cüzdan kimliği sonraki isteklere otomatik taşınıyor.
+# Sıra: önce 1 ve 2'yi koş, cüzdan kimliği sonraki request'lere otomatik taşınıyor.
 # Sonra 3–6'dan istediğini, her birinin ardından 7 ile bakiyeye bak.
 #
 # Gönderim ARKA PLANDA: 202 döndüğünde webhook henüz gitmedi. Bakiyenin
@@ -64,5 +64,5 @@ Content-Type: application/json
 ### 7. Bakiye
 GET {{walletApi}}/v1/wallets/{{walletId}}
 
-### 8. Sağlık
+### 8. Health check
 GET {{stripeFake}}/health/ready

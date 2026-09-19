@@ -20,7 +20,7 @@ internal sealed class RabbitMqHealthCheck(RabbitMqConnection connection) : IHeal
     /// broker'sız çalışabilme tasarımı kâğıt üstünde kalıyordu.
     ///
     /// Süre burada ZORLANIYOR: bekleme bırakılıyor, alttaki deneme arka planda
-    /// bitiyor. Sağlık kontrolü cevabı geciktirmemeli, işi bitirmek zorunda değil.
+    /// bitiyor. Health check cevabı geciktirmemeli, işi bitirmek zorunda değil.
     /// </summary>
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(2);
 

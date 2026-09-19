@@ -193,7 +193,7 @@ Aktör cüzdanın değil **hesabın** kimliğini taşıyor: bir hesabın aynı p
 birden fazla cüzdanı olabiliyor (madde 20) ve cüzdan yazılsaydı aynı kişinin ikinci
 cüzdanından yaptığı işlem başka biri yapmış gibi görünürdü.
 
-`ledger_account_id` "isteği başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
+`ledger_account_id` "request'i başlatan hesap" değil, **işlemin idempotency kapsamı olan hesap**.
 İç işlemlerde de doludur — nullable OLMAZ, çünkü unique index içindeki NULL hiçbir NULL'a
 eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` madde 15):
 
@@ -439,7 +439,7 @@ işlenmesi manuel tetiklenen job'larda gerçek bir risk.
 ```
 BEGIN;
   -- 1) İdempotency kapısı ÖNCE (decisions.md madde 21). Policy'den sonra olsaydı,
-  --    ilk transfer limiti doldurduğunda aynı isteğin tekrarı 422 alırdı.
+  --    ilk transfer limiti doldurduğunda aynı request'in tekrarı 422 alırdı.
   SELECT id FROM ledger_transactions
    WHERE ledger_account_id = @from AND idempotency_key = @key;
   -- satır varsa → onu dön, hiçbir kuralı yeniden değerlendirme

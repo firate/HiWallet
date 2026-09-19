@@ -10,7 +10,7 @@ namespace HiWallet.WalletApi.Controllers;
 public sealed class WalletsController(IMessageBus bus) : ControllerBase
 {
     /// <summary>
-    /// Cüzdanın güncel bakiyesi. Sistem hesapları (clearing, revenue) bu uçtan
+    /// Cüzdanın güncel bakiyesi. Sistem hesapları (clearing, revenue) bu endpoint'ten
     /// GÖRÜNMEZ — onlar iç muhasebe, public API'nin cevaplayacağı soru değil.
     /// </summary>
     [HttpGet("{walletId:guid}")]

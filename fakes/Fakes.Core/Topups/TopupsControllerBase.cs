@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiWallet.Fakes.Topups;
 
 /// <summary>
-/// Para girişi tetikleyicisi. <b>Gerçek bir sağlayıcıda bu uç YOKTUR</b> — sağlayıcı
+/// Para girişi tetikleyicisi. <b>Gerçek bir sağlayıcıda bu endpoint YOKTUR</b> — sağlayıcı
 /// webhook'u müşteri para yatırdığında gönderir, sen istediğinde değil.
 ///
-/// Ortak taban sınıf: iki sahte servis de aynı ucu açıyor ve tek fark temsil
+/// Ortak taban sınıf: iki sahte servis de aynı endpoint'i açıyor ve tek fark temsil
 /// ettikleri kurum. Her birine kopyalansaydı teslim modları zamanla ayrışır ve
 /// iki testin sonucu karşılaştırılamaz olurdu.
 /// </summary>
@@ -88,7 +88,7 @@ public sealed class TopupRequestValidator : AbstractValidator<TopupRequest>
 {
     /// <summary>
     /// Gecikme üst sınırı: sınırsız bırakılsaydı yanlış bir değer testi
-    /// dakikalarca asardı. Bankanın senaryo ucundaki sınırla aynı gerekçe.
+    /// dakikalarca asardı. Bankanın senaryo endpoint'indeki sınırla aynı gerekçe.
     /// </summary>
     private const int MaxDelayMilliseconds = 30_000;
 

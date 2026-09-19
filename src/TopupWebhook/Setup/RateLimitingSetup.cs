@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace HiWallet.TopupWebhook.Setup;
 
 /// <summary>
-/// Webhook ucu kimliği doğrulanmamış trafiğe açık ve her istekte gövdenin tamamı
+/// Webhook endpoint'i kimliği doğrulanmamış trafiğe açık ve her request'te gövdenin tamamı
 /// üzerinde HMAC hesaplıyor — yani doğrudan CPU harcatılabilen bir yüzey. Sınır
 /// bu yüzden var (baseline.md madde 7).
 ///

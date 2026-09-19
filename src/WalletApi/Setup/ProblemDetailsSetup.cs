@@ -8,7 +8,7 @@ namespace HiWallet.WalletApi.Setup;
 /// <summary>
 /// Global hata yönetimi, RFC 7807 (baseline.md madde 5).
 ///
-/// Ayrım kritik: <c>422</c> iş kuralı reddi (istek geçerliydi, kural izin vermedi),
+/// Ayrım kritik: <c>422</c> iş kuralı reddi (request geçerliydi, kural izin vermedi),
 /// <c>409</c> concurrency çakışması (kural sorunu yok, sistem yarıştı — retry mantıklı).
 /// İkisi karıştırılmaz (CLAUDE.md "API").
 /// </summary>
@@ -19,7 +19,7 @@ public static class ProblemDetailsSetup
         services.AddProblemDetails(options =>
             options.CustomizeProblemDetails = context =>
             {
-                // Log ile yanıtı eşleştirebilmek için; OTel trace_id'siyle aynı değer.
+                // Log ile response'u eşleştirebilmek için; OTel trace_id'siyle aynı değer.
                 context.ProblemDetails.Extensions["traceId"] =
                     System.Diagnostics.Activity.Current?.TraceId.ToString()
                     ?? context.HttpContext.TraceIdentifier;
@@ -113,7 +113,7 @@ internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDet
 
 /// <summary>
 /// Optimistic lock çakışması, retry'lar tükendi → <c>409</c> (decisions.md madde 9).
-/// İstemci aynı isteği tekrar gönderebilir; bu yüzden 422'den ayrı.
+/// İstemci aynı request'i tekrar gönderebilir; bu yüzden 422'den ayrı.
 /// </summary>
 internal sealed class ConcurrencyExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
 {

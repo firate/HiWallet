@@ -13,7 +13,6 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 ```mermaid
 flowchart LR
     client["Mobil / Web<br/>istemci"]
-    provider["Ödeme sağlayıcısı<br/>(stripe-fake)"]
 
     subgraph public["public ingress"]
         api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
@@ -30,8 +29,9 @@ flowchart LR
         adapter["<b>bank-adapter</b><br/>bankayı arar, sonucu yayınlar"]
     end
 
-    subgraph outside["BİZİM DEĞİL — üretimde yok"]
-        bank["<b>bank-fake</b><br/>bankanın API'si"]
+    subgraph outside["dış kurumlar — canlıda gerçekleri"]
+        bank["<b>bank-fake</b><br/>bankanın API'si:<br/>havale girişi ve transfer"]
+        stripe["<b>stripe-fake</b><br/>kart sağlayıcısı:<br/>yalnızca giriş"]
     end
 
     mq[["RabbitMQ"]]
@@ -43,7 +43,8 @@ flowchart LR
 
     client -->|HTTPS| api
     client -->|HTTPS| orch
-    provider -->|"webhook + HMAC"| hook
+    stripe -->|"webhook + HMAC"| hook
+    bank -->|"webhook + HMAC"| hook
     bank -->|"callback + HMAC"| bhook
 
     api --> wdb
@@ -64,10 +65,10 @@ flowchart LR
 ```
 
 
-**Ayrım ölçütü erişim seviyesi, işlevsellik değil** (`decisions.md` madde 28). Farklı
-ağ maruziyeti aynı process'te birleşmiyor; aynı maruziyet de gereksiz bölünmüyor —
+**Ayrım ölçütü erişim seviyesi** (`decisions.md` madde 28). Farklı erişim seviyesi
+ayrı process'lere dağılıyor, aynı erişim seviyesi tek process'te toplanıyor:
 `wallet-consumer` hem top-up event'lerini hem çekim komutlarını hem settlement'ı
-dinliyor, üçü de ingress'siz ve aynı ledger'a yazıyor.
+dinliyor; üçü de ingress'siz ve aynı ledger'a yazıyor.
 
 Dikkat edilecek dört şey:
 
@@ -77,56 +78,52 @@ Postgres. Tüketici ayrı bir uygulamaya taşındıktan sonra bu kasıtlı olara
 **`ledger_entries`'e yazan iki uygulama var** — `wallet-api` ve `wallet-consumer` —
 ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor (madde 25).
 
-**Orchestrator wallet veritabanına dokunmuyor.** Yalnızca komut gönderiyor. Bedeli iki
-veritabanı arasında ayrışma ihtimali, karşılığı takılmış saga taraması (madde 33).
+**Orchestrator wallet'a yalnızca komut gönderiyor**, ledger'a yazan taraf
+`wallet-consumer`. Bedeli iki veritabanı arasında ayrışma ihtimali, karşılığı takılmış
+saga taraması (madde 33).
 
-**Banka RabbitMQ dinlemiyor** ve bu diyagramdaki en önemli ayrıntı. `bank-adapter`
-onu HTTP ile arıyor, banka da sonucu `bank-webhook`'a callback ile bildiriyor —
-gerçek bir entegrasyonun şekli bu. `bank-fake` üretimde silinecek tek kutu; yerine
-bankanın kendi ucu geçiyor ve adaptörün kodunda tek satır değişmiyor (madde 35).
+**Bankayla iletişim HTTP.** Orchestrator `StartBankTransfer` komutunu RabbitMQ'ya
+yazıyor (komutun ayrıntısı bölüm 3'te). `bank-adapter` komutu kuyruktan okuyor ve
+bankayı HTTP ile arıyor. Banka sonucu `bank-webhook`'a HTTP callback ile bildiriyor.
 
-`bank-adapter` ile `bank-webhook` ayrı kutular çünkü **maruziyetleri farklı**:
+`bank-fake` ile `stripe-fake` canlıda yok; adaptörler oradaki adres ayarıyla kurumların
+kendi endpoint'lerine bakıyor ve kodda tek satır değişmiyor (madde 35).
+
+`bank-adapter` ile `bank-webhook` ayrı uygulamalar çünkü **erişim seviyeleri farklı**:
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
 `hiwallet_bank`; doğrudan çağrı yok.
 
-### Neden İKİ public yüzey var
+### İki public yüzey
 
-Diyagrama bakan herkesin sorduğu soru bu, çünkü ilk bakışta kuralı deliyor gibi
-duruyor.
+Müşteriye dönük endpoint'ler iki uygulamada:
 
-Müşteriye dönük uçlar iki uygulamaya dağılmış:
-
-| uç | uygulama |
+| endpoint | uygulama |
 | --- | --- |
 | `/v1/accounts`, `/v1/wallets`, `/v1/transfers` | `wallet-api` |
 | `/v1/withdrawals` | `withdrawal-orchestrator` |
 
-Madde 28'in ölçütü erişim seviyesi ve **aynı maruziyet bölünmez** diyor. Bu ikisinin
-maruziyeti aynı: ikisi de public, ikisi de müşteriye dönük, ikisi de aynı istemciden
-çağrılıyor. Kurala bakınca bölünmemeleri gerekirdi.
+İkisinin erişim seviyesi aynı: public, müşteriye dönük, aynı istemciden çağrılıyor.
+Madde 28'in ölçütü onları tek process'te toplardı; ayrı durmalarının sebebi madde 7,
+yani orchestrator'ın kendi veritabanı ve kendi sınırı. İki ölçüt çakıştığında servis
+sınırı öncelikli.
 
-**Bölünmelerinin sebebi madde 28 değil, madde 7.** Orchestrator'ın kendi veritabanı ve
-kendi sınırı var; saga durumu ile ledger ayrı tutuluyor. Yani burada iki kural
-çakışıyor ve kazanan servis sınırı oluyor.
-
-Bedeli somut: istemci iki base URL biliyor, iki yüzey ayrı ayrı güvenceye alınıyor,
-rate-limit'leniyor ve izleniyor.
-
-İki yoldan biriyle kapanır:
-
-**Uç katman** (BFF / API gateway) geldiğinde istemci tek adres görür; arkada iki
-backend'in olması onu ilgilendirmez. Bugün o katman yok.
-
-**Ya da saga wallet'ın içine taşınır** — madde 33'ün "elenen alternatif"i. O zaman
-`/v1/withdrawals` de `wallet-api`'ye düşer ve ikinci yüzey diye bir şey kalmaz. Madde
-33 bu alternatifi "daha basit" diye niteliyor ve üretim sistemi tasarlanıyorsa
-**tercih edilmesi gerektiğini** açıkça söylüyor. Burada seçilmemesinin sebebi tek:
-bu bir referans uygulaması ve dağıtık saga'yı gerçekten dağıtık kurmak çıktının
-kendisi.
+Bugünkü bedeli: istemci iki base URL biliyor, iki yüzey ayrı ayrı güvenceye alınıyor,
+rate-limit'leniyor ve izleniyor. Tek adrese indirmenin iki yolu `decisions.md` madde
+33'te tartışılıyor: önüne bir gateway katmanı koymak ya da saga'yı wallet'ın içine
+taşımak. İkincisi madde 33'ün elenen alternatifi; referans uygulamasında dağıtık
+saga'nın kendisi çıktı olduğu için seçilmedi.
 
 ---
 
 ## 2. Top-up: para dışarıdan giriyor
+
+**Akışı sağlayıcı başlatıyor.** Müşteri kartıyla ödeme yapıyor ya da banka
+hesabımıza havale gönderiyor; parayı alan kurum bunu bize webhook ile bildiriyor.
+İlk temas o webhook.
+
+Compose'da bu bildirimi sahte kurumlar üretiyor: `POST :8096/v1/topups` (stripe-fake)
+ya da `POST :8094/v1/topups` (bank-fake). İkisi de arkadan `topup-webhook`'a imzalı
+webhook gönderiyor — gerçek kurumun yapacağı çağrının aynısı.
 
 ```mermaid
 sequenceDiagram
@@ -139,7 +136,7 @@ sequenceDiagram
     P->>H: POST /v1/webhooks/topup/stripe-fake
     Note right of H: HAM gövde üzerinde HMAC,<br/>parse ETMEDEN önce.<br/>INSERT topup_inbox —<br/>provider + event_id UNIQUE
     H-->>P: 202 Accepted
-    Note over P,H: Söz "işledim" değil, "kalıcı kaydettim"
+    Note over P,H: Söz: kalıcı kaydettim
 
     loop her tur
         R->>R: SELECT FOR UPDATE SKIP LOCKED
@@ -152,9 +149,10 @@ sequenceDiagram
     Note right of C: prefetch=1, x-single-active-consumer.<br/>processed_events + ledger<br/>AYNI transaction'da
 ```
 
-`relay` ayrı bir uygulama değil, `topup-webhook`'un içinde koşan bir
-`BackgroundService` — ama ayrı çizildi, çünkü **zincirin koptuğu yer orası**: HTTP
-isteği `202` ile bitiyor, yayın sonra ve başka bir turda oluyor.
+`relay`, `topup-webhook`'un içinde koşan bir `BackgroundService`. Diyagramda ayrı
+çizilmesinin sebebi akışın orada ikiye ayrılması: HTTP
+request'i inbox'a yazıldığında `202` ile bitiyor, yayın ise relay'in sonraki turunda
+ve ayrı bir transaction'da oluyor.
 
 Routing key cüzdan kimliği: aynı cüzdanın mesajları hep aynı partition'a düşüyor ve
 sıra orada korunuyor. Bu yüzden relay **tek instance** koşuyor — iki relay ayrı
@@ -168,6 +166,11 @@ sıra garantisi bunu düzeltmez (madde 30).
 
 ## 3. Çekim: para dışarı çıkıyor
 
+**Akışı müşteri başlatıyor:** `POST /v1/withdrawals`, `withdrawal-orchestrator`
+üzerinde, `Idempotency-Key` başlığı zorunlu. Orchestrator saga satırını ve ilk komutu
+aynı transaction'da yazıp `202` dönüyor; o an hiçbir para hareket etmiyor. Geri kalan
+adımların hepsi kuyruk üzerinden, müşteri beklemeden ilerliyor.
+
 ```mermaid
 sequenceDiagram
     participant U as İstemci
@@ -177,9 +180,9 @@ sequenceDiagram
     participant B as bank-fake
     participant H as bank-webhook
 
-    U->>O: POST /v1/withdrawals<br/>(Idempotency-Key ZORUNLU)
+    U->>O: POST /v1/withdrawals<br/>(Idempotency-Key zorunlu)
     Note over O: saga + outbox<br/>AYNI transaction'da
-    O-->>U: 202 — hiçbir para hareket etmedi
+    O-->>U: 202, saga initiated
 
     O->>W: DebitForWithdrawal
     Note over W: cüzdan −102<br/>clearing +100<br/>revenue +2
@@ -188,12 +191,12 @@ sequenceDiagram
     O->>A: StartBankTransfer
     A->>B: POST /v1/transfers<br/>(Idempotency-Key = CommandId)
     B-->>A: 202 pending + bankReference
-    Note over A: bank_transfers = pending<br/>CEVAP YAYINLANMIYOR
-    Note over O: saga GERÇEKTEN<br/>bank_transfer_pending'de bekliyor
+    Note over A: bank_transfers = pending<br/>cevap sonucu öğrenince
+    Note over O: saga bank_transfer_pending'de<br/>callback'i bekliyor
 
     B->>H: callback + HMAC
     H-->>B: 202 (inbox'a yazıldı)
-    Note over H,A: tek bağ veritabanı;<br/>relay adaptörde
+    Note over H,A: tek bağ veritabanı,<br/>relay adaptörde
 
     alt banka kabul etti
         A->>O: BankTransferSucceeded
@@ -204,7 +207,7 @@ sequenceDiagram
     else banka reddetti
         A->>O: BankTransferFailed
         O->>W: RefundWithdrawal
-        Note over W: ters kayıt ÜÇ bacaklı:<br/>cüzdan, clearing, revenue
+        Note over W: ters kayıt üç bacaklı:<br/>cüzdan, clearing, revenue
         W->>O: WithdrawalRefunded
         Note over O: failed
     end
@@ -213,31 +216,39 @@ sequenceDiagram
 Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
 Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
 
-**`bank_transfer_pending` gerçek bir pencere.** Banka "aldım" diyor, sonucu sonra
-bildiriyor; o arada saga bekliyor. Önceki tasarımda banka aynı teslimde cevap
-verdiği için bu durumdan hiç geçilmiyordu ve takılmış saga taraması (madde 33)
-yakalayacak bir şey bulamıyordu.
+**`StartBankTransfer`, kuyruktan geçen bir komut mesajı** (`Shared.Contracts`;
+alanları `CommandId`, `SagaId`, `Amount`, `Currency`, `DestinationIban`). Komutu
+saga'nın durum değişimi üretiyor: wallet parayı düşüp `WithdrawalDebited` dönünce
+saga `debited`'a geçiyor ve orchestrator komutu `withdrawal_outbox`'a bu geçişle
+**aynı transaction'da** yazıyor. Outbox relay'i satırı `hiwallet.withdrawals`
+exchange'ine `StartBankTransfer` routing key'iyle yayınlıyor;
+`hiwallet.withdrawals.bank` kuyruğundan `bank-adapter` tüketiyor. Diğer komutlar da
+(`DebitForWithdrawal`, `SettleWithdrawal`, `RefundWithdrawal`) aynı yoldan gidiyor.
 
-**Callback kaybolursa kayıp olmuyor.** `bank-adapter`'ın mutabakat taraması
-`StaleAfter` süresinden uzundur cevapsız kalan transferleri bankaya soruyor.
-Callback asıl yol, tarama kontrol — ve taramanın bulduğu satır sayısı doğrudan
-callback hattının sağlık göstergesi (madde 35).
+**Saga `bank_transfer_pending` durumunda bekliyor.** Banka transferi kabul ettiğini
+`202` ile söylüyor, sonucu callback ile sonra bildiriyor. Bekleme süresi bankanın
+işleme hızı kadar; takılmış saga taraması (madde 33) bu durumda kalan saga'ları
+izliyor.
 
-**Ters kayıt politikadan yeniden üretilmiyor**, orijinal işlemin bacakları okunup
-negatifleniyor. `revenue` bacağı atlanırsa kayıt yine dengeli çıkar ve trigger susar —
-ama müşteri gerçekleşmemiş bir işlemin komisyonunu ödemiş kalır.
+**Kaçırılan callback'leri mutabakat taraması topluyor.** `bank-adapter`,
+`StaleAfter` süresinden uzundur cevapsız kalan transferleri bankaya soruyor. Sonuçların
+tamamına yakını callback ile geliyor; taramanın bulduğu satır sayısı callback hattının
+sağlık göstergesi (madde 35).
 
-**Yanıtların hepsi saklanıyor** (`processed_messages`, `bank_transfers`). Tekrar
-teslimde iş ikinci kez yapılmıyor ama aynı cevap yeniden yayınlanıyor; cevapsız
-kalan saga müşteriyi sonsuza kadar "işleniyor"da bırakırdı.
+**Ters kayıt orijinal işlemin bacakları okunup negatiflenerek yazılıyor.** Üçü de
+geri dönüyor: cüzdan, clearing ve `revenue`. `revenue` bacağı müşterinin ödediği
+komisyonu iade ediyor ve bu iade koşulsuz (`CLAUDE.md`, "Withdrawal saga").
+
+**Response'ların hepsi saklanıyor** (`processed_messages`, `bank_transfers`). Aynı
+mesaj ikinci kez teslim edildiğinde saklanan response yeniden yayınlanıyor ve saga
+ilerlemeye devam ediyor.
 
 ---
 
 ## 4. Para nerede duruyor
 
-Diyagramların en önemlisi bu: **her akışta toplam sıfır.**
-
-Beş hesap rolü var ve ikisi "gerçek para", üçü "iddia":
+**Her işlemde bacakların toplamı sıfır.** Beş hesap rolü var: ikisi "iddia", üçü
+"gerçekleşmiş".
 
 ```mermaid
 flowchart LR
@@ -264,13 +275,13 @@ Her işlem tipinin yazdığı bacaklar — **toplamı her satırda sıfır**:
 | `payment` | `gönderen −102`, `alan +100`, `revenue +2` |
 | `withdrawal` | `cüzdan −102`, `clearing +100`, `revenue +2` |
 | `refund` | orijinalin bacakları negatiflenerek — üçü de |
-| `settlement` (top-up) | `clearing +gross`, `nostro −net`, `provider_expense −fee` |
+| `settlement` (top-up) | `clearing +gross`, `nostro −net`; `Net` modelde ayrıca `provider_expense −fee` |
 | `settlement` (çekim) | `clearing −owed`, `nostro +owed` |
 | `provider_invoice` | `provider_expense −tutar`, `nostro +tutar` |
 
 İşaret konvansiyonu: credit `+`, debit `−`, hiçbir yerde tersine çevrilmiyor.
-`nostro` bir **varlık** hesabı ve bu ledger'da varlıklar negatif duruyor — `−97.1`
-"97.1 açık" değil, "bankada 97.1 var" demek.
+`nostro` bir **varlık** hesabı ve bu ledger'da varlıklar negatif duruyor: `−97.1`,
+bankada 97.1 olduğunu gösteriyor.
 
 `revenue` ile `provider_expense` **netleştirilmiyor**: biri müşteriden aldığımız,
 diğeri sağlayıcıya ödediğimiz. Ayrı hesaplar.
@@ -289,12 +300,12 @@ bir banka hesabı. Stripe parayı bizim banka hesabımıza yatırıyor.
 | mutabakat | wallet-consumer | 6 saat | projeksiyon sapması, gelmeyen settlement, geciken fatura |
 | işletme günlük özeti | wallet-consumer | 1 saat | hacim, işlem sayısı, kesilen komisyon |
 
-Üçü de `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve **ilk turu beklemeden
-koşmuyor** — dağıtımda ayağa kalkan her instance aynı anda tarama başlatmasın diye.
+Dördü de `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve ilk turunu bir
+aralık sonra koşuyor; dağıtımda ayağa kalkan instance'lar aynı anda tarama
+başlatmıyor.
 
-Takılmış saga taraması opsiyonel bir iyileştirme **değil**: ayrı orchestrator
-veritabanı kararının zorunlu tamamlayıcısı (madde 33).
-
-Banka mutabakatı da öyle (madde 35) ve **kapatılamıyor** — yalnızca aralığı
-ayarlanıyor. İkisi aynı desen ama aynı şey değil: biri iki veritabanımız arasındaki
-ayrışmaya bakıyor, öbürü bizimle banka arasındakine.
+İki tarama da bir kararın zorunlu tamamlayıcısı: takılmış saga taraması ayrı
+orchestrator veritabanının (madde 33), banka mutabakatı asenkron banka sonucunun
+(madde 35). Banka mutabakatının aralığı ayarlanabiliyor, kendisi her kurulumda koşuyor.
+Kapsamları farklı: biri iki veritabanımız arasındaki ayrışmaya bakıyor, öbürü bizimle
+banka arasındakine.

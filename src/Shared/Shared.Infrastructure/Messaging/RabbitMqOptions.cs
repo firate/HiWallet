@@ -32,7 +32,7 @@ public sealed class RabbitMqOptions
     public int PartitionCount { get; init; } = 4;
 
     /// <summary>
-    /// Exchange ve kuyruk adlarının önüne eklenir. Üretimde boş.
+    /// Exchange ve kuyruk adlarının önüne eklenir. Canlıda boş.
     ///
     /// Var olma sebebi test izolasyonu: aynı broker'a bakan iki koşu ön eksiz
     /// çalışsaydı biri diğerinin kuyruğundan mesaj çeker ve testler birbirini

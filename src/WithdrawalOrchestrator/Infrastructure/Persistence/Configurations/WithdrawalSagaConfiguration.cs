@@ -98,7 +98,7 @@ internal sealed class WithdrawalSagaConfiguration : IEntityTypeConfiguration<Wit
             .IsRequired();
 
         // Idempotency (CLAUDE.md "Idempotency"). Yalnız key UNIQUE olsaydı iki
-        // müşterinin aynı key'i üretmesi isteklerini karıştırırdı; kapsam hesap.
+        // müşterinin aynı key'i üretmesi request'lerini karıştırırdı; kapsam hesap.
         builder.HasIndex(s => new { s.AccountId, s.IdempotencyKey })
             .HasDatabaseName("ux_withdrawal_sagas_idempotency")
             .IsUnique();

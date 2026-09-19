@@ -9,13 +9,13 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 
 // BANKANIN YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 //
-// Üretimde YOK: yerine gerçek bankanın kendi ucu geçiyor ve bu proje siliniyor.
+// Canlıda YOK: orada adaptör bankanın kendi endpoint'ini çağırıyor.
 // Bizim tarafımız `bank-adapter`; ayrımın ölçütü "test amaçlı mı" değil, "başka bir
 // kurumun yerine mi duruyor".
 //
-// SINIRI GERÇEK TUTAN ŞEYLER: RabbitMQ'ya hiç bağlanmıyor (gerçek banka müşterisinin
-// broker'ını dinlemez), wallet'ı ve orchestrator'ı görmüyor, Shared.Contracts'a
-// referansı yok ve hafızası kendi process'inde.
+// SINIRI GERÇEK TUTAN ŞEYLER: RabbitMQ'ya hiç bağlanmıyor, wallet'ı ve
+// orchestrator'ı görmüyor, Shared.Contracts'a referansı yok ve hafızası kendi
+// process'inde.
 //
 // VERİTABANI YOK: transferler ve senaryolar bellekte, yeniden başlatınca siliniyor
 // (decisions.md madde 35). Elle ve testle denemek için var; geçmiş saklamıyor.
@@ -46,8 +46,8 @@ builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
         // Enum'lar İSİM olarak geçer ("Failure", "Duplicate"), wallet-api'deki gibi.
-        // Bu ayar yokken string gönderen her istek 400 alıyordu — senaryo ve
-        // tetikleme uçlarının tamamı, elle ya da testten, hiç çalışmıyordu.
+        // Bu ayar yokken string gönderen her request 400 alıyordu — senaryo ve
+        // tetikleme endpoint'lerinin tamamı, elle ya da testten, hiç çalışmıyordu.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();

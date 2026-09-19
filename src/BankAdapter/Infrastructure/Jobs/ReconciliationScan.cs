@@ -21,7 +21,7 @@ namespace HiWallet.BankAdapter.Infrastructure.Jobs;
 ///
 /// <b>Bulduğu satır sayısı doğrudan bir alarm sinyali.</b> Callback hattı sağlıklıyken
 /// bu tarama boş dönüyor; dolu dönmeye başladığı an webhook tarafında bir sorun var
-/// demektir. Ayrı bir sağlık kontrolü yazmaya gerek kalmıyor.
+/// demektir. Ayrı bir health check yazmaya gerek kalmıyor.
 ///
 /// Bu, orchestrator'daki takılmış saga taramasıyla (madde 33) aynı desen — ama aynı
 /// şey DEĞİL: o iki veritabanı arasındaki ayrışmaya bakıyor, bu bankayla bizim

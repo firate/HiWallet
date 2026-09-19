@@ -12,7 +12,7 @@ namespace HiWallet.TopupWebhook.Api.Controllers;
 /// Sağlayıcının batch ödeme bildirimi (<c>decisions.md</c> madde 13, adım 5.5).
 ///
 /// <b>Neden bu serviste.</b> Settlement de sağlayıcıdan gelen, imzalı, IP kısıtlı
-/// bir bildirim — top-up webhook'uyla AYNI ağ maruziyeti. Ayrı bir uç açmak ya da
+/// bir bildirim — top-up webhook'uyla AYNI erişim seviyesi. Ayrı bir endpoint açmak ya da
 /// wallet-api'ye sağlayıcı yüzeyi eklemek madde 28'i delerdi. İmza doğrulama,
 /// inbox ve relay olduğu gibi paylaşılıyor.
 /// </summary>
@@ -29,7 +29,7 @@ public sealed class SettlementWebhookController(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Sıra top-up ucuyla aynı: imza → parse → doğrulama → inbox → 202. Gerekçeler
+    /// Sıra top-up endpoint'iyle aynı: imza → parse → doğrulama → inbox → 202. Gerekçeler
     /// de aynı; <see cref="TopupWebhookController"/> yorumunda açık.
     /// </summary>
     [HttpPost("{provider}")]

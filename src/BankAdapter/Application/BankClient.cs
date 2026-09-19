@@ -40,7 +40,7 @@ internal sealed class BankClient(
     /// callback ya da durum sorgusuyla öğreniliyor (decisions.md madde 35).
     /// </summary>
     /// <param name="idempotencyKey">
-    /// Komut kimliği. Aynı anahtarla ikinci istek bankada YENİ transfer açmıyor —
+    /// Komut kimliği. Aynı anahtarla ikinci request bankada YENİ transfer açmıyor —
     /// süreç bankayı arayıp kaydı yazmadan ölse bile tekrar teslimde aynı transferi
     /// geri alıyoruz.
     /// </param>
@@ -79,7 +79,7 @@ internal sealed class BankClient(
 
             if (!response.IsSuccessStatusCode)
             {
-                // 4xx: isteğimiz bozuk. Yeniden denemek aynı sonucu verir; bu bir
+                // 4xx: request'imiz bozuk. Yeniden denemek aynı sonucu verir; bu bir
                 // KOD hatası ve dead-letter'a gitmeli, sonsuz döngüye değil.
                 var body = await response.Content.ReadAsStringAsync(ct);
 
@@ -99,7 +99,7 @@ internal sealed class BankClient(
     }
 
     /// <summary>
-    /// Transferin o anki durumu. Mutabakat taramasının kullandığı uç.
+    /// Transferin o anki durumu. Mutabakat taramasının kullandığı endpoint.
     ///
     /// Banka referansı tanımıyorsa <c>null</c> dönüyor — hata DEĞİL: kabul edilmiş
     /// ama bizim kaydımızda referansı olmayan bir transfer olabilir ve tarama bunu
@@ -176,7 +176,7 @@ internal sealed class TransientBankException(string message, Exception? innerExc
     : Exception(message, innerException);
 
 /// <summary>
-/// Bankanın kalıcı reddi ya da bizim bozuk isteğimiz. Yeniden denemek aynı sonucu
+/// Bankanın kalıcı reddi ya da bizim bozuk request'imiz. Yeniden denemek aynı sonucu
 /// verir; mesaj dead-letter'a gidiyor ve insan bakıyor.
 /// </summary>
 internal sealed class PermanentBankException(string message) : Exception(message);

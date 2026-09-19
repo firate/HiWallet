@@ -4,8 +4,8 @@ using HiWallet.WithdrawalOrchestrator.Domain;
 namespace HiWallet.WithdrawalOrchestrator.Api.Responses;
 
 /// <summary>
-/// <c>POST /v1/withdrawals</c> yanıtı. Verilen söz "para gönderildi" DEĞİL,
-/// "isteği kalıcı olarak aldım" — bu yüzden <c>202</c> (decisions.md madde 29 ile
+/// <c>POST /v1/withdrawals</c> response'u. Verilen söz "para gönderildi" DEĞİL,
+/// "request'i kalıcı olarak aldım" — bu yüzden <c>202</c> (decisions.md madde 29 ile
 /// aynı gerekçe). Sonucu öğrenmek için <c>Location</c> takip edilir.
 /// </summary>
 /// <param name="Replayed">
@@ -18,7 +18,7 @@ public sealed record WithdrawalAcceptedResponse(Guid WithdrawalId, string State,
 }
 
 /// <summary>
-/// <c>GET /v1/withdrawals/{id}</c> yanıtı.
+/// <c>GET /v1/withdrawals/{id}</c> response'u.
 /// </summary>
 /// <param name="TotalDebited">
 /// Cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi yapana kadar
@@ -41,7 +41,7 @@ public sealed record WithdrawalResponse(
             saga.State.ToText(),
             saga.Amount,
             saga.Currency,
-            // Maskeli. Müşteri IBAN'ı zaten kendi girdi; tam hali yanıtta dolaşınca
+            // Maskeli. Müşteri IBAN'ı zaten kendi girdi; tam hali response'ta dolaşınca
             // log'a, hata izlemeye ve tarayıcı geçmişine de düşüyor.
             saga.Destination.Masked,
             saga.TotalDebited,

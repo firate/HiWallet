@@ -14,7 +14,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - `appsettings.json` + environment variable override.
 - Secret koda gömülmez; connection string vb. env'den gelir.
 - Startup'ta basit config validation: kritik config eksikse uygulama ayağa kalkmadan patlar (fail fast).
-- **Kapsam:** Vault/secret manager yok. `.env` + Docker Compose yeterli. (Üretimde böyle yapılmaz: local'de User Secrets, prod'da Vault/secret manager; `.gitignore` + gitleaks ile sızıntı koruması.)
+- **Kapsam:** Vault/secret manager yok. `.env` + Docker Compose yeterli. (Canlıda böyle yapılmaz: local'de User Secrets, prod'da Vault/secret manager; `.gitignore` + gitleaks ile sızıntı koruması.)
 
 ### 2. Structured Logging
 
@@ -68,19 +68,16 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 - Versiyonlama: `/v1` prefix.
 - Liste endpoint'lerinde pagination.
-- OpenAPI dokümanı `Microsoft.AspNetCore.OpenApi` ile üretilir — framework'ün kendi
-  üreteci. Swashbuckle KULLANILMAZ: .NET 9'dan beri şablonlardan da çıkarıldı ve aynı
-  işi üçüncü parti bir pakete yaptırmanın karşılığı yok.
+- OpenAPI dokümanı `Microsoft.AspNetCore.OpenApi` ile üretilir — framework'ün kendi üreteci.
 - Arayüz Scalar. Üreteç yalnızca JSON dokümanı veriyor, UI ayrı bir bağımlılık.
-- İkisi de YALNIZCA Development'ta açılır. Üretimde API yüzeyinin şemasını yayınlamak
-  saldırgana harita vermektir; kapı varsayılan olarak kapalı.
+- İkisi de YALNIZCA Development'ta açılır; canlıda API yüzeyinin şeması yayınlanmıyor.
 - Tutarlı response yapısı (zarf var ya da bilinçli olarak yok — ama tutarlı).
 - **Kapsam:** İstemcisi olan iki serviste (`wallet-api`, `withdrawal-orchestrator`)
   açık. `topup-webhook`'ta YOK: sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
 ### 10. Graceful Shutdown
 
-- SIGTERM'de yeni istek alımı durur, in-flight işler biter.
+- SIGTERM'de yeni request alımı durur, in-flight işler biter.
 - Background worker'lar (varsa) temiz kapanır (`IHostedService` + `CancellationToken`).
 - **Kapsam:** .NET host'un default graceful shutdown davranışı + worker'larda token'a uyum yeterli.
 
@@ -93,7 +90,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 ### 12. Idempotency & Consistency
 
 - Yazma işlemlerinde idempotency key; at-least-once mesajlaşmada dedup; gerektiğinde Outbox.
-- Aynı isteğin/aynı mesajın iki kez işlenmesi engellenir.
+- Aynı request'in/aynı mesajın iki kez işlenmesi engellenir.
 - **Kapsam:** Idempotency key ilgili tablonun kolonu, ayrı store yok (`decisions.md` madde 4). Outbox sadece async yayın yapanlarda devreye girer.
 - **Not.** Bu katman burada baseline'dan çıkıp **ana konu** oluyor: idempotency + inbox/outbox/relay + saga consistency dominant temanın kendisi. Ayrıntı `overview.md` madde 5 ve 6.
 

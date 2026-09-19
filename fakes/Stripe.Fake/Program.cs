@@ -7,8 +7,8 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 
 // KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 //
-// Üretimde YOK. Yalnızca PARA GİRİŞİ yapıyor: komutla topup-webhook'a imzalı
-// webhook gönderiyor. Stripe'tan para çıkmadığı için transfer ucu da yok,
+// Canlıda YOK. Yalnızca PARA GİRİŞİ yapıyor: komutla topup-webhook'a imzalı
+// webhook gönderiyor. Stripe'tan para çıkmadığı için transfer endpoint'i da yok,
 // callback alıcısı da.
 //
 // VERİTABANI YOK: tetikleyen taraf zaten bir test ya da insan, süreç ölürse
@@ -38,8 +38,8 @@ builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
         // Enum'lar İSİM olarak geçer ("Failure", "Duplicate"), wallet-api'deki gibi.
-        // Bu ayar yokken string gönderen her istek 400 alıyordu — senaryo ve
-        // tetikleme uçlarının tamamı, elle ya da testten, hiç çalışmıyordu.
+        // Bu ayar yokken string gönderen her request 400 alıyordu — senaryo ve
+        // tetikleme endpoint'lerinin tamamı, elle ya da testten, hiç çalışmıyordu.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();

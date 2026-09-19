@@ -72,7 +72,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   Filtre kalsaydı NULL yazabilen bir yol açıldığında o satırlar dedup'ın dışında
   kalır ve hata da vermezdi.
 - `withdrawal_sagas(account_id, idempotency_key)` UNIQUE.
-- Para hareketi başlatan HER uçta `Idempotency-Key` başlığı ZORUNLU — transfer dahil.
+- Para hareketi başlatan HER endpoint'te `Idempotency-Key` başlığı ZORUNLU — transfer dahil.
   Yoksa `400`. Anahtarsız bir tekrar hiçbir constraint'e takılmaz ve çift harcama
   sessizce ledger'a yazılır; append-only olduğu için de geri alınamaz, yalnızca
   ters kayıtla düzeltilir.
@@ -83,7 +83,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Ayrım ölçütü ERİŞİM SEVİYESİ (`decisions.md` madde 28): `wallet-api` public,
   `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz,
   `withdrawal-orchestrator` kendi sınırı ve kendi veritabanı (madde 7 ve 33).
-  Farklı ağ maruziyeti aynı process'te BİRLEŞTİRİLMEZ. Aynı maruziyet ise ayrı
+  Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı
   process'e BÖLÜNMEZ — `wallet-consumer` hem top-up event'lerini hem çekim
   komutlarını dinliyor, ikisi de ingress'siz ve aynı ledger'a yazıyor.
 - `wallet-api` ve `wallet-consumer` ortak kütüphane `WalletService.Core` üstünde.
@@ -92,7 +92,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `topup-webhook` onu görmez.
 - `wallet-api`'nin RabbitMQ bağımlılığı YOK ve eklenmez.
 - **`.Fake` son eki yalnızca BAŞKA BİR KURUMUN yerine duran servise konur**
-  (`decisions.md` madde 35). Kendi yazdığımız ve üretimde de koşacak servis normal ad
+  (`decisions.md` madde 35). Kendi yazdığımız ve canlıda da koşacak servis normal ad
   alır — bugün yalnızca testte koşuyor olması son ek sebebi DEĞİL. `bank-adapter`
   bizim, son ek almaz; `Bank.Fake` bankanın API'sinin yerine duruyor, alır.
 
@@ -102,7 +102,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - İmza: HAM gövde baytları üzerinde HMAC-SHA256, sabit zamanlı karşılaştırma.
   Gövde parse EDİLMEDEN önce doğrulanır. Geçersiz imza, eksik başlık ve tanınmayan
   sağlayıcı → `401`. Tanınmayan sağlayıcıya `404` DÖNÜLMEZ.
-- Yanıt `202 Accepted`, `200` DEĞİL: verilen söz "işledim" değil "kalıcı kaydettim"
+- Response `202 Accepted`, `200` DEĞİL: verilen söz "işledim" değil "kalıcı kaydettim"
   (`decisions.md` madde 29). Ve ancak inbox commit'inden SONRA. Tekrar eden event de
   `202` — sağlayıcı için yeniden gönderim başarılı sonuçtur, ayrım gövdedeki
   `duplicate` alanında.
@@ -169,18 +169,18 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Çekim günlük limit sayımı iadeleri DÜŞER: geri dönen para hesaptan çıkmadı.
 - IBAN sınırda mod-97 ile doğrulanır ve `Iban` tipine dönüşür. Bu kontrol
   "komisyon koşulsuz iade edilir" kuralının taşıyıcısı; zayıflatılamaz.
-  Sınırdan sonra akışta string IBAN DOLAŞMAZ. Yanıtta maskeli döner.
+  Sınırdan sonra akışta string IBAN DOLAŞMAZ. Response'ta maskeli döner.
 - `POST /v1/withdrawals`'ta `Idempotency-Key` ZORUNLU. Çekim çok adımlı ve dışarıya
   para çıkarıyor; anahtarsız bir tekrar ikinci bir banka transferi başlatırdı.
   (Transfer'de de zorunlu — bkz. "Idempotency".)
-- Yanıt `202`: dönüldüğünde hiçbir para hareket etmedi. Tekrar eden istek de `202`,
+- Response `202`: dönüldüğünde hiçbir para hareket etmedi. Tekrar eden request de `202`,
   ayrım gövdedeki `replayed` alanında.
 
 **Banka entegrasyonu** (`decisions.md` madde 35)
 - Üç deployable: `bank-adapter` ingress'siz, `bank-webhook` IP kısıtlı, `Bank.Fake`
-  bankanın API'sinin yerinde durur (üretimde YOK). İlk ikisi bizim ve üretimde koşar;
-  ortak kütüphane `BankIntegration.Core` üstündeler. Adaptör bankayı HTTP ile çağırır —
-  banka RabbitMQ DİNLEMEZ, öyle modellenmez.
+  bankanın API'sinin yerinde durur (canlıda YOK). İlk ikisi bizim ve canlıda koşar;
+  ortak kütüphane `BankIntegration.Core` üstündeler. Kuyruk BİZDE biter: komutu
+  adaptör tüketir, bankayı HTTP ile o çağırır.
 - Transfer sonucu SENKRON DEĞİL. Adaptör çağrıyı yapar, `bank_transfers` satırını
   `pending` yazar ve HİÇBİR ŞEY yayınlamaz; saga gerçekten `bank_transfer_pending`'de
   bekler. Kesin sonuç öğrenildiğinde cevap yayınlanır.
@@ -191,7 +191,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - `Bank:Reconciliation:StaleAfter`: yalnızca bu süreden uzundur cevapsız kalanlar
   sorulur. Callback çalışırken tarama boş döner; dönmediği satır sayısı alarm sinyali.
 - `bank-webhook` AYRI deployable çünkü ingress'i var, adaptörün yok (madde 28).
-  Tarama mantığı değişince bankanın çağırdığı uç YENİDEN BAŞLATILMAZ.
+  Tarama mantığı değişince bankanın çağırdığı endpoint YENİDEN BAŞLATILMAZ.
 - Relay `bank-adapter`'da, webhook'un içinde DEĞİL — `topup-webhook`'un şeklinden
   bilinçli sapma. `bank-webhook`'un tek işi: doğrula, inbox'a yaz, `202`.
 - Webhook modu top-up kalıbının aynısı: HAM gövde üzerinde HMAC, parse etmeden önce,
@@ -199,7 +199,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Sahte bankanın veritabanı YOK: transferler ve senaryolar bellekte, yeniden
   başlatınca siliniyor. Senaryolar bankanın iç bilgisi; `bank-adapter` onlara
   erişemez — erişebilse simülasyon değerini kaybederdi.
-- HTTP istek/yanıt tipleri paylaşılan assembly'de DEĞİL, iki tarafta ayrı ayrı yazılır.
+- HTTP request/response tipleri paylaşılan assembly'de DEĞİL, iki tarafta ayrı ayrı yazılır.
   Gerçek entegrasyonda o tipler bankanın dokümanından gelir; ortak tip "karşı taraf
   sözleşmeyi değiştirdi" hatasını imkânsız gösterirdi.
 - `Shared.Contracts` yalnızca BİZİM mesajlarımızı taşır: `StartBankTransfer`,
@@ -227,4 +227,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   yaz, sonra dokümanı ona güncelle — dokümanı korumak için kodda taviz verme.
   İstisna: bu dosyadaki pazarlıksız kurallar ve `decisions.md`'deki kararlar.
   Onlardan sapılacaksa önce karar değiştirilir, gerekçesiyle.
+- **Hiçbir dosyada emoji YOK** — doküman, kod yorumu, commit mesajı, hiçbiri. Onay ve
+  ret işaretleri (tik, çarpı, boş kutu) de girmez: tabloda `evet` / `hayır` /
+  `denenmedi` yazılır. Ağaç ve akış çizimlerindeki kutu ve ok karakterleri bunun
+  dışında; onlar süs değil, çizimin kendisi.
 - Kapsam dışı: Vault, Kubernetes, gerçek ödeme sağlayıcısı, multi-tenancy, caching.

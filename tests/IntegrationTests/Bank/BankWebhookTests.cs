@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HiWallet.IntegrationTests.Bank;
 
 /// <summary>
-/// Bankanın bizi çağırdığı uç. Sınanan şey tek bir cümle: doğrula, yaz, <c>202</c>.
+/// Bankanın bizi çağırdığı endpoint. Sınanan şey tek bir cümle: doğrula, yaz, <c>202</c>.
 ///
 /// Bu servisin işlemeyle ilgisi yok — transferi kapatmak <c>bank-adapter</c>'ın işi
 /// (decisions.md madde 35). Buradaki testler o ayrımı da koruyor: inbox'a satır
