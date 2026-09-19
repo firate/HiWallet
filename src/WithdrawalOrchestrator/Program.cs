@@ -10,8 +10,8 @@ using HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 using HiWallet.WithdrawalOrchestrator.Setup;
 
-// Withdrawal saga'sının state machine'i. Karşı taraf (wallet komut handler'ları ve
-// bank-service) henüz yok; bu servis kendi tarafını baştan sona yürütüyor.
+// Withdrawal saga'sının state machine'i. Komutları wallet-consumer ve bank-adapter
+// tüketiyor; bu servis saga'yı onların cevaplarıyla ilerletiyor.
 const string ServiceName = "hiwallet-withdrawal-orchestrator";
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,17 +50,21 @@ builder.Services.AddHostedService<StuckSagaScan>();
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();
+builder.Services.AddOrchestratorRateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseRateLimiter();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();
 
+// Health check'ler limitin DIŞINDA: probe'un limite takılması sağlıklı bir
+// servisi trafikten çektirir.
 app.MapHiWalletHealthChecks();
-app.MapControllers();
+app.MapControllers().RequireRateLimiting(RateLimitingSetup.WithdrawalsPolicy);
 
 // Integration testler WebApplicationFactory<WithdrawalOrchestratorApp> ile ayağa
 // kaldırır; gerekçe WithdrawalOrchestratorApp.cs'te.
