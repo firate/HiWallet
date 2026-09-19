@@ -272,7 +272,7 @@ services:
     # gider. Tüketici bunu deduplike ediyor ama süre tanımak nadirleştiriyor.
     stop_grace_period: 20s
 
-  # Ingress'i YOK: ports tanımı yalnızca health check ucu için ve host'a AÇILMIYOR.
+  # Ingress'i YOK: ports tanımı yalnızca health check endpoint'i için ve host'a AÇILMIYOR.
   # Ledger'a yazan kod artık dışarıdan erişilebilen bir uygulamanın içinde değil.
   wallet-consumer:
     build:
@@ -364,7 +364,7 @@ services:
   # BİZİM KODUMUZ, canlıda da koşuyor (decisions.md madde 35).
   #
   # INGRESS'İ YOK: komutu kuyruktan alıyor, bankayı kendisi arıyor. ports tanımı
-  # yalnızca health check ucu için ve host'a AÇILMIYOR.
+  # yalnızca health check endpoint'i için ve host'a AÇILMIYOR.
   #
   # Sahtelik tamamen Bank__BaseUrl değerinde; gerçek bankaya geçerken bu servisin
   # kodunda tek satır değişmiyor.
@@ -410,7 +410,7 @@ services:
       start_period: 10s
     stop_grace_period: 20s
 
-  # BİZİM KODUMUZ, canlıda da koşuyor. Bankanın bizi çağırdığı uç.
+  # BİZİM KODUMUZ, canlıda da koşuyor. Bankanın bizi çağırdığı endpoint.
   #
   # AYRI DEPLOYABLE ÇÜNKÜ INGRESS'İ VAR; bank-adapter'ın yok (madde 28). Canlıda
   # yalnızca bankanın IP bloklarına açılır — o kısıt proxy'nin işi, tıpkı
@@ -451,7 +451,7 @@ services:
   # Canlıda bu servisin yerinde bankanın kendi API'si var ve bank-adapter'ın
   # Bank__BaseUrl'ü onun adresini gösteriyor.
   #
-  # Host portu açık çünkü senaryo ucu dışarıdan çağrılıyor:
+  # Host portu açık çünkü senaryo endpoint'i dışarıdan çağrılıyor:
   #   POST /v1/scenarios {"clientReference":"<sagaId>","outcome":"Failure"}
   #
   # RabbitMQ ayarı YOK: bankayla tek bağ HTTP.
@@ -508,7 +508,7 @@ services:
   # KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS — BİZİM DEĞİL, CANLIDA YOK.
   #
   # Bankadan farkı: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden ne
-  # transfer ucu var ne callback alıcısı. Ledger'da nostro'su da yok.
+  # transfer endpoint'i var ne callback alıcısı. Ledger'da nostro'su da yok.
   #
   # VERİTABANI YOK ve migrator'ı da yok: tetikleyen taraf zaten bir test ya da
   # insan, süreç ölürse yeniden tetikliyor.
