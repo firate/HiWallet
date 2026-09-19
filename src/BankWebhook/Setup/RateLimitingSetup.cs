@@ -25,11 +25,8 @@ public static class RateLimitingSetup
     public const string Section = "RateLimiting:BankCallbacks";
 
     public static IServiceCollection AddBankWebhookRateLimiting(
-        this IServiceCollection services, IConfiguration configuration)
+        this IServiceCollection services)
     {
-        var limits = new TokenBucketLimits { BurstSize = 100, SustainedPerMinute = 600 };
-        configuration.GetSection(Section).Bind(limits);
-
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -37,7 +34,7 @@ public static class RateLimitingSetup
             options.AddPolicy(CallbacksPolicy, context =>
                 RateLimitPartition.GetTokenBucketLimiter(
                     context.Request.RouteValues["bank"]?.ToString() ?? "unknown",
-                    _ => limits.ToOptions()));
+                    _ => TokenBucketLimits.Read(context, Section, burstSize: 100, sustainedPerMinute: 600)));
 
             options.OnRejected = RateLimitRejection.WriteAsync;
         });

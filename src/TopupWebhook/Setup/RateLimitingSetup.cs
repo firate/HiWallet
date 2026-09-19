@@ -19,43 +19,22 @@ public static class RateLimitingSetup
 {
     public const string WebhookPolicy = "webhooks";
 
-    public static IServiceCollection AddTopupRateLimiting(
-        this IServiceCollection services, IConfiguration configuration)
-    {
-        var limits = new WebhookRateLimitOptions();
-        configuration.GetSection(WebhookRateLimitOptions.Section).Bind(limits);
+    public const string Section = "RateLimiting:Webhooks";
 
+    public static IServiceCollection AddTopupRateLimiting(this IServiceCollection services)
+    {
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.AddPolicy(WebhookPolicy, context =>
-            {
-                var provider = context.Request.RouteValues["provider"]?.ToString() ?? "unknown";
-
-                return RateLimitPartition.GetTokenBucketLimiter(provider, _ =>
-                    new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = limits.BurstSize,
-                        TokensPerPeriod = limits.SustainedPerMinute,
-                        ReplenishmentPeriod = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                        AutoReplenishment = true
-                    });
-            });
+                RateLimitPartition.GetTokenBucketLimiter(
+                    context.Request.RouteValues["provider"]?.ToString() ?? "unknown",
+                    _ => TokenBucketLimits.Read(context, Section, burstSize: 100, sustainedPerMinute: 600)));
 
             options.OnRejected = RateLimitRejection.WriteAsync;
         });
 
         return services;
     }
-}
-
-public sealed class WebhookRateLimitOptions
-{
-    public const string Section = "RateLimiting:Webhooks";
-
-    public int BurstSize { get; init; } = 100;
-
-    public int SustainedPerMinute { get; init; } = 600;
 }

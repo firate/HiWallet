@@ -50,7 +50,7 @@ builder.Services.AddHostedService<StuckSagaScan>();
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();
-builder.Services.AddOrchestratorRateLimiting(builder.Configuration);
+builder.Services.AddOrchestratorRateLimiting();
 
 var app = builder.Build();
 

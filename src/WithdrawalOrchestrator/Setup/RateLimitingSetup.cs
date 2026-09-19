@@ -23,11 +23,8 @@ public static class RateLimitingSetup
     public const string Section = "RateLimiting:Withdrawals";
 
     public static IServiceCollection AddOrchestratorRateLimiting(
-        this IServiceCollection services, IConfiguration configuration)
+        this IServiceCollection services)
     {
-        var limits = new TokenBucketLimits { BurstSize = 10, SustainedPerMinute = 30 };
-        configuration.GetSection(Section).Bind(limits);
-
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -35,7 +32,7 @@ public static class RateLimitingSetup
             options.AddPolicy(WithdrawalsPolicy, context =>
                 RateLimitPartition.GetTokenBucketLimiter(
                     context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => limits.ToOptions()));
+                    _ => TokenBucketLimits.Read(context, Section, burstSize: 10, sustainedPerMinute: 30)));
 
             options.OnRejected = RateLimitRejection.WriteAsync;
         });

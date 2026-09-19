@@ -28,7 +28,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddHiWalletOpenApi();
-builder.Services.AddBankWebhookRateLimiting(builder.Configuration);
+builder.Services.AddBankWebhookRateLimiting();
 
 var app = builder.Build();
 

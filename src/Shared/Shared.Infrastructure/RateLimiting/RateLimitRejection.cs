@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HiWallet.Shared.Infrastructure.RateLimiting;
 
@@ -35,21 +37,36 @@ public static class RateLimitRejection
     }
 }
 
-/// <summary>Token bucket ayarı. Her servis kendi bölümünden bağlıyor.</summary>
+/// <summary>Token bucket ayarı. Her servis kendi bölümünden okuyor.</summary>
 public sealed class TokenBucketLimits
 {
     /// <summary>Anlık patlama kapasitesi.</summary>
-    public int BurstSize { get; init; }
+    public int BurstSize { get; set; }
 
     /// <summary>Dakikada yenilenen token sayısı — sürdürülebilir hız.</summary>
-    public int SustainedPerMinute { get; init; }
+    public int SustainedPerMinute { get; set; }
 
-    public TokenBucketRateLimiterOptions ToOptions() => new()
+    /// <summary>
+    /// Limitleri kovanın açıldığı anda, host'un son konfigürasyonundan okur.
+    /// Servis kaydı sırasında okunsaydı host kurulurken eklenen kaynaklar —
+    /// <c>WebApplicationFactory</c>'nin override'ları — görünmezdi ve testler
+    /// varsayılan limitle koşardı. Kova anahtar başına bir kez açılıyor, yani okuma
+    /// request başına değil.
+    /// </summary>
+    public static TokenBucketRateLimiterOptions Read(
+        HttpContext context, string section, int burstSize, int sustainedPerMinute)
     {
-        TokenLimit = BurstSize,
-        TokensPerPeriod = SustainedPerMinute,
-        ReplenishmentPeriod = TimeSpan.FromMinutes(1),
-        QueueLimit = 0,
-        AutoReplenishment = true
-    };
+        var limits = new TokenBucketLimits { BurstSize = burstSize, SustainedPerMinute = sustainedPerMinute };
+
+        context.RequestServices.GetRequiredService<IConfiguration>().GetSection(section).Bind(limits);
+
+        return new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = limits.BurstSize,
+            TokensPerPeriod = limits.SustainedPerMinute,
+            ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        };
+    }
 }
