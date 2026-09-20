@@ -1,7 +1,6 @@
 using HiWallet.BankWebhook.Setup;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
-using HiWallet.Shared.Infrastructure.OpenApi;
 
 // BANKANIN BİZİ ÇAĞIRDIĞI ENDPOINT — bizim kodumuz, canlıda da koşuyor
 // (decisions.md madde 35).
@@ -12,6 +11,10 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 // yeniden başlatılmıyor.
 //
 // TEK İŞİ: doğrula, inbox'a yaz, 202. Broker'a hiç bağlanmıyor.
+//
+// OpenAPI YOK: sözleşmeyi banka dayatıyor ve dokümanı da o veriyor (baseline.md
+// madde 9, topup-webhook ile aynı gerekçe). Gövde ham bayt olarak okunduğu için
+// üretilecek şema da boş olurdu. Callback'in gerçek şekli api-examples.md'de.
 const string ServiceName = "hiwallet-bank-webhook";
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,7 +30,6 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
-builder.Services.AddHiWalletOpenApi();
 builder.Services.AddBankWebhookRateLimiting();
 
 var app = builder.Build();
@@ -41,7 +43,6 @@ app.UseRateLimiter();
 // Health check'ler limitin DIŞINDA: probe'un limite takılması sağlıklı bir
 // servisi trafikten çektirir.
 app.MapHiWalletHealthChecks();
-app.MapHiWalletOpenApi();
 
 app.MapControllers().RequireRateLimiting(RateLimitingSetup.CallbacksPolicy);
 
