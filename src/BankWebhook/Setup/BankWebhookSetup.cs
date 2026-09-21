@@ -52,22 +52,24 @@ public static class BankWebhookSetup
 
     private static BankSecrets BuildSecrets(IConfiguration configuration)
     {
-        var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
+        var secrets = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
 
         foreach (var bank in configuration.GetSection(BankSecrets.SectionName).GetChildren())
         {
-            var secret = bank["CallbackSecret"];
+            var configured = ReadBankSecrets(bank);
 
             // Boş secret'la kayıtlı bir kurum sessizce "her imzayı reddet"e
             // dönüşürdü; onun yerine patlıyor (baseline.md madde 1).
-            if (string.IsNullOrWhiteSpace(secret))
+            if (configured.Count == 0 || configured.Any(string.IsNullOrWhiteSpace))
             {
                 throw new InvalidOperationException(
-                    $"{BankSecrets.SectionName}:{bank.Key}:CallbackSecret boş. " +
-                    "Ortam değişkeni ya da User Secrets ile verilir, appsettings.json'a yazılmaz.");
+                    $"{BankSecrets.SectionName}:{bank.Key} için callback secret'ı boş. " +
+                    "Tek secret CallbackSecret, rotasyon penceresinde CallbackSecrets:0, :1 " +
+                    "ile verilir. Ortam değişkeni ya da User Secrets kullanılır, " +
+                    "appsettings.json'a yazılmaz.");
             }
 
-            secrets[bank.Key] = secret;
+            secrets[bank.Key] = configured;
         }
 
         if (secrets.Count == 0)
@@ -79,5 +81,25 @@ public static class BankWebhookSetup
         }
 
         return new BankSecrets(secrets);
+    }
+
+    /// <summary>
+    /// Rotasyon penceresinde birden fazla secret geçerli:
+    /// <c>Banks__banka__CallbackSecrets__0</c>, <c>__1</c>. Sıra korunuyor, ilki
+    /// güncel olan. Tek secret'lık <c>CallbackSecret</c> biçimi de duruyor —
+    /// rotasyon yokken tek değere sıra numarası eklemek gereksiz.
+    /// </summary>
+    private static List<string> ReadBankSecrets(IConfigurationSection bank)
+    {
+        var rotated = bank.GetSection("CallbackSecrets")
+            .GetChildren()
+            .Select(secret => secret.Value ?? string.Empty)
+            .ToList();
+
+        if (rotated.Count > 0) return rotated;
+
+        var single = bank["CallbackSecret"];
+
+        return single is null ? [] : [single];
     }
 }

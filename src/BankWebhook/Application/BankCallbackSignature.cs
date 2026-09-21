@@ -25,33 +25,55 @@ namespace HiWallet.BankWebhook.Application;
 /// </summary>
 public static class BankCallbackSignature
 {
-    /// <summary>Bankanın kendi başlık adı. Bizim <c>X-Hive-Signature</c>'ımızla ilgisi yok.</summary>
+    /// <summary>Bankanın kendi başlık adı. </summary>
     public const string HeaderName = "X-Bank-Signature";
 
     private const string Prefix = "sha256=";
     private const int HashLength = 32;
 
+    /// <summary>Hiçbir secret tutmadı.</summary>
+    public const int NoMatch = -1;
+
     /// <summary>
-    /// Başlık geçerli mi. Biçimi bozuk, eksik ya da yanlış uzunlukta olan her şey
-    /// <c>false</c> — istisna fırlatılmıyor, çünkü girdi tamamen dış dünyadan geliyor.
+    /// İmzayı sıradaki her secret'la deneyip TUTANIN sırasını döner, hiçbiri
+    /// tutmazsa <see cref="NoMatch"/>. Biçimi bozuk, eksik ya da yanlış uzunlukta
+    /// olan her başlık da <see cref="NoMatch"/> — istisna fırlatılmıyor, çünkü girdi
+    /// tamamen dış dünyadan geliyor.
+    ///
+    /// <b>Neden birden fazla secret.</b> Rotasyon penceresinde banka hâlâ eskisiyle
+    /// imzalıyor olabilir (<see cref="BankSecrets"/>). Sıra geri dönülüyor ki çağıran
+    /// eski secret'ın hâlâ kullanıldığını kaydedebilsin.
+    ///
+    /// <b>İlk tutanda çıkmak imzayı zayıflatmıyor.</b> Sabit zamanlı karşılaştırmanın
+    /// koruduğu şey imzanın bayt bayt tahmin edilmesi ve her karşılaştırma ayrı ayrı
+    /// sabit zamanlı. Erken çıkış yalnızca kaçıncı secret'ın tuttuğunu sızdırır;
+    /// o bilgiye ulaşmak için elde zaten geçerli bir imza olması gerekir.
     /// </summary>
-    public static bool IsValid(ReadOnlySpan<byte> body, string secret, string? header)
+    public static int Match(ReadOnlySpan<byte> body, IReadOnlyList<string> secrets, string? header)
     {
-        if (string.IsNullOrEmpty(header)) return false;
-        if (!header.StartsWith(Prefix, StringComparison.Ordinal)) return false;
+        if (string.IsNullOrEmpty(header)) return NoMatch;
+        if (!header.StartsWith(Prefix, StringComparison.Ordinal)) return NoMatch;
 
         var hex = header.AsSpan(Prefix.Length);
-        if (hex.Length != HashLength * 2) return false;
+        if (hex.Length != HashLength * 2) return NoMatch;
 
         Span<byte> provided = stackalloc byte[HashLength];
-        if (Convert.FromHexString(hex, provided, out _, out var written) != OperationStatus.Done) return false;
-        if (written != HashLength) return false;
+        if (Convert.FromHexString(hex, provided, out _, out var written) != OperationStatus.Done) return NoMatch;
+        if (written != HashLength) return NoMatch;
 
+        // Başlık çözümü secret'tan bağımsız, bu yüzden döngünün dışında. stackalloc
+        // da döngüye giremez: her turda stack büyürdü.
         Span<byte> expected = stackalloc byte[HashLength];
-        HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body, expected);
 
-        // Sabit zamanlı karşılaştırma: normal karşılaştırma ilk farklı baytta
-        // döndüğü için, süre ölçerek imza bayt bayt tahmin edilebilir.
-        return CryptographicOperations.FixedTimeEquals(expected, provided);
+        for (var i = 0; i < secrets.Count; i++)
+        {
+            HMACSHA256.HashData(Encoding.UTF8.GetBytes(secrets[i]), body, expected);
+
+            // Sabit zamanlı karşılaştırma: normal karşılaştırma ilk farklı baytta
+            // döndüğü için, süre ölçerek imza bayt bayt tahmin edilebilir.
+            if (CryptographicOperations.FixedTimeEquals(expected, provided)) return i;
+        }
+
+        return NoMatch;
     }
 }

@@ -49,7 +49,7 @@ public sealed class BankWebhookController(
     {
         // Tanınmayan kurum da 401: 404 dönmek hangi bankalarla çalıştığımızı
         // dışarıya söylerdi.
-        if (!secrets.TryGet(bank, out var secret))
+        if (!secrets.TryGet(bank, out var bankSecrets))
         {
             logger.LogWarning("Tanınmayan kurumdan callback: {Bank}", bank);
             return Unauthorized();
@@ -57,10 +57,22 @@ public sealed class BankWebhookController(
 
         var body = await ReadBodyAsync(ct);
 
-        if (!BankCallbackSignature.IsValid(body, secret, Request.Headers[BankCallbackSignature.HeaderName]))
+        var match = BankCallbackSignature.Match(
+            body, bankSecrets, Request.Headers[BankCallbackSignature.HeaderName]);
+
+        if (match == BankCallbackSignature.NoMatch)
         {
             logger.LogWarning("Geçersiz callback imzası. Kurum {Bank}", bank);
             return Unauthorized();
+        }
+
+        // Rotasyon uyuşmazlığındaki 401 ile saldırganın aldığı 401 log'da aynı
+        // görünüyor. Eski secret'la doğrulanan her callback, karşı tarafın geçişi
+        // tamamlamadığının kanıtı: bu kayıt kesilmeden eski secret kaldırılmamalı.
+        if (match > 0)
+        {
+            logger.LogWarning(
+                "Callback eski secret ile doğrulandı. Kurum {Bank}, secret sırası {Index}", bank, match);
         }
 
         // Gövdenin TAMAMI çözümlenmiyor; yalnızca idempotency için gereken event
