@@ -1,3 +1,5 @@
+using HiWallet.WalletService.Domain.Ledger;
+
 namespace HiWallet.WalletService.Infrastructure.Jobs;
 
 /// <summary>
@@ -30,7 +32,7 @@ internal sealed record ReconciliationReport(
 /// inşa edilebilir" diyor; o iddiayı sınayan tek yer burası.
 /// </summary>
 internal sealed record BalanceDrift(
-    Guid LedgerAccountId, decimal Projected, decimal FromEntries)
+    Guid LedgerAccountId, FundType FundType, decimal Projected, decimal FromEntries)
 {
     public decimal Difference => Projected - FromEntries;
 }
