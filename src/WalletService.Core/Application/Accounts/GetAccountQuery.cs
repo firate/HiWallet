@@ -15,8 +15,22 @@ public sealed record AccountView(
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletView> Wallets);
 
+/// <param name="Balance">Kovaların toplamı: müşterinin gördüğü bakiye.</param>
+/// <param name="Withdrawable">
+/// IBAN'a çıkabilen kısım (decisions.md madde 36). Toplamdan ayrı dönüyor çünkü
+/// kart ile yüklenen ve hediye bakiye nakde çevrilemiyor; tek bir toplam
+/// dönseydi müşteri çekim reddedildiğinde sebebini göremezdi.
+/// </param>
+/// <param name="Balances">
+/// Kova kırılımı. Sıfır bakiyeli kovalar da dönüyor: müşteriye hangi kovaların
+/// var olduğunu göstermek, olmayan bir kovanın sessizce kaybolmasından iyi.
+/// </param>
 public sealed record AccountWalletView(
     Guid WalletId,
     string Name,
     string Currency,
-    decimal Balance);
+    decimal Balance,
+    decimal Withdrawable,
+    IReadOnlyList<WalletBalanceView> Balances);
+
+public sealed record WalletBalanceView(string FundType, decimal Balance);

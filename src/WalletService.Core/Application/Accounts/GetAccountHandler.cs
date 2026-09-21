@@ -1,4 +1,5 @@
 using HiWallet.WalletService.Domain.Errors;
+using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,23 +18,42 @@ public sealed class GetAccountHandler(IDbContextFactory<WalletDbContext> context
 
         // Cüzdan sayısı hesap başına küçük; pagination gerekmiyor. Sınırsız
         // büyüyebilen liste endpoint'lerinde (işlem geçmişi) durum farklı olacak.
-        var wallets = await db.LedgerAccounts
+        // Cüzdan başına kova sayısı kadar satır geliyor (decisions.md madde 36);
+        // join'in sonucu cüzdan başına GRUPLANIYOR. Gruplanmasaydı aynı cüzdan
+        // listede üç kez görünürdü.
+        var rows = await db.LedgerAccounts
             .AsNoTracking()
             .Where(a => a.AccountId == query.AccountId)
             .Join(
                 db.LedgerBalances.AsNoTracking(),
                 wallet => wallet.Id,
                 balance => balance.LedgerAccountId,
-                (wallet, balance) => new { wallet.Id, wallet.Name, wallet.Currency, balance.Balance })
-            .OrderBy(row => row.Name)
+                (wallet, balance) => new
+                {
+                    wallet.Id,
+                    wallet.Name,
+                    wallet.Currency,
+                    balance.FundType,
+                    balance.Balance
+                })
             .ToListAsync(ct);
 
-        return new AccountView(
-            account.Id,
-            account.Type,
-            account.CreatedAt,
-            wallets
-                .Select(row => new AccountWalletView(row.Id, row.Name!, row.Currency.Code, row.Balance))
-                .ToArray());
+        var wallets = rows
+            .GroupBy(row => new { row.Id, row.Name, row.Currency })
+            .OrderBy(group => group.Key.Name)
+            .Select(group => new AccountWalletView(
+                group.Key.Id,
+                group.Key.Name!,
+                group.Key.Currency.Code,
+                group.Sum(row => row.Balance),
+                group.Where(row => row.FundType.CanWithdraw()).Sum(row => row.Balance),
+                FundTypes.All
+                    .Select(fundType => new WalletBalanceView(
+                        fundType.ToText(),
+                        group.Where(row => row.FundType == fundType).Sum(row => row.Balance)))
+                    .ToArray()))
+            .ToArray();
+
+        return new AccountView(account.Id, account.Type, account.CreatedAt, wallets);
     }
 }
