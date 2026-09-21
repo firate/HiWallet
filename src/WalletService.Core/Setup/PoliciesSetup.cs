@@ -1,3 +1,4 @@
+using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
 
 namespace HiWallet.WalletService.Setup;
@@ -105,8 +106,18 @@ public static class PoliciesSetup
                     $"Geçerli değerler: {string.Join(", ", Enum.GetNames<FeeSettlement>())}");
             }
 
+            // Kova da sağlayıcı bazında ve varsayılanı YOK (decisions.md madde 36):
+            // kovası yazılmamış bir kart sağlayıcısının parası sessizce cash sayılsaydı
+            // IBAN'a çıkabilir hale gelirdi.
+            if (!Enum.TryParse<FundType>(options.FundType, ignoreCase: true, out var fundType))
+            {
+                throw new InvalidOperationException(
+                    $"{ProvidersSection}:{child.Key}:FundType geçersiz: '{options.FundType}'. " +
+                    $"Geçerli değerler: {string.Join(", ", Enum.GetNames<FundType>())}");
+            }
+
             terms[child.Key] = new ProviderTerms(
-                child.Key, model, new ProviderFeeTariff(options.Fee.Rate, options.Fee.Fixed));
+                child.Key, model, new ProviderFeeTariff(options.Fee.Rate, options.Fee.Fixed), fundType);
         }
 
         if (terms.Count == 0)
@@ -172,6 +183,12 @@ public static class PoliciesSetup
         /// ledger'a ne yazılacağını belirliyor.
         /// </summary>
         public string FeeSettlement { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Aynı gerekçeyle varsayılanı YOK: bu sağlayıcıdan gelen paranın hangi
+        /// kovaya düşeceğini belirliyor (decisions.md madde 36).
+        /// </summary>
+        public string FundType { get; init; } = string.Empty;
 
         public FeeOptions Fee { get; init; } = new();
     }
