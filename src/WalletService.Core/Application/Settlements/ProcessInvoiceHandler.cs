@@ -219,14 +219,19 @@ public sealed class ProcessInvoiceHandler(
         WalletDbContext db, LedgerTransaction tx, DateTimeOffset now, CancellationToken ct)
     {
         var deltas = tx.Entries
-            .Select(e => (e.LedgerAccountId, e.Money))
+            .Select(e => (e.LedgerAccountId, e.Money, e.FundType))
             .OrderBy(x => x.LedgerAccountId)
             .ToArray();
 
-        foreach (var (ledgerAccountId, delta) in deltas)
+        foreach (var (ledgerAccountId, delta, fundType) in deltas)
         {
+            // Bacak hangi kovaya yazıldıysa bakiye de o kovada güncelleniyor
+            // (decisions.md madde 36). Kova seçilmeseydi rastgele bir satır
+            // güncellenir ve projeksiyon ledger'dan sessizce ayrışırdı.
             var balance = await db.LedgerBalances
-                              .FirstOrDefaultAsync(b => b.LedgerAccountId == ledgerAccountId, ct)
+                              .FirstOrDefaultAsync(
+                                  b => b.LedgerAccountId == ledgerAccountId
+                                       && b.FundType == fundType, ct)
                           ?? throw new InvalidOperationException($"Bakiye satırı yok: {ledgerAccountId}");
 
             balance.Apply(delta, canGoNegative: true, now);

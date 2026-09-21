@@ -117,7 +117,7 @@ public sealed class ProcessTopupHandler(
         // --- Projeksiyon -------------------------------------------------------------
         // Sıra ledger hesap kimliğine göre ARTAN (decisions.md madde 8).
         var deltas = tx.Entries
-            .Select(e => (e.LedgerAccountId, e.Money))
+            .Select(e => (e.LedgerAccountId, e.Money, e.FundType))
             .OrderBy(x => x.LedgerAccountId)
             .ToArray();
 
@@ -127,10 +127,15 @@ public sealed class ProcessTopupHandler(
             [clearing.Id] = clearing.CanGoNegative
         };
 
-        foreach (var (ledgerAccountId, delta) in deltas)
+        foreach (var (ledgerAccountId, delta, legFundType) in deltas)
         {
+            // Bacak hangi kovaya yazıldıysa bakiye de o kovada güncelleniyor
+            // (decisions.md madde 36). Kova seçilmeseydi rastgele bir satır
+            // güncellenir ve projeksiyon ledger'dan sessizce ayrışırdı.
             var balance = await db.LedgerBalances
-                              .FirstOrDefaultAsync(b => b.LedgerAccountId == ledgerAccountId, ct)
+                              .FirstOrDefaultAsync(
+                                  b => b.LedgerAccountId == ledgerAccountId
+                                       && b.FundType == legFundType, ct)
                           ?? throw new InvalidOperationException(
                               $"Bakiye satırı yok: {ledgerAccountId}");
 
