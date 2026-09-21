@@ -49,4 +49,30 @@ public static class FundTypes
     /// AYNEN korunuyor; korunmasaydı kart kısıtı tek adımda delinirdi.
     /// </summary>
     public static bool CanTransfer(this FundType type) => type is not FundType.Promo;
+
+    /// <summary>
+    /// Kolon değeri ve API gövdesi aynı metni kullanıyor. İki yerde ayrı yazılsalardı
+    /// biri değiştiğinde diğeri sessizce eski değerle kalırdı.
+    /// </summary>
+    public static string ToText(this FundType type)
+    {
+        return type switch
+        {
+            FundType.Cash => "cash",
+            FundType.Card => "card",
+            FundType.Promo => "promo",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış kaynak tipi.")
+        };
+    }
+
+    public static FundType FromText(string text)
+    {
+        return text switch
+        {
+            "cash" => FundType.Cash,
+            "card" => FundType.Card,
+            "promo" => FundType.Promo,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen kaynak tipi.")
+        };
+    }
 }

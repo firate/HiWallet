@@ -36,30 +36,11 @@ internal static class ValueConverters
     public static readonly ValueConverter<ActorType, string> ActorType =
         new(t => ToText(t), text => ToActorType(text));
 
+    // Metinler FundTypes'tan geliyor: aynı değerler API gövdesinde de kullanılıyor
+    // ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce eski
+    // değerle kalırdı (ActorType ile aynı gerekçe).
     public static readonly ValueConverter<FundType, string> FundType =
-        new(t => ToText(t), text => ToFundType(text));
-
-    private static string ToText(FundType type)
-    {
-        return type switch
-        {
-            Domain.Ledger.FundType.Cash => "cash",
-            Domain.Ledger.FundType.Card => "card",
-            Domain.Ledger.FundType.Promo => "promo",
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış kaynak tipi.")
-        };
-    }
-
-    private static FundType ToFundType(string text)
-    {
-        return text switch
-        {
-            "cash" => Domain.Ledger.FundType.Cash,
-            "card" => Domain.Ledger.FundType.Card,
-            "promo" => Domain.Ledger.FundType.Promo,
-            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen kaynak tipi.")
-        };
-    }
+        new(t => t.ToText(), text => FundTypes.FromText(text));
 
     // Metinler ActorTypes'tan geliyor: aynı değerler mesaj sözleşmesinde de
     // kullanılıyor ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce
