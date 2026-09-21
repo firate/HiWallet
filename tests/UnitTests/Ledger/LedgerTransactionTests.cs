@@ -22,8 +22,8 @@ public sealed class LedgerTransactionTests
     public void AssertBalanced_ToplamiSifir_Gecer()
     {
         var tx = NewTransaction()
-            .AddEntry(Sender, new Money(-100m, Try))
-            .AddEntry(Receiver, new Money(100m, Try));
+            .AddEntry(Sender, new Money(-100m, Try), FundType.Cash)
+            .AddEntry(Receiver, new Money(100m, Try), FundType.Cash);
 
         Should.NotThrow(() => tx.AssertBalanced());
     }
@@ -33,9 +33,9 @@ public sealed class LedgerTransactionTests
     {
         // payment örneği: 100 ödeme, 2 komisyon (overview.md madde 4).
         var tx = NewTransaction(LedgerTransactionType.Payment)
-            .AddEntry(Sender, new Money(-102m, Try))
-            .AddEntry(Receiver, new Money(100m, Try))
-            .AddEntry(Revenue, new Money(2m, Try));
+            .AddEntry(Sender, new Money(-102m, Try), FundType.Cash)
+            .AddEntry(Receiver, new Money(100m, Try), FundType.Cash)
+            .AddEntry(Revenue, new Money(2m, Try), FundType.Cash);
 
         Should.NotThrow(() => tx.AssertBalanced());
     }
@@ -44,8 +44,8 @@ public sealed class LedgerTransactionTests
     public void AssertBalanced_ToplamSifirDegil_Patlar()
     {
         var tx = NewTransaction()
-            .AddEntry(Sender, new Money(-100m, Try))
-            .AddEntry(Receiver, new Money(50m, Try));
+            .AddEntry(Sender, new Money(-100m, Try), FundType.Cash)
+            .AddEntry(Receiver, new Money(50m, Try), FundType.Cash);
 
         Should.Throw<UnbalancedLedgerTransactionException>(() => tx.AssertBalanced());
     }
@@ -56,8 +56,8 @@ public sealed class LedgerTransactionTests
         // Para basma senaryosu: tek SUM sıfır çıkıyor ama işlem dengeli DEĞİL.
         // DB trigger'ı da GROUP BY currency ile aynı soruyu soruyor (decisions.md madde 17).
         var tx = NewTransaction()
-            .AddEntry(Sender, new Money(100m, Try))
-            .AddEntry(Receiver, new Money(-100m, Usd));
+            .AddEntry(Sender, new Money(100m, Try), FundType.Cash)
+            .AddEntry(Receiver, new Money(-100m, Usd), FundType.Cash);
 
         Should.Throw<UnbalancedLedgerTransactionException>(() => tx.AssertBalanced());
     }
@@ -65,7 +65,7 @@ public sealed class LedgerTransactionTests
     [Fact]
     public void AssertBalanced_TekBacak_Patlar()
     {
-        var tx = NewTransaction().AddEntry(Sender, new Money(0.01m, Try));
+        var tx = NewTransaction().AddEntry(Sender, new Money(0.01m, Try), FundType.Cash);
 
         Should.Throw<UnbalancedLedgerTransactionException>(() => tx.AssertBalanced());
     }
@@ -75,7 +75,7 @@ public sealed class LedgerTransactionTests
     {
         var tx = NewTransaction();
 
-        Should.Throw<ArgumentException>(() => tx.AddEntry(Sender, Money.Zero(Try)));
+        Should.Throw<ArgumentException>(() => tx.AddEntry(Sender, Money.Zero(Try), FundType.Cash));
     }
 
     [Fact]

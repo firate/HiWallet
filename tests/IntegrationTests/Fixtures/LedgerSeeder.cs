@@ -29,8 +29,14 @@ public static class LedgerSeeder
             Guid.NewGuid(), accountId, name, SystemAccounts.DefaultCurrency, SeedTime);
 
         db.LedgerAccounts.Add(wallet);
-        db.LedgerBalances.Add(LedgerBalance.OpenFor(
-            wallet.Id, SystemAccounts.DefaultCurrency, SeedTime));
+
+        // Kova başına bir bakiye satırı (decisions.md madde 36) — OpenWalletHandler
+        // canlıda da üçünü birden açıyor.
+        foreach (var fundType in FundTypes.All)
+        {
+            db.LedgerBalances.Add(LedgerBalance.OpenFor(
+                wallet.Id, SystemAccounts.DefaultCurrency, fundType, SeedTime));
+        }
 
         await db.SaveChangesAsync(ct);
         return wallet.Id;
@@ -49,8 +55,8 @@ public static class LedgerSeeder
         var tx = LedgerTransaction
             .Create(Guid.NewGuid(), LedgerTransactionType.Topup, walletId, SystemActors.Topup, SeedTime,
                 "seed:" + Guid.NewGuid().ToString("N"))
-            .AddEntry(walletId, new Money(amount, currency))
-            .AddEntry(clearingId, new Money(-amount, currency));
+            .AddEntry(walletId, new Money(amount, currency), FundType.Cash)
+            .AddEntry(clearingId, new Money(-amount, currency), FundType.Cash);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);

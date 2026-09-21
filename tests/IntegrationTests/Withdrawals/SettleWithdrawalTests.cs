@@ -172,9 +172,9 @@ public sealed class SettleWithdrawalTests(PostgresFixture postgres)
         var tx = LedgerTransaction
             .Create(Guid.NewGuid(), LedgerTransactionType.Withdrawal, wallet,
                 SystemActors.WithdrawalSaga, now, $"withdrawal:{sagaId}", sagaId)
-            .AddEntry(wallet, new Money(-(Amount + Commission), currency))
-            .AddEntry(SystemAccounts.ClearingBankTry, new Money(Amount, currency))
-            .AddEntry(SystemAccounts.RevenueTry, new Money(Commission, currency));
+            .AddEntry(wallet, new Money(-(Amount + Commission), currency), FundType.Cash)
+            .AddEntry(SystemAccounts.ClearingBankTry, new Money(Amount, currency), FundType.Cash)
+            .AddEntry(SystemAccounts.RevenueTry, new Money(Commission, currency), FundType.Cash);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
