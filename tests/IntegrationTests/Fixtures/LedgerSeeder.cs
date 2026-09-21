@@ -64,7 +64,8 @@ public static class LedgerSeeder
         foreach (var (id, delta) in new[] { (walletId, amount), (clearingId, -amount) }
                      .OrderBy(x => x.Item1))
         {
-            var balance = await db.LedgerBalances.FindAsync([id], ct)
+            // Anahtar (hesap, kova); seed edilen paranin tamami cash.
+            var balance = await db.LedgerBalances.FindAsync([id, FundType.Cash], ct)
                           ?? throw new InvalidOperationException($"Bakiye satırı yok: {id}");
 
             balance.Apply(new Money(delta, currency), canGoNegative: id == clearingId, SeedTime);

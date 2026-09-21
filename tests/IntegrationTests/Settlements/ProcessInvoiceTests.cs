@@ -8,6 +8,7 @@ using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using HiWallet.WalletService.Domain.Ledger;
 
 namespace HiWallet.IntegrationTests.Settlements;
 
@@ -276,7 +277,14 @@ public sealed class ProcessInvoiceTests(PostgresFixture postgres)
         await using var db = postgres.CreateContext();
 
         var balance = await db.LedgerBalances.AsNoTracking()
-            .SingleAsync(b => b.LedgerAccountId == accountId, ct);
+            .Where(b => b.LedgerAccountId == accountId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Balance = g.Sum(b => b.Balance),
+                Version = g.Sum(b => b.Version)
+            })
+            .SingleAsync(ct);
 
         return (balance.Balance, balance.Version);
     }

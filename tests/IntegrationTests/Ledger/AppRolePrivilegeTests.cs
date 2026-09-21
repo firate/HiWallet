@@ -7,6 +7,7 @@ using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using HiWallet.WalletService.Domain.Ledger;
 
 namespace HiWallet.IntegrationTests.Ledger;
 
@@ -89,9 +90,10 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
         // yetki varsa 23503 (foreign_key_violation) alınır.
         await using var insert = new NpgsqlCommand(
             """
-            INSERT INTO ledger_entries (transaction_id, ledger_account_id, amount, currency)
+            INSERT INTO ledger_entries
+                (transaction_id, ledger_account_id, amount, currency, fund_type)
             VALUES ('00000000-0000-0000-0000-000000000000',
-                    '00000000-0000-0000-0000-000000000000', 1, 'TRY')
+                    '00000000-0000-0000-0000-000000000000', 1, 'TRY', 'cash')
             """, app);
 
         var ex = await Should.ThrowAsync<PostgresException>(() => insert.ExecuteNonQueryAsync(ct));
@@ -130,7 +132,7 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
         result.TransactionId.ShouldNotBe(Guid.Empty);
 
         await using var verify = postgres.CreateContext();
-        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from, ct);
+        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from && b.FundType == FundType.Cash, ct);
         balance.Balance.ShouldBe(400m);
     }
 

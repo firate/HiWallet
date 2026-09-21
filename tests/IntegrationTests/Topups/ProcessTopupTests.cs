@@ -51,7 +51,11 @@ public sealed class ProcessTopupTests(PostgresFixture postgres)
             .Amount.ShouldBe(-250.00m);
 
         // Bakiye projeksiyonu ledger'la aynı yönde hareket etmiş olmalı.
-        var balance = await db.LedgerBalances.SingleAsync(b => b.LedgerAccountId == walletId, ct);
+        var balance = await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == walletId)
+            .GroupBy(_ => 1)
+            .Select(g => new { Balance = g.Sum(b => b.Balance), Version = g.Sum(b => b.Version) })
+            .SingleAsync(ct);
         balance.Balance.ShouldBe(250.00m);
     }
 
@@ -93,7 +97,11 @@ public sealed class ProcessTopupTests(PostgresFixture postgres)
 
         await using var db = postgres.CreateContext();
 
-        var balance = await db.LedgerBalances.SingleAsync(b => b.LedgerAccountId == walletId, ct);
+        var balance = await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == walletId)
+            .GroupBy(_ => 1)
+            .Select(g => new { Balance = g.Sum(b => b.Balance), Version = g.Sum(b => b.Version) })
+            .SingleAsync(ct);
         balance.Balance.ShouldBe(75.50m);
 
         (await db.LedgerTransactions.CountAsync(
@@ -130,7 +138,11 @@ public sealed class ProcessTopupTests(PostgresFixture postgres)
 
         await using var db = postgres.CreateContext();
 
-        var balance = await db.LedgerBalances.SingleAsync(b => b.LedgerAccountId == walletId, ct);
+        var balance = await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == walletId)
+            .GroupBy(_ => 1)
+            .Select(g => new { Balance = g.Sum(b => b.Balance), Version = g.Sum(b => b.Version) })
+            .SingleAsync(ct);
         balance.Balance.ShouldBe(10.00m);
     }
 
@@ -209,7 +221,11 @@ public sealed class ProcessTopupTests(PostgresFixture postgres)
         // incelenecek. "İşlendi" işaretlemek onu görünmez kılardı.
         (await db.ProcessedEvents.AnyAsync(e => e.EventId == message.EventId, ct)).ShouldBeFalse();
 
-        var balance = await db.LedgerBalances.SingleAsync(b => b.LedgerAccountId == walletId, ct);
+        var balance = await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == walletId)
+            .GroupBy(_ => 1)
+            .Select(g => new { Balance = g.Sum(b => b.Balance), Version = g.Sum(b => b.Version) })
+            .SingleAsync(ct);
         balance.Balance.ShouldBe(0m);
     }
 
@@ -232,7 +248,11 @@ public sealed class ProcessTopupTests(PostgresFixture postgres)
         second.Replayed.ShouldBeFalse();
 
         await using var db = postgres.CreateContext();
-        var balance = await db.LedgerBalances.SingleAsync(b => b.LedgerAccountId == walletId, ct);
+        var balance = await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == walletId)
+            .GroupBy(_ => 1)
+            .Select(g => new { Balance = g.Sum(b => b.Balance), Version = g.Sum(b => b.Version) })
+            .SingleAsync(ct);
         balance.Balance.ShouldBe(50m);
     }
 

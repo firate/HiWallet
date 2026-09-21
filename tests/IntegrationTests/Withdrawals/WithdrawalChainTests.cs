@@ -353,7 +353,8 @@ public sealed class WithdrawalChainTests(
         await using var db = postgres.CreateContext();
 
         return (await db.LedgerBalances.AsNoTracking()
-            .SingleAsync(b => b.LedgerAccountId == ledgerAccountId, ct)).Balance;
+            .SingleAsync(b => b.LedgerAccountId == ledgerAccountId
+                              && b.FundType == FundType.Cash, ct)).Balance;
     }
 
     /// <summary>
