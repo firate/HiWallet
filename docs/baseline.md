@@ -21,7 +21,10 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - `ILogger<T>` (Microsoft.Extensions.Logging) + OpenTelemetry Logs. **Serilog yok.**
 - Log'lar OTLP ile export edilir; trace_id/span_id log record'una otomatik gömülür (korelasyon bedava).
 - Doğru log seviyeleri (Information / Warning / Error).
-- **Kapsam:** Makine kanalı OTLP → Collector → Loki. İnsan kanalı local'de ayrı `AddSimpleConsole` (terminalde okunur format).
+- **Kapsam:** Makine kanalı OTLP → Collector → Loki. İnsan kanalı `AddSimpleConsole`
+  (tek satır, UTC damgası) ve YALNIZCA Development'ta açılıyor: canlıda log'u toplayan
+  şey Collector, ikinci bir format üretmenin karşılığı yok. Kayıt ortak
+  `AddHiWalletObservability` içinde, yani altı servisin formatı tek yerden geliyor.
 
 ### 3. Observability — Traces & Metrics
 
