@@ -1432,3 +1432,66 @@ makinesine tek satır eklenmiyor — bu, ayrımın baştan doğru çizildiğinin
 çekimin uçtan uca süresi artık sahte bankanın gecikmesine bağlı. Karşılığında
 `bank_transfer_pending` gerçek bir pencere oluyor ve takılmış saga taraması ilk kez
 yakalayacak bir şey buluyor.
+
+## 36. Bakiye kaynağına göre ayrışır: cash, card, promo
+
+**Karar.** Cüzdan tek satır kalıyor, bakiyesi kaynak tipine göre bölünüyor.
+`ledger_entries` ve `ledger_balances` satırlarına `fund_type` kolonu giriyor; bakiyenin
+anahtarı `(ledger_account_id, currency, fund_type)` oluyor.
+
+Üç tip var ve şimdilik üçü yeterli:
+
+| fund_type | kaynak | IBAN'a çekim | transfer |
+| --- | --- | --- | --- |
+| `cash` | havale/EFT ile yükleme | evet | evet, tip korunarak |
+| `card` | kart ile yükleme | hayır | evet, tip korunarak |
+| `promo` | cashback, hediye bakiye | hayır | hayır |
+
+**Sorun.** Bugün para nereden geldiyse gelsin aynı bakiyeye düşüyor ve çekimde hepsi
+eşit muamele görüyor. Yani kartla yüklenen para IBAN'a gönderilebiliyor.
+
+Mevzuat buna izin vermiyor. TCMB'nin Ödeme Hizmetleri ve Elektronik Para İhracı ile
+Ödeme Hizmeti Sağlayıcıları Hakkında Yönetmeliği, madde 4 fıkra 13: ödeme hizmetiyle
+ilgili fon kuruluşa kredi kartı ile ödendiyse, o fon geri çekilmek istendiğinde ancak
+aynı kredi kartı hesabına iletilerek çekilebilir. Madde 6 fıkra 6 aynı kuralı
+elektronik paranın geri ödenmesi için tekrar ediyor. Cashback gibi karşılığında fon
+yatırılmamış bakiyelerin nakde çevrilmesi ise zaten e-para tanımının dışında.
+
+**Neden cüzdanın içinde bölünüyor.** Alternatif her kaynak tipi için ayrı bir
+`ledger_accounts` satırı açmaktı ve şema buna zaten izin veriyor: `(account_id,
+currency)` üzerinde tekillik yok (madde 20). Ama `ledger_accounts.name` kullanıcının
+verdiği ad ("Birikim") ve bir cüzdanı üçe bölmek o kavramı bozardı — müşteri tek cüzdan
+görüyor, içinde üç kova var. Kolon olarak taşımak `ledger_entries`'in tek FK hedefi
+olma kuralını da koruyor (madde 17).
+
+**Harcama sırası `promo` → `card` → `cash`.** Ödeme birden fazla kovaya yayılabiliyor ve
+sıra sabit: en kısıtlı olan önce eriyor. Ters sırada müşteri nakdini harcayıp
+çekilemeyen bakiyeyle kalırdı. Sıra konfigüre EDİLMEZ; kural mevzuattan geliyor, tarife
+ayarı değil.
+
+**Transferde tip korunuyor.** Yönetmeliğin kısıtladığı şey geri ödeme ve nakde çıkış;
+harcama ve kullanıcılar arası transfer bu iki fıkrada yasaklanmıyor. Ama tip korunmadan
+transfer edilirse kural tek adımda deliniyor: kartla yükle, ikinci hesabına gönder,
+oradan IBAN'a çek. Tipin karşı tarafa aynen geçmesi madde 6/6'yı uygulanabilir tutan
+şey. `promo` hiç transfer edilemiyor — edilebilseydi karşılığında fon yatırılmamış bir
+bakiye fiilen nakde yakın bir araca dönerdi.
+
+**Ters kayıt kendiliğinden doğru.** İade orijinal işlemin bacakları okunup
+negatiflenerek üretiliyor (madde 9); `fund_type` bacakta durduğu için para geldiği
+kovaya dönüyor. Politikadan yeniden üretilseydi hangi kovadan düştüğü kaybolurdu.
+
+**Günlük limit `cash` üzerinden sayılıyor.** Limit hesap bazında kalıyor (madde 20),
+sayıma giren hareketler yalnızca `cash` bacakları. Diğer iki kova zaten IBAN'a
+çıkamıyor.
+
+**Karta iade yolu KURULMUYOR ve bu bir kapsam kararı.** Yönetmelik `card` bakiyesinin
+aynı kredi kartı hesabına iade edilmesine izin veriyor; bu sistemde gerçek bir ödeme
+sağlayıcısı olmadığı için o yol yok. Sonuç olarak `card` pratikte çekilemez durumda.
+Gerçek bir kuruluşta eksik kalan parça budur ve mevzuattan sapma değil, kapsam
+dışında bırakılan bir hizmettir (`CLAUDE.md`, kapsam dışı listesi).
+
+**Bedeli.** `ledger_balances` satır sayısı cüzdan başına üçe kadar çıkıyor ve bakiye
+okuyan her yer artık toplama yapmak zorunda. Optimistic lock kova bazında oluyor: aynı
+cüzdanın `cash` ve `promo` hareketleri birbirini bloklamıyor, bu tarafta kazanç var.
+API response'u da değişiyor — tek bakiye yerine kırılım ve "çekilebilir tutar"
+dönmek gerekiyor, yoksa müşteri neden çekemediğini anlamıyor.
