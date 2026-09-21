@@ -48,7 +48,7 @@ public sealed class TopupWebhookController(
     {
         // Tanınmayan sağlayıcı da 401: 404 dönmek hangi sağlayıcıların tanımlı
         // olduğunu dışarıya söylerdi.
-        if (!secrets.TryGet(provider, out var secret))
+        if (!secrets.TryGet(provider, out var providerSecrets))
         {
             logger.LogWarning("Tanınmayan sağlayıcıdan webhook: {Provider}", provider);
             return Unauthorized();
@@ -56,11 +56,16 @@ public sealed class TopupWebhookController(
 
         var body = await ReadBodyAsync(ct);
 
-        if (!WebhookSignature.IsValid(body, secret, Request.Headers[WebhookSignature.HeaderName]))
+        var match = WebhookSignature.Match(
+            body, providerSecrets, Request.Headers[WebhookSignature.HeaderName]);
+
+        if (match == WebhookSignature.NoMatch)
         {
             logger.LogWarning("Geçersiz webhook imzası. Sağlayıcı {Provider}", provider);
             return Unauthorized();
         }
+
+        WebhookSecretRotation.LogIfOldSecret(logger, provider, match);
 
         TopupWebhookPayload? payload;
 

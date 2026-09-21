@@ -23,22 +23,24 @@ public static class WebhookSecretsSetup
 
     private static WebhookSecrets Build(IConfiguration configuration)
     {
-        var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
+        var secrets = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
 
         foreach (var provider in configuration.GetSection(WebhookSecrets.SectionName).GetChildren())
         {
-            var secret = provider["WebhookSecret"];
+            var configured = ReadProviderSecrets(provider);
 
             // Boş secret'la kayıtlı bir sağlayıcı sessizce "her imzayı reddet"e
             // dönüşürdü; onun yerine patlıyor (baseline.md madde 1).
-            if (string.IsNullOrWhiteSpace(secret))
+            if (configured.Count == 0 || configured.Any(string.IsNullOrWhiteSpace))
             {
                 throw new InvalidOperationException(
-                    $"{WebhookSecrets.SectionName}:{provider.Key}:WebhookSecret boş. " +
-                    "Ortam değişkeni ya da User Secrets ile verilir, appsettings.json'a yazılmaz.");
+                    $"{WebhookSecrets.SectionName}:{provider.Key} için webhook secret'ı boş. " +
+                    "Tek secret WebhookSecret, rotasyon penceresinde WebhookSecrets:0, :1 " +
+                    "ile verilir. Ortam değişkeni ya da User Secrets kullanılır, " +
+                    "appsettings.json'a yazılmaz.");
             }
 
-            secrets[provider.Key] = secret;
+            secrets[provider.Key] = configured;
         }
 
         if (secrets.Count == 0)
@@ -49,5 +51,25 @@ public static class WebhookSecretsSetup
         }
 
         return new WebhookSecrets(secrets);
+    }
+
+    /// <summary>
+    /// Rotasyon penceresinde birden fazla secret geçerli:
+    /// <c>Providers__saglayici__WebhookSecrets__0</c>, <c>__1</c>. Sıra korunuyor,
+    /// ilki güncel olan. Tek secret'lık <c>WebhookSecret</c> biçimi de duruyor —
+    /// rotasyon yokken tek değere sıra numarası eklemek gereksiz.
+    /// </summary>
+    private static List<string> ReadProviderSecrets(IConfigurationSection provider)
+    {
+        var rotated = provider.GetSection("WebhookSecrets")
+            .GetChildren()
+            .Select(secret => secret.Value ?? string.Empty)
+            .ToList();
+
+        if (rotated.Count > 0) return rotated;
+
+        var single = provider["WebhookSecret"];
+
+        return single is null ? [] : [single];
     }
 }

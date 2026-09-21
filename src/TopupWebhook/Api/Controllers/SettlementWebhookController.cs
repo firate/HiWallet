@@ -39,7 +39,7 @@ public sealed class SettlementWebhookController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Receive(string provider, CancellationToken ct)
     {
-        if (!secrets.TryGet(provider, out var secret))
+        if (!secrets.TryGet(provider, out var providerSecrets))
         {
             logger.LogWarning("Tanınmayan sağlayıcıdan settlement: {Provider}", provider);
             return Unauthorized();
@@ -47,11 +47,16 @@ public sealed class SettlementWebhookController(
 
         var body = await ReadBodyAsync(ct);
 
-        if (!WebhookSignature.IsValid(body, secret, Request.Headers[WebhookSignature.HeaderName]))
+        var match = WebhookSignature.Match(
+            body, providerSecrets, Request.Headers[WebhookSignature.HeaderName]);
+
+        if (match == WebhookSignature.NoMatch)
         {
             logger.LogWarning("Geçersiz settlement imzası. Sağlayıcı {Provider}", provider);
             return Unauthorized();
         }
+
+        WebhookSecretRotation.LogIfOldSecret(logger, provider, match);
 
         SettlementWebhookPayload? payload;
 
