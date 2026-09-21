@@ -168,9 +168,9 @@ public sealed class BusinessSummaryCalculatorTests(PostgresFixture postgres)
         var tx = LedgerTransaction
             .Create(Guid.NewGuid(), TransferType.Payment.ToLedgerType(), payer,
                 Actor.Customer(payerAccount), at, Guid.NewGuid().ToString("N"))
-            .AddEntry(payer, new Money(-(amount + commission), currency))
-            .AddEntry(businessWallet, new Money(amount, currency))
-            .AddEntry(SystemAccounts.RevenueTry, new Money(commission, currency));
+            .AddEntry(payer, new Money(-(amount + commission), currency), FundType.Cash)
+            .AddEntry(businessWallet, new Money(amount, currency), FundType.Cash)
+            .AddEntry(SystemAccounts.RevenueTry, new Money(commission, currency), FundType.Cash);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);

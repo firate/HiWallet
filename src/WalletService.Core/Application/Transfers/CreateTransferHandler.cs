@@ -113,13 +113,35 @@ public sealed class CreateTransferHandler(
             Guid.NewGuid(), command.Type.ToLedgerType(), sender.Id,
             Actor.Customer(senderAccountId), now, command.IdempotencyKey);
 
-        tx.AddEntry(sender.Id, debit.Negated);
-        tx.AddEntry(receiver.Id, amount);
+        // Kovalara dağıtım (decisions.md madde 36). Promo hiç yer almıyor, sıra
+        // card → cash: en kısıtlı kova önce eriyor. Yetersizlik burada yakalanıyor
+        // ve cüzdanın TOPLAM bakiyesi yetse bile reddedilebiliyor — hediye bakiye
+        // transfere giremediği için müşterinin gördüğü toplam ile çıkabilen tutar
+        // ayrı şeyler.
+        var senderBalances = await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == sender.Id)
+            .ToDictionaryAsync(b => b.FundType, b => b.Money, ct);
 
-        if (!commission.IsZero)
+        var allocations = FundAllocator.ForTransfer(sender.Id, senderBalances, amount, commission);
+
+        // Kova tipi karşı tarafta AYNEN korunuyor: korunmasaydı kart kısıtı tek
+        // adımda delinirdi (kartla yükle, ikinci hesabına gönder, oradan IBAN'a çek).
+        foreach (var allocation in allocations)
         {
-            // Komisyon ayrı bir transfer değil, aynı atomik işlemin ek bacağı.
-            tx.AddEntry(SystemAccounts.RevenueTry, commission);
+            tx.AddEntry(sender.Id, allocation.Debit.Negated, allocation.FundType);
+
+            if (!allocation.Amount.IsZero)
+            {
+                tx.AddEntry(receiver.Id, allocation.Amount, allocation.FundType);
+            }
+
+            if (!allocation.Commission.IsZero)
+            {
+                // Komisyon ayrı bir transfer değil, aynı atomik işlemin ek bacağı.
+                // Kovası da çıktığı yerle aynı; başka bir kovaya yazılsaydı o kovanın
+                // bakiyesi karşılıksız artardı.
+                tx.AddEntry(SystemAccounts.RevenueTry, allocation.Commission, allocation.FundType);
+            }
         }
 
         // DB'deki deferred trigger'dan önce, daha anlaşılır hatayla.
@@ -131,7 +153,7 @@ public sealed class CreateTransferHandler(
         // kimliğine göre ARTAN — A→B ve B→A eşzamanlı geldiğinde deadlock olmasın
         // (decisions.md madde 8).
         var deltas = tx.Entries
-            .Select(e => (e.LedgerAccountId, e.Money))
+            .Select(e => (e.LedgerAccountId, e.Money, e.FundType))
             .OrderBy(x => x.LedgerAccountId)
             .ToArray();
 
@@ -140,12 +162,13 @@ public sealed class CreateTransferHandler(
             .Where(a => affectedIds.Contains(a.Id))
             .ToDictionaryAsync(a => a.Id, ct);
 
-        foreach (var (ledgerAccountId, delta) in deltas)
+        foreach (var (ledgerAccountId, delta, fundType) in deltas)
         {
             var balance = await db.LedgerBalances
-                              .FirstOrDefaultAsync(b => b.LedgerAccountId == ledgerAccountId, ct)
+                              .FirstOrDefaultAsync(
+                                  b => b.LedgerAccountId == ledgerAccountId && b.FundType == fundType, ct)
                           ?? throw new InvalidOperationException(
-                              $"Bakiye satırı yok: {ledgerAccountId}");
+                              $"Bakiye satırı yok: {ledgerAccountId} / {fundType}");
 
             // Negatife düşebilirlik hesabın TİPİNDEN geliyor, transferdeki rolünden değil.
             // "Gönderen ve alan hariç herkes düşebilir" diye yazmak bugün doğru sonucu

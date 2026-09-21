@@ -189,8 +189,7 @@ public sealed class TopupPipelineTests(PostgresFixture postgres, InboxFixture in
 
         return await db.LedgerBalances
             .Where(b => b.LedgerAccountId == walletId)
-            .Select(b => b.Balance)
-            .SingleAsync(ct);
+            .SumAsync(b => b.Balance, ct);
     }
 
     private async Task<Guid> NewWalletAsync(CancellationToken ct)

@@ -59,10 +59,20 @@ public sealed record ProviderFeeTariff(decimal Rate, decimal Fixed = 0m)
 /// hesapları da bu anahtarla ayrışıyor (madde 14); iki yerde farklı yazılsaydı
 /// ücret kaydı ile clearing hesabı eşleşmezdi.
 /// </param>
+/// <param name="FundType">
+/// Bu sağlayıcıdan gelen paranın kovası (<c>decisions.md</c> madde 36). Kanal bilgisi
+/// sağlayıcının kendisinde duruyor: kart sağlayıcısından gelen para
+/// <see cref="Ledger.FundType.Card"/>, bankadan gelen havale
+/// <see cref="Ledger.FundType.Cash"/>.
+///
+/// Varsayılanı YOK. Varsayılan <c>cash</c> olsaydı, tarifesi yazılıp kovası
+/// yazılmamış bir kart sağlayıcısının parası sessizce IBAN'a çıkabilir hale gelirdi.
+/// </param>
 public sealed record ProviderTerms(
     string Provider,
     FeeSettlement FeeSettlement,
-    ProviderFeeTariff Fee);
+    ProviderFeeTariff Fee,
+    FundType FundType);
 
 /// <summary>
 /// Sağlayıcı kayıt defteri. Saf — DB'ye ve konfigürasyona dokunmaz.

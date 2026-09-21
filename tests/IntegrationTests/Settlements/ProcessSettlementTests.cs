@@ -222,7 +222,14 @@ public sealed class ProcessSettlementTests(PostgresFixture postgres)
 
         var balance = await db.LedgerBalances
             .AsNoTracking()
-            .SingleAsync(b => b.LedgerAccountId == accountId, ct);
+            .Where(b => b.LedgerAccountId == accountId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Balance = g.Sum(b => b.Balance),
+                Version = g.Sum(b => b.Version)
+            })
+            .SingleAsync(ct);
 
         return (balance.Balance, balance.Version);
     }

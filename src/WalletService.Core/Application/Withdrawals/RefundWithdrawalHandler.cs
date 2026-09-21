@@ -63,18 +63,21 @@ public sealed class RefundWithdrawalHandler(
         // Her bacak birebir tersine çevriliyor. Hesap kimliğine göre ARTAN sıra —
         // düşme ile iade aynı hesap üçlüsüne dokunuyor ve ters sıralarsak deadlock
         // olur (decisions.md madde 8).
+        // Kova da orijinalden geliyor (decisions.md madde 36): para geldiği kovaya
+        // dönüyor. Politikadan yeniden üretilseydi hangi kovadan düştüğü kaybolurdu.
         var legs = original.Entries
-            .Select(entry => (entry.LedgerAccountId, Delta: entry.Money.Negated))
+            .Select(entry => (entry.LedgerAccountId, Delta: entry.Money.Negated, entry.FundType))
             .OrderBy(leg => leg.LedgerAccountId)
             .ToArray();
 
-        foreach (var (ledgerAccountId, delta) in legs)
+        foreach (var (ledgerAccountId, delta, fundType) in legs)
         {
             var account = await db.LedgerAccounts.FirstOrDefaultAsync(a => a.Id == ledgerAccountId, ct)
                           ?? throw new InvalidOperationException($"Ledger hesabı yok: {ledgerAccountId}");
 
             var balance = await db.LedgerBalances
-                              .FirstOrDefaultAsync(b => b.LedgerAccountId == ledgerAccountId, ct)
+                              .FirstOrDefaultAsync(
+                                  b => b.LedgerAccountId == ledgerAccountId && b.FundType == fundType, ct)
                           ?? throw new InvalidOperationException($"Bakiye satırı yok: {ledgerAccountId}");
 
             balance.Apply(delta, account.CanGoNegative, now);
@@ -110,9 +113,9 @@ public sealed class RefundWithdrawalHandler(
             IdempotencyKey(command.SagaId),
             correlationId: command.SagaId);
 
-        foreach (var (ledgerAccountId, delta) in legs)
+        foreach (var (ledgerAccountId, delta, fundType) in legs)
         {
-            tx.AddEntry(ledgerAccountId, delta);
+            tx.AddEntry(ledgerAccountId, delta, fundType);
         }
 
         tx.AssertBalanced();

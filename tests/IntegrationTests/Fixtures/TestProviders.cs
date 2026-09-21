@@ -1,4 +1,5 @@
 using HiWallet.WalletService.Domain.Policies;
+using HiWallet.WalletService.Domain.Ledger;
 
 namespace HiWallet.IntegrationTests.Fixtures;
 
@@ -20,9 +21,11 @@ public static class TestProviders
     public static ProviderPolicy Policy { get; } = new(new Dictionary<string, ProviderTerms>
     {
         ["stripe-fake"] = new(
-            "stripe-fake", FeeSettlement.Net, new ProviderFeeTariff(StripeRate, StripeFixed)),
+            "stripe-fake", FeeSettlement.Net, new ProviderFeeTariff(StripeRate, StripeFixed),
+            FundType.Card),
 
         ["bank-fake"] = new(
-            "bank-fake", FeeSettlement.Invoiced, new ProviderFeeTariff(Rate: 0m, BankFixed))
+            "bank-fake", FeeSettlement.Invoiced, new ProviderFeeTariff(Rate: 0m, BankFixed),
+            FundType.Cash)
     });
 }

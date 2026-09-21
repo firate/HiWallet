@@ -451,7 +451,8 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     private static async Task<decimal> BalanceAsync(
         WalletDbContext db, Guid ledgerAccountId, CancellationToken ct) =>
         (await db.LedgerBalances.AsNoTracking()
-            .SingleAsync(b => b.LedgerAccountId == ledgerAccountId, ct)).Balance;
+            .SingleAsync(b => b.LedgerAccountId == ledgerAccountId
+                              && b.FundType == FundType.Cash, ct)).Balance;
 
     private async Task<decimal> SystemBalanceAsync(Guid ledgerAccountId, CancellationToken ct)
     {

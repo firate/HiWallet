@@ -40,10 +40,16 @@ public sealed class OpenWalletHandler(
 
         db.LedgerAccounts.Add(wallet);
 
-        // Bakiye satırı cüzdanla AYNI transaction'da açılıyor. Tembel açılsaydı ilk
+        // Bakiye satırları cüzdanla AYNI transaction'da açılıyor. Tembel açılsaydı ilk
         // transfer "Bakiye satırı yok" ile patlardı — handler'lar satırın varlığını
         // varsayıyor, yaratmıyor.
-        db.LedgerBalances.Add(LedgerBalance.OpenFor(wallet.Id, currency, now));
+        //
+        // Kova başına bir satır (decisions.md madde 36). Üçü birden açılıyor: biri
+        // eksik kalsaydı o kovaya ilk yazma anında aynı hata dönerdi.
+        foreach (var fundType in FundTypes.All)
+        {
+            db.LedgerBalances.Add(LedgerBalance.OpenFor(wallet.Id, currency, fundType, now));
+        }
 
         await db.SaveChangesAsync(ct);
 

@@ -37,8 +37,19 @@ public sealed class SchemaTests(PostgresFixture postgres)
             .Where(b => SystemAccounts.All.Select(a => a.Id).Contains(b.LedgerAccountId))
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        balances.Count.ShouldBe(SystemAccounts.All.Count);
+        // Hesap başına kova sayısı kadar satır (decisions.md madde 36): sistem
+        // hesapları da her kovadan bakiye tutabiliyor ve biri eksik kalsaydı o
+        // kovaya ilk yazma anında satır bulunamazdı.
+        balances.Count.ShouldBe(SystemAccounts.All.Count * FundTypes.All.Count);
         balances.ShouldAllBe(b => b.Balance == 0m && b.Version == 0);
+
+        foreach (var account in SystemAccounts.All)
+        {
+            balances
+                .Where(b => b.LedgerAccountId == account.Id)
+                .Select(b => b.FundType)
+                .ShouldBe(FundTypes.All, ignoreOrder: true);
+        }
     }
 
     [Fact]

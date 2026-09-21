@@ -66,7 +66,10 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         await using (var db = postgres.CreateContext())
         {
             await db.Database.ExecuteSqlAsync(
-                $"UPDATE ledger_balances SET balance = balance + 5 WHERE ledger_account_id = {wallet}",
+                $"""
+                UPDATE ledger_balances SET balance = balance + 5
+                 WHERE ledger_account_id = {wallet} AND fund_type = 'cash'
+                """,
                 ct);
         }
 
@@ -82,12 +85,15 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         await using (var db = postgres.CreateContext())
         {
             await db.Database.ExecuteSqlAsync(
-                $"UPDATE ledger_balances SET balance = balance - 5 WHERE ledger_account_id = {wallet}",
+                $"""
+                UPDATE ledger_balances SET balance = balance - 5
+                 WHERE ledger_account_id = {wallet} AND fund_type = 'cash'
+                """,
                 ct);
         }
 
         (await CreateScanner().ScanAsync(ct))
-            .Drifts.ShouldNotContain(d => d.LedgerAccountId == wallet);
+            .Drifts.Where(d => d.LedgerAccountId == wallet).ShouldBeEmpty();
     }
 
     /// <summary>

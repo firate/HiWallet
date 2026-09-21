@@ -8,6 +8,7 @@ using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using HiWallet.WalletService.Domain.Ledger;
 
 namespace HiWallet.IntegrationTests.Topups;
 
@@ -164,7 +165,8 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
         var eksikPolitika = new ProviderPolicy(new Dictionary<string, ProviderTerms>
         {
             ["bank-fake"] = new(
-                "bank-fake", FeeSettlement.Invoiced, new ProviderFeeTariff(Rate: 0m, 1.50m))
+                "bank-fake", FeeSettlement.Invoiced, new ProviderFeeTariff(Rate: 0m, 1.50m),
+                FundType.Cash)
         });
 
         var handler = new ProcessTopupHandler(

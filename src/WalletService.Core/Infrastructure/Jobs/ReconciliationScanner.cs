@@ -46,35 +46,40 @@ internal sealed class ReconciliationScanner(
 
     /// <summary>
     /// Projeksiyon–ledger karşılaştırması. Tek sorguda: bakiye satırları ile
-    /// entry toplamları hesap bazında yan yana getiriliyor.
+    /// entry toplamları KOVA bazında yan yana getiriliyor.
+    ///
+    /// Gruplama (hesap, kaynak tipi) üzerinde, çünkü bakiyenin anahtarı da o
+    /// (decisions.md madde 36). Yalnızca hesaba göre gruplansaydı tek kovanın
+    /// bakiyesi hesabın TÜM hareketleriyle karşılaştırılır ve birden fazla kovası
+    /// olan her hesap ayrışmış görünürdü.
     /// </summary>
     private async Task<IReadOnlyList<BalanceDrift>> FindDriftsAsync(
         WalletDbContext db, CancellationToken ct)
     {
-        var sums = db.LedgerEntries
-            .GroupBy(e => e.LedgerAccountId)
-            .Select(g => new { LedgerAccountId = g.Key, Total = g.Sum(e => e.Amount) });
-
-        // Hareketi hiç olmayan hesap da kontrol ediliyor: bakiyesi sıfırdan farklıysa
-        // o da ayrışmadır. Left join yerine iki taraflı kontrol — entry'si olmayan
-        // hesapta toplam sıfır sayılıyor.
+        // Korelasyonlu alt sorgu: her bakiye satırı kendi kovasının entry toplamıyla
+        // karşılaştırılıyor. GroupBy + GroupJoin bileşik anahtarla güvenilir
+        // çevrilmiyordu; bu biçim tek sorguda kalıyor ve eşleşmeyi açıkça yazıyor.
+        //
+        // Hareketi hiç olmayan kova da kontrol ediliyor: bakiyesi sıfırdan farklıysa
+        // o da ayrışmadır, bu yüzden toplam yokken sıfır sayılıyor.
         var drifts = await db.LedgerBalances
-            .GroupJoin(
-                sums,
-                balance => balance.LedgerAccountId,
-                sum => sum.LedgerAccountId,
-                (balance, matches) => new
-                {
-                    balance.LedgerAccountId,
-                    balance.Balance,
-                    FromEntries = matches.Sum(m => (decimal?)m.Total) ?? 0m
-                })
+            .Select(balance => new
+            {
+                balance.LedgerAccountId,
+                balance.FundType,
+                balance.Balance,
+                FromEntries = db.LedgerEntries
+                    .Where(e => e.LedgerAccountId == balance.LedgerAccountId
+                                && e.FundType == balance.FundType)
+                    .Sum(e => (decimal?)e.Amount) ?? 0m
+            })
             .Where(row => row.Balance != row.FromEntries)
             .Take(_options.SampleSize)
             .ToListAsync(ct);
 
         return drifts
-            .Select(row => new BalanceDrift(row.LedgerAccountId, row.Balance, row.FromEntries))
+            .Select(row => new BalanceDrift(
+                row.LedgerAccountId, row.FundType, row.Balance, row.FromEntries))
             .ToArray();
     }
 

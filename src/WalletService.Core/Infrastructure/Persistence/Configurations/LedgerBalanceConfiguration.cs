@@ -19,11 +19,21 @@ internal sealed class LedgerBalanceConfiguration : IEntityTypeConfiguration<Ledg
 {
     public void Configure(EntityTypeBuilder<LedgerBalance> builder)
     {
-        builder.ToTable("ledger_balances");
+        builder.ToTable("ledger_balances", t =>
+            t.HasCheckConstraint(
+                "ck_ledger_balances_fund_type", "fund_type IN ('cash','card','promo')"));
 
-        builder.HasKey(b => b.LedgerAccountId).HasName("pk_ledger_balances");
+        // Anahtar kova bazında (decisions.md madde 36): bir hesabın her kaynak tipi
+        // için ayrı satırı var. Optimistic lock da bu satırda, yani aynı cüzdanın
+        // cash ve promo hareketleri birbirini bloklamıyor.
+        builder.HasKey(b => new { b.LedgerAccountId, b.FundType }).HasName("pk_ledger_balances");
 
         builder.Property(b => b.LedgerAccountId).HasColumnName("ledger_account_id");
+
+        builder.Property(b => b.FundType)
+            .HasColumnName("fund_type")
+            .HasConversion(ValueConverters.FundType)
+            .IsRequired();
 
         builder.Property(b => b.Balance)
             .HasColumnName("balance")
@@ -59,8 +69,8 @@ internal sealed class LedgerBalanceConfiguration : IEntityTypeConfiguration<Ledg
             .HasConstraintName("fk_ledger_balances_ledger_account")
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Composite FK'nın index'i. PK zaten ledger_account_id üzerinde olduğu için bu
-        // index fiilen gereksiz, ama EF composite FK'ya index üretmeden geçmiyor.
+        // Composite FK'nın index'i. PK ledger_account_id ile başladığı için bu index
+        // fiilen gereksiz, ama EF composite FK'ya index üretmeden geçmiyor.
         // Adı verilmezse şemada PascalCase kalıyor.
         builder.HasIndex(b => new { b.LedgerAccountId, b.Currency })
             .HasDatabaseName("ix_ledger_balances_ledger_account_currency");
@@ -72,18 +82,23 @@ internal sealed class LedgerBalanceConfiguration : IEntityTypeConfiguration<Ledg
     /// Sistem hesaplarının bakiye satırları da seed ile gelir. Tembel yaratılsaydı ilk
     /// ledger yazımı satırı bulamaz ve mutabakat sorgusu (LEFT JOIN) o hesabı hiç
     /// göremezdi — sapma varsa görünmezdi.
+    ///
+    /// Hesap başına ÜÇ satır: sistem hesapları da her kovadan bakiye tutabiliyor.
+    /// Kart parasının clearing bacağı <c>card</c> olarak düşüyor ve "clearing'de ne
+    /// kadar kart parası duruyor" sorusu ancak böyle cevaplanıyor.
     /// </summary>
     private static void SeedSystemAccountBalances(EntityTypeBuilder<LedgerBalance> builder)
     {
         var seed = SystemAccounts.All
-            .Select(a => new
+            .SelectMany(a => FundTypes.All.Select(fundType => new
             {
                 LedgerAccountId = a.Id,
                 Balance = 0m,
                 Currency = SystemAccounts.DefaultCurrency,
+                FundType = fundType,
                 Version = 0L,
                 UpdatedAt = SystemAccounts.SeededAt
-            })
+            }))
             .ToArray();
 
         builder.HasData(seed);

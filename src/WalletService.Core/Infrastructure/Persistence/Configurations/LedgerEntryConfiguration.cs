@@ -14,7 +14,14 @@ internal sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<Ledger
     public void Configure(EntityTypeBuilder<LedgerEntry> builder)
     {
         builder.ToTable("ledger_entries", t =>
-            t.HasCheckConstraint("ck_ledger_entries_amount", "amount <> 0"));
+        {
+            t.HasCheckConstraint("ck_ledger_entries_amount", "amount <> 0");
+
+            // Değer kümesi DB tarafında da kapalı: elle yazılmış bir satır sessizce
+            // tanınmayan bir kovaya düşemesin (decisions.md madde 36).
+            t.HasCheckConstraint(
+                "ck_ledger_entries_fund_type", "fund_type IN ('cash','card','promo')");
+        });
 
         builder.HasKey(e => e.Id).HasName("pk_ledger_entries");
 
@@ -35,6 +42,13 @@ internal sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<Ledger
             .HasColumnType("char(3)")
             .IsRequired();
 
+        // Paranın kaynağı (decisions.md madde 36). Sistem hesaplarının bacakları da
+        // taşıyor; nullable DEĞİL, yoksa "kaynağı yok" ile "kaydedilmedi" ayırt edilemezdi.
+        builder.Property(e => e.FundType)
+            .HasColumnName("fund_type")
+            .HasConversion(ValueConverters.FundType)
+            .IsRequired();
+
         builder.Property(e => e.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");
@@ -51,7 +65,9 @@ internal sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<Ledger
             .HasConstraintName("fk_ledger_entries_ledger_account")
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(e => new { e.LedgerAccountId, e.Id })
+        // Kova bazında: bakiye projeksiyonu artık (hesap, kaynak tipi) başına yeniden
+        // inşa ediliyor ve mutabakat sorgusu da o kırılımda topluyor.
+        builder.HasIndex(e => new { e.LedgerAccountId, e.FundType, e.Id })
             .HasDatabaseName("ix_ledger_entries_ledger_account");
 
         // Composite FK'nın index'i. EF bunu zaten otomatik üretiyor; burada yalnızca

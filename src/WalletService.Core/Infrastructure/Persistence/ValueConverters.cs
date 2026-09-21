@@ -36,6 +36,12 @@ internal static class ValueConverters
     public static readonly ValueConverter<ActorType, string> ActorType =
         new(t => ToText(t), text => ToActorType(text));
 
+    // Metinler FundTypes'tan geliyor: aynı değerler API gövdesinde de kullanılıyor
+    // ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce eski
+    // değerle kalırdı (ActorType ile aynı gerekçe).
+    public static readonly ValueConverter<FundType, string> FundType =
+        new(t => t.ToText(), text => FundTypes.FromText(text));
+
     // Metinler ActorTypes'tan geliyor: aynı değerler mesaj sözleşmesinde de
     // kullanılıyor ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce
     // eski değerle kalırdı.

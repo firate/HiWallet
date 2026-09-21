@@ -172,9 +172,9 @@ public sealed class SettleWithdrawalTests(PostgresFixture postgres)
         var tx = LedgerTransaction
             .Create(Guid.NewGuid(), LedgerTransactionType.Withdrawal, wallet,
                 SystemActors.WithdrawalSaga, now, $"withdrawal:{sagaId}", sagaId)
-            .AddEntry(wallet, new Money(-(Amount + Commission), currency))
-            .AddEntry(SystemAccounts.ClearingBankTry, new Money(Amount, currency))
-            .AddEntry(SystemAccounts.RevenueTry, new Money(Commission, currency));
+            .AddEntry(wallet, new Money(-(Amount + Commission), currency), FundType.Cash)
+            .AddEntry(SystemAccounts.ClearingBankTry, new Money(Amount, currency), FundType.Cash)
+            .AddEntry(SystemAccounts.RevenueTry, new Money(Commission, currency), FundType.Cash);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
@@ -186,7 +186,8 @@ public sealed class SettleWithdrawalTests(PostgresFixture postgres)
                      (SystemAccounts.RevenueTry, Commission)
                  }.OrderBy(x => x.Item1))
         {
-            var balance = await db.LedgerBalances.FindAsync([id], ct)
+            // Anahtar artik (hesap, kova); cekim hattinin tamami cash.
+            var balance = await db.LedgerBalances.FindAsync([id, FundType.Cash], ct)
                           ?? throw new InvalidOperationException($"Bakiye satırı yok: {id}");
 
             balance.Apply(new Money(delta, currency), canGoNegative: id != wallet, now);
@@ -214,7 +215,14 @@ public sealed class SettleWithdrawalTests(PostgresFixture postgres)
         await using var db = postgres.CreateContext();
 
         var balance = await db.LedgerBalances.AsNoTracking()
-            .SingleAsync(b => b.LedgerAccountId == accountId, ct);
+            .Where(b => b.LedgerAccountId == accountId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Balance = g.Sum(b => b.Balance),
+                Version = g.Sum(b => b.Version)
+            })
+            .SingleAsync(ct);
 
         return (balance.Balance, balance.Version);
     }

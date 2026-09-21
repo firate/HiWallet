@@ -128,11 +128,20 @@ public sealed class TransferTests(PostgresFixture postgres)
         negativeWallets.ShouldBeEmpty("negatif bakiyeli cüzdan var");
 
         // 4) Projeksiyon ledger'dan sapmadı (mutabakat sorgusunun kendisi).
+        // Karşılaştırma ReconciliationScanner ile AYNI biçimde: toplam önce
+        // projeksiyona alınıyor, kıyas ondan sonra. Alt sorgu doğrudan Where
+        // içinde kıyaslandığında boş kovalar da sapmış görünüyordu.
         var drifted = await verify.LedgerBalances
-            .Where(b => b.Balance != (verify.LedgerEntries
-                .Where(e => e.LedgerAccountId == b.LedgerAccountId)
-                .Sum(e => (decimal?)e.Amount) ?? 0m))
-            .Select(b => b.LedgerAccountId)
+            .Select(b => new
+            {
+                b.LedgerAccountId,
+                b.Balance,
+                FromEntries = verify.LedgerEntries
+                    .Where(e => e.LedgerAccountId == b.LedgerAccountId && e.FundType == b.FundType)
+                    .Sum(e => (decimal?)e.Amount) ?? 0m
+            })
+            .Where(row => row.Balance != row.FromEntries)
+            .Select(row => row.LedgerAccountId)
             .ToListAsync(ct);
 
         drifted.ShouldBeEmpty("bakiye projeksiyonu ledger'dan sapmış");
@@ -164,7 +173,7 @@ public sealed class TransferTests(PostgresFixture postgres)
         var entryCount = await verify.LedgerEntries.CountAsync(e => e.LedgerAccountId == to, ct);
         entryCount.ShouldBe(0);
 
-        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from, ct);
+        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from && b.FundType == FundType.Cash, ct);
         balance.Balance.ShouldBe(10m);
     }
 
@@ -195,7 +204,7 @@ public sealed class TransferTests(PostgresFixture postgres)
         second.TransactionId.ShouldBe(first.TransactionId);
 
         await using var verify = postgres.CreateContext();
-        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from, ct);
+        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from && b.FundType == FundType.Cash, ct);
         balance.Balance.ShouldBe(400m, "para iki kez düşülmüş");
     }
 
@@ -244,8 +253,9 @@ public sealed class TransferTests(PostgresFixture postgres)
 
             // revenue tüm koşunun paylaştığı bir sistem hesabı; mutlak değer
             // varsaymak, komisyon yazan başka bir test eklendiği anda kırılır.
-            revenueBefore = (await db.LedgerBalances
-                .SingleAsync(b => b.LedgerAccountId == SystemAccounts.RevenueTry, ct)).Balance;
+            revenueBefore = await db.LedgerBalances
+                .Where(b => b.LedgerAccountId == SystemAccounts.RevenueTry)
+                .SumAsync(b => b.Balance, ct);
         }
 
         var handler = Handler(postgres, paymentRate: new CommissionRate(0.02m));
@@ -267,8 +277,9 @@ public sealed class TransferTests(PostgresFixture postgres)
         entries.Sum(e => e.Amount).ShouldBe(0m);
 
         var revenue = await verify.LedgerBalances
-            .SingleAsync(b => b.LedgerAccountId == SystemAccounts.RevenueTry, ct);
-        revenue.Balance.ShouldBe(revenueBefore + 2m);
+            .Where(b => b.LedgerAccountId == SystemAccounts.RevenueTry)
+            .SumAsync(b => b.Balance, ct);
+        revenue.ShouldBe(revenueBefore + 2m);
     }
 
     [Fact]
@@ -292,7 +303,7 @@ public sealed class TransferTests(PostgresFixture postgres)
             new CreateTransferCommand(from, to, 101m, Try.Code, TransferType.P2P, Guid.NewGuid().ToString("N")), ct));
 
         await using var verify = postgres.CreateContext();
-        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from, ct);
+        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from && b.FundType == FundType.Cash, ct);
         balance.Balance.ShouldBe(5_000m);
     }
 
