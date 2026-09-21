@@ -10,6 +10,10 @@ namespace HiWallet.WalletService.Domain.Balances;
 ///
 /// Optimistic lock buradadır — wallet sınırında concurrency token taşıyan TEK entity
 /// (decisions.md madde 2).
+///
+/// Satırın anahtarı <c>(ledger_account_id, fund_type)</c>: bakiye paranın kaynağına
+/// göre bölünüyor (decisions.md madde 36). Aynı cüzdanın iki kovası birbirini
+/// bloklamıyor, kilit kova bazında.
 /// </summary>
 public sealed class LedgerBalance
 {
@@ -18,11 +22,12 @@ public sealed class LedgerBalance
         // EF Core materialization.
     }
 
-    private LedgerBalance(Guid ledgerAccountId, Currency currency, DateTimeOffset updatedAt)
+    private LedgerBalance(Guid ledgerAccountId, Currency currency, FundType fundType, DateTimeOffset updatedAt)
     {
         LedgerAccountId = ledgerAccountId;
         Balance = 0m;
         Currency = currency;
+        FundType = fundType;
         Version = 0;
         UpdatedAt = updatedAt;
     }
@@ -33,6 +38,9 @@ public sealed class LedgerBalance
 
     public Currency Currency { get; private set; }
 
+    /// <summary>Bu satırın hangi kovayı tuttuğu (decisions.md madde 36).</summary>
+    public FundType FundType { get; private set; }
+
     /// <summary>EF Core'da <c>IsConcurrencyToken()</c>. Elle artırılır, DB üretmez.</summary>
     public long Version { get; private set; }
 
@@ -40,9 +48,10 @@ public sealed class LedgerBalance
 
     public Money Money => new(Balance, Currency);
 
-    public static LedgerBalance OpenFor(Guid ledgerAccountId, Currency currency, DateTimeOffset createdAt)
+    public static LedgerBalance OpenFor(
+        Guid ledgerAccountId, Currency currency, FundType fundType, DateTimeOffset createdAt)
     {
-        return new LedgerBalance(ledgerAccountId, currency, createdAt);
+        return new LedgerBalance(ledgerAccountId, currency, fundType, createdAt);
     }
 
     /// <summary>

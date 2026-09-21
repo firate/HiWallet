@@ -106,9 +106,15 @@ public sealed class LedgerTransaction
     /// Bacak ekler. İşaret çağıranda: credit <c>+</c>, debit <c>-</c>.
     /// Tutar sıfırsa reddedilir.
     /// </summary>
-    public LedgerTransaction AddEntry(Guid ledgerAccountId, Money amount)
+    /// <param name="fundType">
+    /// Paranın kaynağı (decisions.md madde 36). Varsayılanı YOK ve bu kasıtlı:
+    /// varsayılan verilseydi yeni bir yazma yolu onu sessizce devralır ve kart parası
+    /// <c>cash</c> olarak kaydedilip IBAN'a çıkabilir hale gelirdi. Aktör kuralıyla
+    /// (madde 34) aynı gerekçe.
+    /// </param>
+    public LedgerTransaction AddEntry(Guid ledgerAccountId, Money amount, FundType fundType)
     {
-        _entries.Add(new LedgerEntry(Id, ledgerAccountId, amount, CreatedAt));
+        _entries.Add(new LedgerEntry(Id, ledgerAccountId, amount, fundType, CreatedAt));
         return this;
     }
 
