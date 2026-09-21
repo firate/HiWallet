@@ -91,7 +91,10 @@ public sealed class SettleWithdrawalHandler(
             $"{BankProvider}:withdrawal-settlement:{command.SagaId}",
             command.SagaId);
 
-        tx.AddEntry(clearing.Id, new Money(-owed, currency));
+        // Çekimin kendisi cash kovasından çıktı (decisions.md madde 36); onu kapatan
+        // settlement de aynı kovada duruyor, yoksa clearing'in cash kovası kalıcı
+        // olarak açık kalırdı.
+        tx.AddEntry(clearing.Id, new Money(-owed, currency), FundType.Cash);
 
         var leavingBank = owed;
 
@@ -100,14 +103,14 @@ public sealed class SettleWithdrawalHandler(
             var expense = await LoadSystemAccountAsync(
                 db, LedgerAccountType.ProviderExpense, currency, ct);
 
-            tx.AddEntry(expense.Id, new Money(-fee, currency));
+            tx.AddEntry(expense.Id, new Money(-fee, currency), FundType.Cash);
             leavingBank += fee;
         }
 
         var nostro = await LoadSystemAccountAsync(db, LedgerAccountType.Nostro, currency, ct);
 
         // nostro POZİTİF: varlık hesabı ve bankadan para çıkıyor, sıfıra doğru.
-        tx.AddEntry(nostro.Id, new Money(leavingBank, currency));
+        tx.AddEntry(nostro.Id, new Money(leavingBank, currency), FundType.Cash);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);

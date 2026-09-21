@@ -156,7 +156,7 @@ public sealed class DebitForWithdrawalHandler(
 
         foreach (var (ledgerAccountId, delta, _) in legs)
         {
-            tx.AddEntry(ledgerAccountId, delta);
+            tx.AddEntry(ledgerAccountId, delta, FundType.Cash);
         }
 
         // DB'deki deferred trigger'dan önce, daha anlaşılır hatayla.
@@ -177,6 +177,14 @@ public sealed class DebitForWithdrawalHandler(
     /// Üç bacak. Komisyon sıfırsa <c>revenue</c> bacağı YOK — sıfır tutarlı bir entry
     /// ledger'a gürültü yazmaktan başka bir şey yapmazdı.
     /// </summary>
+    /// <remarks>
+    /// Bütün bacaklar <see cref="FundType.Cash"/> (decisions.md madde 36): IBAN'a
+    /// çıkabilen tek kova o. Kart ile yüklenen para yönetmelik gereği ancak aynı
+    /// kredi kartı hesabına iade edilebiliyor ve o yol bu sistemde kurulmadı; hediye
+    /// bakiye ise hiç nakde çevrilemiyor. Yetersiz <c>cash</c> bakiyesi
+    /// <see cref="LedgerBalance.Apply"/>'da yakalanıyor ve cevabı
+    /// <c>WithdrawalDebitRejected</c> oluyor — cüzdanın toplam bakiyesi yetse bile.
+    /// </remarks>
     private static List<(Guid LedgerAccountId, Money Delta, bool CanGoNegative)> BuildLegs(
         LedgerAccount wallet,
         LedgerAccount clearing,
@@ -209,8 +217,11 @@ public sealed class DebitForWithdrawalHandler(
     {
         foreach (var (ledgerAccountId, delta, canGoNegative) in legs)
         {
+            // Çekim yalnızca cash kovasına dokunuyor (decisions.md madde 36).
             var balance = await db.LedgerBalances
-                              .FirstOrDefaultAsync(b => b.LedgerAccountId == ledgerAccountId, ct)
+                              .FirstOrDefaultAsync(
+                                  b => b.LedgerAccountId == ledgerAccountId
+                                       && b.FundType == FundType.Cash, ct)
                           ?? throw new InvalidOperationException($"Bakiye satırı yok: {ledgerAccountId}");
 
             balance.Apply(delta, canGoNegative, now);

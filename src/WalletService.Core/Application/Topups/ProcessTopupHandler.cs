@@ -77,8 +77,13 @@ public sealed class ProcessTopupHandler(
             transactionId, LedgerTransactionType.Topup, wallet.Id, SystemActors.Topup, now,
             IdempotencyKey(message));
 
-        tx.AddEntry(wallet.Id, amount);
-        tx.AddEntry(clearing.Id, amount.Negated);
+        // Kova sağlayıcıdan geliyor (decisions.md madde 36): kart sağlayıcısından
+        // gelen para card, bankadan gelen havale cash. Clearing bacağı da AYNI kovaya
+        // düşüyor, yoksa "clearing'de ne kadar kart parası duruyor" cevapsız kalırdı.
+        var fundType = providers.For(message.Provider).FundType;
+
+        tx.AddEntry(wallet.Id, amount, fundType);
+        tx.AddEntry(clearing.Id, amount.Negated, fundType);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);

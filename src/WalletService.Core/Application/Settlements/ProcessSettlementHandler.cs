@@ -97,15 +97,21 @@ public sealed class ProcessSettlementHandler(
             now,
             IdempotencyKey(message));
 
-        tx.AddEntry(clearing.Id, new Money(message.GrossAmount, currency));
-        tx.AddEntry(nostro.Id, new Money(-message.NetAmount, currency));
+        // Kova sağlayıcının kendi kanalı (decisions.md madde 36). Clearing bacağı
+        // bunu taşımak ZORUNDA: top-up o kovaya yazdı, settlement de aynı kovayı
+        // kapatmalı. Başka bir kova seçilseydi clearing'in bir kovası kalıcı olarak
+        // açık, diğeri negatif kalır ve mutabakat sorgusu her turda satır dönerdi.
+        var fundType = terms.FundType;
+
+        tx.AddEntry(clearing.Id, new Money(message.GrossAmount, currency), fundType);
+        tx.AddEntry(nostro.Id, new Money(-message.NetAmount, currency), fundType);
 
         if (terms.FeeSettlement is FeeSettlement.Net && message.FeeAmount > 0m)
         {
             var expense = await LoadSystemAccountAsync(
                 db, LedgerAccountType.ProviderExpense, message.Provider, currency, ct);
 
-            tx.AddEntry(expense.Id, new Money(-message.FeeAmount, currency));
+            tx.AddEntry(expense.Id, new Money(-message.FeeAmount, currency), fundType);
         }
 
         tx.AssertBalanced();

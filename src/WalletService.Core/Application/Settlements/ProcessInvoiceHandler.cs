@@ -140,11 +140,15 @@ public sealed class ProcessInvoiceHandler(
             now,
             IdempotencyKey(message));
 
-        tx.AddEntry(expense.Id, new Money(-message.Amount, currency));
+        // Kova sağlayıcının kanalı (decisions.md madde 36): gider hangi kanalın
+        // işinden doğduysa o kovada duruyor, settlement'taki ayrımın aynısı.
+        var fundType = providers.For(message.Provider).FundType;
+
+        tx.AddEntry(expense.Id, new Money(-message.Amount, currency), fundType);
 
         // nostro POZİTİF: varlık hesabı ve bu ledger'da varlıklar negatif duruyor,
         // yani bankadan para ÇIKINCA sıfıra doğru hareket ediyor.
-        tx.AddEntry(nostro.Id, new Money(message.Amount, currency));
+        tx.AddEntry(nostro.Id, new Money(message.Amount, currency), fundType);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
