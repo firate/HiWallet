@@ -15,7 +15,7 @@ public sealed class WebhookSignatureTests
     {
         var signature = WebhookSignature.Compute(Body, Secret);
 
-        WebhookSignature.IsValid(Body, Secret, signature).ShouldBeTrue();
+        WebhookSignature.Match(Body, [Secret], signature).ShouldBe(0);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class WebhookSignatureTests
         // Tek karakter: tutar 100 yerine 900. İmzanın asıl işi bu.
         var tampered = Encoding.UTF8.GetBytes("""{"eventId":"evt_1","amount":900.00}""");
 
-        WebhookSignature.IsValid(tampered, Secret, signature).ShouldBeFalse();
+        WebhookSignature.Match(tampered, [Secret], signature).ShouldBe(WebhookSignature.NoMatch);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class WebhookSignatureTests
     {
         var signature = WebhookSignature.Compute(Body, "baska-sir");
 
-        WebhookSignature.IsValid(Body, Secret, signature).ShouldBeFalse();
+        WebhookSignature.Match(Body, [Secret], signature).ShouldBe(WebhookSignature.NoMatch);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class WebhookSignatureTests
         // patlarsa controller'da 500'e dönerdi, oysa doğru cevap 401.
         var signature = WebhookSignature.Compute([], Secret);
 
-        WebhookSignature.IsValid([], Secret, signature).ShouldBeTrue();
+        WebhookSignature.Match([], [Secret], signature).ShouldBe(0);
     }
 
     [Theory]
@@ -76,7 +76,7 @@ public sealed class WebhookSignatureTests
     {
         // Başlık tamamen dış dünyadan geliyor; hiçbir biçim bozukluğu istisnaya
         // dönüşmemeli. Dönerse 401 yerine 500 alırdık ve bu bir DoS düğmesi olurdu.
-        WebhookSignature.IsValid(Body, Secret, header).ShouldBeFalse();
+        WebhookSignature.Match(Body, [Secret], header).ShouldBe(WebhookSignature.NoMatch);
     }
 
     [Fact]
@@ -89,6 +89,46 @@ public sealed class WebhookSignatureTests
         var signature = "sha256=" + WebhookSignature.Compute(Body, Secret)["sha256=".Length..]
             .ToUpperInvariant();
 
-        WebhookSignature.IsValid(Body, Secret, signature).ShouldBeTrue();
+        WebhookSignature.Match(Body, [Secret], signature).ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Rotasyon penceresi: listedeki her secret deneniyor ve tutanın sırası
+    /// dönüyor. Sıra çağırana lazım — ilk sıradan sonrasıyla doğrulanan her
+    /// bildirim, karşı tarafın geçişi tamamlamadığının kanıtı.
+    /// </summary>
+    [Fact]
+    public void RotasyonPenceresinde_EskiSecretIleUretilmisImza_SirasiylaBulunur()
+    {
+        var signature = WebhookSignature.Compute(Body, "eski-sir");
+
+        WebhookSignature.Match(Body, [Secret, "eski-sir"], signature).ShouldBe(1);
+    }
+
+    [Fact]
+    public void RotasyonPenceresinde_GuncelSecretIleUretilmisImza_SifirinciSirada()
+    {
+        var signature = WebhookSignature.Compute(Body, Secret);
+
+        WebhookSignature.Match(Body, [Secret, "eski-sir"], signature).ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Geçersiz kılma: secret listeden çıkınca onunla üretilmiş imza tutmuyor.
+    /// </summary>
+    [Fact]
+    public void ListedenCikarilmisSecretIleUretilmisImza_Reddedilir()
+    {
+        var signature = WebhookSignature.Compute(Body, "eski-sir");
+
+        WebhookSignature.Match(Body, [Secret], signature).ShouldBe(WebhookSignature.NoMatch);
+    }
+
+    [Fact]
+    public void BosSecretListesi_HicbirImzayiKabulEtmez()
+    {
+        var signature = WebhookSignature.Compute(Body, Secret);
+
+        WebhookSignature.Match(Body, [], signature).ShouldBe(WebhookSignature.NoMatch);
     }
 }

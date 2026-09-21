@@ -34,7 +34,7 @@ public sealed class InvoiceWebhookController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Receive(string provider, CancellationToken ct)
     {
-        if (!secrets.TryGet(provider, out var secret))
+        if (!secrets.TryGet(provider, out var providerSecrets))
         {
             logger.LogWarning("Tanınmayan sağlayıcıdan fatura: {Provider}", provider);
             return Unauthorized();
@@ -42,11 +42,16 @@ public sealed class InvoiceWebhookController(
 
         var body = await ReadBodyAsync(ct);
 
-        if (!WebhookSignature.IsValid(body, secret, Request.Headers[WebhookSignature.HeaderName]))
+        var match = WebhookSignature.Match(
+            body, providerSecrets, Request.Headers[WebhookSignature.HeaderName]);
+
+        if (match == WebhookSignature.NoMatch)
         {
             logger.LogWarning("Geçersiz fatura imzası. Sağlayıcı {Provider}", provider);
             return Unauthorized();
         }
+
+        WebhookSecretRotation.LogIfOldSecret(logger, provider, match);
 
         InvoiceWebhookPayload? payload;
 
