@@ -39,6 +39,12 @@ gerekirdi ve referential integrity çökerdi.
 **Cüzdan** = `ledger_accounts` içinde `type = 'user_wallet'` olan satır; `account_id`'si
 dolu olan tek tip odur.
 
+**Bakiye cüzdanın İÇİNDE bölünür.** Cüzdan tek satır kalır, bakiyesi paranın kaynağına
+göre üç kovaya ayrılır: `cash`, `card`, `promo` (`decisions.md` madde 36). Bölünme
+`ledger_balances` üzerindedir; `ledger_accounts` tek satır kalır çünkü cüzdanın adı
+(`name`) kullanıcının verdiği addır ve bir cüzdanı üçe bölmek o kavramı bozardı.
+Müşteri tek cüzdan görür, içinde üç kova vardır.
+
 ## accounts
 
 Müşteri hesabı. Müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi burada durmaz,
@@ -55,6 +61,8 @@ CREATE TABLE accounts (
 
 Bir hesabın **aynı para biriminde birden fazla cüzdanı olabilir** —
 `ledger_accounts (account_id, currency)` üzerinde tekillik kısıtı bilinçli olarak YOKTUR.
+Kaynak tipi ayrımı bununla KARIŞTIRILMAZ: kovalar cüzdanın içinde durur
+(`ledger_balances.fund_type`), ikinci bir cüzdan satırı açmaz.
 Sonucu: günlük limitler cüzdan bazında değil **hesap bazında** uygulanır, yoksa müşteri
 ikinci cüzdan açarak limiti aşar.
 
@@ -215,6 +223,7 @@ CREATE TABLE ledger_entries (
     ledger_account_id      uuid NOT NULL,
     amount          numeric(19,4) NOT NULL CHECK (amount <> 0),
     currency        char(3) NOT NULL,
+    fund_type       text NOT NULL CHECK (fund_type IN ('cash','card','promo')),
     created_at      timestamptz NOT NULL DEFAULT now(),
 
     -- Composite FK, tek kolonluğun yerine geçer: hesabın var olduğunu da garantiler,
@@ -225,9 +234,24 @@ CREATE TABLE ledger_entries (
         FOREIGN KEY (ledger_account_id, currency) REFERENCES ledger_accounts (id, currency)
 );
 
-CREATE INDEX ix_ledger_entries_ledger_account ON ledger_entries (ledger_account_id, id);
+-- Kova bazında: bakiye projeksiyonu (hesap, kaynak tipi) başına yeniden inşa ediliyor
+-- ve mutabakat sorgusu da o kırılımda topluyor.
+CREATE INDEX ix_ledger_entries_ledger_account ON ledger_entries (ledger_account_id, fund_type, id);
 CREATE INDEX ix_ledger_entries_tx ON ledger_entries (transaction_id);
 ```
+
+`fund_type` paranın kaynağını taşır (`decisions.md` madde 36). **Sistem hesaplarının
+bacakları da taşır:** bir top-up'ın clearing bacağı cüzdan bacağıyla aynı kovadadır.
+Nullable DEĞİL — "kaynağı yok" ile "kaydedilmedi" ayırt edilemezdi, ve kolon
+varsayılanı da YOKTUR: `fund_type` yazmayı unutan bir yol sessizce `cash`'e düşmemeli,
+patlamalı.
+
+Bacakta durduğu için **ters kayıt kendiliğinden doğru kovaya döner**: iade orijinalin
+bacakları okunup negatiflenerek üretiliyor (madde 9), kova da onunla geliyor.
+
+Zero-sum invariant'ı kovaya bakmaz, para birimine bakar. Bir işlemin bacakları farklı
+kovalarda olabilir — settlement'ta clearing `card` kovasında kapanırken nostro da aynı
+kovada hareket eder, ama kural "para birimi başına toplam sıfır"dır.
 
 `amount` işareti yönü taşır: credit `+`, debit `-`. Ayrı `direction` kolonu yok —
 iki kaynak (işaret + direction) tutarsızlaşabilir, tek kaynak bırakıldı.
@@ -290,11 +314,15 @@ madde 5 bunu açıkça reddediyor.
 
 ```sql
 CREATE TABLE ledger_balances (
-    ledger_account_id  uuid PRIMARY KEY,
+    ledger_account_id  uuid NOT NULL,
+    fund_type   text NOT NULL CHECK (fund_type IN ('cash','card','promo')),
     balance     numeric(19,4) NOT NULL DEFAULT 0,
     currency    char(3) NOT NULL,
     version     bigint NOT NULL DEFAULT 0,
     updated_at  timestamptz NOT NULL DEFAULT now(),
+
+    -- Anahtar KOVA bazında: bir hesabın her kaynak tipi için ayrı satırı var.
+    CONSTRAINT pk_ledger_balances PRIMARY KEY (ledger_account_id, fund_type),
 
     -- ledger_entries ile aynı gerekçe: projeksiyonun para birimi hesabınkinden sapamaz.
     CONSTRAINT fk_ledger_balances_ledger_account
@@ -305,19 +333,35 @@ CREATE TABLE ledger_balances (
 Ledger'dan türetilmiş projeksiyon. Source of truth `ledger_entries`; bu tablo her zaman
 yeniden inşa edilebilir, tersi geçerli değil.
 
-EF Core: `version` üzerinde `IsConcurrencyToken()`. Başka hiçbir entity'de concurrency token yok.
+**Satır kova başına** (`decisions.md` madde 36). Cüzdan açılırken üç satır birden açılır;
+sistem hesapları da seed'de üç satırla gelir. Biri eksik bırakılsaydı o kovaya ilk yazma
+anında satır bulunamaz ve mutabakat sorgusu o kovayı hiç göremezdi.
+
+Bakiye yazan kod **bacağın kovasını seçmek zorundadır**. Kova seçilmeden güncellenen bir
+satır projeksiyonu ledger'dan sessizce ayrıştırır: entry `card` kovasına düşerken bakiye
+`cash` kovasında artar ve iki kova da yanlış kalır.
+
+EF Core: `version` üzerinde `IsConcurrencyToken()`. Başka hiçbir entity'de concurrency
+token yok. Kilit kova bazında olduğu için aynı cüzdanın `cash` ve `promo` hareketleri
+birbirini bloklamaz.
 
 ### Doğrulama sorgusu (mutabakat job'ı bunu koşar)
 
 ```sql
-SELECT b.ledger_account_id, b.currency, b.balance, COALESCE(SUM(e.amount), 0) AS derived
+SELECT b.ledger_account_id, b.fund_type, b.currency, b.balance,
+       COALESCE(SUM(e.amount), 0) AS derived
   FROM ledger_balances b
   LEFT JOIN ledger_entries e
     ON e.ledger_account_id = b.ledger_account_id
    AND e.currency   = b.currency
- GROUP BY b.ledger_account_id, b.currency, b.balance
+   AND e.fund_type  = b.fund_type
+ GROUP BY b.ledger_account_id, b.fund_type, b.currency, b.balance
 HAVING b.balance <> COALESCE(SUM(e.amount), 0);
 ```
+
+Gruplama `fund_type`'ı da içeriyor, çünkü bakiyenin anahtarı o. Yalnızca hesaba göre
+gruplansaydı tek kovanın bakiyesi hesabın TÜM hareketleriyle karşılaştırılır ve birden
+fazla kovası olan her hesap ayrışmış görünürdü.
 
 Join'de `currency` de var: FK ikisinin sapmasını zaten engelliyor, ama sorgu bu
 varsayıma yaslanmıyor. Bozuk bir durumda sessizce yanlış bir `derived` üretmek yerine
@@ -445,30 +489,44 @@ BEGIN;
   -- satır varsa → onu dön, hiçbir kuralı yeniden değerlendirme
 
   -- 2) Bakiye ve policy
-  SELECT balance, version FROM ledger_balances WHERE ledger_account_id = @from;
+  SELECT fund_type, balance, version FROM ledger_balances WHERE ledger_account_id = @from;
   -- limit kontrolü (komisyon DAHİL tutara, madde 22), komisyon hesabı
   --   → ihlal varsa 422, hiç yazma
+  -- kovalara dağıtım (madde 36): promo transfere GİRMEZ, sıra card → cash.
+  --   önce tutar dağıtılır, sonra komisyon kalanlara aynı sırayla.
+  --   transfer edilebilir toplam yetmiyorsa 422 — cüzdanın toplamı yetse bile
 
   INSERT INTO ledger_transactions (id, type, ledger_account_id, idempotency_key) VALUES (...);
 
-  INSERT INTO ledger_entries (transaction_id, ledger_account_id, amount, currency) VALUES
-    (@tx, @from,    -102, 'TRY'),
-    (@tx, @to,      +100, 'TRY'),
-    (@tx, @revenue,   +2, 'TRY');
+  -- Kova başına üç bacak. Aşağıda 30'u card, 72'si cash kovasından çıkan bir örnek;
+  -- kova karşı tarafta AYNEN korunuyor, yoksa kart kısıtı tek adımda delinirdi.
+  INSERT INTO ledger_entries (transaction_id, ledger_account_id, amount, currency, fund_type) VALUES
+    (@tx, @from,     -30, 'TRY', 'card'),
+    (@tx, @to,       +30, 'TRY', 'card'),
+    (@tx, @from,     -72, 'TRY', 'cash'),
+    (@tx, @to,       +70, 'TRY', 'cash'),
+    (@tx, @revenue,   +2, 'TRY', 'cash');
 
   -- ledger_account_id ARTAN SIRAYLA (deadlock önleme)
+  -- fund_type ŞART: bacak hangi kovaya yazıldıysa bakiye de o kovada güncellenir
   UPDATE ledger_balances SET balance = balance + @delta, version = version + 1,
          updated_at = now()
-   WHERE ledger_account_id = @acc AND version = @readVersion;
+   WHERE ledger_account_id = @acc AND fund_type = @fundType AND version = @readVersion;
   -- 0 satır → DbUpdateConcurrencyException → rollback → retry (max 3)
 COMMIT;
 ```
+
+Kovaya bölünen transferde **her kova kendi içinde sıfırlanır**: gönderenden çıkan =
+alıcıya giden + komisyon. Zero-sum trigger'ı bunu aramaz (para birimine bakar), ama
+dağıtım bu şekilde yapıldığı için kuruş yuvarlaması kova bazındaki dengeyi bozmaz.
 
 ## Beklenen davranış tablosu
 
 | Durum                          | HTTP | Not                                   |
 | ------------------------------ | ---- | ------------------------------------- |
 | Yetersiz bakiye                | 422  | İş kuralı reddi, hata değil           |
+| Transfer edilebilir kova yetmez| 422  | Toplam yetse bile: promo transfere girmez |
+| Çekimde `cash` kovası yetmez   | 422  | Toplam yetse bile: kart ve promo IBAN'a çıkmaz |
 | Limit aşımı                    | 422  | Aynı şekilde                          |
 | Optimistic lock çakışması      | 409  | Retry tükendikten sonra               |
 | Aynı idempotency key, tamam    | 200  | Orijinal transaction dönülür          |
