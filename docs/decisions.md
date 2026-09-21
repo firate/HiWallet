@@ -1368,6 +1368,26 @@ işi kalıyor: doğrula, inbox'a yaz, `202` dön.
 etmeden önce doğrulama, inbox'a yazıp `202`, ayrı bir relay'in yayınlaması. İkinci kez
 yazılmıyor çünkü orada zaten doğru — kopyalanan şey kod değil, karar.
 
+**Banka başına birden fazla callback secret'ı tutuluyor** ve sebebi rotasyon. Yeni secret
+bankaya iletildikten sonra karşı tarafın geçişi ne zaman tamamlayacağını biz
+belirlemiyoruz; o aralıkta iki secret de geçerli olmak zorunda. Doğrulama gelen imzayı
+sıradaki her secret'la deneyip ilk tutanda kabul ediyor. Konfigürasyon biçimi
+`Banks__<banka>__CallbackSecrets__0`, `__1`; tek secret'lık `CallbackSecret` de duruyor,
+rotasyon yokken sıra numarası gereksiz.
+
+Eski secret'ı erken kaldırmanın bedeli ölçülebilir: callback'ler `401` alır, satır
+`pending` kalır ve sonuç ancak mutabakat taramasıyla öğrenilir — yani hat durmaz,
+gecikme tarama aralığına çıkar. Kaldırma zamanını takvim değil gözlem belirliyor:
+listenin ikinci ve sonraki secret'ıyla doğrulanan her callback uyarı olarak
+kaydediliyor, o kayıt kesildiğinde eskisi listeden çıkarılabilir.
+
+**Geçersiz kılma ayrı bir mekanizma değil**: secret listeden çıkarılır ve servis yeniden
+başlatılır. Çalışma anında iptal eden bir yönetim endpoint'i eklenmedi çünkü authn
+kapsam dışı (madde 12) ve secret'lar için ikinci bir doğruluk kaynağı doğardı.
+`IOptionsMonitor` de çözmüyor: secret'lar ortam değişkeninden geliyor ve o sağlayıcı
+change token üretmiyor. `bank-webhook` durumsuz olduğu için yeniden başlatma saniyeler
+sürüyor, o sırada gelen callback'leri banka yeniden gönderiyor.
+
 **Sahte bankanın veritabanı YOK; hafızası bellekte.** Transferler ve senaryolar sahte
 bankanın process'inde duruyor ve yeniden başlatınca siliniyor. Sahte banka elle ve
 integration testlerle denemek için var, geçmiş saklaması gereken bir sistem değil; ayrı
