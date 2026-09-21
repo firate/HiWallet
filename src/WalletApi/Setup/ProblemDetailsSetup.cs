@@ -1,3 +1,4 @@
+using HiWallet.Shared.Infrastructure.Errors;
 using HiWallet.WalletService.Domain.Errors;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace HiWallet.WalletApi.Setup;
 
 /// <summary>
-/// Global hata yönetimi, RFC 7807 (baseline.md madde 5).
+/// wallet-api'nin domain hataları, RFC 7807 (baseline.md madde 5). Yakalanmamış
+/// istisnanın 500'e çevrilmesi ortak tabanda (Shared.Infrastructure); burası onun
+/// üstüne yalnızca iş kuralı ayrımlarını ekliyor.
 ///
 /// Ayrım kritik: <c>422</c> iş kuralı reddi (request geçerliydi, kural izin vermedi),
 /// <c>409</c> concurrency çakışması (kural sorunu yok, sistem yarıştı — retry mantıklı).
@@ -14,18 +17,12 @@ namespace HiWallet.WalletApi.Setup;
 /// </summary>
 public static class ProblemDetailsSetup
 {
-    public static IServiceCollection AddHiWalletProblemDetails(this IServiceCollection services)
+    public static IServiceCollection AddWalletProblemDetails(this IServiceCollection services)
     {
-        services.AddProblemDetails(options =>
-            options.CustomizeProblemDetails = context =>
-            {
-                // Log ile response'u eşleştirebilmek için; OTel trace_id'siyle aynı değer.
-                context.ProblemDetails.Extensions["traceId"] =
-                    System.Diagnostics.Activity.Current?.TraceId.ToString()
-                    ?? context.HttpContext.TraceIdentifier;
-            });
+        services.AddHiWalletProblemDetails();
 
-        // Sıra önemli: ilk eşleşen kazanır, en özelden genele.
+        // Sıra önemli: ilk eşleşen kazanır, en özelden genele. Hiçbiri eşleşmezse
+        // ortak taban devreye giriyor ve detaysız 500 yazıyor.
         services.AddExceptionHandler<DomainExceptionHandler>();
         services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<ConcurrencyExceptionHandler>();

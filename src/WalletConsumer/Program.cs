@@ -3,6 +3,7 @@ using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.WalletConsumer;
 using HiWallet.WalletService.Setup;
+using HiWallet.Shared.Infrastructure.Errors;
 
 // Ingress'i YOK. Hiçbir istemci buraya bağlanmıyor; mesajları kendisi kuyruktan
 // çekiyor. Ledger'a yazan kod böylece public bir uygulamanın içinden çıkmış oluyor
@@ -35,9 +36,17 @@ builder.Services.AddProviderPolicy(builder.Configuration);
 
 builder.Services.AddWalletConsumer(builder.Configuration);
 
+// Ingress'i yok ama health endpoint'leri var: orada çıkan bir istisna aksi halde
+// çıplak 500 dönerdi ve Development'ta stack trace'i sayfaya basardı (baseline.md
+// madde 5).
+builder.Services.AddHiWalletProblemDetails();
+
 var app = builder.Build();
 
 app.ValidateWalletConsumerConfiguration();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // Tek HTTP yüzeyi bu. Controller yok, API dokümanı yok, rate limiter yok.
 // Probe olmadan "process ayakta ama tüketici tıkanmış" durumu görünmez olurdu.

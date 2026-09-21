@@ -9,6 +9,7 @@ using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 using HiWallet.WithdrawalOrchestrator.Setup;
+using HiWallet.Shared.Infrastructure.Errors;
 
 // Withdrawal saga'sının state machine'i. Komutları wallet-consumer ve bank-adapter
 // tüketiyor; bu servis saga'yı onların cevaplarıyla ilerletiyor.
@@ -48,7 +49,7 @@ builder.Services.AddSingleton<StuckSagaScanner>();
 builder.Services.AddHostedService<StuckSagaScan>();
 
 builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
+builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddHiWalletOpenApi();
 builder.Services.AddOrchestratorRateLimiting();
 

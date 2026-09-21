@@ -2,6 +2,7 @@ using HiWallet.BankAdapter.Setup;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
+using HiWallet.Shared.Infrastructure.Errors;
 
 // BANKAYA BAKAN ADAPTÖR — BİZİM KODUMUZ, canlıda da koşuyor (decisions.md madde 35).
 //
@@ -27,9 +28,17 @@ builder.Services.AddBankAdapter(builder.Configuration);
 
 builder.Services.AddSingleton(TimeProvider.System);
 
+// Ingress'i yok ama health endpoint'leri var: orada çıkan bir istisna aksi halde
+// çıplak 500 dönerdi ve Development'ta stack trace'i sayfaya basardı (baseline.md
+// madde 5).
+builder.Services.AddHiWalletProblemDetails();
+
 var app = builder.Build();
 
 app.ValidateBankAdapterConfiguration();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // Yalnızca health check endpoint'i. Controller YOK: bu servisin HTTP yüzeyi yok, dışarı çağrı
 // yapıyor. Health check endpoint'i da host'a açılmıyor, compose içinde kalıyor.

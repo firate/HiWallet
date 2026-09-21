@@ -8,6 +8,7 @@ using HiWallet.TopupWebhook.Application;
 using HiWallet.TopupWebhook.Infrastructure.Messaging;
 using HiWallet.TopupWebhook.Setup;
 using Microsoft.AspNetCore.RateLimiting;
+using HiWallet.Shared.Infrastructure.Errors;
 
 const string ServiceName = "hiwallet-topup-webhook";
 
@@ -41,7 +42,7 @@ builder.Services.AddHiWalletJobLease(PersistenceSetup.ConnectionStringName);
 builder.Services.AddHostedService<TopupRelay>();
 
 builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
+builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
