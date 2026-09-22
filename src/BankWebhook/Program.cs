@@ -1,6 +1,7 @@
 using HiWallet.BankWebhook.Setup;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
+using HiWallet.Shared.Infrastructure.Errors;
 
 // BANKANIN BİZİ ÇAĞIRDIĞI ENDPOINT — bizim kodumuz, canlıda da koşuyor
 // (decisions.md madde 35).
@@ -29,7 +30,7 @@ builder.Services.AddBankWebhook();
 builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
+builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddBankWebhookRateLimiting();
 
 var app = builder.Build();

@@ -45,6 +45,23 @@ public static class ObservabilitySetup
                 .GetName().Version?.ToString() ?? "0.0.0")
             .AddEnvironmentVariableDetector();
 
+        // İnsan kanalı (baseline.md madde 2). Makine kanalı OTLP'ye gidiyor ve
+        // Collector ayakta değilken hiçbir şey göstermiyor; local geliştirmede
+        // terminalde okunabilir bir kanal gerekiyor.
+        //
+        // Yalnızca Development: canlıda log'u toplayan şey Collector ve ikinci bir
+        // format üretmenin karşılığı yok. Ayar burada, servis başına
+        // appsettings'te değil — altı servisin formatı tek yerden geliyor.
+        if (builder.Environment.IsDevelopment())
+        {
+            builder.Logging.AddSimpleConsole(options =>
+            {
+                options.SingleLine = true;
+                options.TimestampFormat = "HH:mm:ss ";
+                options.UseUtcTimestamp = true;
+            });
+        }
+
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.SetResourceBuilder(resource);

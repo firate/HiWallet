@@ -21,7 +21,10 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - `ILogger<T>` (Microsoft.Extensions.Logging) + OpenTelemetry Logs. **Serilog yok.**
 - Log'lar OTLP ile export edilir; trace_id/span_id log record'una otomatik gömülür (korelasyon bedava).
 - Doğru log seviyeleri (Information / Warning / Error).
-- **Kapsam:** Makine kanalı OTLP → Collector → Loki. İnsan kanalı local'de ayrı `AddSimpleConsole` (terminalde okunur format).
+- **Kapsam:** Makine kanalı OTLP → Collector → Loki. İnsan kanalı `AddSimpleConsole`
+  (tek satır, UTC damgası) ve YALNIZCA Development'ta açılıyor: canlıda log'u toplayan
+  şey Collector, ikinci bir format üretmenin karşılığı yok. Kayıt ortak
+  `AddHiWalletObservability` içinde, yani altı servisin formatı tek yerden geliyor.
 
 ### 3. Observability — Traces & Metrics
 
@@ -41,7 +44,14 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - Global exception handling middleware.
 - Tutarlı error response: RFC 7807 ProblemDetails.
 - Beklenen hatalar (validation, not found) ile beklenmeyen (unhandled) ayrımı; internal detay client'a sızmaz.
-- **Kapsam:** Birkaç custom exception tipi + tek merkezi handler yeterli.
+- **Kapsam:** Birkaç custom exception tipi + tek merkezi handler yeterli. Taban
+  `Shared.Infrastructure` içinde (`AddHiWalletProblemDetails`) ve ALTI serviste de
+  kurulu — ingress'i olmayan `wallet-consumer` ile `bank-adapter` dahil, çünkü
+  onların da health endpoint'i var ve orada çıkan bir istisna aksi halde çıplak
+  `500` dönerdi. Yakalanmamış istisnanın gövdesi iç detay TAŞIMAZ: tip, mesaj ve
+  stack trace yalnızca log'a gider, dışarıya çıkan tek bağ `traceId`'dir. İş kuralı
+  ayrımını (`422`/`404`/`409`) yapan handler'lar servisin kendi kurulumunda, bu
+  tabanın üstünde durur.
 
 ### 6. Input Validation
 

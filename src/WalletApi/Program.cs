@@ -34,7 +34,7 @@ builder.Host.UseWolverine(options =>
 builder.Services.AddHiWalletPersistence();
 builder.Services.AddHiWalletPolicies(builder.Configuration);
 builder.Services.AddHiWalletValidation();
-builder.Services.AddHiWalletProblemDetails();
+builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 builder.Services.AddHiWalletRateLimiting(builder.Configuration);
 
