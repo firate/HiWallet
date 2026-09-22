@@ -1,6 +1,7 @@
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using HiWallet.Shared.Infrastructure.Persistence;
 
 namespace HiWallet.WalletService.Setup;
 
@@ -28,7 +29,11 @@ public static class PersistenceSetup
                 // Retry'ı EF yapmıyor: çakışma yönetimi handler'da, kendi kuralımızla
                 // (decisions.md madde 9). İkisi üst üste binerse aynı transfer birden
                 // fazla kez denenmiş olur.
-                npgsql => npgsql.EnableRetryOnFailure(0));
+                npgsql =>
+                {
+                    npgsql.EnableRetryOnFailure(0);
+                    npgsql.CommandTimeout(DbTimeouts.CommandSeconds);
+                });
         });
 
         services.AddSingleton<IClock, SystemClock>();

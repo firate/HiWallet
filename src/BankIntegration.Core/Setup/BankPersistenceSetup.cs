@@ -1,5 +1,6 @@
 using HiWallet.BankIntegration.Persistence;
 using Microsoft.EntityFrameworkCore;
+using HiWallet.Shared.Infrastructure.Persistence;
 
 namespace HiWallet.BankIntegration.Setup;
 
@@ -16,9 +17,10 @@ public static class BankPersistenceSetup
         // Bağlantı dizesi KAYIT anında değil, context kurulurken okunuyor —
         // WebApplicationFactory konfigürasyonunu host kurulduktan SONRA ekliyor.
         services.AddDbContextFactory<BankDbContext>((provider, options) =>
-            options.UseNpgsql(provider
-                .GetRequiredService<IConfiguration>()
-                .GetConnectionString(ConnectionStringName)));
+            options.UseNpgsql(
+                provider.GetRequiredService<IConfiguration>()
+                    .GetConnectionString(ConnectionStringName),
+                npgsql => npgsql.CommandTimeout(DbTimeouts.CommandSeconds)));
 
         return services;
     }

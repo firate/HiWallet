@@ -108,7 +108,13 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 - Dış bağımlılıklar için Polly: timeout, retry (yalnız idempotent çağrılarda), circuit breaker.
 - Bir bağımlılığın çökmesi tüm servisi kilitlemez.
-- **Kapsam:** `Microsoft.Extensions.Http.Resilience` (Polly v8) ile standart resilience handler yeterli. Dış bağımlılık yoksa bile DB/cache çağrılarında timeout uygulanır.
+- **Kapsam:** `Microsoft.Extensions.Http.Resilience` (Polly v8) ile standart resilience
+  handler yeterli. Dış bağımlılık yoksa bile DB çağrılarında timeout uygulanıyor:
+  komut başına 10 saniye, dört `DbContext`'te de aynı değer
+  (`Shared.Infrastructure` içinde `DbTimeouts.CommandSeconds`). Npgsql'in varsayılanı
+  30 saniye ve takılan bir sorgunun bağlantıyı o kadar tutması, bir bağımlılığın
+  yavaşlamasını tüm servisin kilitlenmesine çevirirdi. Migration'lar bu sınırın
+  DIŞINDA: onlar `--connection` ile design-time factory üzerinden koşuyor.
 
 ### 12. Idempotency & Consistency
 

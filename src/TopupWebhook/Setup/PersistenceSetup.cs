@@ -1,5 +1,6 @@
 using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using HiWallet.Shared.Infrastructure.Persistence;
 
 namespace HiWallet.TopupWebhook.Setup;
 
@@ -16,7 +17,9 @@ public static class PersistenceSetup
         {
             var configuration = provider.GetRequiredService<IConfiguration>();
 
-            options.UseNpgsql(configuration.GetConnectionString(ConnectionStringName));
+            options.UseNpgsql(
+                configuration.GetConnectionString(ConnectionStringName),
+                npgsql => npgsql.CommandTimeout(DbTimeouts.CommandSeconds));
         });
 
         return services;
