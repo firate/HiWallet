@@ -57,7 +57,11 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 - Sınırda doğrulama (FluentValidation).
 - Geçersiz girdi domain'e ulaşmadan reddedilir, anlamlı mesaj döner.
-- **Kapsam:** Sadece kullanılan endpoint'lerin DTO'ları için.
+- **Kapsam:** Sadece kullanılan endpoint'lerin DTO'ları için. `bank-webhook`'ta YOK
+  ve doğrulanacak DTO'su olmadığı için: gövdeyi imza için ham bayt olarak okuyup
+  yalnızca `eventId` alanını çıkarıyor, geri kalanı çözümlemeden inbox'a yazıyor.
+  Kimliksiz bildirimi `400` ile reddetmek controller'ın kendi kontrolü — madde 9'daki
+  OpenAPI gerekçesinin aynısı, sözleşme karşı tarafın ve gövde bizde parse edilmiyor.
 
 ### 7. Rate Limiting
 
@@ -82,13 +86,16 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - Connection pooling (Npgsql default).
 - Net transaction sınırları.
 - Concurrency stratejisi açık — burada optimistic lock, çünkü dominant temanın parçası (`decisions.md` madde 2).
-- Unbounded query yok; liste dönen endpoint'lerde pagination.
+- Unbounded query yok; liste dönen endpoint'lerde pagination. Bugün liste dönen
+  endpoint YOK — dört `GET` de kimlikle tek kayıt getiriyor, dolayısıyla kural
+  ihlal edilmiyor ama gösterilmiyor da. İlk liste endpoint'i (cüzdan hareketleri)
+  eklendiğinde bu satır kanıtlanacak.
 - **Kapsam:** Repository soyutlaması değer katıyorsa eklenir, yoksa doğrudan DbContext.
 
 ### 9. API Contract
 
 - Versiyonlama: `/v1` prefix.
-- Liste endpoint'lerinde pagination.
+- Liste endpoint'lerinde pagination (bugün liste endpoint'i yok, bkz. madde 8).
 - OpenAPI dokümanı `Microsoft.AspNetCore.OpenApi` ile üretilir — framework'ün kendi üreteci.
 - Arayüz Scalar. Üreteç yalnızca JSON dokümanı veriyor, UI ayrı bir bağımlılık.
 - İkisi de YALNIZCA Development'ta açılır; canlıda API yüzeyinin şeması yayınlanmıyor.
@@ -108,7 +115,13 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 - Dış bağımlılıklar için Polly: timeout, retry (yalnız idempotent çağrılarda), circuit breaker.
 - Bir bağımlılığın çökmesi tüm servisi kilitlemez.
-- **Kapsam:** `Microsoft.Extensions.Http.Resilience` (Polly v8) ile standart resilience handler yeterli. Dış bağımlılık yoksa bile DB/cache çağrılarında timeout uygulanır.
+- **Kapsam:** `Microsoft.Extensions.Http.Resilience` (Polly v8) ile standart resilience
+  handler yeterli. Dış bağımlılık yoksa bile DB çağrılarında timeout uygulanıyor:
+  komut başına 10 saniye, dört `DbContext`'te de aynı değer
+  (`Shared.Infrastructure` içinde `DbTimeouts.CommandSeconds`). Npgsql'in varsayılanı
+  30 saniye ve takılan bir sorgunun bağlantıyı o kadar tutması, bir bağımlılığın
+  yavaşlamasını tüm servisin kilitlenmesine çevirirdi. Migration'lar bu sınırın
+  DIŞINDA: onlar `--connection` ile design-time factory üzerinden koşuyor.
 
 ### 12. Idempotency & Consistency
 
