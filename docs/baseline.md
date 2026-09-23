@@ -86,16 +86,17 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - Connection pooling (Npgsql default).
 - Net transaction sınırları.
 - Concurrency stratejisi açık — burada optimistic lock, çünkü dominant temanın parçası (`decisions.md` madde 2).
-- Unbounded query yok; liste dönen endpoint'lerde pagination. Bugün liste dönen
-  endpoint YOK — dört `GET` de kimlikle tek kayıt getiriyor, dolayısıyla kural
-  ihlal edilmiyor ama gösterilmiyor da. İlk liste endpoint'i (cüzdan hareketleri)
-  eklendiğinde bu satır kanıtlanacak.
+- Unbounded query yok; liste dönen endpoint'lerde pagination. Tek liste endpoint'i
+  `GET /v1/wallets/{id}/movements` ve sayfalaması CURSOR ile: ledger append-only,
+  yeni satırlar listenin başına giriyor ve `OFFSET` iki sayfa arasında gelen bir
+  hareket yüzünden sayfayı kaydırıp aynı kaydı iki kez gösterirdi. Sayfa boyutunun
+  tavanı 100; üstü reddedilmiyor, tavana çekiliyor.
 - **Kapsam:** Repository soyutlaması değer katıyorsa eklenir, yoksa doğrudan DbContext.
 
 ### 9. API Contract
 
 - Versiyonlama: `/v1` prefix.
-- Liste endpoint'lerinde pagination (bugün liste endpoint'i yok, bkz. madde 8).
+- Liste endpoint'lerinde pagination — cursor ile (bkz. madde 8).
 - OpenAPI dokümanı `Microsoft.AspNetCore.OpenApi` ile üretilir — framework'ün kendi üreteci.
 - Arayüz Scalar. Üreteç yalnızca JSON dokümanı veriyor, UI ayrı bir bağımlılık.
 - İkisi de YALNIZCA Development'ta açılır; canlıda API yüzeyinin şeması yayınlanmıyor.

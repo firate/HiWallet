@@ -36,3 +36,48 @@ public enum LedgerTransactionType
     /// <summary>Invoiced modelde fatura kaydı. Idempotency key = fatura numarası (decisions.md madde 11).</summary>
     ProviderInvoice = 10
 }
+
+/// <summary>
+/// <see cref="LedgerTransactionType"/>'ın metin karşılıkları. Kolon değeri ve API
+/// gövdesi aynı kaynaktan besleniyor; iki yerde ayrı yazılsalardı biri
+/// değiştiğinde diğeri sessizce eski değerle kalırdı (FundType ile aynı gerekçe).
+/// </summary>
+public static class LedgerTransactionTypes
+{
+    public static string ToText(this LedgerTransactionType type)
+    {
+        return type switch
+        {
+            LedgerTransactionType.P2P => "p2p",
+            LedgerTransactionType.P2B => "p2b",
+            LedgerTransactionType.B2P => "b2p",
+            LedgerTransactionType.B2B => "b2b",
+            LedgerTransactionType.Payment => "payment",
+            LedgerTransactionType.Topup => "topup",
+            LedgerTransactionType.Withdrawal => "withdrawal",
+            LedgerTransactionType.Refund => "refund",
+            LedgerTransactionType.Settlement => "settlement",
+            LedgerTransactionType.ProviderInvoice => "provider_invoice",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış işlem tipi.")
+        };
+    }
+
+    public static LedgerTransactionType FromText(string text)
+    {
+        return text switch
+        {
+            "p2p" => LedgerTransactionType.P2P,
+            "p2b" => LedgerTransactionType.P2B,
+            "b2p" => LedgerTransactionType.B2P,
+            "b2b" => LedgerTransactionType.B2B,
+            "payment" => LedgerTransactionType.Payment,
+            "topup" => LedgerTransactionType.Topup,
+            "withdrawal" => LedgerTransactionType.Withdrawal,
+            "refund" => LedgerTransactionType.Refund,
+            "settlement" => LedgerTransactionType.Settlement,
+            "provider_invoice" => LedgerTransactionType.ProviderInvoice,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen işlem tipi.")
+        };
+    }
+}
+
