@@ -79,9 +79,18 @@ Location: http://localhost:8091/v1/wallets/23948ca4-7c69-4b0a-b8a1-eccdc87876a4
   "accountId": "d5e9df14-cd62-4ad5-b628-08df56e06daa",
   "name": "Birikim",
   "currency": "TRY",
-  "balance": 0.0000
+  "balance": 0.0000,
+  "withdrawable": 0.0000,
+  "balances": [
+    { "fundType": "cash",  "balance": 0.0000 },
+    { "fundType": "card",  "balance": 0.0000 },
+    { "fundType": "promo", "balance": 0.0000 }
+  ]
 }
 ```
+
+Açılışta üç kova da sıfır. Response'un şekli sorguyla aynı; kovalar açılışta
+gizlenip sonra ortaya çıkmıyor.
 
 `name` zorunlu: aynı hesabın aynı para birimindeki cüzdanları başka türlü ayırt
 edilemiyor. Bakiye her zaman `0` başlar — para yalnızca ledger üzerinden girer.
@@ -141,11 +150,26 @@ curl -s localhost:8091/v1/wallets/$WALLET
   "accountId": "d5e9df14-cd62-4ad5-b628-08df56e06daa",
   "name": "Birikim",
   "currency": "TRY",
-  "balance": 500.0000
+  "balance": 500.0000,
+  "withdrawable": 300.0000,
+  "balances": [
+    { "fundType": "cash",  "balance": 300.0000 },
+    { "fundType": "card",  "balance": 150.0000 },
+    { "fundType": "promo", "balance":  50.0000 }
+  ]
 }
 ```
 
 Bakiye `ledger_balances` projeksiyonundan okunur, `ledger_entries` toplanarak değil.
+
+**`balance` kovaların toplamı, `withdrawable` IBAN'a çıkabilen kısım**
+(`decisions.md` madde 36). Yukarıdaki cüzdanda 500 TRY var ama çekime açık olan
+300; kalan 150 kart ile yüklendiği, 50 de hediye bakiye olduğu için nakde
+çevrilemiyor. İkisi ayrı dönüyor, yoksa müşteri çekimin neden reddedildiğini
+göremezdi.
+
+Kovalar sıfır olsalar da listede duruyor — yeni açılmış bir cüzdanda üçü de
+`0` döner.
 
 **Sistem hesabı bu endpoint'ten görünmez.** `revenue` ya da `clearing` kimliğiyle sorarsan
 `404` dönerler — aynı tabloda duruyorlar ama iç muhasebe, public API'nin
@@ -162,11 +186,36 @@ curl -s localhost:8091/v1/accounts/$ACCOUNT
   "type": "Person",
   "createdAt": "2026-09-06T12:41:03.117421+00:00",
   "wallets": [
-    { "walletId": "23948ca4-...", "name": "Birikim", "currency": "TRY", "balance": 398.0000 },
-    { "walletId": "7c1e0b22-...", "name": "Harcama", "currency": "TRY", "balance": 0.0000 }
+    {
+      "walletId": "23948ca4-...",
+      "name": "Birikim",
+      "currency": "TRY",
+      "balance": 398.0000,
+      "withdrawable": 198.0000,
+      "balances": [
+        { "fundType": "cash",  "balance": 198.0000 },
+        { "fundType": "card",  "balance": 150.0000 },
+        { "fundType": "promo", "balance":  50.0000 }
+      ]
+    },
+    {
+      "walletId": "7c1e0b22-...",
+      "name": "Harcama",
+      "currency": "TRY",
+      "balance": 0.0000,
+      "withdrawable": 0.0000,
+      "balances": [
+        { "fundType": "cash",  "balance": 0.0000 },
+        { "fundType": "card",  "balance": 0.0000 },
+        { "fundType": "promo", "balance": 0.0000 }
+      ]
+    }
   ]
 }
 ```
+
+Kırılım liste görünümünde de var: "neden çekemiyorum" sorusunun cevabı tek cüzdana
+girmeden görünüyor.
 
 ### Transfer
 
