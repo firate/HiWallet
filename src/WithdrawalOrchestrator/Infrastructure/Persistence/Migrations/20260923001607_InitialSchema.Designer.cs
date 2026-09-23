@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(OrchestratorDbContext))]
-    [Migration("20260907154044_AddWithdrawalSettlement")]
-    partial class AddWithdrawalSettlement
+    [Migration("20260923001607_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -78,6 +78,16 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("idempotency_key");
+
+                    b.Property<string>("InitiatedById")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("initiated_by_id");
+
+                    b.Property<string>("InitiatedByType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("initiated_by_type");
 
                     b.Property<Guid?>("RefundTransactionId")
                         .HasColumnType("uuid")
