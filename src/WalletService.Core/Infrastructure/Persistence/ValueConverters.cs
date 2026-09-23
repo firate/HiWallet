@@ -30,8 +30,10 @@ internal static class ValueConverters
     public static readonly ValueConverter<LedgerAccountType, string> LedgerAccountType =
         new(t => ToText(t), text => ToLedgerAccountType(text));
 
+    // Metinler LedgerTransactionTypes'tan geliyor: aynı değerler hareket
+    // listesinin API gövdesinde de kullanılıyor (FundType ile aynı gerekçe).
     public static readonly ValueConverter<LedgerTransactionType, string> LedgerTransactionType =
-        new(t => ToText(t), text => ToLedgerTransactionType(text));
+        new(t => t.ToText(), text => LedgerTransactionTypes.FromText(text));
 
     public static readonly ValueConverter<ActorType, string> ActorType =
         new(t => ToText(t), text => ToActorType(text));
@@ -110,42 +112,6 @@ internal static class ValueConverters
             "nostro" => Domain.Ledger.LedgerAccountType.Nostro,
             "provider_expense" => Domain.Ledger.LedgerAccountType.ProviderExpense,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen ledger hesap tipi.")
-        };
-    }
-
-    private static string ToText(LedgerTransactionType type)
-    {
-        return type switch
-        {
-            Domain.Ledger.LedgerTransactionType.P2P => "p2p",
-            Domain.Ledger.LedgerTransactionType.P2B => "p2b",
-            Domain.Ledger.LedgerTransactionType.B2P => "b2p",
-            Domain.Ledger.LedgerTransactionType.B2B => "b2b",
-            Domain.Ledger.LedgerTransactionType.Payment => "payment",
-            Domain.Ledger.LedgerTransactionType.Topup => "topup",
-            Domain.Ledger.LedgerTransactionType.Withdrawal => "withdrawal",
-            Domain.Ledger.LedgerTransactionType.Refund => "refund",
-            Domain.Ledger.LedgerTransactionType.Settlement => "settlement",
-            Domain.Ledger.LedgerTransactionType.ProviderInvoice => "provider_invoice",
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış işlem tipi.")
-        };
-    }
-
-    private static LedgerTransactionType ToLedgerTransactionType(string text)
-    {
-        return text switch
-        {
-            "p2p" => Domain.Ledger.LedgerTransactionType.P2P,
-            "p2b" => Domain.Ledger.LedgerTransactionType.P2B,
-            "b2p" => Domain.Ledger.LedgerTransactionType.B2P,
-            "b2b" => Domain.Ledger.LedgerTransactionType.B2B,
-            "payment" => Domain.Ledger.LedgerTransactionType.Payment,
-            "topup" => Domain.Ledger.LedgerTransactionType.Topup,
-            "withdrawal" => Domain.Ledger.LedgerTransactionType.Withdrawal,
-            "refund" => Domain.Ledger.LedgerTransactionType.Refund,
-            "settlement" => Domain.Ledger.LedgerTransactionType.Settlement,
-            "provider_invoice" => Domain.Ledger.LedgerTransactionType.ProviderInvoice,
-            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen işlem tipi.")
         };
     }
 }

@@ -75,6 +75,14 @@ internal sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<Ledger
         builder.HasIndex(e => new { e.LedgerAccountId, e.Currency })
             .HasDatabaseName("ix_ledger_entries_ledger_account_currency");
 
+        // Hareket listesi: cüzdanın satırları yeniden eskiye, cursor ile sayfalanıyor.
+        // Yukarıdaki index bu sorguya YETMİYOR — ortasındaki fund_type sıralamayı
+        // bozuyor ve Postgres cüzdanın tüm satırlarını toplayıp sıralamak zorunda
+        // kalıyor. Bu index sorguyu tek aramaya indiriyor.
+        builder.HasIndex(e => new { e.LedgerAccountId, e.Id })
+            .IsDescending(false, true)
+            .HasDatabaseName("ix_ledger_entries_movements");
+
         // Zero-sum trigger'ı her entry insert'ünde bu index üzerinden okuyor.
         builder.HasIndex(e => e.TransactionId)
             .HasDatabaseName("ix_ledger_entries_tx");

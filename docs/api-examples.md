@@ -175,6 +175,63 @@ Kovalar sıfır olsalar da listede duruyor — yeni açılmış bir cüzdanda ü
 `404` dönerler — aynı tabloda duruyorlar ama iç muhasebe, public API'nin
 cevaplayacağı soru değil.
 
+### Cüzdanın hareketleri
+
+```bash
+curl -s "localhost:8091/v1/wallets/$WALLET/movements?size=2"
+```
+```json
+{
+  "items": [
+    {
+      "movementId": 918274,
+      "transactionId": "6b1f0c2e-...",
+      "type": "withdrawal",
+      "amount": -206.0000,
+      "currency": "TRY",
+      "fundType": "cash",
+      "createdAt": "2026-09-22T14:10:55.201Z"
+    },
+    {
+      "movementId": 918270,
+      "transactionId": "a4c81d55-...",
+      "type": "p2p",
+      "amount": -102.0000,
+      "currency": "TRY",
+      "fundType": "cash",
+      "createdAt": "2026-09-22T13:02:11.884Z"
+    }
+  ],
+  "size": 2,
+  "nextCursor": 918270
+}
+```
+
+Kaynak `ledger_entries` — bakiye projeksiyonu değil, hareketin kendisi. `amount`
+yön taşır: cüzdana giren `+`, çıkan `-`. Transferde gönderen tek satır görür ve o
+satır komisyon dahil toplamı gösterir (yukarıda 100 + 2).
+
+**Sayfalama cursor ile.** Bir sonraki sayfa `nextCursor`'ı `after` olarak
+göndererek alınır:
+
+```bash
+curl -s "localhost:8091/v1/wallets/$WALLET/movements?size=2&after=918270"
+```
+
+Son sayfada `nextCursor` `null` döner; istemci listenin bittiğini buradan anlar ve
+ayrıca bir toplam sayı sorgusu koşulmaz.
+
+Offset yerine cursor seçildi çünkü ledger append-only ve yeni satırlar listenin
+**başına** giriyor. `OFFSET` ile iki sayfa arasında gelen bir top-up sayfayı
+kaydırır, müşteri aynı kaydı iki kez görürdü. Ayrıca derin sayfada `OFFSET`
+Postgres'e okunup atılacak satır saydırıyor; cursor `ix_ledger_entries_movements`
+üzerinde tek arama yapıyor.
+
+`size` tavanı 100. Daha büyüğü isteyen request reddedilmiyor, tavana çekiliyor ve
+response'taki `size` gerçekte uygulanan değeri söylüyor.
+
+Sistem hesapları bu endpoint'ten de görünmez: `revenue` kimliğiyle sorarsan `404`.
+
 ### Hesabı ve cüzdanlarını sorgula
 
 ```bash
