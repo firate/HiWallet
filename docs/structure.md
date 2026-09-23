@@ -409,12 +409,19 @@ Her servisin kendi migration klasörü var, `--project` ve `--startup-project` z
 Mac'te, repo kökünde:
 
 ```bash
-dotnet ef migrations add InitialLedger \
-  --project src/WalletService \
-  --startup-project src/WalletService \
+dotnet ef migrations add <Ad> \
+  --project src/WalletService.Core \
   --output-dir Infrastructure/Persistence/Migrations
 ```
+
+`--output-dir` ZORUNLU: verilmezse EF dosyaları projenin kökündeki `Migrations/`
+klasörüne yazar ve namespace kayar.
 
 Migration'lar elle düzenlenmez. Trigger ve `REVOKE` gibi ham SQL gereken yerler
 migration içinde `migrationBuilder.Sql(...)` ile eklenir — ayrı `.sql` dosyası
 tutulmaz, versiyonlama kopmasın.
+
+Dört veritabanının da tek bir `InitialSchema` migration'ı var. Proje henüz canlıya
+çıkmadığı için ara adımlar tutulmuyor; şemanın son hali tek dosyada okunuyor.
+Bu, ilk gerçek veri girene kadar geçerli — sonrasında her değişiklik kendi
+migration'ı olarak eklenir.

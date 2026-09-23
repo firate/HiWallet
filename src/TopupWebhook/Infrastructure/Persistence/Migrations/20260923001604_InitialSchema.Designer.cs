@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HiWallet.TopupWebhook.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(InboxDbContext))]
-    [Migration("20260907131633_GeneralizeInbox")]
-    partial class GeneralizeInbox
+    [Migration("20260923001604_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialWithdrawalSagas : Migration
+    public partial class InitialSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -36,6 +36,8 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     account_id = table.Column<Guid>(type: "uuid", nullable: false),
                     wallet_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    initiated_by_type = table.Column<string>(type: "text", nullable: false),
+                    initiated_by_id = table.Column<string>(type: "text", nullable: false),
                     idempotency_key = table.Column<string>(type: "text", nullable: false),
                     amount = table.Column<decimal>(type: "numeric(19,4)", nullable: false),
                     currency = table.Column<string>(type: "char(3)", nullable: false),
@@ -45,6 +47,9 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                     debit_transaction_id = table.Column<Guid>(type: "uuid", nullable: true),
                     refund_transaction_id = table.Column<Guid>(type: "uuid", nullable: true),
                     bank_command_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    bank_reference = table.Column<string>(type: "text", nullable: true),
+                    bank_fee = table.Column<decimal>(type: "numeric(19,4)", nullable: true),
+                    settlement_transaction_id = table.Column<Guid>(type: "uuid", nullable: true),
                     failure_reason = table.Column<string>(type: "text", nullable: true),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
@@ -70,7 +75,7 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                 name: "ix_withdrawal_sagas_active",
                 table: "withdrawal_sagas",
                 column: "updated_at",
-                filter: "state IN ('initiated', 'debited', 'bank_transfer_pending', 'compensating')");
+                filter: "state IN ('initiated', 'debited', 'bank_transfer_pending', 'compensating', 'settling')");
 
             migrationBuilder.CreateIndex(
                 name: "ix_withdrawal_sagas_wallet",

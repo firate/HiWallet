@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace HiWallet.TopupWebhook.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialInbox : Migration
+    public partial class InitialSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -18,7 +18,8 @@ namespace HiWallet.TopupWebhook.Infrastructure.Persistence.Migrations
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     provider = table.Column<string>(type: "text", nullable: false),
                     event_id = table.Column<string>(type: "text", nullable: false),
-                    ledger_account_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    kind = table.Column<string>(type: "text", nullable: false),
+                    routing_key = table.Column<string>(type: "text", nullable: false),
                     payload = table.Column<string>(type: "jsonb", nullable: false),
                     raw_payload = table.Column<string>(type: "jsonb", nullable: false),
                     received_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),

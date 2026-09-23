@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WalletDbContext))]
-    [Migration("20260904092806_GrantAppPrivileges")]
-    partial class GrantAppPrivileges
+    [Migration("20260923001625_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -58,6 +58,10 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("ledger_account_id");
 
+                    b.Property<string>("FundType")
+                        .HasColumnType("text")
+                        .HasColumnName("fund_type");
+
                     b.Property<decimal>("Balance")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("numeric(19,4)")
@@ -82,18 +86,40 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0L)
                         .HasColumnName("version");
 
-                    b.HasKey("LedgerAccountId")
+                    b.HasKey("LedgerAccountId", "FundType")
                         .HasName("pk_ledger_balances");
 
                     b.HasIndex("LedgerAccountId", "Currency")
                         .HasDatabaseName("ix_ledger_balances_ledger_account_currency");
 
-                    b.ToTable("ledger_balances", (string)null);
+                    b.ToTable("ledger_balances", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ledger_balances_fund_type", "fund_type IN ('cash','card','promo')");
+                        });
 
                     b.HasData(
                         new
                         {
                             LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000001"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000001"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000001"),
+                            FundType = "promo",
                             Balance = 0m,
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
@@ -102,6 +128,25 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         new
                         {
                             LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000002"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000002"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000002"),
+                            FundType = "promo",
                             Balance = 0m,
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
@@ -110,6 +155,25 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         new
                         {
                             LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000003"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000003"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000003"),
+                            FundType = "promo",
                             Balance = 0m,
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
@@ -118,6 +182,25 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         new
                         {
                             LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000004"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000004"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000004"),
+                            FundType = "promo",
                             Balance = 0m,
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
@@ -126,6 +209,25 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         new
                         {
                             LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000005"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000005"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000005"),
+                            FundType = "promo",
                             Balance = 0m,
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
@@ -134,6 +236,25 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         new
                         {
                             LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000006"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000006"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000006"),
+                            FundType = "promo",
                             Balance = 0m,
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
@@ -285,6 +406,11 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(3)")
                         .HasColumnName("currency");
 
+                    b.Property<string>("FundType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("fund_type");
+
                     b.Property<Guid>("LedgerAccountId")
                         .HasColumnType("uuid")
                         .HasColumnName("ledger_account_id");
@@ -302,12 +428,14 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.HasIndex("LedgerAccountId", "Currency")
                         .HasDatabaseName("ix_ledger_entries_ledger_account_currency");
 
-                    b.HasIndex("LedgerAccountId", "Id")
+                    b.HasIndex("LedgerAccountId", "FundType", "Id")
                         .HasDatabaseName("ix_ledger_entries_ledger_account");
 
                     b.ToTable("ledger_entries", null, t =>
                         {
                             t.HasCheckConstraint("ck_ledger_entries_amount", "amount <> 0");
+
+                            t.HasCheckConstraint("ck_ledger_entries_fund_type", "fund_type IN ('cash','card','promo')");
                         });
                 });
 
@@ -317,6 +445,16 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("actor_type");
 
                     b.Property<Guid?>("CorrelationId")
                         .HasColumnType("uuid")
@@ -329,6 +467,7 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("now()");
 
                     b.Property<string>("IdempotencyKey")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("idempotency_key");
 
@@ -346,10 +485,264 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LedgerAccountId", "IdempotencyKey")
                         .IsUnique()
-                        .HasDatabaseName("ux_ledger_tx_idem")
-                        .HasFilter("idempotency_key IS NOT NULL");
+                        .HasDatabaseName("ux_ledger_tx_idem");
 
                     b.ToTable("ledger_transactions", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.BusinessDailySummary", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<string>("Currency")
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("CalculatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("calculated_at");
+
+                    b.Property<decimal>("Commission")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("commission");
+
+                    b.Property<int>("TransactionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("transaction_count");
+
+                    b.Property<decimal>("Volume")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("volume");
+
+                    b.HasKey("AccountId", "Day", "Currency")
+                        .HasName("pk_business_daily_summaries");
+
+                    b.HasIndex("Day")
+                        .HasDatabaseName("ix_business_daily_summaries_day");
+
+                    b.ToTable("business_daily_summaries", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.ProcessedEvent", b =>
+                {
+                    b.Property<string>("Provider")
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("EventId")
+                        .HasColumnType("text")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid?>("LedgerTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_transaction_id");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.HasKey("Provider", "EventId")
+                        .HasName("pk_processed_events");
+
+                    b.ToTable("processed_events", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.ProcessedMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<Guid?>("LedgerTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_transaction_id");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("message_type");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("ReplyPayload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("reply_payload");
+
+                    b.Property<string>("ReplyRoutingKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reply_routing_key");
+
+                    b.Property<Guid>("SagaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("saga_id");
+
+                    b.HasKey("MessageId")
+                        .HasName("pk_processed_messages");
+
+                    b.HasIndex("SagaId")
+                        .HasDatabaseName("ix_processed_messages_saga");
+
+                    b.ToTable("processed_messages", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.ProviderFee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("ActualAmount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("actual_amount");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<decimal>("ExpectedAmount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("expected_amount");
+
+                    b.Property<string>("FeeType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("fee_type");
+
+                    b.Property<string>("InvoiceRef")
+                        .HasColumnType("text")
+                        .HasColumnName("invoice_ref");
+
+                    b.Property<Guid?>("LedgerTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_tx_id");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderRef")
+                        .HasColumnType("text")
+                        .HasColumnName("provider_ref");
+
+                    b.Property<string>("SettlementModel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("settlement_model");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_provider_fees");
+
+                    b.HasIndex("InvoiceRef")
+                        .HasDatabaseName("ix_provider_fees_invoice");
+
+                    b.HasIndex("TransactionId")
+                        .HasDatabaseName("ix_provider_fees_tx");
+
+                    b.HasIndex("Provider", "OccurredAt")
+                        .HasDatabaseName("ix_provider_fees_unbilled")
+                        .HasFilter("invoice_ref IS NULL");
+
+                    b.ToTable("provider_fees", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_provider_fees_settlement_model", "settlement_model IN ('net','invoiced')");
+                        });
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.ProviderInvoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<decimal>("ExpectedAmount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("expected_amount");
+
+                    b.Property<int>("FeeCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("fee_count");
+
+                    b.Property<string>("InvoiceRef")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("invoice_ref");
+
+                    b.Property<Guid?>("LedgerTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_tx_id");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_provider_invoices");
+
+                    b.HasIndex("ReceivedAt")
+                        .HasDatabaseName("ix_provider_invoices_pending")
+                        .HasFilter("status = 'pending_review'");
+
+                    b.HasIndex("Provider", "InvoiceRef")
+                        .IsUnique()
+                        .HasDatabaseName("ux_provider_invoices_ref");
+
+                    b.ToTable("provider_invoices", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_provider_invoices_status", "status IN ('applied','pending_review')");
+                        });
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>
