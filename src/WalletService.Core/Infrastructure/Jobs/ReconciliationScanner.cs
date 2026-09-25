@@ -1,3 +1,4 @@
+using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,9 +10,10 @@ namespace HiWallet.WalletService.Infrastructure.Jobs;
 /// Mutabakatın kendisi. Zamanlamadan ayrı duruyor ki test saatlerce beklemesin ve
 /// log metnine değil bulgulara baksın.
 ///
-/// Dört soru soruyor:
+/// Beş soru soruyor:
 /// <list type="number">
 /// <item>Projeksiyon ledger ile tutuyor mu?</item>
+/// <item>Cüzdanların promo bakiyesi partileriyle tutuyor mu?</item>
 /// <item>Clearing'de yaşlanan para var mı — sağlayıcı ödemedi mi?</item>
 /// <item>İncelemede bekleyen fatura var mı?</item>
 /// <item>Faturası gecikmiş ücret var mı?</item>
@@ -39,6 +41,7 @@ internal sealed class ReconciliationScanner(
 
         return new ReconciliationReport(
             await FindDriftsAsync(db, ct),
+            await FindPromoDriftsAsync(db, ct),
             await FindAgingClearingAsync(db, now, ct),
             await FindPendingInvoicesAsync(db, ct),
             await FindOverdueFeesAsync(db, now, ct));
@@ -80,6 +83,38 @@ internal sealed class ReconciliationScanner(
         return drifts
             .Select(row => new BalanceDrift(
                 row.LedgerAccountId, row.FundType, row.Balance, row.FromEntries))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Promo bakiyesi–parti karşılaştırması (decisions.md madde 37): cüzdanın promo
+    /// bakiyesi, partilerinin tutarlarından tüketimler düşülmüş toplamına eşit olmalı.
+    /// Ödeme harcanabilir promo'yu partilerden okuyor; ayrışma varsa müşteri ya
+    /// bakiyesinde görünen promo'yu harcayamıyor ya da görünmeyen promo'yu harcıyor.
+    /// </summary>
+    private async Task<IReadOnlyList<PromoDrift>> FindPromoDriftsAsync(
+        WalletDbContext db, CancellationToken ct)
+    {
+        var drifts = await db.LedgerBalances
+            .Where(balance => balance.FundType == FundType.Promo)
+            .Select(balance => new
+            {
+                balance.LedgerAccountId,
+                balance.Balance,
+                Granted = db.PromoGrants
+                    .Where(g => g.LedgerAccountId == balance.LedgerAccountId)
+                    .Sum(g => (decimal?)g.Amount) ?? 0m,
+                Consumed = db.PromoConsumptions
+                    .Where(c => db.PromoGrants.Any(
+                        g => g.Id == c.GrantId && g.LedgerAccountId == balance.LedgerAccountId))
+                    .Sum(c => (decimal?)c.Amount) ?? 0m
+            })
+            .Where(row => row.Balance != row.Granted - row.Consumed)
+            .Take(_options.SampleSize)
+            .ToListAsync(ct);
+
+        return drifts
+            .Select(row => new PromoDrift(row.LedgerAccountId, row.Balance, row.Granted - row.Consumed))
             .ToArray();
     }
 

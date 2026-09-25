@@ -1,10 +1,11 @@
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Contracts.Settlements;
 using HiWallet.Shared.Contracts.Topups;
-using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.Promos;
 using HiWallet.WalletService.Application.Settlements;
 using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Domain.Accounts;
+using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Infrastructure.Jobs;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -265,6 +266,52 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         OccurredAt = DateTimeOffset.UtcNow
     };
 
+    /// <summary>
+    /// Cüzdanın promo bakiyesi partilerin kalanlarının toplamına eşit olmalı
+    /// (decisions.md madde 37). Ledger'a partisiz yazılmış promo tam olarak bu
+    /// ayrışma: bakiye ledger ile tutuyor, partiler tutmuyor.
+    /// </summary>
+    [Fact]
+    public async Task PromoBakiyesiPartilerleAyrisirsa_Yakalanir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var wallet = await NewWalletAsync(ct);
+
+        Guid merchant;
+        await using (var db = postgres.CreateContext())
+        {
+            var business = await LedgerSeeder.CreateAccountAsync(db, AccountType.Business, ct);
+            merchant = await LedgerSeeder.CreateWalletAsync(db, business, "Mutabakat işyeri", ct);
+            await LedgerSeeder.FundAsync(db, merchant, 100m, ct);
+        }
+
+        await new GrantPromoHandler(postgres.ContextFactory, new FixedClock(Now), NullLogger<GrantPromoHandler>.Instance)
+            .HandleAsync(new GrantPromoCommand(merchant, wallet, 40m, "TRY", null, Guid.NewGuid().ToString("N")), ct);
+
+        (await CreateScanner().ScanAsync(ct))
+            .PromoDrifts.ShouldNotContain(d => d.LedgerAccountId == wallet);
+
+        await using (var db = postgres.CreateContext())
+        {
+            await LedgerSeeder.FundAsync(db, wallet, 5m, ct, FundType.Promo);
+        }
+
+        var drift = (await CreateScanner().ScanAsync(ct))
+            .PromoDrifts.Where(d => d.LedgerAccountId == wallet).ShouldHaveSingleItem();
+
+        drift.Balance.ShouldBe(45m);
+        drift.FromGrants.ShouldBe(40m);
+
+        // Ayrışma geri alınıyor: veritabanı koleksiyondaki bütün testlerle paylaşılıyor.
+        await using (var db = postgres.CreateContext())
+        {
+            await LedgerSeeder.FundAsync(db, wallet, -5m, ct, FundType.Promo);
+        }
+
+        (await CreateScanner().ScanAsync(ct))
+            .PromoDrifts.ShouldNotContain(d => d.LedgerAccountId == wallet);
+    }
+
     private async Task<Guid> NewWalletAsync(CancellationToken ct)
     {
         await using var db = postgres.CreateContext();
@@ -272,11 +319,5 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         var account = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
 
         return await LedgerSeeder.CreateWalletAsync(db, account, "Mutabakat testi", ct);
-    }
-
-    /// <summary>Handler'lar <c>IClock</c> alıyor; sabit an vermek için.</summary>
-    private sealed class FixedClock(DateTimeOffset now) : IClock
-    {
-        public DateTimeOffset UtcNow => now;
     }
 }
