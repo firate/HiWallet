@@ -152,8 +152,12 @@ public sealed class BusinessSummaryCalculatorTests(PostgresFixture postgres)
 
     /// <summary>
     /// Ödeme kaydının ledger karşılığı: gönderen −(tutar+komisyon), alan +tutar,
-    /// revenue +komisyon (overview.md madde 4). Bakiye projeksiyonu güncellenmiyor;
-    /// rapor <c>ledger_entries</c>'ten hesaplanıyor, bakiyeden değil.
+    /// revenue +komisyon (overview.md madde 4).
+    ///
+    /// Rapor <c>ledger_entries</c>'ten hesaplanıyor, bakiyeden değil — projeksiyon yine
+    /// de güncelleniyor. Veritabanı koleksiyonla paylaşılıyor; TransferTests ve
+    /// SchemaTests bakiyeyi entry toplamıyla karşılaştırıyor ve burada bırakılan sapma
+    /// onları bu sınıfın önce koşup koşmamasına bağlıyordu.
     /// </summary>
     private async Task PaymentAsync(
         Guid businessWallet, decimal amount, decimal commission, DateTimeOffset at, CancellationToken ct)
@@ -162,6 +166,10 @@ public sealed class BusinessSummaryCalculatorTests(PostgresFixture postgres)
 
         var payerAccount = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
         var payer = await LedgerSeeder.CreateWalletAsync(db, payerAccount, "Ödeyen", ct);
+
+        // Ödeyen önce fonlanıyor; yoksa bakiyesi negatife düşerdi. Top-up ciroya
+        // sayılmıyor (Topup_CiroyaSayilmaz), özeti etkilemiyor.
+        await LedgerSeeder.FundAsync(db, payer, amount + commission, ct);
 
         var currency = SystemAccounts.DefaultCurrency;
 
@@ -174,6 +182,19 @@ public sealed class BusinessSummaryCalculatorTests(PostgresFixture postgres)
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
+
+        foreach (var (id, delta) in new[]
+                 {
+                     (payer, -(amount + commission)),
+                     (businessWallet, amount),
+                     (SystemAccounts.RevenueTry, commission)
+                 }.OrderBy(x => x.Item1))
+        {
+            var balance = await db.LedgerBalances.FindAsync([id, FundType.Cash], ct)
+                          ?? throw new InvalidOperationException($"Bakiye satırı yok: {id}");
+
+            balance.Apply(new Money(delta, currency), canGoNegative: false, at);
+        }
 
         await db.SaveChangesAsync(ct);
     }
