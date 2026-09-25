@@ -47,4 +47,6 @@ public static class SystemFlows
     public const string ProviderInvoice = "provider-invoice";
 
     public const string WithdrawalSaga = "withdrawal-saga";
+
+    public const string PromoExpiry = "promo-expiry";
 }
