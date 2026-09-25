@@ -1,6 +1,5 @@
 using FluentValidation;
 using HiWallet.WalletApi.Requests;
-using HiWallet.WalletService.Domain.Ledger;
 
 namespace HiWallet.WalletApi.Validators;
 
@@ -26,40 +25,16 @@ public sealed class CreateTransferRequestValidator : AbstractValidator<CreateTra
 
         RuleFor(r => r.Currency)
             .NotEmpty().WithMessage("Para birimi zorunlu.")
-            .Must(BeAValidCurrency)
+            .Must(CurrencyRules.IsValid)
             .WithMessage("Para birimi 3 büyük harften oluşan ISO 4217 kodu olmalı.");
 
         // Tutarın ondalık basamağı para birimine bağlı; ikisi de geçerliyse kontrol edilir.
         RuleFor(r => r.Amount)
-            .Must((request, amount) => FitsMinorUnit(request.Currency, amount))
+            .Must((request, amount) => CurrencyRules.FitsMinorUnit(request.Currency, amount))
             .WithMessage(r => $"Tutar {r.Currency} için izin verilen ondalık basamağı aşıyor.")
-            .When(r => r.Amount > 0m && BeAValidCurrency(r.Currency));
+            .When(r => r.Amount > 0m && CurrencyRules.IsValid(r.Currency));
 
         RuleFor(r => r.Type)
             .IsInEnum().WithMessage("Bilinmeyen transfer tipi.");
-    }
-
-    private static bool BeAValidCurrency(string? code)
-    {
-        if (code is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            Currency.From(code);
-            return true;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
-
-    private static bool FitsMinorUnit(string code, decimal amount)
-    {
-        var currency = Currency.From(code);
-        return decimal.Round(amount, currency.MinorUnit) == amount;
     }
 }
