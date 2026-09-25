@@ -49,4 +49,6 @@ public static class SystemFlows
     public const string WithdrawalSaga = "withdrawal-saga";
 
     public const string PromoExpiry = "promo-expiry";
+
+    public const string PromoCampaign = "promo-campaign";
 }
