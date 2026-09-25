@@ -69,6 +69,12 @@ public sealed class PromoGrant
     /// <summary>Promo'yu cüzdana yazan ledger işlemi.</summary>
     public Guid LedgerTransactionId { get; private set; }
 
+    /// <summary>
+    /// Partiyi açan kampanya. Kampanyanın bütçesi ve hesap tavanları bu kolondan
+    /// toplanıyor. İşyerinin verdiği partide NULL.
+    /// </summary>
+    public Guid? CampaignId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
@@ -110,6 +116,35 @@ public sealed class PromoGrant
             PromoScope.SelectedBusinesses, expiresAt, ledgerTransactionId, createdAt);
 
         grant._merchants.Add(new PromoGrantMerchant(id, funderAccountId));
+
+        return grant;
+    }
+
+    /// <summary>
+    /// Kampanyanın verdiği promo. Platform fonlu; kapsam ve süre kampanyadan yükleme
+    /// anında kopyalanıyor, kampanya sonradan değişse de parti etkilenmiyor.
+    /// </summary>
+    public static PromoGrant FromCampaign(
+        Guid id,
+        Guid walletId,
+        Money amount,
+        PromoCampaign campaign,
+        Guid ledgerTransactionId,
+        DateTimeOffset createdAt)
+    {
+        if (amount.Amount <= 0m)
+        {
+            throw new ArgumentException("Promo tutarı pozitif olmalı.", nameof(amount));
+        }
+
+        var grant = new PromoGrant(
+            id, walletId, amount, PromoFunder.Platform, funderLedgerAccountId: null,
+            campaign.GrantScope, createdAt + campaign.GrantValidFor, ledgerTransactionId, createdAt)
+        {
+            CampaignId = campaign.Id
+        };
+
+        grant._merchants.AddRange(campaign.ScopeMerchants.Select(a => new PromoGrantMerchant(id, a)));
 
         return grant;
     }
@@ -195,6 +230,66 @@ public static class PromoTexts
             "all_businesses" => PromoScope.AllBusinesses,
             "selected_businesses" => PromoScope.SelectedBusinesses,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen kapsam.")
+        };
+    }
+
+    public static string ToText(this PromoCampaignRule rule)
+    {
+        return rule switch
+        {
+            PromoCampaignRule.PaymentToMerchant => "payment_to_merchant",
+            PromoCampaignRule.DailyPaymentTotal => "daily_payment_total",
+            _ => throw new ArgumentOutOfRangeException(nameof(rule), rule, "Eşlemesi yazılmamış kural.")
+        };
+    }
+
+    public static PromoCampaignRule RuleFromText(string text)
+    {
+        return text switch
+        {
+            "payment_to_merchant" => PromoCampaignRule.PaymentToMerchant,
+            "daily_payment_total" => PromoCampaignRule.DailyPaymentTotal,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen kural.")
+        };
+    }
+
+    public static string ToText(this PromoRewardType type)
+    {
+        return type switch
+        {
+            PromoRewardType.Fixed => "fixed",
+            PromoRewardType.Percentage => "percentage",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış ödül tipi.")
+        };
+    }
+
+    public static PromoRewardType RewardTypeFromText(string text)
+    {
+        return text switch
+        {
+            "fixed" => PromoRewardType.Fixed,
+            "percentage" => PromoRewardType.Percentage,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen ödül tipi.")
+        };
+    }
+
+    public static string ToText(this PromoCampaignMerchantRole role)
+    {
+        return role switch
+        {
+            PromoCampaignMerchantRole.Trigger => "trigger",
+            PromoCampaignMerchantRole.Scope => "scope",
+            _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Eşlemesi yazılmamış rol.")
+        };
+    }
+
+    public static PromoCampaignMerchantRole RoleFromText(string text)
+    {
+        return text switch
+        {
+            "trigger" => PromoCampaignMerchantRole.Trigger,
+            "scope" => PromoCampaignMerchantRole.Scope,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen rol.")
         };
     }
 }

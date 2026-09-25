@@ -51,6 +51,15 @@ internal static class ValueConverters
     public static readonly ValueConverter<PromoScope, string> PromoScope =
         new(s => s.ToText(), text => PromoTexts.ScopeFromText(text));
 
+    public static readonly ValueConverter<PromoCampaignRule, string> PromoCampaignRule =
+        new(r => r.ToText(), text => PromoTexts.RuleFromText(text));
+
+    public static readonly ValueConverter<PromoRewardType, string> PromoRewardType =
+        new(t => t.ToText(), text => PromoTexts.RewardTypeFromText(text));
+
+    public static readonly ValueConverter<PromoCampaignMerchantRole, string> PromoCampaignMerchantRole =
+        new(r => r.ToText(), text => PromoTexts.RoleFromText(text));
+
     // Metinler ActorTypes'tan geliyor: aynı değerler mesaj sözleşmesinde de
     // kullanılıyor ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce
     // eski değerle kalırdı.
