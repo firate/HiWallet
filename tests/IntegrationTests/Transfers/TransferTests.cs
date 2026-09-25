@@ -236,6 +236,81 @@ public sealed class TransferTests(PostgresFixture postgres)
         second.TransactionId.ShouldBe(first.TransactionId);
     }
 
+    /// <summary>
+    /// Tip tarafların hesap tipleriyle uyuşmalı: kişiye <c>Payment</c>, işletmeye
+    /// <c>P2P</c> geçmez. Kontrol yokken ikisi de ledger'a yazılıyordu.
+    /// </summary>
+    [Theory]
+    [InlineData(TransferType.Payment, AccountType.Person)]
+    [InlineData(TransferType.P2P, AccountType.Business)]
+    public async Task Transfer_TipHesapTipleriyleUyusmaz_Reddeder_VeHicYazmaz(
+        TransferType type, AccountType receiverType)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Guid from, to;
+
+        await using (var db = postgres.CreateContext())
+        {
+            var a1 = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            var a2 = await LedgerSeeder.CreateAccountAsync(db, receiverType, ct);
+            from = await LedgerSeeder.CreateWalletAsync(db, a1, "Gönderen", ct);
+            to = await LedgerSeeder.CreateWalletAsync(db, a2, "Alıcı", ct);
+            await LedgerSeeder.FundAsync(db, from, 500m, ct);
+        }
+
+        var handler = Handler(postgres);
+        var key = Guid.NewGuid().ToString("N");
+
+        await Should.ThrowAsync<TransferTypeMismatchException>(() => handler.HandleAsync(
+            new CreateTransferCommand(from, to, 100m, Try.Code, type, key), ct));
+
+        await using var verify = postgres.CreateContext();
+
+        (await verify.LedgerTransactions.AnyAsync(t => t.IdempotencyKey == key, ct)).ShouldBeFalse();
+        (await verify.LedgerEntries.CountAsync(e => e.LedgerAccountId == to, ct)).ShouldBe(0);
+
+        var balance = await verify.LedgerBalances.SingleAsync(b => b.LedgerAccountId == from && b.FundType == FundType.Cash, ct);
+        balance.Balance.ShouldBe(500m);
+    }
+
+    [Fact]
+    public async Task Transfer_HesapTipiDegistiktenSonraTekrar_TipHatasiDegilMevcutIslemiDoner()
+    {
+        // Tip kontrolü de idempotency kapısından SONRA (decisions.md madde 21): tekrar
+        // eden request hiçbir kuralı yeniden değerlendirmez. Hesap tipini değiştiren bir
+        // yol yok; test tipi doğrudan yazıyor ki kontrol kapıdan önce koşsaydı tekrar
+        // orijinal işlem yerine tip hatası alsın.
+        var ct = TestContext.Current.CancellationToken;
+        Guid receiverAccount, from, to;
+
+        await using (var db = postgres.CreateContext())
+        {
+            var a1 = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            receiverAccount = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            from = await LedgerSeeder.CreateWalletAsync(db, a1, "Gönderen", ct);
+            to = await LedgerSeeder.CreateWalletAsync(db, receiverAccount, "Alıcı", ct);
+            await LedgerSeeder.FundAsync(db, from, 500m, ct);
+        }
+
+        var handler = Handler(postgres);
+        var command = new CreateTransferCommand(
+            from, to, 100m, Try.Code, TransferType.P2P, IdempotencyKey: "tipi-degisen");
+
+        var first = await handler.HandleAsync(command, ct);
+
+        await using (var db = postgres.CreateContext())
+        {
+            await db.Accounts
+                .Where(a => a.Id == receiverAccount)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.Type, AccountType.Business), ct);
+        }
+
+        var second = await handler.HandleAsync(command, ct);
+
+        second.Replayed.ShouldBeTrue();
+        second.TransactionId.ShouldBe(first.TransactionId);
+    }
+
     [Fact]
     public async Task Transfer_KomisyonluTip_UcBacakYazar_VeGelirHesabinaGider()
     {
