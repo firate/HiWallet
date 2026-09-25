@@ -1620,12 +1620,44 @@ backoffice ile geliyor.
 geri geliyor. Süresi dolan platform promo'su da açık oluşturmuyor, çünkü hiç e-paraya
 dönüşmedi.
 
-**Kampanya.** Personel kural tanımlıyor: belirli bir işyerine ödeme, günlük ödeme
-toplamının bir eşiği geçmesi. Değerlendirme wallet-consumer'da bir iş: ledger'daki yeni
-`Payment` işlemlerini cursor ile okuyor ve kurala uyan hesaba promo yazıyor. `Payment`
-wallet-api'de yazılıyor ve wallet-api'nin broker bağlantısı yok, bu yüzden
-değerlendirme ledger'dan okuyor. Kampanya bütçesi ve hesap başına tavan kampanya
-tanımının zorunlu alanları.
+**Kampanya.** Kampanya `promo_campaigns` tablosunda bir satır: kural, ödül, verilen
+partinin kapsamı ve süresi, bütçe, iki hesap tavanı, geçerlilik aralığı. Kampanyadan
+gelen parti platform fonlu; aktörü `system`, akış adı `promo-campaign`.
+
+| kural | tetikleyen ödeme | ödül |
+| --- | --- | --- |
+| `payment_to_merchant` | kampanyanın işyerlerinden birine yapılan `Payment` | sabit tutar ya da ödemenin yüzdesi, yüzdede tavan zorunlu |
+| `daily_payment_total` | hesabın o günkü (UTC) ödeme toplamını eşiğe ulaştıran `Payment` | sabit tutar |
+
+Tabana yalnızca müşterinin `card` ve `cash` ile ödediği tutar giriyor: promo ile
+karşılanan kısım eşik toplamına ve yüzde ödülün tabanına sayılmıyor, promo ile yapılan
+ödeme yeni promo kazandırmıyor. Komisyon da sayılmıyor; taban işyerine giden tutar.
+
+Günlük eşikte hesabın günlük toplamı yalnızca artıyor ve ödeme iadesi yok. Eşiğe
+ulaştıran ödeme kayıtlı veriden kesin olarak belli ve kampanya bir hesaba bir günde en
+fazla bir kez veriyor. Yüzde ödül yalnızca işyerine ödeme kuralında: günlük eşikte
+yüzdenin tabanı eşiğe ulaştıran ödeme de olabilir günün toplamı da, kural bunu tek
+anlama indirmiyor. Yüzde ödül para biriminin küçük birimine aşağı yuvarlanıyor.
+
+**Sınırlar.** Üçü de zorunlu: kampanya bütçesi, hesap başına günlük tutar, hesap başına
+kampanya boyunca tutar. Ödül üçünün kalanından en küçüğüne kırpılıyor; kalan sıfırsa
+parti açılmıyor. Toplamlar kampanyanın açtığı partilerden hesaplanıyor
+(`promo_grants.campaign_id`).
+
+**Değerlendirme.** wallet-consumer'daki `PromoCampaignJob` (`JobLease` ile tek
+instance) son `Lookback` süresindeki değerlendirilmemiş `Payment` işlemlerini okuyor.
+`Payment` wallet-api'de yazılıyor ve wallet-api'nin broker bağlantısı yok; değerlendirme
+ledger'dan okuyor. Her ödeme ayrı bir transaction'da değerlendiriliyor: açılan partiler
+ve `promo_campaign_evaluations` satırı birlikte yazılıyor. Idempotency anahtarı
+`campaign:{campaign_id}:tx:{payment_tx_id}`, kapsamı promo'yu alan cüzdan.
+
+Değerlendirme artan bir kimlikle ilerleyen bir cursor kullanmıyor: `ledger_entries.id`
+sırası commit sırası değil ve geç commit olan bir ödeme cursor'ın gerisinde kalırdı.
+Değerlendirilen ödeme işaretleniyor. `Lookback`'ten uzun süren bir kesintide aradaki
+ödemeler değerlendirilmiyor; işletme günlük özetindeki geri bakma penceresiyle aynı kabul.
+
+**Yönetim.** Backoffice gelene kadar kampanyalar ve `accounts.accepts_promo` SQL ile
+yönetiliyor; betik `docs/api-examples.md`'de.
 
 **Kabul edilen sınırlamalar.**
 
