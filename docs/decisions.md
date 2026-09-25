@@ -1447,6 +1447,9 @@ anahtarı `(ledger_account_id, currency, fund_type)` oluyor.
 | `card` | kart ile yükleme | hayır | evet, tip korunarak |
 | `promo` | cashback, hediye bakiye | hayır | hayır |
 
+`promo` yalnızca `Payment`'ta harcanıyor; nereden geldiği, nerede geçerli olduğu ve
+nasıl bittiği madde 37'de.
+
 **Sorun.** Bugün para nereden geldiyse gelsin aynı bakiyeye düşüyor ve çekimde hepsi
 eşit muamele görüyor. Yani kartla yüklenen para IBAN'a gönderilebiliyor.
 
@@ -1467,14 +1470,17 @@ olma kuralını da koruyor (madde 17).
 **Harcama sırası `promo` → `card` → `cash`.** Ödeme birden fazla kovaya yayılabiliyor ve
 sıra sabit: en kısıtlı olan önce eriyor. Ters sırada müşteri nakdini harcayıp
 çekilemeyen bakiyeyle kalırdı. Sıra konfigüre EDİLMEZ; kural mevzuattan geliyor, tarife
-ayarı değil.
+ayarı değil. `promo` kovasının kendi içinde hangi partinin önce harcandığı madde 37'de.
 
 **Transferde tip korunuyor.** Yönetmeliğin kısıtladığı şey geri ödeme ve nakde çıkış;
 harcama ve kullanıcılar arası transfer bu iki fıkrada yasaklanmıyor. Ama tip korunmadan
 transfer edilirse kural tek adımda deliniyor: kartla yükle, ikinci hesabına gönder,
 oradan IBAN'a çek. Tipin karşı tarafa aynen geçmesi madde 6/6'yı uygulanabilir tutan
-şey. `promo` hiç transfer edilemiyor — edilebilseydi karşılığında fon yatırılmamış bir
-bakiye fiilen nakde yakın bir araca dönerdi.
+şey. `promo` P2P, P2B, B2P ve B2B transferlerine girmiyor; girebilseydi karşılığında
+fon yatırılmamış bir bakiye fiilen nakde yakın bir araca dönerdi.
+
+Tipin korunmadığı tek yer `Payment`'taki promo payı: işyerine `cash` olarak yazılıyor.
+Gerekçesi ve koşulları madde 37'de.
 
 **Ters kayıt kendiliğinden doğru.** İade orijinal işlemin bacakları okunup
 negatiflenerek üretiliyor (madde 9); `fund_type` bacakta durduğu için para geldiği
@@ -1495,3 +1501,153 @@ okuyan her yer artık toplama yapmak zorunda. Optimistic lock kova bazında oluy
 cüzdanın `cash` ve `promo` hareketleri birbirini bloklamıyor, bu tarafta kazanç var.
 API response'u da değişiyor — tek bakiye yerine kırılım ve "çekilebilir tutar"
 dönmek gerekiyor, yoksa müşteri neden çekemediğini anlamıyor.
+
+---
+
+## 37. Promo bakiye: parti, kapsam, fonlayan
+
+**Karar.** `promo` kovasına para üç yoldan giriyor ve her yükleme bir **parti** açıyor:
+`promo_grants` tablosunda bir satır. Parti tutarı, fonlayanı, geçerli olduğu
+işyerlerini ve opsiyonel bitiş tarihini taşıyor. Promo yalnızca `Payment`'ta
+harcanıyor ve işyerine `cash` olarak geçiyor.
+
+| yol | başlatan | aktör | fonlayan | kapsam |
+| --- | --- | --- | --- | --- |
+| işyeri promo'su | işyerinin wallet-api'ye `POST`'u | `customer`, işyeri hesabı | işyeri, `cash` kovasından | yalnızca işyerinin kendisi |
+| kampanya | wallet-consumer'daki değerlendirme işi | `system` | platform | kampanyadan kopyalanır |
+| personel tanımı | backoffice endpoint'i | `employee` | platform | personelin seçtiği |
+
+**Parti değişmez, tüketim eklenir.** `promo_grants` satırı yazıldıktan sonra
+güncellenmiyor. Her harcama ve her süre sonu `promo_consumptions` tablosuna bir satır
+ekliyor: hangi parti, hangi ledger işlemi, ne kadar. Partinin kalanı tutarından
+tüketimlerin toplamı çıkarılarak bulunuyor. `wallet_app`'in iki tabloda da UPDATE ve
+DELETE yetkisi yok; `ledger_entries` ile aynı kalıp (madde 5 ve 24).
+
+Cüzdanın `promo` bakiyesi partilerin kalanlarının toplamına eşit. Mutabakat bunu
+kontrol ediyor ve sapmayı projeksiyon ayrışmasıyla aynı seviyede, `Error` olarak
+raporluyor.
+
+Parti ve tüketim yazımı cüzdanın `promo` `ledger_balances` satırıyla aynı
+transaction'da oluyor. O satırın `version`'ı aynı cüzdanın promo'suna eşzamanlı
+yazanları sıraya sokuyor; iki tabloya concurrency token eklenmiyor (madde 2).
+
+**Kapsam.** Parti ya bütün işyerlerinde ya seçili işyeri hesaplarında geçerli. Birim
+`accounts.type = 'business'` olan hesap: bir işyerinin birden fazla cüzdanı olabiliyor
+(madde 20). Kampanyadan gelen parti kapsamını yükleme anında kampanyadan kopyalıyor;
+kampanyanın sonradan değişen işyeri listesi müşteriye verilmiş partiyi etkilemiyor.
+
+**Harcama sırası.** `Payment`'ta alıcı işyerinde geçerli ve süresi dolmamış partiler
+şu sırayla tüketiliyor:
+
+1. Bitiş tarihi en yakın olan. Süresiz partiler en sonda.
+2. Bitiş tarihi eşitse seçili işyerleriyle kısıtlı olan, her yerde geçerli olandan önce.
+3. O da eşitse eski olan.
+
+İlk kural müşterinin süre sonunda kaybettiği tutarı en aza indiriyor, ikincisi her
+yerde geçerli promo'yu başka işyerleri için saklıyor. Sıra konfigüre edilmiyor;
+madde 36'daki kova sırasıyla aynı gerekçe.
+
+Promo yalnızca ödemenin tutarını karşılıyor; komisyon `card` ve `cash` kovalarından
+düşüyor. Komisyon `revenue`'ya yazılıyor ve platform fonlu promo ile ödenen komisyon,
+platformun kendi verdiği tutarı kendine gelir olarak yazması olurdu. Günlük `Payment` limiti promo payını da
+sayıyor: limit cüzdandan çıkan toplama uygulanıyor (madde 22).
+
+**İşyerine `cash` geçiyor.** Madde 36'daki "tip karşı tarafta korunur" kuralının tek
+istisnası bu. İşyeri gerçek bir satışın bedelini alıyor ve bu bedeli müşteri yerine
+partinin fonlayanı karşılıyor. Müşterinin promo'su hiçbir adımda müşterinin nakdine
+dönüşmüyor; madde 36'nın koruduğu şey bu.
+
+Platform fonlu partiler yalnızca `accounts.accepts_promo` işaretli işyerlerinde
+geçiyor. Anlaşmalı bir müşteri ile işyeri platform promo'sunu işyeri üzerinden nakde
+çevirebiliyor; işaret promo kabulünü sözleşmesi olan işyerleriyle sınırlıyor ve
+backoffice'ten yönetiliyor. İşyeri fonlu partide işaret aranmıyor: kapsam zaten
+işyerinin kendisi ve dolaşan para işyerinin kendi parası.
+
+**Fonlayana göre ledger bacakları.** Harcama iki türde de aynı; fark yüklemede ve süre
+sonunda.
+
+| olay | platform fonlu | işyeri fonlu |
+| --- | --- | --- |
+| yükleme | `promo_expense` `-X`, müşteri `promo` `+X` | işyeri `cash` `-X`, müşteri `promo` `+X` |
+| harcama | müşteri `promo` `-X`, işyeri `cash` `+X` | aynı |
+| süre sonu | müşteri `promo` `-X`, `promo_breakage` `+X` | müşteri `promo` `-X`, işyeri `cash` `+X` |
+
+İşyeri promo'yu yalnızca `cash` kovasından fonlayabiliyor. `card` kovasından fonlama
+madde 36'yı deliyor: kart parası müşteriye promo olarak geçer, işyerinde harcanınca
+işyerinin `cash` kovasına döner ve IBAN'a çıkar.
+
+İşyeri fonlu partinin kapsamı fonlayan işyerinin kendisi ve değiştirilemiyor. Başka
+işyerlerinde geçerli bir parti, işyerinin kendi parasıyla başka bir işyerinin satışını
+fonladığı bir transfer yolu olurdu.
+
+**Süre sonu.** Bitiş tarihi opsiyonel. wallet-consumer'daki `PromoExpiryJob`
+(`ScheduledJob`, `JobLease` ile tek instance) süresi dolan partilerin kalanını
+kapatıyor. Her parti ayrı bir ledger işlemi; aktör `system`, idempotency anahtarı
+`promo-expiry:{grant_id}`. Tutar partinin kalanı, bacaklar partinin kayıtlı
+fonlayanından okunuyor.
+
+Platform fonlu partinin kalanı `promo_breakage` gelir hesabına gidiyor: gider
+promo'nun verildiği dönemde kaydedildi ve kullanılmayan tutar ayrı bir gelir olarak
+görünüyor. `revenue` ile `provider_expense`'in
+netleştirilmemesiyle aynı çizgi. İşyeri fonlu partinin kalanı işyerinin `cash`
+kovasına dönüyor.
+
+Ödeme yalnızca `expires_at > now` olan partileri kullanıyor. Süresi dolup işin henüz
+kapatmadığı parti cüzdanın `promo` bakiyesinde görünüyor, ödemeye girmiyor.
+
+**Muhasebe eşlemesi.** Ledger hesapları TDHP kodu taşımıyor; ledger operasyonel bir
+alt defter ve resmi deftere geçişte her hesap bir TDHP hesabına eşleniyor.
+
+| ledger | TDHP |
+| --- | --- |
+| `promo_expense` | 760 Pazarlama Satış ve Dağıtım Giderleri |
+| cüzdanların `promo` kovaları | 379 Diğer Borç ve Gider Karşılıkları |
+| `promo_breakage` | 644 Konusu Kalmayan Karşılıklar |
+
+Eşleme bir muhasebeciyle doğrulanmadı. E-para kuruluşlarının hangi hesap planını
+kullandığı da açık bir soru. Ledger tasarımı bu cevaba bağlı değil, değişen yalnızca
+eşleme tablosu.
+
+**Koruma hesabı açığı.** Platform fonlu promo harcandığında işyerinin `cash` kovasına
+e-para yazılıyor, koruma hesabına para girmiyor. E-para kabul edilen fon karşılığında
+ihraç ediliyor; şirket bu tutarı kendi kaynağından koruma hesabına aktarmak zorunda.
+Açık, platform fonlu partilerden yapılan harcamaların toplamından fonlamaların
+toplamı çıkarılarak bulunuyor. Mutabakat açığı `Warning` olarak raporluyor: bir insanın
+yapması gereken bir iş. Fonlamanın ledger kaydı (`nostro` `-X`, `own_funds` `+X`)
+backoffice ile geliyor.
+
+İşyeri fonlu partide açık oluşmuyor: işyerinin nakdi yüklemede düşüyor, harcamada
+geri geliyor. Süresi dolan platform promo'su da açık oluşturmuyor, çünkü hiç e-paraya
+dönüşmedi.
+
+**Kampanya.** Personel kural tanımlıyor: belirli bir işyerine ödeme, günlük ödeme
+toplamının bir eşiği geçmesi. Değerlendirme wallet-consumer'da bir iş: ledger'daki yeni
+`Payment` işlemlerini cursor ile okuyor ve kurala uyan hesaba promo yazıyor. `Payment`
+wallet-api'de yazılıyor ve wallet-api'nin broker bağlantısı yok, bu yüzden
+değerlendirme ledger'dan okuyor. Kampanya bütçesi ve hesap başına tavan kampanya
+tanımının zorunlu alanları.
+
+**Kabul edilen sınırlamalar.**
+
+- Aynı kişiye ait müşteri ve işyeri hesapları arasındaki ödemeler kampanyayı
+  tetikleyebiliyor. Hesapları sahibine bağlayan kimlik verisi bu sistemde yok
+  (`Account` KYC taşımıyor).
+- Auth yok (madde 12). İşyeri promo endpoint'i herhangi bir işyerinin `cash` kovasından
+  promo yazabiliyor; transferdeki kabulün aynısı.
+- Ödeme iadesi akışı yok. `promo_consumptions` hangi partiden ne kadar harcandığını
+  tutuyor ve iade promo'yu aynı partiye, aynı kapsam ve bitiş tarihiyle döndürebiliyor.
+
+**Bedeli.** İki tablo; ödeme yolunda partilerin okunması ve sıralanması; `promo`
+kovasının tek bir sayıyla anlatılamaması. Müşteri toplam `promo` bakiyesinden "bu
+işyerinde ne kadar kullanabilirim" sorusunun cevabını göremiyor; cüzdanın partilerini
+kalanı, bitiş tarihi ve kapsamıyla dönen bir endpoint gerekiyor.
+
+**Elenen alternatifler.**
+
+- *`promo` kovasını kaldırmak.* Madde 36'nın mevzuat gerekçesi cashback ve hediye
+  bakiyeyi kapsıyor; kova kalıyor.
+- *İşyerine `promo` geçmesi.* İşyerinde harcanamayan ve çekilemeyen bir bakiye birikiyor.
+- *Partiyi `remaining` kolonuyla güncellemek.* Satır güncellendikçe concurrency token
+  ister ve iadede hangi partiye dönüleceği kaybolur.
+- *Süresi dolan platform promo'sunu `promo_expense`'e geri yazmak.* Önceki dönemin
+  gideri sonradan azalıyor ve kullanılmayan tutar görünmüyor.
