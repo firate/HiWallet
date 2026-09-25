@@ -108,6 +108,7 @@ WalletService.Core/
 │   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
 │   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
 │   ├── Settlements/           -- ProcessSettlementHandler, ProcessInvoiceHandler
+│   ├── Promos/                -- işyerinin promo vermesi, cüzdanın parti listesi
 │   └── Abstractions/          -- IClock
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
@@ -115,15 +116,17 @@ WalletService.Core/
 │   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- LedgerBalance
 │   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy, WithdrawalPolicy
+│   ├── Promos/                -- PromoGrant, PromoConsumption, PromoLots (tüketim sırası)
 │   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,
-│                                 UnbalancedLedgerTransaction, UnsupportedCurrency;
+│                                 UnbalancedLedgerTransaction, UnsupportedCurrency,
+│                                 PromoGrantRejected;
 │                                 NotFoundException + Wallet/AccountNotFound
 ├── Infrastructure/
 │   ├── Persistence/
 │   │   ├── WalletDbContext.cs
 │   │   ├── Configurations/    -- IEntityTypeConfiguration<T> başına bir dosya
 │   │   └── Migrations/        -- EF Core üretir, elle düzenlenmez
-│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob + ayarları
+│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob, PromoExpiryJob + ayarları
 └── Setup/
     ├── PersistenceSetup.cs    -- iki host da kullanıyor
     ├── PoliciesSetup.cs       -- iki host da kullanıyor
