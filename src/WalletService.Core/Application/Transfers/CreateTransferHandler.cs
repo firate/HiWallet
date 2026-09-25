@@ -230,25 +230,36 @@ public sealed class CreateTransferHandler(
     }
 
     /// <summary>
-    /// Cüzdanın bu işyerinde geçerli, süresi dolmamış partileri ve kalanları.
+    /// Cüzdanın bu işyerinde geçerli, süresi dolmamış partileri ve kalanları
+    /// (decisions.md madde 37).
     ///
-    /// Yalnızca seçili işyerleriyle kısıtlı partiler okunuyor: her yerde geçerli
-    /// parti platform fonlu ve <c>accepts_promo</c> işaretiyle birlikte geliyor
-    /// (decisions.md madde 37); bugün o partiyi açan bir yol yok.
+    /// İşyeri fonlu parti yalnızca fonlayan işyerinde geçiyor. Platform fonlu parti
+    /// yalnızca <c>accepts_promo</c> işaretli işyerinde ve kapsamı içindeyse geçiyor:
+    /// anlaşmalı bir müşteri ile işyeri platform promo'sunu işyeri üzerinden nakde
+    /// çevirebiliyor, işaret kabulü sözleşmesi olan işyerleriyle sınırlıyor.
     /// </summary>
     private static async Task<List<PromoLot>> UsablePromoLotsAsync(
         WalletDbContext db, Guid walletId, Guid merchantAccountId, DateTimeOffset now, CancellationToken ct)
     {
+        var acceptsPromo = await db.Accounts
+            .Where(a => a.Id == merchantAccountId)
+            .Select(a => a.AcceptsPromo)
+            .SingleAsync(ct);
+
         return await db.PromoGrants
             .Where(g => g.LedgerAccountId == walletId
                         && (g.ExpiresAt == null || g.ExpiresAt > now)
-                        && g.Scope == PromoScope.SelectedBusinesses
-                        && g.Merchants.Any(m => m.AccountId == merchantAccountId))
+                        && ((g.Funder == PromoFunder.Business
+                             && g.Merchants.Any(m => m.AccountId == merchantAccountId))
+                            || (g.Funder == PromoFunder.Platform
+                                && acceptsPromo
+                                && (g.Scope == PromoScope.AllBusinesses
+                                    || g.Merchants.Any(m => m.AccountId == merchantAccountId)))))
             .Select(g => new PromoLot(
                 g.Id,
                 g.Amount - (db.PromoConsumptions.Where(c => c.GrantId == g.Id).Sum(c => (decimal?)c.Amount) ?? 0m),
                 g.ExpiresAt,
-                true,
+                g.Scope == PromoScope.SelectedBusinesses,
                 g.CreatedAt))
             .ToListAsync(ct);
     }
