@@ -1,6 +1,7 @@
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Balances;
 using HiWallet.WalletService.Domain.Ledger;
+using HiWallet.WalletService.Domain.Promos;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.WalletService.Infrastructure.Persistence;
@@ -20,6 +21,14 @@ public sealed class WalletDbContext : DbContext
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
     public DbSet<LedgerBalance> LedgerBalances => Set<LedgerBalance>();
+
+    /// <summary>Promo partileri (decisions.md madde 37). Satır değişmiyor.</summary>
+    public DbSet<PromoGrant> PromoGrants => Set<PromoGrant>();
+
+    public DbSet<PromoGrantMerchant> PromoGrantMerchants => Set<PromoGrantMerchant>();
+
+    /// <summary>Partilerden tüketim. Append-only.</summary>
+    public DbSet<PromoConsumption> PromoConsumptions => Set<PromoConsumption>();
 
     /// <summary>Top-up event'lerinin idempotency defteri (overview.md madde 5).</summary>
     internal DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
