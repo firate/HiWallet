@@ -12,8 +12,10 @@ namespace HiWallet.WalletService.Infrastructure.Jobs;
 /// Süresi dolan partilerin kalanını kapatır (decisions.md madde 37). Her parti ayrı
 /// bir ledger işlemi: biri patlarsa diğerleri yine kapanıyor.
 ///
-/// Ledger: müşteri <c>promo</c> <c>-kalan</c>, fonlayan işyeri <c>cash</c> <c>+kalan</c>.
-/// Bacaklar partinin kayıtlı fonlayanından okunuyor, tarifeden üretilmiyor.
+/// Ledger: müşteri <c>promo</c> <c>-kalan</c>; karşı bacak partinin kayıtlı fonlayanından
+/// okunuyor, tarifeden üretilmiyor. İşyeri fonlu kalan işyerinin <c>cash</c> kovasına
+/// dönüyor. Platform fonlu kalan <c>promo_breakage</c> gelir hesabına gidiyor:
+/// <c>promo_expense</c>'e geri yazılmıyor, gider verildiği dönemde kaldı.
 ///
 /// Mutabakat işinden farklı olarak ledger'a yazıyor: süre sonu kayıtlı verilerden
 /// kesin olarak çıkan bir olay, tahmin değil.
@@ -61,9 +63,12 @@ internal sealed class PromoExpirer(
 
             var grant = await db.PromoGrants.AsNoTracking().SingleAsync(g => g.Id == grantId, ct);
 
-            var funderWallet = grant.FunderLedgerAccountId
-                               ?? throw new InvalidOperationException(
-                                   $"Parti {grant.Id} platform fonlu; promo_breakage hesabı henüz yok.");
+            var (counterAccount, counterFund) = grant.Funder switch
+            {
+                PromoFunder.Business => (grant.FunderLedgerAccountId!.Value, FundType.Cash),
+                PromoFunder.Platform => (SystemAccounts.PromoBreakageTry, FundType.Promo),
+                _ => throw new InvalidOperationException($"Bilinmeyen fonlayan: {grant.Funder}.")
+            };
 
             // Bakiye satırı tüketimlerden ÖNCE okunuyor. Arada commit olan bir ödeme
             // tüketimi artırırsa elimizdeki version eskimiş olur ve kayıt reddedilir;
@@ -83,17 +88,18 @@ internal sealed class PromoExpirer(
                 .Create(Guid.NewGuid(), LedgerTransactionType.PromoExpiry, grant.LedgerAccountId,
                     SystemActors.PromoExpiry, now, $"promo-expiry:{grant.Id}")
                 .AddEntry(grant.LedgerAccountId, remaining.Negated, FundType.Promo)
-                .AddEntry(funderWallet, remaining, FundType.Cash);
+                .AddEntry(counterAccount, remaining, counterFund);
 
             tx.AssertBalanced();
             db.LedgerTransactions.Add(tx);
             db.PromoConsumptions.Add(new PromoConsumption(grant.Id, tx.Id, remaining.Amount, now));
 
-            var funderBalance = await db.LedgerBalances.SingleAsync(
-                b => b.LedgerAccountId == funderWallet && b.FundType == FundType.Cash, ct);
+            var counterBalance = await db.LedgerBalances.SingleAsync(
+                b => b.LedgerAccountId == counterAccount && b.FundType == counterFund, ct);
 
-            // Sıra ledger hesap kimliğine göre ARTAN (decisions.md madde 8).
-            foreach (var (balance, delta) in new[] { (promoBalance, remaining.Negated), (funderBalance, remaining) }
+            // Sıra ledger hesap kimliğine göre ARTAN (decisions.md madde 8). Müşteri
+            // cüzdanı negatife düşemez; karşı bacak yalnızca artıyor.
+            foreach (var (balance, delta) in new[] { (promoBalance, remaining.Negated), (counterBalance, remaining) }
                          .OrderBy(x => x.Item1.LedgerAccountId))
             {
                 balance.Apply(delta, canGoNegative: false, now);
