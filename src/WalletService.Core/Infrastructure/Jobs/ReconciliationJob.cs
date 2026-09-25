@@ -49,6 +49,16 @@ internal sealed class ReconciliationJob(
                 drift.LedgerAccountId, drift.Projected, drift.FromEntries, drift.Difference);
         }
 
+        // Projeksiyon ayrışmasıyla aynı seviye: ödeme harcanabilir promo'yu partilerden
+        // okuyor ve ayrışma varsa müşteriye yanlış tutar harcatıyor.
+        foreach (var drift in report.PromoDrifts)
+        {
+            logger.LogError(
+                "Promo bakiyesi partilerle tutmuyor. Cüzdan {LedgerAccountId}: bakiye {Balance}, " +
+                "partilerin kalanı {FromGrants}, fark {Difference}",
+                drift.LedgerAccountId, drift.Balance, drift.FromGrants, drift.Difference);
+        }
+
         foreach (var item in report.AgingItems)
         {
             logger.LogWarning(

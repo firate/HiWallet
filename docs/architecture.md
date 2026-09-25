@@ -99,7 +99,7 @@ Müşteriye dönük endpoint'ler iki uygulamada:
 
 | endpoint | uygulama |
 | --- | --- |
-| `/v1/accounts`, `/v1/wallets`, `/v1/transfers` | `wallet-api` |
+| `/v1/accounts`, `/v1/wallets`, `/v1/transfers`, `/v1/promos` | `wallet-api` |
 | `/v1/withdrawals` | `withdrawal-orchestrator` |
 
 İkisinin erişim seviyesi aynı: public, müşteriye dönük, aynı istemciden çağrılıyor.
@@ -273,6 +273,9 @@ Her işlem tipinin yazdığı bacaklar — **toplamı her satırda sıfır**:
 | `topup` | `wallet +100`, `clearing −100` |
 | `p2p` | `gönderen −100`, `alan +100` |
 | `payment` | `gönderen −102`, `alan +100`, `revenue +2` |
+| `payment` (promo ile) | `gönderen promo −40`, `gönderen cash −62`, `alan cash +100`, `revenue +2` |
+| `promo_grant` | `işyeri cash −40`, `müşteri promo +40` |
+| `promo_expiry` | `müşteri promo −kalan`, `işyeri cash +kalan` |
 | `withdrawal` | `cüzdan −102`, `clearing +100`, `revenue +2` |
 | `refund` | orijinalin bacakları negatiflenerek — üçü de |
 | `settlement` (top-up) | `clearing +gross`, `nostro −net`; `Net` modelde ayrıca `provider_expense −fee` |

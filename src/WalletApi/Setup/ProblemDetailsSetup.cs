@@ -55,6 +55,7 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
             InsufficientFundsException => "insufficient_funds",
             LimitExceededException limit => limit.LimitName,
             UnsupportedCurrencyException => "unsupported_currency",
+            PromoGrantRejectedException => "promo_grant_rejected",
             _ => "business_rule"
         };
 

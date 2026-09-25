@@ -11,33 +11,14 @@ rate limiting, karta iade yolu (madde 36).
 
 ---
 
-## A. Kodda yarım duran iki şey
+## A. Kodda yarım duran şey
 
-Bu ikisi diğerlerinden farklı: tip ve şema zaten var, yazan yol yok. Yani bugün
-çalıştırılamayan kod taşıyoruz.
-
-### A1. `promo` kovasına para giren yol yok
-
-Bugün: `FundType.Promo` enum'da, `ledger_entries.fund_type` CHECK'inde ve her
-cüzdanın `ledger_balances` satırlarında var. Yazan tek bir yol yok — sağlayıcı
-tarifesi `Cash` ya da `Card` veriyor (`ProviderTerms.FundType`), transfer promo'yu
-dağıtıma hiç almıyor, çekim yalnızca `cash` düşüyor. Kova her cüzdanda kalıcı
-olarak sıfır.
-
-Sonucu: `FundTypes.SpendOrder`'daki `promo → card → cash` sırasının ilk adımı hiçbir
-akışta çalışmıyor. Harcama yolu da yok, yükleme yolu da.
-
-Eklenecek: hediye bakiye yükleyen bir yol. Açık sorular — kim tetikliyor (operasyon
-endpoint'i mi, kampanya tüketicisi mi), karşılığında hangi sistem hesabı borçlanıyor
-(`promo_expense` gibi yeni bir hesap gerekiyor, `clearing` değil: karşılığında dışarıdan
-para girmiyor), ve son kullanma tarihi olacak mı. Süre sonu varsa bakiyenin geri
-alınması da ters kayıt demek ve `ledger_entries` append-only olduğu için bu tasarlanacak
-bir akış, tek kolon değil.
+Tip ve şema zaten var, yazan yol yok. Yani bugün çalıştırılamayan kod taşıyoruz.
 
 ### A2. `employee` aktörü hiçbir yerde üretilmiyor
 
 Bugün: `ActorType.Employee` enum'da, `Actor.Employee(subject)` fabrikası yazılı,
-`CommandActor.Employee` sözleşmede, value converter iki yönde de eşliyor. Üretim
+`CommandActor.Employee` sözleşmede, value converter iki yönde de eşliyor. Uygulama
 kodunda `Actor.Employee(...)` çağıran tek bir satır yok. Ledger'a bugün yalnızca
 `customer` ve `system` düşüyor.
 
@@ -59,6 +40,7 @@ Bugünkü endpoint'ler:
 | wallet-api | `POST /v1/accounts/{id}/wallets`, `GET /v1/wallets/{id}` |
 | wallet-api | `GET /v1/wallets/{id}/movements` |
 | wallet-api | `POST /v1/transfers`, `GET /v1/transfers/{id}` |
+| wallet-api | `POST /v1/promos`, `GET /v1/wallets/{id}/promos` |
 | withdrawal-orchestrator | `POST /v1/withdrawals`, `GET /v1/withdrawals/{id}` |
 
 ### B1. Hareket listesinde filtre
@@ -130,7 +112,6 @@ gövdesinde hesabın o güne kadarki harcamasını açması — kimliği doğrul
 | 4 | B2, B3 — ekstre ve çekim listesi | Aynı cursor kalıbının tekrarı |
 | 5 | C3 — auth | Başlı başına bir konu, kendi kararını istiyor |
 | 6 | A2 — employee aktörü | Auth'tan sonra anlamlı |
-| 7 | A1 — promo yükleme | En çok açık soru burada: hangi hesap, süre sonu var mı |
 
-Sıra tartışmaya açık. A1 ve A2'nin sonda olması önem sırası değil; ikisi de kendinden
-önce bir karar bekliyor.
+Sıra tartışmaya açık. A2'nin sonda olması önem sırası değil; kendinden önce auth
+kararını bekliyor.

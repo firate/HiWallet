@@ -31,17 +31,38 @@ public sealed class SchemaTests(PostgresFixture postgres)
     {
         // Tembel yaratılsaydı ilk ledger yazımı satırı bulamazdı; ayrıca mutabakat
         // sorgusu LEFT JOIN olduğu için sapmayı hiç göremezdi.
+        var ct = TestContext.Current.CancellationToken;
         await using var db = postgres.CreateContext();
 
+        var ids = SystemAccounts.All.Select(a => a.Id).ToArray();
+
         var balances = await db.LedgerBalances
-            .Where(b => SystemAccounts.All.Select(a => a.Id).Contains(b.LedgerAccountId))
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .Where(b => ids.Contains(b.LedgerAccountId))
+            .ToListAsync(ct);
 
         // Hesap başına kova sayısı kadar satır (decisions.md madde 36): sistem
         // hesapları da her kovadan bakiye tutabiliyor ve biri eksik kalsaydı o
         // kovaya ilk yazma anında satır bulunamazdı.
         balances.Count.ShouldBe(SystemAccounts.All.Count * FundTypes.All.Count);
-        balances.ShouldAllBe(b => b.Balance == 0m && b.Version == 0);
+
+        // Seed bakiyesi sıfır. Koleksiyondaki diğer testler clearing'e yazıyor ve
+        // sıfırı doğrudan beklemek bu testi sıraya bağlardı; seed sıfırsa bakiye
+        // satırın entry toplamına eşit. Hiç yazılmamış satırın version'ı da seed'deki gibi 0.
+        var entries = await db.LedgerEntries
+            .Where(e => ids.Contains(e.LedgerAccountId))
+            .GroupBy(e => new { e.LedgerAccountId, e.FundType })
+            .Select(g => new { g.Key.LedgerAccountId, g.Key.FundType, Sum = g.Sum(e => e.Amount) })
+            .ToListAsync(ct);
+
+        foreach (var balance in balances)
+        {
+            var written = entries.SingleOrDefault(
+                e => e.LedgerAccountId == balance.LedgerAccountId && e.FundType == balance.FundType);
+
+            balance.Balance.ShouldBe(written?.Sum ?? 0m);
+
+            if (written is null) balance.Version.ShouldBe(0);
+        }
 
         foreach (var account in SystemAccounts.All)
         {

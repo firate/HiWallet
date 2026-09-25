@@ -54,6 +54,23 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   bağlı yazılır, başarıya değil.
 - Fatura ile `expected_amount` toplamı tolerans dışı sapıyorsa ledger'a HİÇBİR ŞEY yazılmaz.
 
+**Promo** (`decisions.md` madde 37)
+- Her yükleme bir parti: `promo_grants` satırı. Parti UPDATE EDİLMEZ; harcama ve süre
+  sonu `promo_consumptions`'a satır ekler. Kalan = tutar − tüketimler.
+- Cüzdanın `promo` bakiyesi partilerin kalanlarının toplamına eşit. Parti ve tüketim,
+  cüzdanın `promo` `ledger_balances` satırıyla AYNI transaction'da yazılır.
+- Promo yalnızca `Payment`'ta harcanır ve yalnızca tutarı karşılar, komisyonu değil.
+  İşyerine `cash` olarak geçer — madde 36'daki "tip korunur" kuralının tek istisnası.
+- Parti sırası sabit: bitişi en yakın önce (süresiz en sonda), sonra kısıtlı kapsam,
+  sonra eski. Konfigüre EDİLMEZ.
+- Kapsam yükleme anında partiye yazılır; kampanyanın sonraki değişikliği verilmiş
+  partiyi etkilemez.
+- İşyeri promo'yu yalnızca `cash` kovasından fonlar ve yalnızca kendisi için verir.
+- Platform fonlu parti yalnızca `accepts_promo` işaretli işyerinde geçer.
+- Süre sonu kaydının bacakları partinin fonlayanından okunur: platform fonlu kalan
+  `promo_breakage`'e, işyeri fonlu kalan işyerinin `cash` kovasına. `promo_expense`'e
+  geri YAZILMAZ.
+
 **Concurrency**
 - wallet-service'te optimistic lock `ledger_balances.version` üzerinde.
   `ledger_entries` üzerinde lock YOK.

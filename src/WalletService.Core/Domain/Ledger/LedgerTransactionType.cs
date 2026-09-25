@@ -34,7 +34,13 @@ public enum LedgerTransactionType
     Settlement = 9,
 
     /// <summary>Invoiced modelde fatura kaydı. Idempotency key = fatura numarası (decisions.md madde 11).</summary>
-    ProviderInvoice = 10
+    ProviderInvoice = 10,
+
+    /// <summary>Promo yükleme. Müşterinin promo kovası +, fonlayan − (decisions.md madde 37).</summary>
+    PromoGrant = 11,
+
+    /// <summary>Süresi dolan promo partisinin kalanının kapatılması (decisions.md madde 37).</summary>
+    PromoExpiry = 12
 }
 
 /// <summary>
@@ -58,6 +64,8 @@ public static class LedgerTransactionTypes
             LedgerTransactionType.Refund => "refund",
             LedgerTransactionType.Settlement => "settlement",
             LedgerTransactionType.ProviderInvoice => "provider_invoice",
+            LedgerTransactionType.PromoGrant => "promo_grant",
+            LedgerTransactionType.PromoExpiry => "promo_expiry",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış işlem tipi.")
         };
     }
@@ -76,6 +84,8 @@ public static class LedgerTransactionTypes
             "refund" => LedgerTransactionType.Refund,
             "settlement" => LedgerTransactionType.Settlement,
             "provider_invoice" => LedgerTransactionType.ProviderInvoice,
+            "promo_grant" => LedgerTransactionType.PromoGrant,
+            "promo_expiry" => LedgerTransactionType.PromoExpiry,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen işlem tipi.")
         };
     }

@@ -18,7 +18,7 @@ CHECK constraint — Fluent API'de duruyor. İki istisna var:
 | şey | neden model'e girmiyor | nerede duruyor |
 | --- | --- | --- |
 | zero-sum PL/pgSQL trigger'ı | EF'in trigger fonksiyonu karşılığı yok | migration içinde `Sql(...)` |
-| `REVOKE UPDATE, DELETE` | şema değil yetki; EF yetki modellemez | migration içinde `Sql(...)` |
+| `REVOKE UPDATE, DELETE` | şema değil yetki; EF yetki modellemez | migration içinde `Sql(...)` — `ledger_entries` ve üç promo tablosu |
 
 `COALESCE(provider,'')` üzerindeki ifade index'i **istisna değil**: `provider_key` diye
 STORED generated column eklenip index onun üstüne kuruldu, böylece EF modelinin parçası
@@ -170,7 +170,8 @@ Rapor katmanı işareti sunum için çevirir; ledger'da asla çevrilmez.
 CREATE TABLE ledger_transactions (
     id               uuid PRIMARY KEY,
     type             text NOT NULL,       -- p2p, p2b, b2p, b2b, payment, topup, withdrawal,
-                                          -- refund, settlement, provider_invoice
+                                          -- refund, settlement, provider_invoice,
+                                          -- promo_grant, promo_expiry
     ledger_account_id uuid NOT NULL REFERENCES ledger_accounts(id),  -- idempotency KAPSAMI
     actor_type       text NOT NULL,       -- customer, employee, system
     actor_id         text NOT NULL,       -- hesap kimliği / IdP sub'ı / akış adı
@@ -195,7 +196,7 @@ kalır ve hiçbir hata da vermezdi.
 | --- | --- | --- |
 | `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi |
 | `employee` | kimlik sağlayıcıdaki `sub` | backoffice — kimlik doğrulama gelince |
-| `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`) | insan yok |
+| `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`) | insan yok |
 
 Aktör cüzdanın değil **hesabın** kimliğini taşıyor: bir hesabın aynı para biriminde
 birden fazla cüzdanı olabiliyor (madde 20) ve cüzdan yazılsaydı aynı kişinin ikinci
@@ -213,6 +214,8 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 | `refund`           | aynı `user_wallet`                    | saga id             |
 | `settlement`       | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref |
 | `provider_invoice` | ilgili `provider_expense`             | fatura numarası     |
+| `promo_grant`      | fonlayan işyerinin `user_wallet`'ı    | client'ın key'i     |
+| `promo_expiry`     | promo'yu alan `user_wallet`           | `promo-expiry:{grant_id}` |
 
 ## ledger_entries
 
@@ -267,6 +270,9 @@ REVOKE UPDATE, DELETE ON ledger_entries FROM PUBLIC;
 -- uygulama rolü için de açıkça:
 REVOKE UPDATE, DELETE ON ledger_entries FROM wallet_app;
 ```
+
+Promo tabloları (`promo_grants`, `promo_grant_merchants`, `promo_consumptions`) aynı
+şekilde REVOKE ediliyor; ayrı migration'da, aynı kalıpla.
 
 ### Zero-sum invariant
 
@@ -413,6 +419,71 @@ CREATE INDEX ix_provider_fees_tx ON provider_fees (transaction_id);
 }
 ```
 
+## promo_grants
+
+Ledger DEĞİL. Promo partisi: tek bir yüklemenin kuralı — kim fonladı, nerede geçerli,
+ne zaman bitiyor (`decisions.md` madde 37). Para hareketi `ledger_transaction_id`'deki
+`promo_grant` işleminde. Satır yazıldıktan sonra değişmiyor.
+
+```sql
+CREATE TABLE promo_grants (
+    id                        uuid PRIMARY KEY,
+    ledger_account_id         uuid NOT NULL,     -- promo'yu alan cüzdan
+    amount                    numeric(19,4) NOT NULL CHECK (amount > 0),
+    currency                  char(3) NOT NULL,
+    funder                    text NOT NULL CHECK (funder IN ('platform','business')),
+    funder_ledger_account_id  uuid NULL,         -- fonlayan işyerinin cüzdanı
+    scope                     text NOT NULL CHECK (scope IN ('all_businesses','selected_businesses')),
+    expires_at                timestamptz NULL,  -- NULL: süresiz
+    ledger_transaction_id     uuid NOT NULL REFERENCES ledger_transactions(id),
+    created_at                timestamptz NOT NULL DEFAULT now(),
+
+    FOREIGN KEY (ledger_account_id, currency)        REFERENCES ledger_accounts (id, currency),
+    FOREIGN KEY (funder_ledger_account_id, currency) REFERENCES ledger_accounts (id, currency),
+    CHECK ((funder = 'business') = (funder_ledger_account_id IS NOT NULL)),
+    CHECK (expires_at IS NULL OR expires_at > created_at)
+);
+
+CREATE UNIQUE INDEX ux_promo_grants_transaction ON promo_grants (ledger_transaction_id);
+CREATE INDEX ix_promo_grants_expires_at ON promo_grants (expires_at) WHERE expires_at IS NOT NULL;
+
+CREATE TABLE promo_grant_merchants (
+    grant_id    uuid NOT NULL REFERENCES promo_grants(id),
+    account_id  uuid NOT NULL REFERENCES accounts(id),   -- işyeri HESABI, cüzdanı değil
+    PRIMARY KEY (grant_id, account_id)
+);
+```
+
+`scope` açık bir kolon. `selected_businesses`'ta partinin geçerli olduğu işyerleri
+`promo_grant_merchants`'ta; kapsam yükleme anında yazılıyor ve sonra değişmiyor.
+İşyerinin verdiği promo'da tek satır var: işyerinin kendisi.
+
+Composite FK'lar `ledger_entries`'teki gerekçeyle (`decisions.md` madde 17): partinin
+para birimi cüzdanınkinden sapamıyor.
+
+## promo_consumptions
+
+Ledger DEĞİL. Bir partiden tüketilen tutar: harcama (`payment`) ya da süre sonu
+(`promo_expiry`). Append-only; hangisi olduğu işlemin tipinde.
+
+```sql
+CREATE TABLE promo_consumptions (
+    id                     bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    grant_id               uuid NOT NULL REFERENCES promo_grants(id),
+    ledger_transaction_id  uuid NOT NULL REFERENCES ledger_transactions(id),
+    amount                 numeric(19,4) NOT NULL CHECK (amount > 0),
+    created_at             timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX ux_promo_consumptions_grant_tx
+    ON promo_consumptions (grant_id, ledger_transaction_id);
+```
+
+Partinin kalanı `amount - SUM(promo_consumptions.amount)`. Cüzdanın `promo` bakiyesi
+partilerin kalanlarının toplamına eşit; mutabakat job'ı bunu kontrol ediyor. Tüketim
+satırları cüzdanın `promo` `ledger_balances` satırıyla aynı transaction'da yazılıyor ve
+o satırın `version`'ı aynı partiyi tüketen eşzamanlı yazanları sıraya sokuyor.
+
 ## Settlement kayıtları
 
 ### Top-up (net settlement, sağlayıcı 2.9 kesip 97.1 gönderiyor)
@@ -492,9 +563,11 @@ BEGIN;
   SELECT fund_type, balance, version FROM ledger_balances WHERE ledger_account_id = @from;
   -- limit kontrolü (komisyon DAHİL tutara, madde 22), komisyon hesabı
   --   → ihlal varsa 422, hiç yazma
-  -- kovalara dağıtım (madde 36): promo transfere GİRMEZ, sıra card → cash.
-  --   önce tutar dağıtılır, sonra komisyon kalanlara aynı sırayla.
-  --   transfer edilebilir toplam yetmiyorsa 422 — cüzdanın toplamı yetse bile
+  -- kovalara dağıtım (madde 36): sıra promo → card → cash.
+  --   promo yalnızca payment'ta, alıcı işyerinde geçerli ve süresi dolmamış
+  --   partiler kadar, yalnızca TUTAR için (madde 37); diğer tiplerde hiç girmez.
+  --   önce tutar dağıtılır, sonra komisyon card ve cash kalanlarına aynı sırayla.
+  --   kullanılabilir toplam yetmiyorsa 422 — cüzdanın toplamı yetse bile
 
   INSERT INTO ledger_transactions (id, type, ledger_account_id, idempotency_key) VALUES (...);
 
@@ -506,6 +579,9 @@ BEGIN;
     (@tx, @from,     -72, 'TRY', 'cash'),
     (@tx, @to,       +70, 'TRY', 'cash'),
     (@tx, @revenue,   +2, 'TRY', 'cash');
+
+  -- payment'ta promo payı işyerine cash olarak geçer ve tüketilen her parti
+  -- için promo_consumptions'a satır düşer (madde 37).
 
   -- ledger_account_id ARTAN SIRAYLA (deadlock önleme)
   -- fund_type ŞART: bacak hangi kovaya yazıldıysa bakiye de o kovada güncellenir
@@ -525,7 +601,9 @@ dağıtım bu şekilde yapıldığı için kuruş yuvarlaması kova bazındaki d
 | Durum                          | HTTP | Not                                   |
 | ------------------------------ | ---- | ------------------------------------- |
 | Yetersiz bakiye                | 422  | İş kuralı reddi, hata değil           |
-| Transfer edilebilir kova yetmez| 422  | Toplam yetse bile: promo transfere girmez |
+| Transfer edilebilir kova yetmez| 422  | Toplam yetse bile: promo yalnızca payment'ta ve geçerli olduğu işyerinde |
+| Promo'yu işyeri olmayan fonluyor | 422 | `rule: promo_grant_rejected` |
+| İşyerinin `cash` kovası yetmez | 422  | Promo yalnızca `cash`'ten fonlanıyor |
 | Çekimde `cash` kovası yetmez   | 422  | Toplam yetse bile: kart ve promo IBAN'a çıkmaz |
 | Limit aşımı                    | 422  | Aynı şekilde                          |
 | Optimistic lock çakışması      | 409  | Retry tükendikten sonra               |

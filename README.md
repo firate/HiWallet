@@ -98,6 +98,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
 | Settlement: clearing kapanır, `nostro` hareket eder | evet — top-up ve çekim |
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
+| Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
+| Promo: kampanya, platform fonlu parti, personel tanımı | hayır — madde 37 |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |

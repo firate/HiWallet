@@ -116,4 +116,7 @@ public static class SystemActors
 
     /// <summary>Saga'nın kendi kararıyla ürettiği kayıtlar: iade, settlement.</summary>
     public static readonly Actor WithdrawalSaga = Actor.System(SystemFlows.WithdrawalSaga);
+
+    /// <summary>Süresi dolan promo partisinin kapatılması (decisions.md madde 37).</summary>
+    public static readonly Actor PromoExpiry = Actor.System(SystemFlows.PromoExpiry);
 }

@@ -71,6 +71,33 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
         }
     }
 
+    /// <summary>
+    /// Promo partisi değişmiyor, tüketim eklenerek yazılıyor (decisions.md madde 37).
+    /// Yetki satır aranmadan kontrol edildiği için tabloların boş olması sorun değil.
+    /// </summary>
+    [Theory]
+    [InlineData("promo_grants", "amount")]
+    [InlineData("promo_grant_merchants", "account_id")]
+    [InlineData("promo_consumptions", "amount")]
+    public async Task UygulamaRolu_PromoTablolariniGuncelleyemezVeSilemez(string table, string column)
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        Assert.SkipUnless(await AppRoleUsableAsync(postgres, ct), "wallet_app rolü kurulu değil");
+
+        await using var app = new NpgsqlConnection(postgres.AppConnectionString);
+        await app.OpenAsync(ct);
+
+        foreach (var sql in new[] { $"UPDATE {table} SET {column} = {column}", $"DELETE FROM {table}" })
+        {
+            await using var command = new NpgsqlCommand(sql, app);
+
+            var ex = await Should.ThrowAsync<PostgresException>(() => command.ExecuteNonQueryAsync(ct));
+
+            ex.SqlState.ShouldBe("42501", $"REVOKE işlemiyor: {sql}");
+        }
+    }
+
     [Fact]
     public async Task UygulamaRolu_LedgerEntriesOkuyabilirVeYazabilir()
     {

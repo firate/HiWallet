@@ -40,6 +40,12 @@ public static class WalletJobsSetup
         services.AddSingleton<ReconciliationScanner>();
         services.AddHostedService<ReconciliationJob>();
 
+        services.Configure<PromoExpiryOptions>(
+            configuration.GetSection(PromoExpiryOptions.SectionName));
+
+        services.AddSingleton<PromoExpirer>();
+        services.AddHostedService<PromoExpiryJob>();
+
         return services;
     }
 }

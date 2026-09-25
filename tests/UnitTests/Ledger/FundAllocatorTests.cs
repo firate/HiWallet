@@ -168,4 +168,76 @@ public sealed class FundAllocatorTests
         result.Sum(leg => leg.Amount.Amount).ShouldBe(amount);
         result.Sum(leg => leg.Commission.Amount).ShouldBe(commission);
     }
+
+    // ------------------------------------------------------------------
+    // Payment (decisions.md madde 37): promo tutarı karşılar, komisyonu değil.
+    // Kullanılabilir promo alıcı işyerine göre çağıranda hesaplanıyor; cüzdanın
+    // promo kovasının tamamı olmayabilir.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Odeme_PromoYetiyorsa_TutarPromodan_KomisyonNakittenCikiyor()
+    {
+        var result = FundAllocator.ForPayment(
+            Wallet, Available(cash: 500m, promo: 200m), usablePromo: M(200m), M(100m), M(2m));
+
+        result.Count.ShouldBe(2);
+
+        result[0].FundType.ShouldBe(FundType.Promo);
+        result[0].Amount.ShouldBe(M(100m));
+        result[0].Commission.ShouldBe(M(0m));
+
+        result[1].FundType.ShouldBe(FundType.Cash);
+        result[1].Amount.ShouldBe(M(0m));
+        result[1].Commission.ShouldBe(M(2m));
+    }
+
+    [Fact]
+    public void Odeme_PromoKismiYetiyorsa_KalanKartVeNakittenCikiyor()
+    {
+        var result = FundAllocator.ForPayment(
+            Wallet, Available(cash: 500m, card: 30m, promo: 40m), usablePromo: M(40m), M(100m), M(0m));
+
+        result.Select(leg => (leg.FundType, leg.Amount.Amount)).ShouldBe(
+        [
+            (FundType.Promo, 40m),
+            (FundType.Card, 30m),
+            (FundType.Cash, 30m)
+        ]);
+    }
+
+    /// <summary>
+    /// Cüzdanın promo kovası dolu ama bu işyerinde geçerli parti yok: dağıtım promo'ya
+    /// hiç dokunmuyor.
+    /// </summary>
+    [Fact]
+    public void Odeme_KullanilabilirPromoSifirsa_PromoyaDokunulmuyor()
+    {
+        var result = FundAllocator.ForPayment(
+            Wallet, Available(cash: 500m, promo: 200m), usablePromo: M(0m), M(100m), M(0m));
+
+        result.ShouldHaveSingleItem().FundType.ShouldBe(FundType.Cash);
+    }
+
+    [Fact]
+    public void Odeme_KomisyonPromodanOdenmiyor()
+    {
+        var exception = Should.Throw<InsufficientFundsException>(
+            () => FundAllocator.ForPayment(
+                Wallet, Available(promo: 500m), usablePromo: M(500m), M(100m), M(2m)));
+
+        exception.Available.ShouldBe(M(100m), "promo yalnızca tutar kadar sayılıyor");
+        exception.Requested.ShouldBe(M(102m));
+    }
+
+    [Fact]
+    public void Odeme_PromoVeNakitBirlikteYetmiyorsa_Reddediliyor()
+    {
+        var exception = Should.Throw<InsufficientFundsException>(
+            () => FundAllocator.ForPayment(
+                Wallet, Available(cash: 30m, promo: 50m), usablePromo: M(50m), M(100m), M(0m)));
+
+        exception.Available.ShouldBe(M(80m));
+        exception.Requested.ShouldBe(M(100m));
+    }
 }

@@ -100,6 +100,51 @@ public static class FundAllocator
     }
 
     /// <summary>
+    /// Ödeme için dağıtım (decisions.md madde 37). Promo yalnızca tutarı karşılıyor,
+    /// komisyonu karşılamıyor; tutarın kalanı ve komisyon <see cref="ForTransfer"/>
+    /// ile <c>card</c> → <c>cash</c> sırasında dağıtılıyor.
+    ///
+    /// Promo bacağının alıcı tarafı <c>cash</c> — o dönüşüm çağıranın işi, burası
+    /// yalnızca gönderenden hangi kovadan ne kadar çıktığını söylüyor.
+    /// </summary>
+    /// <param name="usablePromo">
+    /// Alıcı işyerinde geçerli partilerin kalanlarının toplamı. Cüzdanın promo
+    /// kovasının tamamı olmayabilir: kovadaki bazı partiler başka işyerleriyle
+    /// kısıtlı ya da süresi dolmuş olabilir.
+    /// </param>
+    public static IReadOnlyList<FundAllocation> ForPayment(
+        Guid walletId,
+        IReadOnlyDictionary<FundType, Money> available,
+        Money usablePromo,
+        Money amount,
+        Money commission)
+    {
+        var currency = amount.Currency;
+        var fromPromo = new Money(Math.Min(usablePromo.Amount, amount.Amount), currency);
+
+        var transferable = FundTypes.SpendOrder
+            .Where(FundTypes.CanTransfer)
+            .Sum(fundType => Balance(available, fundType, currency));
+
+        if (fromPromo.Amount + transferable < amount.Amount + commission.Amount)
+        {
+            throw new InsufficientFundsException(
+                walletId, new Money(fromPromo.Amount + transferable, currency), amount + commission);
+        }
+
+        var legs = new List<FundAllocation>();
+
+        if (!fromPromo.IsZero)
+        {
+            legs.Add(new FundAllocation(FundType.Promo, fromPromo, Money.Zero(currency)));
+        }
+
+        legs.AddRange(ForTransfer(walletId, available, amount - fromPromo, commission));
+
+        return legs;
+    }
+
+    /// <summary>
     /// <paramref name="required"/>'ı kovalara sırayla dağıtır ve
     /// <paramref name="remaining"/>'i tüketir. Toplam yeterliliği çağıran zaten
     /// doğruladı, bu yüzden burada eksik kalma ihtimali yok.

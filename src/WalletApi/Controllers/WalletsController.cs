@@ -1,5 +1,6 @@
 using HiWallet.WalletApi.Responses;
 using HiWallet.WalletService.Application.Balances;
+using HiWallet.WalletService.Application.Promos;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 
@@ -49,5 +50,26 @@ public sealed class WalletsController(IMessageBus bus) : ControllerBase
             new GetWalletMovementsQuery(walletId, after, size), ct);
 
         return Ok(WalletMovementsResponse.From(page));
+    }
+
+    /// <summary>
+    /// Cüzdanın promo partileri, yeniden eskiye (decisions.md madde 37). Toplam promo
+    /// bakiyesi "bu işyerinde ne kadar kullanabilirim" sorusunu cevaplamıyor; her
+    /// partinin kalanı, bitişi ve geçerli olduğu işyerleri burada.
+    /// </summary>
+    /// <param name="after">Önceki sayfanın son partisinin kimliği. İlk sayfada verilmiyor.</param>
+    /// <param name="size">Sayfa boyutu. Tavanın üstü tavana çekiliyor.</param>
+    [HttpGet("{walletId:guid}/promos")]
+    [ProducesResponseType<WalletPromosResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WalletPromosResponse>> GetPromos(
+        Guid walletId,
+        CancellationToken ct,
+        [FromQuery] Guid? after = null,
+        [FromQuery] int size = WalletPromoPage.DefaultSize)
+    {
+        var page = await bus.InvokeAsync<WalletPromoPage>(new GetWalletPromosQuery(walletId, after, size), ct);
+
+        return Ok(WalletPromosResponse.From(page));
     }
 }

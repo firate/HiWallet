@@ -1,6 +1,7 @@
 using HiWallet.Shared.Contracts.Actors;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
+using HiWallet.WalletService.Domain.Promos;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace HiWallet.WalletService.Infrastructure.Persistence;
@@ -43,6 +44,12 @@ internal static class ValueConverters
     // değerle kalırdı (ActorType ile aynı gerekçe).
     public static readonly ValueConverter<FundType, string> FundType =
         new(t => t.ToText(), text => FundTypes.FromText(text));
+
+    public static readonly ValueConverter<PromoFunder, string> PromoFunder =
+        new(f => f.ToText(), text => PromoTexts.FunderFromText(text));
+
+    public static readonly ValueConverter<PromoScope, string> PromoScope =
+        new(s => s.ToText(), text => PromoTexts.ScopeFromText(text));
 
     // Metinler ActorTypes'tan geliyor: aynı değerler mesaj sözleşmesinde de
     // kullanılıyor ve iki yerde ayrı yazılsalardı biri değiştiğinde diğeri sessizce

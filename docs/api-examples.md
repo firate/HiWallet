@@ -314,6 +314,78 @@ Eşzamanlılık çakışmasında ise `409` döner ve `rule` yoktur — o bir iş
 değil, "tekrar dene" demek.
 </details>
 
+`Payment`'ta gönderenin alıcı işyerinde geçerli promo partileri önce harcanır ve
+yalnızca tutarı karşılar; komisyon `card` ve `cash`'ten düşer. İşyerine promo payı
+dahil tutarın tamamı `cash` olarak geçer (`decisions.md` madde 37). Gönderende 40 TL
+geçerli promo varken 100 TL'lik `Payment` (%2 komisyon): gönderen `promo -40`,
+`cash -62`; işyeri `cash +100`; `revenue +2`.
+
+### Promo ver (işyeri)
+
+İşyeri kendi müşterisine promo veriyor. İşyerinin `cash` kovası düşer, müşterinin
+`promo` kovası artar; parti yalnızca bu işyerinde geçerli.
+
+```bash
+curl -i -X POST localhost:8091/v1/promos \
+  -H 'Idempotency-Key: promo-1' -H 'Content-Type: application/json' \
+  -d "{\"funderWalletId\":\"$SHOP_WALLET\",\"walletId\":\"$WALLET\",\"amount\":50,\"currency\":\"TRY\",\"expiresAt\":\"2026-12-31T23:59:59+03:00\"}"
+```
+```
+HTTP/1.1 201 Created
+Location: http://localhost:8091/v1/wallets/<walletId>/promos
+```
+```json
+{ "grantId": "...", "replayed": false }
+```
+
+`expiresAt` opsiyonel; verilmezse parti süresiz. Süresi dolan partinin kalanı
+wallet-consumer'daki süre sonu işiyle işyerinin `cash` kovasına döner.
+
+`Idempotency-Key` ZORUNLU; aynı anahtarla ikinci request yeni parti açmaz,
+`replayed: true` döner.
+
+<details><summary>Fonlayan işyeri değil → <code>422</code></summary>
+
+```json
+{ "status": 422, "rule": "promo_grant_rejected", "detail": "Promo'yu yalnızca işyeri hesabı fonlayabilir." }
+```
+
+İşyerinin kendi hesabındaki bir cüzdana promo vermesi de aynı `rule` ile reddedilir.
+İşyerinin `cash` kovası yetmiyorsa `rule: insufficient_funds`; `card` kovası promo'yu
+fonlamıyor.
+</details>
+
+### Cüzdanın promo partileri
+
+```bash
+curl -s "localhost:8091/v1/wallets/$WALLET/promos?size=2"
+```
+```json
+{
+  "items": [
+    {
+      "grantId": "0b6e2f9a-...",
+      "amount": 50.0000,
+      "remaining": 50.0000,
+      "currency": "TRY",
+      "funder": "business",
+      "scope": "selected_businesses",
+      "merchantAccountIds": ["9c1d4e77-..."],
+      "expiresAt": "2026-12-31T20:59:59+00:00",
+      "expired": false,
+      "createdAt": "2026-09-25T15:02:11.482+00:00"
+    }
+  ],
+  "size": 2,
+  "nextCursor": null
+}
+```
+
+Cüzdanın toplam `promo` bakiyesi "bu işyerinde ne kadar kullanabilirim" sorusunu
+cevaplamıyor; her partinin kalanı ve geçerli olduğu işyerleri burada. Sıra yeniden
+eskiye, sayfalama `after=<grantId>` ile. `expired: true` olan parti ödemeye girmez;
+kalanı süre sonu işi kapatana kadar bakiyede görünür.
+
 ---
 
 ## topup-webhook — `:8092`

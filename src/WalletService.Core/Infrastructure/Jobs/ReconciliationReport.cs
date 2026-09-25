@@ -11,12 +11,14 @@ namespace HiWallet.WalletService.Infrastructure.Jobs;
 /// </summary>
 internal sealed record ReconciliationReport(
     IReadOnlyList<BalanceDrift> Drifts,
+    IReadOnlyList<PromoDrift> PromoDrifts,
     IReadOnlyList<AgingClearingItem> AgingItems,
     IReadOnlyList<PendingInvoice> PendingInvoices,
     IReadOnlyList<OverdueFees> OverdueFees)
 {
     public bool IsClean =>
         Drifts.Count == 0
+        && PromoDrifts.Count == 0
         && AgingItems.Count == 0
         && PendingInvoices.Count == 0
         && OverdueFees.Count == 0;
@@ -35,6 +37,16 @@ internal sealed record BalanceDrift(
     Guid LedgerAccountId, FundType FundType, decimal Projected, decimal FromEntries)
 {
     public decimal Difference => Projected - FromEntries;
+}
+
+/// <summary>
+/// Cüzdanın promo bakiyesi partilerin kalanlarının toplamına eşit değil
+/// (decisions.md madde 37). Ledger ile projeksiyon tutuyor olabilir; ayrışan,
+/// promo'nun hangi partiden geldiği ve nerede geçerli olduğu bilgisi.
+/// </summary>
+internal sealed record PromoDrift(Guid LedgerAccountId, decimal Balance, decimal FromGrants)
+{
+    public decimal Difference => Balance - FromGrants;
 }
 
 /// <summary>
