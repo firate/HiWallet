@@ -59,6 +59,16 @@ internal sealed class ReconciliationJob(
                 drift.LedgerAccountId, drift.Balance, drift.FromGrants, drift.Difference);
         }
 
+        // Hata değil, bir insanın yapması gereken iş: şirket kendi kaynağından koruma
+        // hesabına aktarmalı (decisions.md madde 37).
+        foreach (var gap in report.PromoFundingGaps)
+        {
+            logger.LogWarning(
+                "Koruma hesabına yatırılması gereken {Amount} {Currency}: platform fonlu promo " +
+                "ödemede harcandı, karşılığı fonlanmadı.",
+                gap.Amount, gap.Currency);
+        }
+
         foreach (var item in report.AgingItems)
         {
             logger.LogWarning(
