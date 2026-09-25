@@ -31,6 +31,15 @@ public sealed class Account
 
     public AccountType Type { get; private set; }
 
+    /// <summary>
+    /// İşyeri platform fonlu promo ile ödeme kabul ediyor mu (decisions.md madde 37).
+    /// Varsayılan <c>false</c>: anlaşmalı bir müşteri ile işyeri platform promo'sunu
+    /// işyeri üzerinden nakde çevirebiliyor, kabul sözleşmesi olan işyeriyle sınırlı.
+    /// İşyerinin kendi verdiği promo bu işarete bakmıyor. Backoffice gelene kadar SQL
+    /// ile yönetiliyor.
+    /// </summary>
+    public bool AcceptsPromo { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public static Account Open(Guid id, AccountType type, DateTimeOffset createdAt)
