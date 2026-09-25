@@ -86,12 +86,33 @@ public sealed class CreateTransferHandler(
         }
 
         // --- Policy ---------------------------------------------------------------
-        var commission = commissionPolicy.Calculate(command.Type, amount);
-        var debit = amount + commission;
-
         var senderAccountId = sender.AccountId
                               ?? throw new InvalidOperationException(
                                   $"Cüzdan {sender.Id} bir hesaba bağlı değil.");
+        var receiverAccountId = receiver.AccountId
+                                ?? throw new InvalidOperationException(
+                                    $"Cüzdan {receiver.Id} bir hesaba bağlı değil.");
+
+        // Tip tarafların hesap tipleriyle uyuşmalı: kişiye Payment, işletmeye P2P
+        // geçmez. person/business cüzdanda değil hesapta duruyor (decisions.md madde 20)
+        // ve ona çekirdek değil policy bakıyor (madde 6). Kapıdan SONRA: tekrar eden
+        // request bu kuralı da yeniden değerlendirmez (madde 21). İki cüzdan aynı
+        // hesaba ait olabilir; o zaman sözlükte tek satır olur.
+        var accountTypes = await db.Accounts
+            .AsNoTracking()
+            .Where(a => a.Id == senderAccountId || a.Id == receiverAccountId)
+            .ToDictionaryAsync(a => a.Id, a => a.Type, ct);
+
+        var senderType = accountTypes[senderAccountId];
+        var receiverType = accountTypes[receiverAccountId];
+
+        if (!command.Type.Matches(senderType, receiverType))
+        {
+            throw new TransferTypeMismatchException(command.Type, senderType, receiverType);
+        }
+
+        var commission = commissionPolicy.Calculate(command.Type, amount);
+        var debit = amount + commission;
 
         var spentToday = await SpentTodayAsync(db, senderAccountId, command.Type, currency, ct);
 

@@ -197,6 +197,33 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Post_TipHesapTipleriyleUyusmaz_422DonerVeKuralAdiniSoyler()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var before = await TransferCountAsync(ct);
+
+        // Alan kişi; Payment yalnızca işletmeye yapılır.
+        var response = await _client.SendAsync(Post(new
+        {
+            fromWalletId = _from,
+            toWalletId = _to,
+            amount = 10m,
+            currency = "TRY",
+            type = nameof(TransferType.Payment)
+        }), ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("status").GetInt32().ShouldBe(422);
+        problem.GetProperty("rule").GetString().ShouldBe("transfer_type_mismatch");
+
+        (await TransferCountAsync(ct)).ShouldBe(before, "reddedilen istek ledger'a satır bırakmamalı");
+    }
+
+    [Fact]
     public async Task Post_OlmayanCuzdan_404Doner()
     {
         var ct = TestContext.Current.CancellationToken;

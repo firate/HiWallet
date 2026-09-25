@@ -53,6 +53,7 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
         problem.Extensions["rule"] = domain switch
         {
             InsufficientFundsException => "insufficient_funds",
+            TransferTypeMismatchException => "transfer_type_mismatch",
             LimitExceededException limit => limit.LimitName,
             UnsupportedCurrencyException => "unsupported_currency",
             PromoGrantRejectedException => "promo_grant_rejected",
