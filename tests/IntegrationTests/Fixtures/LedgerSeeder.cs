@@ -47,7 +47,8 @@ public static class LedgerSeeder
     /// ledger karşılığı (overview.md madde 3). Dengeli olduğu için trigger'dan geçer.
     /// </summary>
     public static async Task FundAsync(
-        WalletDbContext db, Guid walletId, decimal amount, CancellationToken ct)
+        WalletDbContext db, Guid walletId, decimal amount, CancellationToken ct,
+        FundType fundType = FundType.Cash)
     {
         var currency = SystemAccounts.DefaultCurrency;
         var clearingId = SystemAccounts.ClearingStripeTry;
@@ -55,8 +56,8 @@ public static class LedgerSeeder
         var tx = LedgerTransaction
             .Create(Guid.NewGuid(), LedgerTransactionType.Topup, walletId, SystemActors.Topup, SeedTime,
                 "seed:" + Guid.NewGuid().ToString("N"))
-            .AddEntry(walletId, new Money(amount, currency), FundType.Cash)
-            .AddEntry(clearingId, new Money(-amount, currency), FundType.Cash);
+            .AddEntry(walletId, new Money(amount, currency), fundType)
+            .AddEntry(clearingId, new Money(-amount, currency), fundType);
 
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
@@ -64,8 +65,8 @@ public static class LedgerSeeder
         foreach (var (id, delta) in new[] { (walletId, amount), (clearingId, -amount) }
                      .OrderBy(x => x.Item1))
         {
-            // Anahtar (hesap, kova); seed edilen paranin tamami cash.
-            var balance = await db.LedgerBalances.FindAsync([id, FundType.Cash], ct)
+            // Anahtar (hesap, kova).
+            var balance = await db.LedgerBalances.FindAsync([id, fundType], ct)
                           ?? throw new InvalidOperationException($"Bakiye satırı yok: {id}");
 
             balance.Apply(new Money(delta, currency), canGoNegative: id == clearingId, SeedTime);
