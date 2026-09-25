@@ -2,6 +2,7 @@ using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
+using HiWallet.WalletService.Domain.Promos;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -113,26 +114,43 @@ public sealed class CreateTransferHandler(
             Guid.NewGuid(), command.Type.ToLedgerType(), sender.Id,
             Actor.Customer(senderAccountId), now, command.IdempotencyKey);
 
-        // Kovalara dağıtım (decisions.md madde 36). Promo hiç yer almıyor, sıra
-        // card → cash: en kısıtlı kova önce eriyor. Yetersizlik burada yakalanıyor
-        // ve cüzdanın TOPLAM bakiyesi yetse bile reddedilebiliyor — hediye bakiye
-        // transfere giremediği için müşterinin gördüğü toplam ile çıkabilen tutar
-        // ayrı şeyler.
+        // Kovalara dağıtım (decisions.md madde 36). Sıra promo → card → cash: en
+        // kısıtlı kova önce eriyor. Promo yalnızca Payment'ta ve yalnızca alıcı
+        // işyerinde geçerli partiler kadar yer alıyor (madde 37). Yetersizlik burada
+        // yakalanıyor ve cüzdanın TOPLAM bakiyesi yetse bile reddedilebiliyor —
+        // müşterinin gördüğü toplam ile bu işlemde çıkabilen tutar ayrı şeyler.
         var senderBalances = await db.LedgerBalances
             .Where(b => b.LedgerAccountId == sender.Id)
             .ToDictionaryAsync(b => b.FundType, b => b.Money, ct);
 
-        var allocations = FundAllocator.ForTransfer(sender.Id, senderBalances, amount, commission);
+        IReadOnlyList<PromoTake> promoTakes = [];
+        IReadOnlyList<FundAllocation> allocations;
+
+        if (command.Type is TransferType.Payment && receiver.AccountId is { } merchantAccountId)
+        {
+            var lots = await UsablePromoLotsAsync(db, sender.Id, merchantAccountId, now, ct);
+            promoTakes = PromoLots.Take(lots, amount.Amount);
+
+            allocations = FundAllocator.ForPayment(
+                sender.Id, senderBalances, new Money(promoTakes.Sum(t => t.Amount), currency), amount, commission);
+        }
+        else
+        {
+            allocations = FundAllocator.ForTransfer(sender.Id, senderBalances, amount, commission);
+        }
 
         // Kova tipi karşı tarafta AYNEN korunuyor: korunmasaydı kart kısıtı tek
         // adımda delinirdi (kartla yükle, ikinci hesabına gönder, oradan IBAN'a çek).
+        // Tek istisna promo: işyeri gerçek bir satışın bedelini alıyor ve promo payı
+        // ona cash olarak geçiyor (madde 37).
         foreach (var allocation in allocations)
         {
             tx.AddEntry(sender.Id, allocation.Debit.Negated, allocation.FundType);
 
             if (!allocation.Amount.IsZero)
             {
-                tx.AddEntry(receiver.Id, allocation.Amount, allocation.FundType);
+                var receivedAs = allocation.FundType is FundType.Promo ? FundType.Cash : allocation.FundType;
+                tx.AddEntry(receiver.Id, allocation.Amount, receivedAs);
             }
 
             if (!allocation.Commission.IsZero)
@@ -147,6 +165,14 @@ public sealed class CreateTransferHandler(
         // DB'deki deferred trigger'dan önce, daha anlaşılır hatayla.
         tx.AssertBalanced();
         db.LedgerTransactions.Add(tx);
+
+        // Hangi partiden ne kadar harcandığı. Gönderenin promo bakiye satırıyla aynı
+        // transaction'da: o satırın version'ı aynı partiyi tüketen eşzamanlı ödemeleri
+        // sıraya sokuyor (madde 37).
+        foreach (var take in promoTakes)
+        {
+            db.PromoConsumptions.Add(new PromoConsumption(take.GrantId, tx.Id, take.Amount, now));
+        }
 
         // --- Projeksiyon ----------------------------------------------------------
         // Bakiye asla ledger'a yazmadan güncellenmez (CLAUDE.md). Sıra ledger hesap
@@ -201,6 +227,30 @@ public sealed class CreateTransferHandler(
         }
 
         return wallet;
+    }
+
+    /// <summary>
+    /// Cüzdanın bu işyerinde geçerli, süresi dolmamış partileri ve kalanları.
+    ///
+    /// Yalnızca seçili işyerleriyle kısıtlı partiler okunuyor: her yerde geçerli
+    /// parti platform fonlu ve <c>accepts_promo</c> işaretiyle birlikte geliyor
+    /// (decisions.md madde 37); bugün o partiyi açan bir yol yok.
+    /// </summary>
+    private static async Task<List<PromoLot>> UsablePromoLotsAsync(
+        WalletDbContext db, Guid walletId, Guid merchantAccountId, DateTimeOffset now, CancellationToken ct)
+    {
+        return await db.PromoGrants
+            .Where(g => g.LedgerAccountId == walletId
+                        && (g.ExpiresAt == null || g.ExpiresAt > now)
+                        && g.Scope == PromoScope.SelectedBusinesses
+                        && g.Merchants.Any(m => m.AccountId == merchantAccountId))
+            .Select(g => new PromoLot(
+                g.Id,
+                g.Amount - (db.PromoConsumptions.Where(c => c.GrantId == g.Id).Sum(c => (decimal?)c.Amount) ?? 0m),
+                g.ExpiresAt,
+                true,
+                g.CreatedAt))
+            .ToListAsync(ct);
     }
 
     /// <summary>
