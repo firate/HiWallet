@@ -24,7 +24,8 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
         builder.ToTable("ledger_accounts", t =>
         {
             t.HasCheckConstraint("ck_ledger_accounts_type",
-                "type IN ('user_wallet','clearing','revenue','nostro','provider_expense')");
+                "type IN ('user_wallet','clearing','revenue','nostro','provider_expense'," +
+                "'promo_expense','promo_breakage')");
 
             // Kolon başına bir kural: "bu kolon TAM OLARAK şu tipte dolu".
             // İhlalde Postgres constraint adını söylüyor, hangi kuralın bozulduğu belli oluyor.

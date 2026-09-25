@@ -56,6 +56,12 @@ public static class SystemAccounts
     /// <summary>Bankaya ödediğimiz ücret (gider).</summary>
     public static readonly Guid ProviderExpenseBankTry = new("a0000000-0000-4000-8000-000000000006");
 
+    /// <summary>Platform fonlu promo'nun gideri (decisions.md madde 37).</summary>
+    public static readonly Guid PromoExpenseTry = new("a0000000-0000-4000-8000-000000000007");
+
+    /// <summary>Süresi dolan platform fonlu promo'nun kullanılmayan kalanı (gelir).</summary>
+    public static readonly Guid PromoBreakageTry = new("a0000000-0000-4000-8000-000000000008");
+
     /// <summary>Seed edilen tüm sistem hesapları — testler ve mutabakat bunu dolaşır.</summary>
     public static IReadOnlyList<(Guid Id, LedgerAccountType Type, string? Provider)> All { get; } =
     [
@@ -64,6 +70,8 @@ public static class SystemAccounts
         (ClearingBankTry, LedgerAccountType.Clearing, BankFake),
         (NostroBankTry, LedgerAccountType.Nostro, BankFake),
         (ProviderExpenseStripeTry, LedgerAccountType.ProviderExpense, StripeFake),
-        (ProviderExpenseBankTry, LedgerAccountType.ProviderExpense, BankFake)
+        (ProviderExpenseBankTry, LedgerAccountType.ProviderExpense, BankFake),
+        (PromoExpenseTry, LedgerAccountType.PromoExpense, null),
+        (PromoBreakageTry, LedgerAccountType.PromoBreakage, null)
     ];
 }

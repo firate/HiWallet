@@ -56,8 +56,8 @@ public sealed class LedgerAccount
 
     /// <summary>
     /// Sistem hesabının hangi dış tarafa ait olduğu (decisions.md madde 14).
-    /// Cüzdanlarda NULL. <see cref="LedgerAccountType.Revenue"/> kendi paramızın hesabı
-    /// olduğu için onda da NULL.
+    /// Cüzdanlarda NULL. <see cref="LedgerAccountType.Revenue"/> ve promo hesapları
+    /// kendi paramızın hesabı olduğu için onlarda da NULL.
     /// </summary>
     public string? Provider { get; private set; }
 
@@ -96,8 +96,9 @@ public sealed class LedgerAccount
     }
 
     /// <summary>
-    /// Sistem hesabı. <paramref name="provider"/> yalnızca
-    /// <see cref="LedgerAccountType.Revenue"/>'da NULL olabilir — diğerlerinde mutabakat
+    /// Sistem hesabı. <paramref name="provider"/> yalnızca kendi paramızın hesaplarında
+    /// (<see cref="LedgerAccountType.Revenue"/>, <see cref="LedgerAccountType.PromoExpense"/>,
+    /// <see cref="LedgerAccountType.PromoBreakage"/>) NULL — diğerlerinde mutabakat
     /// sağlayıcı bazında koştuğu için zorunlu (decisions.md madde 14).
     /// </summary>
     public static LedgerAccount System(
@@ -114,12 +115,12 @@ public sealed class LedgerAccount
                 nameof(type));
         }
 
-        if (type is LedgerAccountType.Revenue)
+        if (type is LedgerAccountType.Revenue or LedgerAccountType.PromoExpense or LedgerAccountType.PromoBreakage)
         {
             if (provider is not null)
             {
                 throw new ArgumentException(
-                    "revenue kendi gelirimiz, sağlayıcıya bağlı değil.", nameof(provider));
+                    $"{type} kendi paramızın hesabı, sağlayıcıya bağlı değil.", nameof(provider));
             }
         }
         else if (string.IsNullOrWhiteSpace(provider))
