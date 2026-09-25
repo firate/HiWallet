@@ -53,11 +53,16 @@ kişi/işletme ayrımını tek yerde tutmak (`decisions.md` madde 20).
 
 ```sql
 CREATE TABLE accounts (
-    id          uuid PRIMARY KEY,
-    type        text NOT NULL CHECK (type IN ('person','business')),
-    created_at  timestamptz NOT NULL DEFAULT now()
+    id             uuid PRIMARY KEY,
+    type           text NOT NULL CHECK (type IN ('person','business')),
+    accepts_promo  boolean NOT NULL DEFAULT false,  -- platform fonlu promo kabulü
+    created_at     timestamptz NOT NULL DEFAULT now()
 );
 ```
+
+`accepts_promo` işyerinin platform fonlu promo ile ödeme kabul edip etmediği
+(`decisions.md` madde 37). İşyerinin kendi verdiği promo bu kolona bakmıyor.
+Backoffice gelene kadar SQL ile yönetiliyor.
 
 Bir hesabın **aynı para biriminde birden fazla cüzdanı olabilir** —
 `ledger_accounts (account_id, currency)` üzerinde tekillik kısıtı bilinçli olarak YOKTUR.
@@ -72,7 +77,8 @@ ikinci cüzdan açarak limiti aşar.
 CREATE TABLE ledger_accounts (
     id          uuid PRIMARY KEY,
     type        text NOT NULL CHECK (type IN
-                  ('user_wallet','clearing','revenue','nostro','provider_expense')),
+                  ('user_wallet','clearing','revenue','nostro','provider_expense',
+                   'promo_expense','promo_breakage')),
     account_id  uuid NULL REFERENCES accounts(id),  -- cüzdanda zorunlu, sistem hesabında NULL
     name        text NULL,          -- cüzdan adı ("Birikim"), sistem hesaplarında NULL
     provider    text NULL,          -- sistem hesaplarında sağlayıcı ayrımı, cüzdanda NULL
@@ -133,12 +139,18 @@ person/business bilgisini `accounts`'a bakarak alır (PK araması).
 | `revenue`          | NULL         | NULL   | NULL       | Evet               | Müşteriden alınan komisyon (gelir)    |
 | `nostro`           | NULL         | NULL   | banka      | Evet               | Kendi banka hesabımızdaki gerçek para |
 | `provider_expense` | NULL         | NULL   | sağlayıcı  | Evet               | Sağlayıcıya ödenen ücret (gider)      |
+| `promo_expense`    | NULL         | NULL   | NULL       | Evet               | Platform fonlu promo'nun gideri       |
+| `promo_breakage`   | NULL         | NULL   | NULL       | Evet               | Süresi dolan platform promo'su (gelir)|
 
 `revenue` ve `provider_expense` ayrı tutulur, netleştirilmez. Biri gelir biri gider;
 compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
 (banka işlemi denediyse ücreti kesilmiştir).
 
-Sistem hesapları seed migration ile oluşturulur: `revenue` currency başına bir tane,
+`promo_expense` ile `promo_breakage` da netleştirilmez: süresi dolan platform promo'su
+gider hesabına geri yazılmıyor, ayrı bir gelir olarak görünüyor (`decisions.md` madde 37).
+
+Sistem hesapları seed migration ile oluşturulur: `revenue`, `promo_expense` ve
+`promo_breakage` currency başına bir tane,
 `clearing` / `nostro` / `provider_expense` ise **sağlayıcı × currency** başına bir tane.
 Birden fazla sağlayıcı varsa mutabakat ancak böyle ayrıştırılabilir.
 
@@ -196,7 +208,7 @@ kalır ve hiçbir hata da vermezdi.
 | --- | --- | --- |
 | `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi |
 | `employee` | kimlik sağlayıcıdaki `sub` | backoffice — kimlik doğrulama gelince |
-| `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`) | insan yok |
+| `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`, `promo-campaign`) | insan yok |
 
 Aktör cüzdanın değil **hesabın** kimliğini taşıyor: bir hesabın aynı para biriminde
 birden fazla cüzdanı olabiliyor (madde 20) ve cüzdan yazılsaydı aynı kişinin ikinci
@@ -214,7 +226,8 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 | `refund`           | aynı `user_wallet`                    | saga id             |
 | `settlement`       | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref |
 | `provider_invoice` | ilgili `provider_expense`             | fatura numarası     |
-| `promo_grant`      | fonlayan işyerinin `user_wallet`'ı    | client'ın key'i     |
+| `promo_grant` (işyeri)   | fonlayan işyerinin `user_wallet`'ı | client'ın key'i |
+| `promo_grant` (kampanya) | promo'yu alan `user_wallet`     | `campaign:{campaign_id}:tx:{payment_tx_id}` |
 | `promo_expiry`     | promo'yu alan `user_wallet`           | `promo-expiry:{grant_id}` |
 
 ## ledger_entries
@@ -436,12 +449,14 @@ CREATE TABLE promo_grants (
     scope                     text NOT NULL CHECK (scope IN ('all_businesses','selected_businesses')),
     expires_at                timestamptz NULL,  -- NULL: süresiz
     ledger_transaction_id     uuid NOT NULL REFERENCES ledger_transactions(id),
+    campaign_id               uuid NULL REFERENCES promo_campaigns(id),  -- kampanyanın partisinde
     created_at                timestamptz NOT NULL DEFAULT now(),
 
     FOREIGN KEY (ledger_account_id, currency)        REFERENCES ledger_accounts (id, currency),
     FOREIGN KEY (funder_ledger_account_id, currency) REFERENCES ledger_accounts (id, currency),
     CHECK ((funder = 'business') = (funder_ledger_account_id IS NOT NULL)),
-    CHECK (expires_at IS NULL OR expires_at > created_at)
+    CHECK (expires_at IS NULL OR expires_at > created_at),
+    CHECK (campaign_id IS NULL OR funder = 'platform')
 );
 
 CREATE UNIQUE INDEX ux_promo_grants_transaction ON promo_grants (ledger_transaction_id);
@@ -456,7 +471,8 @@ CREATE TABLE promo_grant_merchants (
 
 `scope` açık bir kolon. `selected_businesses`'ta partinin geçerli olduğu işyerleri
 `promo_grant_merchants`'ta; kapsam yükleme anında yazılıyor ve sonra değişmiyor.
-İşyerinin verdiği promo'da tek satır var: işyerinin kendisi.
+İşyerinin verdiği promo'da tek satır var: işyerinin kendisi. Kampanyanın verdiği
+promo'da kampanyanın kapsam işyerleri kopyalanıyor.
 
 Composite FK'lar `ledger_entries`'teki gerekçeyle (`decisions.md` madde 17): partinin
 para birimi cüzdanınkinden sapamıyor.
@@ -483,6 +499,59 @@ Partinin kalanı `amount - SUM(promo_consumptions.amount)`. Cüzdanın `promo` b
 partilerin kalanlarının toplamına eşit; mutabakat job'ı bunu kontrol ediyor. Tüketim
 satırları cüzdanın `promo` `ledger_balances` satırıyla aynı transaction'da yazılıyor ve
 o satırın `version`'ı aynı partiyi tüketen eşzamanlı yazanları sıraya sokuyor.
+
+## promo_campaigns
+
+Promo kampanyası (`decisions.md` madde 37). Backoffice gelene kadar SQL ile yazılıyor;
+kurallar bu yüzden CHECK olarak da duruyor.
+
+```sql
+CREATE TABLE promo_campaigns (
+    id                     uuid PRIMARY KEY,
+    name                   text NOT NULL CHECK (btrim(name) <> ''),
+    rule                   text NOT NULL CHECK (rule IN ('payment_to_merchant','daily_payment_total')),
+    threshold_amount       numeric(19,4) NULL,   -- daily_payment_total'da zorunlu
+    reward_type            text NOT NULL CHECK (reward_type IN ('fixed','percentage')),
+    reward_amount          numeric(19,4) NULL,   -- fixed'de zorunlu
+    reward_rate            numeric(9,6)  NULL,   -- percentage'da zorunlu; 0.05 = %5
+    reward_max             numeric(19,4) NULL,   -- percentage'da zorunlu tavan
+    currency               char(3) NOT NULL,
+    grant_scope            text NOT NULL CHECK (grant_scope IN ('all_businesses','selected_businesses')),
+    grant_valid_for        interval NULL,        -- verilen partinin süresi; NULL: süresiz
+    budget                 numeric(19,4) NOT NULL,
+    daily_cap_per_account  numeric(19,4) NOT NULL,
+    total_cap_per_account  numeric(19,4) NOT NULL,
+    starts_at              timestamptz NOT NULL,
+    ends_at                timestamptz NULL,
+    created_at             timestamptz NOT NULL DEFAULT now()
+    -- + ck_promo_campaigns_*: kural–eşik, ödül tipi–alanlar, yüzde yalnızca
+    --   payment_to_merchant'ta, sınırlar pozitif, ends_at > starts_at
+);
+
+CREATE TABLE promo_campaign_merchants (
+    campaign_id  uuid NOT NULL REFERENCES promo_campaigns(id) ON DELETE CASCADE,
+    role         text NOT NULL CHECK (role IN ('trigger','scope')),
+    account_id   uuid NOT NULL REFERENCES accounts(id),
+    PRIMARY KEY (campaign_id, role, account_id)
+);
+
+CREATE TABLE promo_campaign_evaluations (
+    ledger_transaction_id  uuid PRIMARY KEY REFERENCES ledger_transactions(id),
+    evaluated_at           timestamptz NOT NULL
+);
+```
+
+`promo_campaign_merchants`'ta iki rol var: `trigger` `payment_to_merchant` kuralında
+promo kazandıran işyerleri, `scope` `selected_businesses` kapsamında verilen partinin
+geçerli olduğu işyerleri.
+
+`promo_campaign_evaluations` wallet-consumer'daki `PromoCampaignJob`'ın defteri: ödeme,
+açtığı partilerle aynı transaction'da buraya yazılıyor. İş son `Lookback` süresindeki
+işaretsiz `Payment` işlemlerini okuyor; `ledger_entries.id` sırası commit sırası
+olmadığı için artan bir cursor kullanılmıyor.
+
+Bütçe ve hesap tavanları `promo_grants.campaign_id` üzerinden toplanıyor; hesap başına
+günlük tavan partinin açıldığı UTC günü üzerinden.
 
 ## Settlement kayıtları
 

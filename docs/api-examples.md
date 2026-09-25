@@ -386,6 +386,49 @@ cevaplamıyor; her partinin kalanı ve geçerli olduğu işyerleri burada. Sıra
 eskiye, sayfalama `after=<grantId>` ile. `expired: true` olan parti ödemeye girmez;
 kalanı süre sonu işi kapatana kadar bakiyede görünür.
 
+### Kampanya tanımla (SQL)
+
+Kampanyalar ve işyerinin platform promo'sunu kabulü backoffice gelene kadar SQL ile
+yönetiliyor (`decisions.md` madde 37). Kampanya promo'su platform fonlu ve yalnızca
+`accepts_promo` işaretli işyerlerinde harcanıyor.
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet
+```
+
+```sql
+-- İşyeri platform promo'sunu kabul ediyor.
+UPDATE accounts SET accepts_promo = true WHERE id = '<isyeri-hesap-id>';
+
+-- Bu işyerine yapılan her ödemede %5, en fazla 25 TL; parti her yerde geçerli, 30 gün.
+WITH c AS (
+    INSERT INTO promo_campaigns
+        (id, name, rule, reward_type, reward_rate, reward_max, currency, grant_scope,
+         grant_valid_for, budget, daily_cap_per_account, total_cap_per_account, starts_at)
+    VALUES
+        (gen_random_uuid(), 'Kahvede yüzde 5', 'payment_to_merchant', 'percentage', 0.05, 25,
+         'TRY', 'all_businesses', interval '30 days', 10000, 50, 200, now())
+    RETURNING id)
+INSERT INTO promo_campaign_merchants (campaign_id, role, account_id)
+SELECT id, 'trigger', '<isyeri-hesap-id>' FROM c;
+
+-- Gün içinde toplam 1000 TL ödeme yapana 50 TL, süresiz.
+INSERT INTO promo_campaigns
+    (id, name, rule, threshold_amount, reward_type, reward_amount, currency, grant_scope,
+     budget, daily_cap_per_account, total_cap_per_account, starts_at)
+VALUES
+    (gen_random_uuid(), 'Günde 1000 TL', 'daily_payment_total', 1000, 'fixed', 50,
+     'TRY', 'all_businesses', 5000, 50, 150, now());
+
+-- Kampanyayı bitir. Verilmiş partiler etkilenmez.
+UPDATE promo_campaigns SET ends_at = now() WHERE name = 'Günde 1000 TL';
+```
+
+Kampanyanın promo'su ödemeden sonra wallet-consumer'daki `PromoCampaignJob` ile düşer;
+iş dakikada bir koşuyor. Tabana yalnızca müşterinin `card` ve `cash` ile ödediği tutar
+giriyor: promo payı ve komisyon sayılmıyor. Kural ve alan uyumsuzluğu (örneğin
+`daily_payment_total`'da yüzde ödül) `ck_promo_campaigns_*` kısıtlarına takılır.
+
 ---
 
 ## topup-webhook — `:8092`

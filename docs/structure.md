@@ -116,7 +116,7 @@ WalletService.Core/
 │   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- LedgerBalance
 │   ├── Policies/              -- TransferType, LimitPolicy, CommissionPolicy, WithdrawalPolicy
-│   ├── Promos/                -- PromoGrant, PromoConsumption, PromoLots (tüketim sırası)
+│   ├── Promos/                -- PromoGrant, PromoConsumption, PromoCampaign, PromoLots (tüketim sırası)
 │   └── Errors/                -- DomainException + InsufficientFunds, LimitExceeded,
 │                                 UnbalancedLedgerTransaction, UnsupportedCurrency,
 │                                 PromoGrantRejected;
@@ -126,7 +126,8 @@ WalletService.Core/
 │   │   ├── WalletDbContext.cs
 │   │   ├── Configurations/    -- IEntityTypeConfiguration<T> başına bir dosya
 │   │   └── Migrations/        -- EF Core üretir, elle düzenlenmez
-│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob, PromoExpiryJob + ayarları
+│   └── Jobs/                  -- ReconciliationJob, BusinessSummaryJob, PromoExpiryJob,
+│                                 PromoCampaignJob + ayarları
 └── Setup/
     ├── PersistenceSetup.cs    -- iki host da kullanıyor
     ├── PoliciesSetup.cs       -- iki host da kullanıyor

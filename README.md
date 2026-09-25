@@ -99,7 +99,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Settlement: clearing kapanır, `nostro` hareket eder | evet — top-up ve çekim |
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
-| Promo: kampanya, platform fonlu parti, personel tanımı | hayır — madde 37 |
+| Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
+| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice ve auth bekliyor |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
