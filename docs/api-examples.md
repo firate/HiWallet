@@ -292,6 +292,14 @@ HTTP/1.1 201 Created
 olarak gönderenden düşülür: `Payment` %2 ise gönderen `-204`, alan `+200`,
 `revenue` `+4`. Ledger'a üç satır düşer, toplamı sıfır.
 
+`type` tarafların hesap tipiyle uyuşmak zorunda: `P2P` kişiden kişiye, `P2B` kişiden
+işletmeye, `B2P` işletmeden kişiye, `B2B` işletmeden işletmeye, `Payment` işletmeye
+(gönderen kişi de işletme de olabilir). Uyuşmazsa `422` ve ledger'a hiçbir şey yazılmaz:
+
+```json
+{ "status": 422, "rule": "transfer_type_mismatch", "traceId": "..." }
+```
+
 **`Idempotency-Key` ZORUNLU**; başlık yoksa `400` ve ledger'a hiçbir şey yazılmaz
 (`decisions.md` madde 4). Anahtarsız bir tekrar hiçbir constraint'e takılmaz ve çift
 harcama sessizce ledger'a düşerdi; append-only olduğu için de geri alınamaz, yalnızca

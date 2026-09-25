@@ -488,7 +488,13 @@ BEGIN;
    WHERE ledger_account_id = @from AND idempotency_key = @key;
   -- satır varsa → onu dön, hiçbir kuralı yeniden değerlendirme
 
-  -- 2) Bakiye ve policy
+  -- 2) Transfer tipi tarafların hesap tipleriyle uyuşmalı (decisions.md madde 6)
+  SELECT id, type FROM accounts WHERE id IN (@fromAccount, @toAccount);
+  -- p2p kişi → kişi, p2b kişi → işletme, b2p işletme → kişi, b2b işletme → işletme,
+  -- payment alan işletme (gönderen ikisi de olabilir)
+  --   → uyuşmazsa 422, hiç yazma
+
+  -- 3) Bakiye ve policy
   SELECT fund_type, balance, version FROM ledger_balances WHERE ledger_account_id = @from;
   -- limit kontrolü (komisyon DAHİL tutara, madde 22), komisyon hesabı
   --   → ihlal varsa 422, hiç yazma
@@ -528,6 +534,7 @@ dağıtım bu şekilde yapıldığı için kuruş yuvarlaması kova bazındaki d
 | Transfer edilebilir kova yetmez| 422  | Toplam yetse bile: promo transfere girmez |
 | Çekimde `cash` kovası yetmez   | 422  | Toplam yetse bile: kart ve promo IBAN'a çıkmaz |
 | Limit aşımı                    | 422  | Aynı şekilde                          |
+| Transfer tipi hesaplarla uyuşmaz | 422 | `rule: transfer_type_mismatch`; kişiye `Payment`, işletmeye `P2P` gibi |
 | Optimistic lock çakışması      | 409  | Retry tükendikten sonra               |
 | Aynı idempotency key, tamam    | 200  | Orijinal transaction dönülür          |
 | Geçersiz DTO                   | 400  | FluentValidation, ProblemDetails      |
