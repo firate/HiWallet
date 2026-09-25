@@ -60,9 +60,8 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
         var withdrawalId = await StartWithdrawalAsync(ct);
 
         // 1. Relay ilk komutu bankaya değil wallet'a gönderdi.
-        var debit = await ReadCommandAsync<DebitForWithdrawal>(Topology.WalletQueue, ct);
+        var debit = await ReadCommandAsync<DebitForWithdrawal>(Topology.WalletQueue, withdrawalId, ct);
 
-        debit.SagaId.ShouldBe(withdrawalId);
         debit.Amount.ShouldBe(250.75m);
 
         // 2. Wallet cevap veriyor: para düşüldü, komisyonla birlikte 252.75.
@@ -77,9 +76,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
         // 3. Saga hem ilerledi hem bir sonraki komutu üretti.
         await WaitForStateAsync(withdrawalId, WithdrawalState.BankTransferPending, ct);
 
-        var transfer = await ReadCommandAsync<StartBankTransfer>(Topology.BankQueue, ct);
-
-        transfer.SagaId.ShouldBe(withdrawalId);
+        var transfer = await ReadCommandAsync<StartBankTransfer>(Topology.BankQueue, withdrawalId, ct);
 
         // Bankaya giden tutar müşterinin İSTEDİĞİ tutar, düşülen toplam değil:
         // komisyon bizde kalıyor.
@@ -104,9 +101,8 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
 
         // 5. Orchestrator settlement komutunu üretti. Ücret TAŞINIYOR (yalnızca banka
         // biliyor), tutar taşınmıyor (clearing'e ne yazıldığını wallet biliyor).
-        var settle = await ReadCommandAsync<SettleWithdrawal>(Topology.WalletQueue, ct);
+        var settle = await ReadCommandAsync<SettleWithdrawal>(Topology.WalletQueue, withdrawalId, ct);
 
-        settle.SagaId.ShouldBe(withdrawalId);
         settle.FeeAmount.ShouldBe(1.50m);
         settle.BankReference.ShouldBe("BNK-1");
 
@@ -139,7 +135,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
 
         var withdrawalId = await StartWithdrawalAsync(ct);
 
-        await ReadCommandAsync<DebitForWithdrawal>(Topology.WalletQueue, ct);
+        await ReadCommandAsync<DebitForWithdrawal>(Topology.WalletQueue, withdrawalId, ct);
 
         await PublishEventAsync(
             new WithdrawalDebited
@@ -149,16 +145,14 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
                 TotalDebited = 252.75m
             }, ct);
 
-        await ReadCommandAsync<StartBankTransfer>(Topology.BankQueue, ct);
+        await ReadCommandAsync<StartBankTransfer>(Topology.BankQueue, withdrawalId, ct);
 
         await PublishEventAsync(
             new BankTransferFailed { SagaId = withdrawalId, Reason = "hesap kapalı" }, ct);
 
         await WaitForStateAsync(withdrawalId, WithdrawalState.Compensating, ct);
 
-        var refund = await ReadCommandAsync<RefundWithdrawal>(Topology.WalletQueue, ct);
-
-        refund.SagaId.ShouldBe(withdrawalId);
+        await ReadCommandAsync<RefundWithdrawal>(Topology.WalletQueue, withdrawalId, ct);
 
         // Wallet iadeyi yazdı.
         await PublishEventAsync(
@@ -187,7 +181,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
 
         var withdrawalId = await StartWithdrawalAsync(ct);
 
-        await ReadCommandAsync<DebitForWithdrawal>(Topology.WalletQueue, ct);
+        await ReadCommandAsync<DebitForWithdrawal>(Topology.WalletQueue, withdrawalId, ct);
 
         var debited = new WithdrawalDebited
         {
@@ -199,7 +193,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
         await PublishEventAsync(debited, ct);
         await WaitForStateAsync(withdrawalId, WithdrawalState.BankTransferPending, ct);
 
-        var first = await ReadCommandAsync<StartBankTransfer>(Topology.BankQueue, ct);
+        var first = await ReadCommandAsync<StartBankTransfer>(Topology.BankQueue, withdrawalId, ct);
 
         // Aynı event tekrar.
         await PublishEventAsync(debited, ct);
@@ -306,10 +300,17 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
     }
 
     /// <summary>
-    /// Kuyruktan tek komut çeker. <c>BasicGet</c> yeterli: burada tüketici davranışı
-    /// değil, relay'in mesajı doğru kuyruğa doğru içerikle koyduğu ölçülüyor.
+    /// Kuyruktan saga'nın sıradaki komutunu çeker. <c>BasicGet</c> yeterli: burada
+    /// tüketici davranışı değil, relay'in mesajı doğru kuyruğa doğru içerikle koyduğu
+    /// ölçülüyor.
+    ///
+    /// Başka saga'ların komutları atlanıyor. Orchestrator şeması koleksiyonla
+    /// paylaşılıyor ve broker'sız koşan testler (<c>WithdrawalsApiTests</c> gibi)
+    /// outbox'ta yayınlanmamış komut bırakıyor; buradaki relay broker'a bağlanınca
+    /// onları da yayınlıyor. Atlanmasalardı okunan komut, bu sınıftan önce hangi
+    /// testlerin koştuğuna bağlı olurdu.
     /// </summary>
-    private async Task<T> ReadCommandAsync<T>(string queue, CancellationToken ct)
+    private async Task<T> ReadCommandAsync<T>(string queue, Guid sagaId, CancellationToken ct)
     {
         await using var connection = new RabbitMqConnection(
             Options.Create(BrokerSettings.BuildOptions("hiwallet-tests-reader")));
@@ -325,6 +326,10 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
 
             if (result is not null)
             {
+                var correlation = JsonSerializer.Deserialize<SagaCorrelation>(result.Body.Span, JsonOptions);
+
+                if (correlation?.SagaId != sagaId) continue;
+
                 result.RoutingKey.ShouldBe(typeof(T).Name);
 
                 // MessageId alıcı tarafın deduplikasyon anahtarı; outbox satırının
@@ -338,7 +343,8 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
             await Task.Delay(200, ct);
         }
 
-        throw new TimeoutException($"{Timeout.TotalSeconds} sn içinde {queue} kuyruğuna {typeof(T).Name} düşmedi.");
+        throw new TimeoutException(
+            $"{Timeout.TotalSeconds} sn içinde {queue} kuyruğuna {sagaId} saga'sının {typeof(T).Name} komutu düşmedi.");
     }
 
     private async Task PublishEventAsync<T>(T @event, CancellationToken ct)
@@ -448,4 +454,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
     }
 
     private sealed record AcceptedBody(Guid WithdrawalId, string State, bool Replayed);
+
+    /// <summary>Komutların ortak korelasyon alanı; gövdenin gerisi okunmuyor.</summary>
+    private sealed record SagaCorrelation(Guid SagaId);
 }
