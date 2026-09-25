@@ -18,7 +18,7 @@ Tip ve şema zaten var, yazan yol yok. Yani bugün çalıştırılamayan kod ta�
 ### A2. `employee` aktörü hiçbir yerde üretilmiyor
 
 Bugün: `ActorType.Employee` enum'da, `Actor.Employee(subject)` fabrikası yazılı,
-`CommandActor.Employee` sözleşmede, value converter iki yönde de eşliyor. Üretim
+`CommandActor.Employee` sözleşmede, value converter iki yönde de eşliyor. Uygulama
 kodunda `Actor.Employee(...)` çağıran tek bir satır yok. Ledger'a bugün yalnızca
 `customer` ve `system` düşüyor.
 
@@ -40,6 +40,7 @@ Bugünkü endpoint'ler:
 | wallet-api | `POST /v1/accounts/{id}/wallets`, `GET /v1/wallets/{id}` |
 | wallet-api | `GET /v1/wallets/{id}/movements` |
 | wallet-api | `POST /v1/transfers`, `GET /v1/transfers/{id}` |
+| wallet-api | `POST /v1/promos`, `GET /v1/wallets/{id}/promos` |
 | withdrawal-orchestrator | `POST /v1/withdrawals`, `GET /v1/withdrawals/{id}` |
 
 ### B1. Hareket listesinde filtre
