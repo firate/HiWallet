@@ -70,6 +70,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Süre sonu kaydının bacakları partinin fonlayanından okunur: platform fonlu kalan
   `promo_breakage`'e, işyeri fonlu kalan işyerinin `cash` kovasına. `promo_expense`'e
   geri YAZILMAZ.
+- Kampanyada bütçe, hesap başına günlük tavan ve hesap başına toplam tavan ZORUNLU.
+- Kampanya tabanına (eşik toplamı, yüzde ödül) promo payı ve komisyon GİRMEZ.
+- Kampanya değerlendirmesi id cursor'ıyla İLERLEMEZ: id sırası commit sırası değil.
+  Değerlendirilen ödeme `promo_campaign_evaluations`'a işaretlenir.
 
 **Concurrency**
 - wallet-service'te optimistic lock `ledger_balances.version` üzerinde.

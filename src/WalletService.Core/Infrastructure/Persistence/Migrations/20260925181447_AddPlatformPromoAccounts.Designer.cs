@@ -3,6 +3,7 @@ using System;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WalletDbContext))]
-    partial class WalletDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925181447_AddPlatformPromoAccounts")]
+    partial class AddPlatformPromoAccounts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -565,139 +568,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.ToTable("ledger_transactions", (string)null);
                 });
 
-            modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoCampaign", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<decimal>("Budget")
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("budget");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("currency");
-
-                    b.Property<decimal>("DailyCapPerAccount")
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("daily_cap_per_account");
-
-                    b.Property<DateTimeOffset?>("EndsAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("ends_at");
-
-                    b.Property<string>("GrantScope")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("grant_scope");
-
-                    b.Property<TimeSpan?>("GrantValidFor")
-                        .HasColumnType("interval")
-                        .HasColumnName("grant_valid_for");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("name");
-
-                    b.Property<decimal?>("RewardAmount")
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("reward_amount");
-
-                    b.Property<decimal?>("RewardMax")
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("reward_max");
-
-                    b.Property<decimal?>("RewardRate")
-                        .HasColumnType("numeric(9,6)")
-                        .HasColumnName("reward_rate");
-
-                    b.Property<string>("RewardType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("reward_type");
-
-                    b.Property<string>("Rule")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("rule");
-
-                    b.Property<DateTimeOffset>("StartsAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("starts_at");
-
-                    b.Property<decimal?>("ThresholdAmount")
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("threshold_amount");
-
-                    b.Property<decimal>("TotalCapPerAccount")
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("total_cap_per_account");
-
-                    b.HasKey("Id")
-                        .HasName("pk_promo_campaigns");
-
-                    b.ToTable("promo_campaigns", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_promo_campaigns_fixed", "(reward_type = 'fixed') = (reward_amount IS NOT NULL) AND (reward_amount IS NULL OR reward_amount > 0)");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_grant_scope", "grant_scope IN ('all_businesses','selected_businesses')");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_grant_valid_for", "grant_valid_for IS NULL OR grant_valid_for > interval '0'");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_limits", "budget > 0 AND daily_cap_per_account > 0 AND total_cap_per_account > 0");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_name", "btrim(name) <> ''");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_percentage", "(reward_type = 'percentage') = (reward_rate IS NOT NULL) AND (reward_type = 'percentage') = (reward_max IS NOT NULL) AND (reward_rate IS NULL OR (reward_rate > 0 AND reward_rate <= 1)) AND (reward_max IS NULL OR reward_max > 0)");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_percentage_rule", "rule = 'payment_to_merchant' OR reward_type = 'fixed'");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_period", "ends_at IS NULL OR ends_at > starts_at");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_reward_type", "reward_type IN ('fixed','percentage')");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_rule", "rule IN ('payment_to_merchant','daily_payment_total')");
-
-                            t.HasCheckConstraint("ck_promo_campaigns_threshold", "(rule = 'daily_payment_total') = (threshold_amount IS NOT NULL) AND (threshold_amount IS NULL OR threshold_amount > 0)");
-                        });
-                });
-
-            modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoCampaignMerchant", b =>
-                {
-                    b.Property<Guid>("CampaignId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("campaign_id");
-
-                    b.Property<string>("Role")
-                        .HasColumnType("text")
-                        .HasColumnName("role");
-
-                    b.Property<Guid>("AccountId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("account_id");
-
-                    b.HasKey("CampaignId", "Role", "AccountId")
-                        .HasName("pk_promo_campaign_merchants");
-
-                    b.HasIndex("AccountId")
-                        .HasDatabaseName("ix_promo_campaign_merchants_account");
-
-                    b.ToTable("promo_campaign_merchants", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_promo_campaign_merchants_role", "role IN ('trigger','scope')");
-                        });
-                });
-
             modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoConsumption", b =>
                 {
                     b.Property<long>("Id")
@@ -752,10 +622,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(19,4)")
                         .HasColumnName("amount");
 
-                    b.Property<Guid?>("CampaignId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("campaign_id");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -796,10 +662,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_promo_grants");
 
-                    b.HasIndex("CampaignId")
-                        .HasDatabaseName("ix_promo_grants_campaign")
-                        .HasFilter("campaign_id IS NOT NULL");
-
                     b.HasIndex("ExpiresAt")
                         .HasDatabaseName("ix_promo_grants_expires_at")
                         .HasFilter("expires_at IS NOT NULL");
@@ -817,8 +679,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.ToTable("promo_grants", null, t =>
                         {
                             t.HasCheckConstraint("ck_promo_grants_amount", "amount > 0");
-
-                            t.HasCheckConstraint("ck_promo_grants_campaign", "campaign_id IS NULL OR funder = 'platform'");
 
                             t.HasCheckConstraint("ck_promo_grants_expires_at", "expires_at IS NULL OR expires_at > created_at");
 
@@ -954,22 +814,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_processed_messages_saga");
 
                     b.ToTable("processed_messages", (string)null);
-                });
-
-            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.PromoCampaignEvaluation", b =>
-                {
-                    b.Property<Guid>("LedgerTransactionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("ledger_transaction_id");
-
-                    b.Property<DateTimeOffset>("EvaluatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("evaluated_at");
-
-                    b.HasKey("LedgerTransactionId")
-                        .HasName("pk_promo_campaign_evaluations");
-
-                    b.ToTable("promo_campaign_evaluations", (string)null);
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.ProviderFee", b =>
@@ -1168,23 +1012,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_ledger_transactions_ledger_account");
                 });
 
-            modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoCampaignMerchant", b =>
-                {
-                    b.HasOne("HiWallet.WalletService.Domain.Accounts.Account", null)
-                        .WithMany()
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_promo_campaign_merchants_account");
-
-                    b.HasOne("HiWallet.WalletService.Domain.Promos.PromoCampaign", null)
-                        .WithMany("Merchants")
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_promo_campaign_merchants_campaign");
-                });
-
             modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoConsumption", b =>
                 {
                     b.HasOne("HiWallet.WalletService.Domain.Promos.PromoGrant", null)
@@ -1204,12 +1031,6 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoGrant", b =>
                 {
-                    b.HasOne("HiWallet.WalletService.Domain.Promos.PromoCampaign", null)
-                        .WithMany()
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_promo_grants_campaign");
-
                     b.HasOne("HiWallet.WalletService.Domain.Ledger.LedgerTransaction", null)
                         .WithMany()
                         .HasForeignKey("LedgerTransactionId")
@@ -1250,24 +1071,9 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_promo_grant_merchants_grant");
                 });
 
-            modelBuilder.Entity("HiWallet.WalletService.Infrastructure.Persistence.PromoCampaignEvaluation", b =>
-                {
-                    b.HasOne("HiWallet.WalletService.Domain.Ledger.LedgerTransaction", null)
-                        .WithMany()
-                        .HasForeignKey("LedgerTransactionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_promo_campaign_evaluations_transaction");
-                });
-
             modelBuilder.Entity("HiWallet.WalletService.Domain.Ledger.LedgerTransaction", b =>
                 {
                     b.Navigation("Entries");
-                });
-
-            modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoCampaign", b =>
-                {
-                    b.Navigation("Merchants");
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Promos.PromoGrant", b =>

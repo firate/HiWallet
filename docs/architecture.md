@@ -274,8 +274,10 @@ Her işlem tipinin yazdığı bacaklar — **toplamı her satırda sıfır**:
 | `p2p` | `gönderen −100`, `alan +100` |
 | `payment` | `gönderen −102`, `alan +100`, `revenue +2` |
 | `payment` (promo ile) | `gönderen promo −40`, `gönderen cash −62`, `alan cash +100`, `revenue +2` |
-| `promo_grant` | `işyeri cash −40`, `müşteri promo +40` |
-| `promo_expiry` | `müşteri promo −kalan`, `işyeri cash +kalan` |
+| `promo_grant` (işyeri) | `işyeri cash −40`, `müşteri promo +40` |
+| `promo_grant` (kampanya) | `promo_expense −10`, `müşteri promo +10` |
+| `promo_expiry` (işyeri fonlu) | `müşteri promo −kalan`, `işyeri cash +kalan` |
+| `promo_expiry` (platform fonlu) | `müşteri promo −kalan`, `promo_breakage +kalan` |
 | `withdrawal` | `cüzdan −102`, `clearing +100`, `revenue +2` |
 | `refund` | orijinalin bacakları negatiflenerek — üçü de |
 | `settlement` (top-up) | `clearing +gross`, `nostro −net`; `Net` modelde ayrıca `provider_expense −fee` |

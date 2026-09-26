@@ -4,8 +4,11 @@ using HiWallet.Shared.Contracts.Topups;
 using HiWallet.WalletService.Application.Promos;
 using HiWallet.WalletService.Application.Settlements;
 using HiWallet.WalletService.Application.Topups;
+using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
+using HiWallet.WalletService.Domain.Policies;
+using HiWallet.WalletService.Domain.Promos;
 using HiWallet.WalletService.Infrastructure.Jobs;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -311,6 +314,65 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         (await CreateScanner().ScanAsync(ct))
             .PromoDrifts.ShouldNotContain(d => d.LedgerAccountId == wallet);
     }
+
+    /// <summary>
+    /// Platform fonlu promo harcandığında işyerine e-para yazılıyor, koruma hesabına para
+    /// girmiyor (decisions.md madde 37). Açık, fonlanana kadar Warning olarak raporlanıyor.
+    /// </summary>
+    [Fact]
+    public async Task PlatformPromosuHarcaninca_KorumaHesabiAcigiRaporlanir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var customer = await NewWalletAsync(ct);
+        var currency = SystemAccounts.DefaultCurrency;
+
+        Guid shop, merchant;
+        await using (var db = postgres.CreateContext())
+        {
+            shop = await LedgerSeeder.CreateAccountAsync(db, AccountType.Business, ct);
+            merchant = await LedgerSeeder.CreateWalletAsync(db, shop, "Açık işyeri", ct);
+            await db.Database.ExecuteSqlAsync($"UPDATE accounts SET accepts_promo = true WHERE id = {shop}", ct);
+
+            var campaign = PromoCampaign.Create(
+                Guid.NewGuid(), "Açık testi", PromoCampaignRule.DailyPaymentTotal, 1_000_000m,
+                PromoRewardType.Fixed, 1m, null, null, currency, PromoScope.AllBusinesses, null,
+                1_000m, 1_000m, 1_000m, Now.AddYears(-1), Now.AddYears(-1).AddDays(1), [], [], Now.AddYears(-1));
+            db.PromoCampaigns.Add(campaign);
+
+            var tx = LedgerTransaction
+                .Create(Guid.NewGuid(), LedgerTransactionType.PromoGrant, customer, SystemActors.PromoCampaign,
+                    Now, Guid.NewGuid().ToString("N"))
+                .AddEntry(SystemAccounts.PromoExpenseTry, new Money(-30m, currency), FundType.Promo)
+                .AddEntry(customer, new Money(30m, currency), FundType.Promo);
+            db.LedgerTransactions.Add(tx);
+            db.PromoGrants.Add(PromoGrant.FromCampaign(Guid.NewGuid(), customer, new Money(30m, currency), campaign, tx.Id, Now));
+
+            foreach (var entry in tx.Entries.OrderBy(e => e.LedgerAccountId))
+            {
+                var balance = await db.LedgerBalances.SingleAsync(
+                    b => b.LedgerAccountId == entry.LedgerAccountId && b.FundType == FundType.Promo, ct);
+                balance.Apply(entry.Money, canGoNegative: entry.LedgerAccountId != customer, Now);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        var before = GapOf(await CreateScanner().ScanAsync(ct));
+
+        await new CreateTransferHandler(
+                postgres.ContextFactory,
+                new LimitPolicy(new Dictionary<TransferType, TransferLimit>()),
+                new CommissionPolicy(new Dictionary<TransferType, CommissionRate>()),
+                new FixedClock(Now),
+                NullLogger<CreateTransferHandler>.Instance)
+            .HandleAsync(new CreateTransferCommand(
+                customer, merchant, 20m, "TRY", TransferType.Payment, Guid.NewGuid().ToString("N")), ct);
+
+        GapOf(await CreateScanner().ScanAsync(ct)).ShouldBe(before + 20m);
+    }
+
+    private static decimal GapOf(ReconciliationReport report) =>
+        report.PromoFundingGaps.Where(g => g.Currency == "TRY").Sum(g => g.Amount);
 
     private async Task<Guid> NewWalletAsync(CancellationToken ct)
     {

@@ -119,4 +119,7 @@ public static class SystemActors
 
     /// <summary>Süresi dolan promo partisinin kapatılması (decisions.md madde 37).</summary>
     public static readonly Actor PromoExpiry = Actor.System(SystemFlows.PromoExpiry);
+
+    /// <summary>Kampanyanın verdiği promo (decisions.md madde 37).</summary>
+    public static readonly Actor PromoCampaign = Actor.System(SystemFlows.PromoCampaign);
 }

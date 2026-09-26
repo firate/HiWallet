@@ -24,6 +24,8 @@ internal sealed class PromoGrantConfiguration : IEntityTypeConfiguration<PromoGr
                 "scope IN ('all_businesses','selected_businesses')");
             t.HasCheckConstraint("ck_promo_grants_expires_at",
                 "expires_at IS NULL OR expires_at > created_at");
+            t.HasCheckConstraint("ck_promo_grants_campaign",
+                "campaign_id IS NULL OR funder = 'platform'");
         });
 
         builder.HasKey(g => g.Id).HasName("pk_promo_grants");
@@ -58,6 +60,7 @@ internal sealed class PromoGrantConfiguration : IEntityTypeConfiguration<PromoGr
 
         builder.Property(g => g.ExpiresAt).HasColumnName("expires_at");
         builder.Property(g => g.LedgerTransactionId).HasColumnName("ledger_transaction_id").IsRequired();
+        builder.Property(g => g.CampaignId).HasColumnName("campaign_id");
 
         builder.Property(g => g.CreatedAt)
             .HasColumnName("created_at")
@@ -105,6 +108,17 @@ internal sealed class PromoGrantConfiguration : IEntityTypeConfiguration<PromoGr
         builder.HasIndex(g => g.ExpiresAt)
             .HasDatabaseName("ix_promo_grants_expires_at")
             .HasFilter("expires_at IS NOT NULL");
+
+        // Kampanyanın bütçesi ve hesap tavanları bu kolondan toplanıyor.
+        builder.HasOne<PromoCampaign>()
+            .WithMany()
+            .HasForeignKey(g => g.CampaignId)
+            .HasConstraintName("fk_promo_grants_campaign")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(g => g.CampaignId)
+            .HasDatabaseName("ix_promo_grants_campaign")
+            .HasFilter("campaign_id IS NOT NULL");
 
         builder.HasMany(g => g.Merchants)
             .WithOne()

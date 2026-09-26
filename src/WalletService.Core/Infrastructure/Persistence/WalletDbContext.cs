@@ -30,6 +30,12 @@ public sealed class WalletDbContext : DbContext
     /// <summary>Partilerden tüketim. Append-only.</summary>
     public DbSet<PromoConsumption> PromoConsumptions => Set<PromoConsumption>();
 
+    /// <summary>Promo kampanyaları. Backoffice gelene kadar SQL ile yönetiliyor.</summary>
+    public DbSet<PromoCampaign> PromoCampaigns => Set<PromoCampaign>();
+
+    /// <summary>Kampanyalara göre değerlendirilmiş ödemeler (decisions.md madde 37).</summary>
+    internal DbSet<PromoCampaignEvaluation> PromoCampaignEvaluations => Set<PromoCampaignEvaluation>();
+
     /// <summary>Top-up event'lerinin idempotency defteri (overview.md madde 5).</summary>
     internal DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
 

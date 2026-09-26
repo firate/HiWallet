@@ -1,5 +1,6 @@
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
+using HiWallet.WalletService.Domain.Promos;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -10,10 +11,11 @@ namespace HiWallet.WalletService.Infrastructure.Jobs;
 /// Mutabakatın kendisi. Zamanlamadan ayrı duruyor ki test saatlerce beklemesin ve
 /// log metnine değil bulgulara baksın.
 ///
-/// Beş soru soruyor:
+/// Altı soru soruyor:
 /// <list type="number">
 /// <item>Projeksiyon ledger ile tutuyor mu?</item>
 /// <item>Cüzdanların promo bakiyesi partileriyle tutuyor mu?</item>
+/// <item>Harcanan platform promo'sunun karşılığı koruma hesabına yatırıldı mı?</item>
 /// <item>Clearing'de yaşlanan para var mı — sağlayıcı ödemedi mi?</item>
 /// <item>İncelemede bekleyen fatura var mı?</item>
 /// <item>Faturası gecikmiş ücret var mı?</item>
@@ -42,6 +44,7 @@ internal sealed class ReconciliationScanner(
         return new ReconciliationReport(
             await FindDriftsAsync(db, ct),
             await FindPromoDriftsAsync(db, ct),
+            await FindPromoFundingGapsAsync(db, ct),
             await FindAgingClearingAsync(db, now, ct),
             await FindPendingInvoicesAsync(db, ct),
             await FindOverdueFeesAsync(db, now, ct));
@@ -115,6 +118,31 @@ internal sealed class ReconciliationScanner(
 
         return drifts
             .Select(row => new PromoDrift(row.LedgerAccountId, row.Balance, row.Granted - row.Consumed))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Koruma hesabı açığı (decisions.md madde 37): platform fonlu partilerden ödemede
+    /// harcanan toplam. Süre sonu tüketimi sayılmıyor, o promo hiç e-paraya dönüşmedi.
+    ///
+    /// Fonlamanın ledger kaydı backoffice ile geliyor; o zamana kadar açık, harcanan
+    /// toplamın kendisi.
+    /// </summary>
+    private static async Task<IReadOnlyList<PromoFundingGap>> FindPromoFundingGapsAsync(
+        WalletDbContext db, CancellationToken ct)
+    {
+        var gaps = await db.PromoConsumptions
+            .Where(c => db.LedgerTransactions.Any(
+                t => t.Id == c.LedgerTransactionId && t.Type == LedgerTransactionType.Payment))
+            .Join(db.PromoGrants.Where(g => g.Funder == PromoFunder.Platform),
+                c => c.GrantId, g => g.Id, (c, g) => new { g.Currency, c.Amount })
+            .GroupBy(x => x.Currency)
+            .Select(g => new { Currency = g.Key, Amount = g.Sum(x => x.Amount) })
+            .ToListAsync(ct);
+
+        return gaps
+            .Where(g => g.Amount > 0m)
+            .Select(g => new PromoFundingGap(g.Currency.Code, g.Amount))
             .ToArray();
     }
 

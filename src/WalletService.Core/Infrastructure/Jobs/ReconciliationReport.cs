@@ -12,6 +12,7 @@ namespace HiWallet.WalletService.Infrastructure.Jobs;
 internal sealed record ReconciliationReport(
     IReadOnlyList<BalanceDrift> Drifts,
     IReadOnlyList<PromoDrift> PromoDrifts,
+    IReadOnlyList<PromoFundingGap> PromoFundingGaps,
     IReadOnlyList<AgingClearingItem> AgingItems,
     IReadOnlyList<PendingInvoice> PendingInvoices,
     IReadOnlyList<OverdueFees> OverdueFees)
@@ -19,6 +20,7 @@ internal sealed record ReconciliationReport(
     public bool IsClean =>
         Drifts.Count == 0
         && PromoDrifts.Count == 0
+        && PromoFundingGaps.Count == 0
         && AgingItems.Count == 0
         && PendingInvoices.Count == 0
         && OverdueFees.Count == 0;
@@ -48,6 +50,13 @@ internal sealed record PromoDrift(Guid LedgerAccountId, decimal Balance, decimal
 {
     public decimal Difference => Balance - FromGrants;
 }
+
+/// <summary>
+/// Koruma hesabı açığı (decisions.md madde 37): platform fonlu promo harcandığında
+/// işyerine e-para yazıldı, karşılığında koruma hesabına para girmedi. Şirketin kendi
+/// kaynağından aktarması gereken tutar.
+/// </summary>
+internal sealed record PromoFundingGap(string Currency, decimal Amount);
 
 /// <summary>
 /// Uzun süredir <c>clearing</c>'de bekleyen para: sağlayıcı settlement göndermemiş.

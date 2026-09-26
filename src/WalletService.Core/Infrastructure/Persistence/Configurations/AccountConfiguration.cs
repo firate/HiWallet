@@ -22,6 +22,11 @@ internal sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasColumnType("text")
             .IsRequired();
 
+        builder.Property(a => a.AcceptsPromo)
+            .HasColumnName("accepts_promo")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(a => a.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");

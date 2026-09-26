@@ -4,6 +4,7 @@ using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
+using HiWallet.WalletService.Domain.Promos;
 using HiWallet.WalletService.Infrastructure.Jobs;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -147,5 +148,61 @@ public sealed class PromoExpiryTests(PostgresFixture postgres)
         await using var db = postgres.CreateContext();
         (await db.LedgerTransactions.AnyAsync(t => t.IdempotencyKey == $"promo-expiry:{grantId}", ct))
             .ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Platform fonlu partinin kalanı promo_expense'e geri yazılmıyor, promo_breakage
+    /// gelir hesabına gidiyor (decisions.md madde 37).
+    /// </summary>
+    [Fact]
+    public async Task PlatformFonluParti_KalaniPromoBreakageHesabinaGider()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (_, customer) = await WalletsAsync();
+        var currency = SystemAccounts.DefaultCurrency;
+        var grantedAt = Now.AddHours(-2);
+
+        Guid grantId;
+        await using (var db = postgres.CreateContext())
+        {
+            var campaign = PromoCampaign.Create(
+                Guid.NewGuid(), "Süre sonu testi", PromoCampaignRule.DailyPaymentTotal, 1_000_000m,
+                PromoRewardType.Fixed, 1m, null, null, currency, PromoScope.AllBusinesses, TimeSpan.FromHours(1),
+                1_000m, 1_000m, 1_000m, Now.AddYears(-1), Now.AddYears(-1).AddDays(1), [], [], Now.AddYears(-1));
+            db.PromoCampaigns.Add(campaign);
+
+            var tx = LedgerTransaction
+                .Create(Guid.NewGuid(), LedgerTransactionType.PromoGrant, customer, SystemActors.PromoCampaign,
+                    grantedAt, Key())
+                .AddEntry(SystemAccounts.PromoExpenseTry, new Money(-40m, currency), FundType.Promo)
+                .AddEntry(customer, new Money(40m, currency), FundType.Promo);
+            db.LedgerTransactions.Add(tx);
+
+            var grant = PromoGrant.FromCampaign(Guid.NewGuid(), customer, new Money(40m, currency), campaign, tx.Id, grantedAt);
+            db.PromoGrants.Add(grant);
+            grantId = grant.Id;
+
+            foreach (var entry in tx.Entries.OrderBy(e => e.LedgerAccountId))
+            {
+                var balance = await db.LedgerBalances.SingleAsync(
+                    b => b.LedgerAccountId == entry.LedgerAccountId && b.FundType == FundType.Promo, ct);
+                balance.Apply(entry.Money, canGoNegative: entry.LedgerAccountId != customer, grantedAt);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        await Expirer().ExpireDueAsync(Now, batchSize: 100, ct);
+
+        (await BalanceAsync(customer, FundType.Promo)).ShouldBe(0m);
+
+        await using var verify = postgres.CreateContext();
+        var expiry = await verify.LedgerTransactions
+            .Include(t => t.Entries)
+            .SingleAsync(t => t.IdempotencyKey == $"promo-expiry:{grantId}", ct);
+
+        expiry.Entries.ShouldContain(e => e.LedgerAccountId == SystemAccounts.PromoBreakageTry
+                                          && e.Amount == 40m && e.FundType == FundType.Promo);
+        expiry.Entries.ShouldNotContain(e => e.LedgerAccountId == SystemAccounts.PromoExpenseTry);
     }
 }

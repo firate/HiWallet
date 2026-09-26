@@ -6,6 +6,7 @@ using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
+using HiWallet.WalletService.Domain.Promos;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -173,6 +174,98 @@ public sealed class PromoPaymentTests(PostgresFixture postgres)
 
         consumed[sooner.GrantId].ShouldBe(50m);
         consumed[later.GrantId].ShouldBe(10m);
+    }
+
+    /// <summary>
+    /// Platform fonlu parti: kampanyanın verdiği promo. Ledger'a promo_expense'ten yazılıyor.
+    /// </summary>
+    private async Task<Guid> PlatformGrantAsync(
+        Guid wallet, decimal amount, PromoScope scope = PromoScope.AllBusinesses, Guid[]? merchants = null)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var currency = SystemAccounts.DefaultCurrency;
+
+        await using var db = postgres.CreateContext();
+
+        var campaign = PromoCampaign.Create(
+            Guid.NewGuid(), "Ödeme testi", PromoCampaignRule.DailyPaymentTotal, 1_000_000m,
+            PromoRewardType.Fixed, 1m, null, null, currency, scope, null,
+            1_000m, 1_000m, 1_000m, now.AddYears(-1), now.AddYears(-1).AddDays(1),
+            [], merchants ?? [], now.AddYears(-1));
+        db.PromoCampaigns.Add(campaign);
+
+        var tx = LedgerTransaction
+            .Create(Guid.NewGuid(), LedgerTransactionType.PromoGrant, wallet, SystemActors.PromoCampaign, now, Key())
+            .AddEntry(SystemAccounts.PromoExpenseTry, new Money(-amount, currency), FundType.Promo)
+            .AddEntry(wallet, new Money(amount, currency), FundType.Promo);
+        db.LedgerTransactions.Add(tx);
+
+        var grant = PromoGrant.FromCampaign(Guid.NewGuid(), wallet, new Money(amount, currency), campaign, tx.Id, now);
+        db.PromoGrants.Add(grant);
+
+        foreach (var entry in tx.Entries.OrderBy(e => e.LedgerAccountId))
+        {
+            var balance = await db.LedgerBalances.SingleAsync(
+                b => b.LedgerAccountId == entry.LedgerAccountId && b.FundType == FundType.Promo, ct);
+            balance.Apply(entry.Money, canGoNegative: entry.LedgerAccountId != wallet, now);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return grant.Id;
+    }
+
+    private async Task AcceptPromoAsync(Guid account)
+    {
+        await using var db = postgres.CreateContext();
+        await db.Database.ExecuteSqlAsync(
+            $"UPDATE accounts SET accepts_promo = true WHERE id = {account}",
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task PlatformPromosu_KabulEdenIsyerindeKullanilir()
+    {
+        var (shop, merchant) = await WalletAsync(AccountType.Business);
+        var (_, customer) = await WalletAsync(AccountType.Person, cash: 100m);
+        await AcceptPromoAsync(shop);
+        await PlatformGrantAsync(customer, 30m);
+
+        await PayAsync(customer, merchant, 50m);
+
+        (await BalanceAsync(customer, FundType.Promo)).ShouldBe(0m);
+        (await BalanceAsync(customer, FundType.Cash)).ShouldBe(80m);
+        (await BalanceAsync(merchant, FundType.Cash)).ShouldBe(50m);
+    }
+
+    [Fact]
+    public async Task PlatformPromosu_KabulEtmeyenIsyerindeKullanilmaz()
+    {
+        var (_, merchant) = await WalletAsync(AccountType.Business);
+        var (_, customer) = await WalletAsync(AccountType.Person, cash: 100m);
+        await PlatformGrantAsync(customer, 30m);
+
+        await PayAsync(customer, merchant, 50m);
+
+        (await BalanceAsync(customer, FundType.Promo)).ShouldBe(30m);
+        (await BalanceAsync(customer, FundType.Cash)).ShouldBe(50m);
+    }
+
+    [Fact]
+    public async Task SeciliIsyerliPlatformPromosu_YalnizcaListedekiIsyerinde()
+    {
+        var (listed, listedWallet) = await WalletAsync(AccountType.Business);
+        var (other, otherWallet) = await WalletAsync(AccountType.Business);
+        var (_, customer) = await WalletAsync(AccountType.Person, cash: 100m);
+        await AcceptPromoAsync(listed);
+        await AcceptPromoAsync(other);
+        await PlatformGrantAsync(customer, 30m, PromoScope.SelectedBusinesses, [listed]);
+
+        await PayAsync(customer, otherWallet, 10m);
+        (await BalanceAsync(customer, FundType.Promo)).ShouldBe(30m);
+
+        await PayAsync(customer, listedWallet, 10m);
+        (await BalanceAsync(customer, FundType.Promo)).ShouldBe(20m);
     }
 
     /// <summary>

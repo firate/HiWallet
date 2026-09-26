@@ -24,5 +24,17 @@ public enum LedgerAccountType
     Nostro = 4,
 
     /// <summary>Sağlayıcıya ödenen ücret (gider). Sağlayıcı bazında.</summary>
-    ProviderExpense = 5
+    ProviderExpense = 5,
+
+    /// <summary>
+    /// Platform fonlu promo'nun gideri (decisions.md madde 37). Promo verildiği anda
+    /// yazılıyor. Sağlayıcıya bağlı değil, currency başına tek.
+    /// </summary>
+    PromoExpense = 6,
+
+    /// <summary>
+    /// Süresi dolan platform fonlu promo'nun kullanılmayan kalanı (gelir). Gider hesabına
+    /// geri yazılmıyor, netleştirilmiyor (decisions.md madde 37).
+    /// </summary>
+    PromoBreakage = 7
 }

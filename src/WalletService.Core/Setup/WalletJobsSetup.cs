@@ -46,6 +46,12 @@ public static class WalletJobsSetup
         services.AddSingleton<PromoExpirer>();
         services.AddHostedService<PromoExpiryJob>();
 
+        services.Configure<PromoCampaignOptions>(
+            configuration.GetSection(PromoCampaignOptions.SectionName));
+
+        services.AddSingleton<PromoCampaignEvaluator>();
+        services.AddHostedService<PromoCampaignJob>();
+
         return services;
     }
 }
