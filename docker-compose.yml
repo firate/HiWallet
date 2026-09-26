@@ -7,13 +7,22 @@
 # Parolalar .env'den gelir (`cp .env.example .env`), compose onu kendi dizininden
 # otomatik okur.
 #
-# Altı uygulama, erişim seviyesine göre ayrılmış (decisions.md madde 28):
+# On uygulama. İstemci ön API'lere bağlanıyor; wallet-api ve orchestrator iç
+# servis (CLAUDE.md "Deployable'lar"). Webhook'lar ve ingress'siz olanlar erişim
+# seviyesine göre ayrılmış (decisions.md madde 28):
 #
-#   wallet-api               public ingress   — mobil/web istemciler
+#   personal-mobile-api      public ingress   — ön API: bireysel mobil uygulama
+#   business-api             public ingress   — ön API: işyerinin sistem entegrasyonu
+#   business-web-bff         public ingress   — ön API: işyeri panelinin BFF'i
+#   backoffice-bff           iç ağ            — ön API: backoffice panelinin BFF'i
+#   wallet-api               iç ağ            — ön API'lerin çağırdığı cüzdan servisi
 #   topup-webhook            kısıtlı ingress  — yalnızca sağlayıcı IP'leri (proxy işi)
 #   bank-webhook             kısıtlı ingress  — yalnızca bankanın IP'leri
 #   wallet-consumer          ingress YOK      — mesajları kendisi kuyruktan çekiyor
-#   withdrawal-orchestrator  public ingress   — çekim isteği
+#   withdrawal-orchestrator  iç ağ            — çekim saga'sı
+#
+# İç ağdaki servislerin portları burada elle denemek için host'a açık; canlıda
+# yalnızca iç ağdan erişiliyorlar.
 #   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
 # Ve iki tane de BİZİM OLMAYAN (ikisi de `fakes/` altında, `src/` altında DEĞİL):
@@ -49,7 +58,7 @@
 #                            ───
 #                             88   psql ve izleme için ~12 pay kalıyor
 #
-# Sahte servisler bütçede YOK: veritabanı bağlantısı hiç açmıyorlar.
+# Sahte servisler ve ön API'ler bütçede YOK: veritabanı bağlantısı hiç açmıyorlar.
 #
 # 88, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
 # max_connections'ının yükseltilmesi; aşağıda postgres servisinde 200 veriliyor.
@@ -229,6 +238,102 @@ services:
       start_period: 10s
     # SIGTERM'de in-flight işlerin bitmesi için. Uygulamanın ShutdownTimeout'u 15 sn;
     # compose bundan önce SIGKILL göndermemeli (baseline.md madde 10).
+    stop_grace_period: 20s
+
+  # Ön API'ler. Bağlantı dizesi YOK: veritabanına bağlanmıyorlar, ledger'a giden her
+  # istek wallet-api'den geçiyor.
+  #
+  # Bireysel müşterinin mobil uygulaması.
+  personal-mobile-api:
+    build:
+      context: .
+      dockerfile: src/PersonalMobileApi/Dockerfile
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-personal-mobile-api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${PERSONAL_MOBILE_HOST_PORT:-8097}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # İşyerinin sistem entegrasyonu: çağıran işyerinin sunucusu, her istekte token taşır.
+  business-api:
+    build:
+      context: .
+      dockerfile: src/BusinessApi/Dockerfile
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-business-api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BUSINESS_HOST_PORT:-8098}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # İşyeri panelinin BFF'i: tek istemcisi tarayıcıdaki panel.
+  business-web-bff:
+    build:
+      context: .
+      dockerfile: src/BusinessWebBff/Dockerfile
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-business-web-bff
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BUSINESS_WEB_BFF_HOST_PORT:-8100}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # Backoffice panelinin BFF'i. Canlıda yalnızca iç ağdan erişiliyor; port burada elle denemek için
+  # host'a açık.
+  backoffice-bff:
+    build:
+      context: .
+      dockerfile: src/BackofficeBff/Dockerfile
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-backoffice-bff
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BACKOFFICE_BFF_HOST_PORT:-8099}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     stop_grace_period: 20s
 
   topup-webhook:
