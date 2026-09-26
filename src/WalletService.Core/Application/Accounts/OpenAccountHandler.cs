@@ -17,6 +17,7 @@ public sealed class OpenAccountHandler(
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         db.Accounts.Add(account);
+        db.AccountMembers.Add(AccountMember.Of(account.Id, command.Subject, now));
         await db.SaveChangesAsync(ct);
 
         return new OpenAccountResult(account.Id, account.Type, account.CreatedAt);
