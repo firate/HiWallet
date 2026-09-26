@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- Ön API, public: işyeri panelinin BFF'i (tarayıcı). WalletService.Core'a referans
+         YOK ve veritabanı bağlantısı YOK: ledger'a giden her istek iç ağdaki wallet-api'den
+         geçiyor (CLAUDE.md "Deployable'lar"). -->
+
+    <ItemGroup>
+        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+</Project>
