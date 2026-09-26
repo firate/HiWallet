@@ -5,34 +5,39 @@ using HiWallet.IntegrationTests.Fixtures;
 namespace HiWallet.IntegrationTests.Baseline;
 
 /// <summary>
-/// Rate limiting ingress'i olan her serviste var (baseline.md madde 7).
-/// <c>wallet-api</c>'ninki <see cref="BaselineTests"/>'te; bu dosya
-/// <c>withdrawal-orchestrator</c> ile <c>bank-webhook</c>'u sınıyor.
+/// Rate limiting dışarıdan istek alan her serviste var (baseline.md madde 7). Bu dosya
+/// müşteri trafiğini karşılayan ön API'yi ve bankanın callback'lerini alan
+/// <c>bank-webhook</c>'u sınıyor.
 ///
 /// Kova küçük kuruluyor ve dakikada bir token yenileniyor: test süresince dolmadığı
 /// için kaçıncı request'in reddedileceği kesin. Request'lerin geçersiz olması sorun
 /// değil — limiter controller'dan önce koşuyor.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class RateLimitTests(OrchestratorFixture orchestratorDb, BankFixture bankDb)
+public sealed class RateLimitTests(BankFixture bankDb)
 {
     private const int Burst = 3;
 
+    /// <summary>
+    /// Müşteri başına sınır ön API'de: istemciyi tanıyan o. İç servisler yalnızca ön
+    /// API'lerin adresini görüyor; orada IP'ye göre bölünen bir kova bütün müşterileri
+    /// tek kovaya koyardı.
+    /// </summary>
     [Fact]
-    public async Task Cekim_SinirAsilinca_RetryAfterIle429Doner()
+    public async Task OnApi_SinirAsilinca_RetryAfterIle429Doner()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        await using var factory = new WithdrawalOrchestratorApiFactory(orchestratorDb, rateLimitBurst: Burst);
+        await using var factory = new PersonalMobileApiFactory(rateLimitBurst: Burst);
         using var client = factory.CreateClient();
 
         for (var i = 0; i < Burst; i++)
         {
-            var allowed = await client.PostAsJsonAsync("/v1/withdrawals", new { }, ct);
+            var allowed = await client.GetAsync($"/v1/withdrawals/{Guid.NewGuid()}", ct);
             allowed.StatusCode.ShouldNotBe(HttpStatusCode.TooManyRequests, $"{i + 1}. request kovanın içinde");
         }
 
-        var limited = await client.PostAsJsonAsync("/v1/withdrawals", new { }, ct);
+        var limited = await client.GetAsync($"/v1/withdrawals/{Guid.NewGuid()}", ct);
 
         limited.StatusCode.ShouldBe(HttpStatusCode.TooManyRequests);
         limited.Headers.RetryAfter.ShouldNotBeNull("Retry-After yoksa client hemen tekrar dener");
@@ -40,14 +45,38 @@ public sealed class RateLimitTests(OrchestratorFixture orchestratorDb, BankFixtu
     }
 
     /// <summary>
-    /// Probe'un limite takılması sağlıklı bir servisi trafikten çektirir.
+    /// Çekim başlatmanın kendi, daha dar kovası var: dışarıya para çıkarıyor. Kova
+    /// ayrı olduğu için çekim sınırına takılan müşteri bakiyesini görmeye devam ediyor.
     /// </summary>
     [Fact]
-    public async Task Cekim_HealthCheck_RateLimitEdilmez()
+    public async Task OnApi_CekimBaslatmaKendiKovasini_Kullanir()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        await using var factory = new WithdrawalOrchestratorApiFactory(orchestratorDb, rateLimitBurst: Burst);
+        await using var factory = new PersonalMobileApiFactory(rateLimitBurst: Burst);
+        using var client = factory.CreateClient();
+
+        for (var i = 0; i < Burst; i++)
+        {
+            await client.PostAsJsonAsync("/v1/withdrawals", new { }, ct);
+        }
+
+        var limited = await client.PostAsJsonAsync("/v1/withdrawals", new { }, ct);
+        limited.StatusCode.ShouldBe(HttpStatusCode.TooManyRequests);
+
+        var other = await client.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct);
+        other.StatusCode.ShouldNotBe(HttpStatusCode.TooManyRequests, "genel kova dolu olmamalı");
+    }
+
+    /// <summary>
+    /// Probe'un limite takılması sağlıklı bir servisi trafikten çektirir.
+    /// </summary>
+    [Fact]
+    public async Task OnApi_HealthCheck_RateLimitEdilmez()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        await using var factory = new PersonalMobileApiFactory(rateLimitBurst: Burst);
         using var client = factory.CreateClient();
 
         for (var i = 0; i < Burst * 5; i++)
