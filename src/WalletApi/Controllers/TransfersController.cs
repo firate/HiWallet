@@ -1,4 +1,6 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi.Requests;
+using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletApi.Responses;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +10,7 @@ namespace HiWallet.WalletApi.Controllers;
 
 [ApiController]
 [Route("v1/transfers")]
-public sealed class TransfersController(IMessageBus bus) : ControllerBase
+public sealed class TransfersController(IMessageBus bus, AccountAccess access) : ControllerBase
 {
     /// <summary>
     /// Cüzdanlar arası transfer. Tek ACID transaction, saga yok (overview.md madde 4).
@@ -41,6 +43,9 @@ public sealed class TransfersController(IMessageBus bus) : ControllerBase
                     ["Idempotency-Key"] = ["Idempotency-Key başlığı zorunlu."]
                 }));
         }
+
+        // Gönderen cüzdan çağıranın olmalı; alan cüzdan herkesin olabilir.
+        await access.EnsureWalletAsync(User.Subject(), request.FromWalletId, ct);
 
         // Wolverine yalnızca in-process mediator olarak (decisions.md madde 1).
         var result = await bus.InvokeAsync<TransferResult>(

@@ -9,5 +9,6 @@ namespace HiWallet.WalletApi.Requests;
 /// </param>
 public sealed record OpenAccountRequest(AccountType Type)
 {
-    public OpenAccountCommand ToCommand() => new(Type);
+    /// <summary>Hesabı açan kimlik token'dan gelir, gövdeden değil.</summary>
+    public OpenAccountCommand ToCommand(string subject) => new(Type, subject);
 }

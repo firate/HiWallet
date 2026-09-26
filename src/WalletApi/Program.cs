@@ -1,8 +1,10 @@
 using System.Text.Json.Serialization;
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
+using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Setup;
 using Wolverine;
 
@@ -36,6 +38,11 @@ builder.Services.AddHiWalletValidation();
 builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 
+// Token'ı ön API iletiyor, burada yeniden doğrulanıyor: ön API'ye körü körüne
+// güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde.
+builder.Services.AddHiWalletAuthentication();
+builder.Services.AddSingleton<AccountAccess>();
+
 builder.Services
     .AddControllers(options => options.Filters.AddService<ValidationFilter>())
     .AddJsonOptions(options =>
@@ -51,6 +58,8 @@ app.ValidateHiWalletConfiguration();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();
