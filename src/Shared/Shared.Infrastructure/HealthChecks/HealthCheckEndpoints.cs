@@ -24,19 +24,23 @@ public static class HealthCheckEndpoints
 
     public static IEndpointRouteBuilder MapHiWalletHealthChecks(this IEndpointRouteBuilder endpoints)
     {
+        // Kimlik İSTENMİYOR: probe'u yük dengeleyici ve container çalışma zamanı atıyor,
+        // token taşımıyorlar. Kimlik doğrulaması olan serviste de varsayılan politika
+        // burada geçerli değil.
+
         // Süreç ayakta mı? Hiçbir bağımlılık kontrol edilmiyor.
         endpoints.MapHealthChecks("/health/live", new HealthCheckOptions
         {
             Predicate = _ => false,
             ResponseWriter = WriteResponse
-        });
+        }).AllowAnonymous();
 
         // Trafik alabilir mi? Gerçek bağımlılıklar kontrol ediliyor.
         endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains(ReadyTag),
             ResponseWriter = WriteResponse
-        });
+        }).AllowAnonymous();
 
         return endpoints;
     }

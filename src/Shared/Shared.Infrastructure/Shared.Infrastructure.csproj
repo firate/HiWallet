@@ -16,6 +16,9 @@
              İstemcisi olan iki servis de aynı kurulumu istiyor. -->
         <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
         <PackageReference Include="Scalar.AspNetCore"/>
+        <!-- Token doğrulama (Authentication/AuthenticationSetup). Ön API'ler ve iç
+             servisler aynı kurulumu kullanıyor. -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
         <!-- Yalnızca advisory lock için (Jobs/JobLease). EF Core BURAYA GİRMİYOR:
              job'ın kendi işi kendi DbContext'iyle, kendi bağlantısında koşuyor. -->
         <PackageReference Include="Npgsql"/>
