@@ -284,6 +284,43 @@ public sealed class PromoCampaignEvaluatorTests(PostgresFixture postgres)
         (await PromoAsync(c)).ShouldBe(0m);
     }
 
+    /// <summary>
+    /// Değerlendirilemeyen ödeme turu durdurmuyor. Durdursaydı sıradaki ilk ödeme her
+    /// turda aynı yerde hata verir, arkasındakiler lookback'ten düşer ve hiç
+    /// değerlendirilmezdi. Bozuk ödeme işaretlenmiyor: sonraki turda yeniden deneniyor.
+    /// </summary>
+    [Fact]
+    public async Task DegerlendirilemeyenOdeme_ArkasindakileriBekletmez()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (shop, merchant) = await WalletAsync(AccountType.Business);
+        var (person, customer) = await WalletAsync(AccountType.Person, cash: 500m);
+        var campaign = await CampaignAsync(triggers: [shop], amount: 10m);
+
+        // Alıcı cüzdanı olmayan Payment. API bu kaydı üretmiyor; dengeli olduğu için
+        // ledger trigger'ından geçiyor.
+        var broken = LedgerTransaction
+            .Create(Guid.NewGuid(), LedgerTransactionType.Payment, customer, Actor.Customer(person),
+                _t0.AddHours(1), Key())
+            .AddEntry(customer, new Money(-10m, SystemAccounts.DefaultCurrency), FundType.Cash)
+            .AddEntry(SystemAccounts.ClearingStripeTry, new Money(10m, SystemAccounts.DefaultCurrency), FundType.Cash);
+
+        await using (var db = postgres.CreateContext())
+        {
+            db.LedgerTransactions.Add(broken);
+            await db.SaveChangesAsync(ct);
+        }
+
+        await PayAsync(customer, merchant, 100m, TimeSpan.FromHours(2));
+        await EvaluateAsync(TimeSpan.FromHours(3));
+
+        (await GrantsAsync(campaign.Id)).ShouldHaveSingleItem();
+
+        await using var verify = postgres.CreateContext();
+        (await verify.PromoCampaignEvaluations.AnyAsync(e => e.LedgerTransactionId == broken.Id, ct))
+            .ShouldBeFalse();
+    }
+
     [Fact]
     public async Task IkinciDegerlendirme_AyniOdemeyeTekrarVermez()
     {

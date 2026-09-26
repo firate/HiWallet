@@ -3,6 +3,7 @@ using HiWallet.WalletService.Domain.Promos;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace HiWallet.WalletService.Infrastructure.Jobs;
 
@@ -53,11 +54,31 @@ internal sealed class PromoCampaignEvaluator(
 
         foreach (var paymentId in pending)
         {
-            granted += await EvaluatePaymentAsync(paymentId, now, ct);
+            try
+            {
+                granted += await EvaluatePaymentAsync(paymentId, now, ct);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException && !IsTransient(exception))
+            {
+                // Değerlendirilemeyen ödeme turu durdurmuyor. Durdursaydı sıradaki ilk
+                // ödeme her turda aynı yerde hata verir, arkasındakiler lookback'ten düşer
+                // ve hiç değerlendirilmezdi. İşaret yazılmadı: ödeme her turda yeniden
+                // deneniyor ve her denemede bu hata loglanıyor.
+                logger.LogError(exception, "Ödeme {PaymentId} kampanyalara göre değerlendirilemedi.", paymentId);
+            }
         }
 
         return granted;
     }
+
+    /// <summary>
+    /// Veritabanına şu an ulaşılamıyor: sıradaki ödemeler de aynı hatayı alır. Tur
+    /// kesiliyor, <c>ScheduledJob</c> bir kez loglayıp
+    /// sonraki turda yeniden deniyor.
+    /// </summary>
+    private static bool IsTransient(Exception exception) =>
+        exception is NpgsqlException { IsTransient: true }
+        || exception.InnerException is NpgsqlException { IsTransient: true };
 
     private async Task<int> EvaluatePaymentAsync(Guid paymentId, DateTimeOffset now, CancellationToken ct)
     {
