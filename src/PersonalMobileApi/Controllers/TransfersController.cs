@@ -1,7 +1,6 @@
+using HiWallet.EdgeApi.Contracts;
 using HiWallet.EdgeApi.InternalServices;
-using HiWallet.PersonalMobileApi.Requests;
-using HiWallet.PersonalMobileApi.Responses;
-using HiWallet.PersonalMobileApi.Setup;
+using HiWallet.EdgeApi.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -9,7 +8,7 @@ namespace HiWallet.PersonalMobileApi.Controllers;
 
 [ApiController]
 [Route("v1/transfers")]
-[EnableRateLimiting(RateLimitingSetup.CustomerPolicy)]
+[EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
 public sealed class TransfersController(WalletApiClient walletApi) : ControllerBase
 {
     /// <summary>Cüzdanlar arası transfer.</summary>

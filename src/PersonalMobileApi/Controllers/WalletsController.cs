@@ -1,7 +1,7 @@
 using System.Globalization;
+using HiWallet.EdgeApi.Contracts;
 using HiWallet.EdgeApi.InternalServices;
-using HiWallet.PersonalMobileApi.Responses;
-using HiWallet.PersonalMobileApi.Setup;
+using HiWallet.EdgeApi.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -9,7 +9,7 @@ namespace HiWallet.PersonalMobileApi.Controllers;
 
 [ApiController]
 [Route("v1/wallets")]
-[EnableRateLimiting(RateLimitingSetup.CustomerPolicy)]
+[EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
 public sealed class WalletsController(WalletApiClient walletApi) : ControllerBase
 {
     /// <summary>Cüzdanın güncel bakiyesi, kova kırılımıyla.</summary>

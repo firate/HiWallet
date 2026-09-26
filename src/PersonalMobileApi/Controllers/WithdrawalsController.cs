@@ -1,7 +1,6 @@
+using HiWallet.EdgeApi.Contracts;
 using HiWallet.EdgeApi.InternalServices;
-using HiWallet.PersonalMobileApi.Requests;
-using HiWallet.PersonalMobileApi.Responses;
-using HiWallet.PersonalMobileApi.Setup;
+using HiWallet.EdgeApi.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -9,7 +8,7 @@ namespace HiWallet.PersonalMobileApi.Controllers;
 
 [ApiController]
 [Route("v1/withdrawals")]
-[EnableRateLimiting(RateLimitingSetup.CustomerPolicy)]
+[EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
 public sealed class WithdrawalsController(
     WalletApiClient walletApi,
     WithdrawalOrchestratorClient orchestrator) : ControllerBase
@@ -22,7 +21,7 @@ public sealed class WithdrawalsController(
     /// ZORUNLU. Aynı anahtarla ikinci istek yeni çekim açmaz, mevcut olanı döner.
     /// </param>
     [HttpPost]
-    [EnableRateLimiting(RateLimitingSetup.WithdrawalsPolicy)]
+    [EnableRateLimiting(EdgeRateLimiting.WithdrawalsPolicy)]
     [ProducesResponseType<WithdrawalAcceptedResponse>(StatusCodes.Status202Accepted)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -31,15 +30,7 @@ public sealed class WithdrawalsController(
         [FromHeader(Name = InternalServiceClient.IdempotencyKeyHeader)] string? idempotencyKey,
         CancellationToken ct)
     {
-        // Çekimin idempotency kapsamı hesap. Hesap cüzdanın sahibi olarak wallet-api'den
-        // okunuyor, istemcinin beyanından değil; cüzdan yoksa 404 buradan dönüyor.
-        var wallet = await walletApi.GetAsync<WalletResponse>($"v1/wallets/{request.WalletId}", ct);
-
-        var response = await orchestrator.PostAsync<WithdrawalAcceptedResponse>(
-            "v1/withdrawals",
-            new StartWithdrawal(wallet.AccountId, request.WalletId, request.Amount, request.Currency, request.DestinationIban),
-            idempotencyKey,
-            ct);
+        var response = await orchestrator.StartAsync(walletApi, request, idempotencyKey, ct);
 
         return AcceptedAtAction(
             actionName: nameof(GetById),
@@ -55,12 +46,4 @@ public sealed class WithdrawalsController(
     {
         return await orchestrator.GetAsync<WithdrawalResponse>($"v1/withdrawals/{withdrawalId}", ct);
     }
-
-    /// <summary>withdrawal-orchestrator'ın beklediği gövde.</summary>
-    private sealed record StartWithdrawal(
-        Guid AccountId,
-        Guid WalletId,
-        decimal Amount,
-        string Currency,
-        string DestinationIban);
 }

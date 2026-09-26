@@ -1,5 +1,5 @@
 using HiWallet.EdgeApi.InternalServices;
-using HiWallet.PersonalMobileApi.Setup;
+using HiWallet.EdgeApi.RateLimiting;
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.Errors;
 using HiWallet.Shared.Infrastructure.HealthChecks;
@@ -33,7 +33,10 @@ builder.Services.AddHiWalletAuthentication();
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
 
-builder.Services.AddPersonalMobileRateLimiting();
+// Müşterinin kovası: anlık 20, dakikada 60. Çekim başlatma ayrı kovada, 10 ve 30.
+builder.Services.AddEdgeRateLimiting(
+    client: new BucketDefaults(BurstSize: 20, SustainedPerMinute: 60),
+    withdrawals: new BucketDefaults(BurstSize: 10, SustainedPerMinute: 30));
 builder.Services.AddControllers();
 builder.Services.AddHiWalletOpenApi();
 

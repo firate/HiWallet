@@ -1,4 +1,4 @@
-namespace HiWallet.PersonalMobileApi.Responses;
+namespace HiWallet.EdgeApi.Contracts;
 
 /// <param name="Replayed">
 /// <c>true</c> ise bu <c>Idempotency-Key</c> daha önce işlenmişti; yeni bir transfer

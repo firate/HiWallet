@@ -1,6 +1,6 @@
-namespace HiWallet.PersonalMobileApi.Responses;
+namespace HiWallet.EdgeApi.Contracts;
 
-/// <param name="Type">Bu ön API'den açılan hesap her zaman <c>Person</c>.</param>
+/// <param name="Type"><c>Person</c> ya da <c>Business</c>.</param>
 public sealed record AccountResponse(Guid AccountId, string Type, DateTimeOffset CreatedAt);
 
 /// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
