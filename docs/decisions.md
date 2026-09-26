@@ -1655,6 +1655,9 @@ Değerlendirme artan bir kimlikle ilerleyen bir cursor kullanmıyor: `ledger_ent
 sırası commit sırası değil ve geç commit olan bir ödeme cursor'ın gerisinde kalırdı.
 Değerlendirilen ödeme işaretleniyor. `Lookback`'ten uzun süren bir kesintide aradaki
 ödemeler değerlendirilmiyor; işletme günlük özetindeki geri bakma penceresiyle aynı kabul.
+Değerlendirilemeyen bir ödeme turu durdurmuyor: hata loglanıyor, ödeme işaretlenmiyor ve
+her turda yeniden deneniyor; arkasındaki ödemeler değerlendirilmeye devam ediyor.
+Veritabanına ulaşılamıyorsa tur kesiliyor.
 
 **Yönetim.** Backoffice gelene kadar kampanyalar ve `accounts.accepts_promo` SQL ile
 yönetiliyor; betik `docs/api-examples.md`'de.
