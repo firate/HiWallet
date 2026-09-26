@@ -23,7 +23,7 @@ public sealed class WalletMovementTests(PostgresFixture postgres) : IAsyncLifeti
     public ValueTask InitializeAsync()
     {
         _factory = new WalletApiFactory(postgres);
-        _client = _factory.CreateClient();
+        _client = _factory.CreateClient().As($"test-{Guid.NewGuid():N}");
         return ValueTask.CompletedTask;
     }
 
@@ -44,6 +44,8 @@ public sealed class WalletMovementTests(PostgresFixture postgres) : IAsyncLifeti
         {
             await LedgerSeeder.FundAsync(db, walletId, i * 10m, ct);
         }
+
+        _client.AsOwnerOf(accountId);
 
         return walletId;
     }

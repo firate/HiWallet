@@ -25,10 +25,11 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         var ct = TestContext.Current.CancellationToken;
+        Guid person;
 
         await using (var db = postgres.CreateContext())
         {
-            var person = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            person = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
             var other = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
             var shop = await LedgerSeeder.CreateAccountAsync(db, AccountType.Business, ct);
 
@@ -40,7 +41,9 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
         }
 
         _factory = new WalletApiFactory(postgres);
-        _client = _factory.CreateClient();
+
+        // Transferler gönderen cüzdanın sahibi olarak yapılıyor.
+        _client = _factory.CreateClient().AsOwnerOf(person);
     }
 
     public async ValueTask DisposeAsync()

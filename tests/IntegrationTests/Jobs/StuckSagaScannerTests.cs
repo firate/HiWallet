@@ -140,6 +140,6 @@ public sealed class StuckSagaScannerTests(OrchestratorFixture fixture)
             currency: "TRY",
             destination: Destination,
             idempotencyKey: Guid.NewGuid().ToString("N"),
-            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
+            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString(), Subject = "test-musteri" },
             startedAt: startedAt);
 }

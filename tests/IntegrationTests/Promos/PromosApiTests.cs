@@ -20,7 +20,9 @@ public sealed class PromosApiTests(PostgresFixture postgres) : IAsyncLifetime
     private Guid _shop;
     private Guid _merchant;
     private Guid _customer;
+    private Guid _customerAccount;
     private Guid _person;
+    private Guid _personAccount;
 
     public async ValueTask InitializeAsync()
     {
@@ -29,19 +31,21 @@ public sealed class PromosApiTests(PostgresFixture postgres) : IAsyncLifetime
         await using (var db = postgres.CreateContext())
         {
             _shop = await LedgerSeeder.CreateAccountAsync(db, AccountType.Business, ct);
-            var customer = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
-            var person = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            _customerAccount = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            _personAccount = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
 
             _merchant = await LedgerSeeder.CreateWalletAsync(db, _shop, "API işyeri", ct);
-            _customer = await LedgerSeeder.CreateWalletAsync(db, customer, "API müşteri", ct);
-            _person = await LedgerSeeder.CreateWalletAsync(db, person, "API kişi", ct);
+            _customer = await LedgerSeeder.CreateWalletAsync(db, _customerAccount, "API müşteri", ct);
+            _person = await LedgerSeeder.CreateWalletAsync(db, _personAccount, "API kişi", ct);
 
             await LedgerSeeder.FundAsync(db, _merchant, 1_000m, ct);
             await LedgerSeeder.FundAsync(db, _person, 1_000m, ct);
         }
 
         _factory = new WalletApiFactory(postgres);
-        _client = _factory.CreateClient();
+
+        // Promo'yu fonlayan cüzdanın sahibi veriyor; listeyi alan cüzdanın sahibi görüyor.
+        _client = _factory.CreateClient().AsOwnerOf(_shop);
     }
 
     public async ValueTask DisposeAsync()
@@ -94,7 +98,7 @@ public sealed class PromosApiTests(PostgresFixture postgres) : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        using var response = await _client.SendAsync(Post(Grant(10m, funder: _person)), ct);
+        using var response = await _client.AsOwnerOf(_personAccount).SendAsync(Post(Grant(10m, funder: _person)), ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
 
@@ -115,7 +119,8 @@ public sealed class PromosApiTests(PostgresFixture postgres) : IAsyncLifetime
         var grantId = body.GetProperty("grantId").GetGuid();
         body.GetProperty("replayed").GetBoolean().ShouldBeFalse();
 
-        var list = await _client.GetFromJsonAsync<JsonElement>($"/v1/wallets/{_customer}/promos?size=100", ct);
+        var list = await _client.AsOwnerOf(_customerAccount)
+            .GetFromJsonAsync<JsonElement>($"/v1/wallets/{_customer}/promos?size=100", ct);
 
         var item = list.GetProperty("items").EnumerateArray()
             .Single(i => i.GetProperty("grantId").GetGuid() == grantId);
@@ -135,9 +140,10 @@ public sealed class PromosApiTests(PostgresFixture postgres) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         Guid wallet;
+        Guid account;
         await using (var db = postgres.CreateContext())
         {
-            var account = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            account = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
             wallet = await LedgerSeeder.CreateWalletAsync(db, account, "API sayfa", ct);
         }
 
@@ -150,6 +156,8 @@ public sealed class PromosApiTests(PostgresFixture postgres) : IAsyncLifetime
 
             response.StatusCode.ShouldBe(HttpStatusCode.Created);
         }
+
+        _client.AsOwnerOf(account);
 
         var first = await _client.GetFromJsonAsync<JsonElement>($"/v1/wallets/{wallet}/promos?size=2", ct);
         first.GetProperty("items").GetArrayLength().ShouldBe(2);

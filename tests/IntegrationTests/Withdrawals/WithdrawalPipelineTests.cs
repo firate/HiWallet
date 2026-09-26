@@ -274,7 +274,7 @@ public sealed class WithdrawalPipelineTests(OrchestratorFixture fixture) : IAsyn
         await EnsureTopologyAsync(ct);
 
         _app ??= new WithdrawalOrchestratorApiFactory(fixture, useRealBroker: true);
-        _client ??= _app.CreateClient();
+        _client ??= _app.CreateClient().As("test-pipeline");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/withdrawals")
         {
