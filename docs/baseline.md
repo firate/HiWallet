@@ -71,11 +71,11 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
   | servis | anahtar | varsayılan (anlık / dakikada) |
   | --- | --- | --- |
-  | `personal-mobile-api` | IP | 20 / 60; çekim başlatma ayrı kovada 10 / 30 |
+  | `personal-mobile-api` | token'daki kimlik, yoksa IP | 20 / 60; çekim başlatma ayrı kovada 10 / 30 |
   | `topup-webhook` | sağlayıcı adı | 100 / 600 |
   | `bank-webhook` | banka adı | 100 / 600 |
 
-  Ön API'de anahtar IP, çünkü kimlik doğrulama yok ve bölünecek bir hesap kimliği de yok. Webhook'larda karşı taraf değişken IP'lerle gönderiyor; bir sağlayıcının ya da bankanın patlaması diğerini etkilemesin diye anahtar kurumun adı.
+  Ön API'de anahtar müşterinin kimliği: IP paylaşan müşteriler (mobil operatör, kurumsal NAT) birbirinin limitini yemiyor. Kimliksiz istek IP'nin kovasına düşüyor; limiter kimlik zorunluluğundan önce koştuğu için geçersiz token'la gelen istek de sınırlanıyor. Webhook'larda karşı taraf değişken IP'lerle gönderiyor; bir sağlayıcının ya da bankanın patlaması diğerini etkilemesin diye anahtar kurumun adı.
 - İç servislerde (`wallet-api`, `withdrawal-orchestrator`) müşteri limiti YOK. Trafikleri ön API'lerden geliyor ve yalnızca onların adresini görüyorlar; IP'ye göre bölünen bir kova bütün müşterileri tek kovaya koyardı.
 - Health check'ler limitin dışında: probe'un limite takılması sağlıklı bir servisi trafikten çektirir.
 - **Kapsam:** In-memory limiter yeterli. Çok instance'ta efektif limit instance başına düşer; dağıtık limiter Redis gerektirir ve bu sistemin konusu değil (`decisions.md` madde 12).
@@ -137,8 +137,8 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 
 - Authn (kim) ve authz (ne yapabilir) ayrımı, token validation.
 - **Neden opsiyonel:** Dominant tema güvenlik olmadığında endpoint'leri açık bırakıp odakta kalmak daha temiz.
-- **Eklenirse:** JWT bearer + policy yeterli; token üretimi için merkezi IdP (Keycloak) kullanılır.
-- **Kapsam:** HiWallet'ta yok (`decisions.md` madde 12). Bu katmanın kendisi — JWT/RS256+JWKS, permission-based authz, multi-tenancy, revocation — başlı başına bir konu ve burada baseline'ın da dışında.
+- **HiWallet'ta:** Token'ı Keycloak imzalıyor; servisler JWT bearer ile doğruluyor, anahtarları kimlik sağlayıcının JWKS'inden okuyor. Varsayılan politika kimlik istiyor, sağlık ve API dokümanı uçları açık. Token'ı ön API ve iç servis ayrı ayrı doğruluyor.
+- **Yetki bugün sahiplik:** müşteri yalnızca kullanıcısı olduğu hesaba erişiyor (`account_members`, wallet'ta). Çalışanın rol tabanlı yetkisi ve işyeri entegrasyonunun istemci kimliği henüz yok. Multi-tenancy kapsam dışı (`decisions.md` madde 12).
 
 ## Çıkış kriteri
 

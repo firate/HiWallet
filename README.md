@@ -37,6 +37,7 @@ olduğu yere taşınmıyor.
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
+| `keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
 
 İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
@@ -44,6 +45,10 @@ API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağ
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token sunucuda kalır, tarayıcı yalnızca
 HttpOnly oturum cookie'si taşır. `personal-mobile-api`'nin uçları yazıldı; diğer ön
 API'ler sağlık uçlarıyla ayakta.
+
+Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
+iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
+duruyor ve müşteri yalnızca kendi hesabına erişiyor.
 
 Webhook'larda ve ingress'siz uygulamalarda ayrımın sebebi erişim seviyesi: banka
 webhook'u belirli IP bloklarına açılacak. IP kısıtı process seviyesinde uygulanamaz.
@@ -107,7 +112,11 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
 | Diğer ön API'lerin uçları | hayır — sağlık uçlarıyla ayakta |
-| Müşteri başına rate limit ön API'de | evet — iç servislerde yok |
+| Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
+| Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
+| Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
+| Keycloak'ın compose'dan ayağa kalkması | denenmedi |
+| Çalışan kimliği ve işyeri entegrasyonunun istemci kimliği | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
@@ -115,7 +124,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
-| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice ve auth bekliyor |
+| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice ve çalışan kimliği bekliyor |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
@@ -150,6 +159,7 @@ curl http://localhost:8097/health/ready   # personal-mobile-api
 curl http://localhost:8098/health/ready   # business-api
 curl http://localhost:8099/health/ready   # backoffice-bff
 curl http://localhost:8100/health/ready   # business-web-bff
+curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration   # keycloak
 ```
 
 `wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için
@@ -173,9 +183,12 @@ API dokümanı, yalnızca Development'ta:
 Sondaki eğik çizgi bilerek: eğik çizgisiz adres `302` ile ona yönleniyor. Tarayıcı
 takip ediyor, `curl` varsayılan olarak etmiyor.
 
+Doküman ve arayüz kimliksiz açık; uçları çağırmak token istiyor. Kullanıcı açmak ve
+token almak `docs/verify-compose.md` "Kimlik" bölümünde.
+
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8100`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8101`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 
@@ -419,7 +432,6 @@ Eksik değil, **elenmiş** — gerekçeleri `decisions.md` madde 12'de:
 
 - **Rate limiting in-memory.** Çok instance'ta efektif limit instance başınadır.
 - **Secret yönetimi `.env` + User Secrets.** Vault yok.
-- **Authn/authz yok.** Endpoint'ler açık.
 - **Caching yok.** Bakiye projeksiyonu cache değil, kalıcı read tablosu.
 - **Multi-tenancy yok.** Person/business ayrımı hesap tipidir, tenancy değil.
 

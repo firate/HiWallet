@@ -134,8 +134,26 @@ API'siyle geliyor; ihtiyaca göre public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token'ı kendisi saklıyor, tarayıcıya
 yalnızca HttpOnly oturum cookie'si veriyor. Bu yüzden işyerinin iki ön API'si var:
 token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki panel
-`business-web-bff`'ye bağlanıyor. `personal-mobile-api`'nin uçları yazıldı: cüzdan,
-hareketler, promo partileri, transfer ve çekim. Diğer üçü sağlık uçlarıyla ayakta.
+`business-web-bff`'ye bağlanıyor. `personal-mobile-api`'nin uçları yazıldı: hesap,
+cüzdan, hareketler, promo partileri, transfer ve çekim. Diğer üçü sağlık uçlarıyla ayakta.
+
+### Kimlik
+
+Token'ı Keycloak imzalıyor. Mobil uygulama kimlik sağlayıcıdan token alıp ön API'ye
+getiriyor; ön API token'ı doğruluyor ve iç servise AYNEN iletiyor. `wallet-api` ve
+orchestrator token'ı yeniden doğruluyor: ön API'nin beyanına değil token'a bakıyorlar,
+yani ele geçirilmiş bir ön API başkası adına istek yazdıramıyor.
+
+```
+mobil uygulama ──token──▶ personal-mobile-api ──aynı token──▶ wallet-api / orchestrator
+                           doğrular                           yeniden doğrular, sahipliği kontrol eder
+```
+
+Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta (`account_members`); hesabı
+açan kimlik hesabın kullanıcısı oluyor. `wallet-api` her uçta çağıranın kaynağın
+kullanıcısı olduğunu kontrol ediyor; değilse kaynak yokmuş gibi `404`. Orchestrator
+hesabın kullanıcılarını bilmiyor: çekimi isteyen kimliği saga'ya yazıyor, düşme
+komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğruluyor.
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.
