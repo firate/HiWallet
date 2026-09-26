@@ -64,6 +64,10 @@ Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj
 
 ```
 src/
+├── PersonalMobileApi/      -- ön API, host
+├── BusinessApi/            -- ön API, host
+├── BusinessWebBff/         -- ön API, host
+├── BackofficeBff/          -- ön API, host
 ├── WalletService.Core/     -- kütüphane, host değil
 ├── WalletApi/              -- host
 ├── WalletConsumer/         -- host
@@ -157,6 +161,27 @@ WalletApi/
 `Api/` ara klasörü YOK: proje zaten API, ikinci kez söylemenin anlamı yok.
 
 RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
+
+### Ön API'ler: PersonalMobileApi, BusinessApi, BusinessWebBff, BackofficeBff
+
+```
+PersonalMobileApi/             -- public; bireysel mobil uygulama
+├── PersonalMobileApi.csproj   -- yalnızca Shared.Infrastructure'a referans
+├── Program.cs
+├── PersonalMobileApiApp.cs    -- test giriş noktası işaretçisi
+├── Dockerfile
+└── appsettings.json
+
+BusinessApi/                   -- public; işyerinin sistem entegrasyonu
+BusinessWebBff/                -- public; işyeri panelinin BFF'i
+BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i
+                                  (üçünde de aynı dosyalar)
+```
+
+Ön API'ler wallet sınırının dışında: `WalletService.Core`'a referans vermiyor,
+veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor. Üçünde de
+henüz uç yok; sağlık uçları, ProblemDetails, OpenAPI ve telemetri kurulu. Tarayıcıdan
+kullanılan arayüzün ön API'si BFF: oturumu cookie ile tutar, token'ı tarayıcıya vermez.
 
 ### WalletConsumer (ingress'siz host)
 
