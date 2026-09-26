@@ -337,7 +337,6 @@ Bilinçli olarak eksik bırakılanlar, README'de de yazılacak:
 - Rate limiting in-memory. Çok instance'ta efektif limit instance başınadır.
   (Dağıtık limiter Redis gerektirir; bu projenin konusu değil.)
 - Secret yönetimi `.env` + Docker Compose. Vault yok.
-- Authn/authz yok (`baseline.md` madde A opsiyonel). Başlı başına bir konu; buranın teması değil.
 - Caching yok. Bakiye projeksiyonu cache değil, kalıcı read tablosu.
 - Multi-tenancy yok. Person/business ayrımı hesap tipidir, tenancy değil.
 
@@ -1219,8 +1218,8 @@ getiremez. Şimdi eklemek bir migration ve `LedgerTransaction.Create`'e bir zoru
 parametre. Sonra eklemek ya nullable kolon (yukarıdaki karıştırmayı geri getirir) ya da
 uydurulmuş bir değerle backfill demek.
 
-`employee` değeri ancak kimlik doğrulama geldiğinde (baseline "Opsiyonel Katman A",
-madde 12) üretilmeye başlayacak. O zamana kadar yalnızca `customer` ve `system` oluşuyor
+`employee` değeri backoffice ile üretilmeye başlayacak: çalışanın token'ını kabul eden
+bir uç henüz yok. Şu an yalnızca `customer` ve `system` oluşuyor
 — ama kolon baştan dolu ve zorunlu.
 
 **Domain saf kalıyor.** Aktör komutun içinde taşınıyor; handler `IHttpContextAccessor`
@@ -1387,8 +1386,8 @@ listenin ikinci ve sonraki secret'ıyla doğrulanan her callback uyarı olarak
 kaydediliyor, o kayıt kesildiğinde eskisi listeden çıkarılabilir.
 
 **Geçersiz kılma ayrı bir mekanizma değil**: secret listeden çıkarılır ve servis yeniden
-başlatılır. Çalışma anında iptal eden bir yönetim endpoint'i eklenmedi çünkü authn
-kapsam dışı (madde 12) ve secret'lar için ikinci bir doğruluk kaynağı doğardı.
+başlatılır. Çalışma anında iptal eden bir yönetim endpoint'i eklenmedi: secret'lar için
+ikinci bir doğruluk kaynağı doğardı.
 `IOptionsMonitor` de çözmüyor: secret'lar ortam değişkeninden geliyor ve o sağlayıcı
 change token üretmiyor. `bank-webhook` durumsuz olduğu için yeniden başlatma saniyeler
 sürüyor, o sırada gelen callback'leri banka yeniden gönderiyor.
@@ -1672,8 +1671,6 @@ yönetiliyor; betik `docs/api-examples.md`'de.
 - Aynı kişiye ait müşteri ve işyeri hesapları arasındaki ödemeler kampanyayı
   tetikleyebiliyor. Hesapları sahibine bağlayan kimlik verisi bu sistemde yok
   (`Account` KYC taşımıyor).
-- Auth yok (madde 12). İşyeri promo endpoint'i herhangi bir işyerinin `cash` kovasından
-  promo yazabiliyor; transferdeki kabulün aynısı.
 - Ödeme iadesi akışı yok. `promo_consumptions` hangi partiden ne kadar harcandığını
   tutuyor ve iade promo'yu aynı partiye, aynı kapsam ve bitiş tarihiyle döndürebiliyor.
 
