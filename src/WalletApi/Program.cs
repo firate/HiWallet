@@ -4,11 +4,10 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Setup;
-using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
 
-// Public ingress. Mobil ve web istemciler buraya bağlanıyor; banka webhook'ları
-// BURAYA GELMİYOR — onlar IP kısıtlı topup-webhook'ta (decisions.md madde 28).
+// İç servis. İstemci buraya doğrudan bağlanmıyor; ön API'ler çağırıyor. Banka
+// webhook'ları da BURAYA GELMİYOR — onlar IP kısıtlı topup-webhook'ta (decisions.md madde 28).
 const string ServiceName = "hiwallet-wallet-api";
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,7 +35,6 @@ builder.Services.AddHiWalletPolicies(builder.Configuration);
 builder.Services.AddHiWalletValidation();
 builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
-builder.Services.AddHiWalletRateLimiting(builder.Configuration);
 
 builder.Services
     .AddControllers(options => options.Filters.AddService<ValidationFilter>())
@@ -53,16 +51,15 @@ app.ValidateHiWalletConfiguration();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-app.UseRateLimiter();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();
 
-// Health check'lere rate limit UYGULANMIYOR: probe'un limite takılması sağlıklı bir
-// servisi trafikten çektirir.
 app.MapHiWalletHealthChecks();
 
-app.MapControllers().RequireRateLimiting(RateLimitingSetup.TransfersPolicy);
+// Rate limit YOK: müşteri başına sınır ön API'de. Buraya gelen trafiğin kaynağı ön
+// API'ler; IP'ye göre bölünen bir kova bütün müşterileri tek kovaya koyardı.
+app.MapControllers();
 
 // Integration testler WebApplicationFactory<WalletApiApp> ile ayağa kaldırır;
 // gerekçe WalletApiApp.cs'te.
