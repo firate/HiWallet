@@ -17,6 +17,10 @@
          kaldırıyor; proje adı bu yüzden tek servise bağlı değil. -->
     <ItemGroup>
         <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
+        <ProjectReference Include="../../src/PersonalMobileApi/PersonalMobileApi.csproj"/>
+        <ProjectReference Include="../../src/BusinessApi/BusinessApi.csproj"/>
+        <ProjectReference Include="../../src/BusinessWebBff/BusinessWebBff.csproj"/>
+        <ProjectReference Include="../../src/BackofficeBff/BackofficeBff.csproj"/>
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/WalletConsumer/WalletConsumer.csproj"/>
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>

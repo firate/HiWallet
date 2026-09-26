@@ -102,7 +102,7 @@ docker compose down -v --remove-orphans && docker compose up --build -d
 
 Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
 `topup-migrator`, `withdrawal-migrator`, `bank-migrator`)
-şemaları uygulayıp `exit 0` ile biter → sekiz uygulama başlar (altısı bizim,
+şemaları uygulayıp `exit 0` ile biter → on iki uygulama başlar (onu bizim,
 ikisi sahte kurum). `rabbitmq` paralel
 kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
 
@@ -162,6 +162,9 @@ curl -s localhost:8091/health/ready
 ```
 
 Beklenen: `{"status":"Healthy", ... "checks":[{"name":"postgres","status":"Healthy" ...`
+
+Ön API'lerde (`8097`–`8100`) `status` yine `Healthy`, `checks` listesi boş:
+veritabanına bağlanmıyorlar.
 
 Sistem hesapları seed edildi mi:
 
@@ -574,7 +577,7 @@ geri gelsin.
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
 | settlement ve fatura endpoint'leri (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
-| **sekiz uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
+| **on iki uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
 | **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
 | **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |

@@ -903,12 +903,16 @@ her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakal
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
-| `wallet-api` | **public** (mobil/web) | `hiwallet_wallet` / `wallet_app` | — |
+| `wallet-api` | **iç ağ** (ön API'ler çağırıyor) | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** (sağlayıcı) | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 
+İstemcinin bağlandığı yüzey ön API'ler (`personal-mobile-api`, `business-api`,
+`business-web-bff`, `backoffice-bff`). Wallet sınırının dışındalar: veritabanına bağlanmıyorlar ve
+`wallet-api`'yi iç ağdan çağırıyorlar. Kural `CLAUDE.md` "Deployable'lar"da.
+
 **Birincil gerekçe: farklı erişim seviyesi aynı process'te olamaz.** Banka webhook'u
-belirli IP bloklarına açılacak, cüzdan API'si herkese. IP kısıtı process seviyesinde
+belirli IP bloklarına açılacak, müşterinin ön API'si herkese. IP kısıtı process seviyesinde
 uygulanamaz, yalnızca deployable seviyesinde. Bu tek başına webhook'un ayrılmasını
 gerektiriyor — o zaten ayrıydı.
 
@@ -928,7 +932,8 @@ bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen 
   bitti.
 
 **Ölçüt iki yöne de işliyor.** Farklı erişim seviyesi aynı process'te birleşmiyor; AYNI
-erişim seviyesi de gereksiz yere bölünmüyor. `wallet-consumer` bugün iki kuyruk dinliyor —
+erişim seviyesi de gereksiz yere bölünmüyor. HTTP yüzeyi ön API'lerle ayrılıyor: her
+istemci grubunun kendi ön API'si var. `wallet-consumer` bugün iki kuyruk dinliyor —
 top-up event'leri ve withdrawal saga'sının komutları. İkisi de ingress'siz, ikisi de
 `hiwallet_wallet`'a aynı kütüphaneyle yazıyor; ayırmayı gerektiren hiçbir şey yok.
 Ayrı süreç açmanın gerekçeleri (bağımsız ölçekleme, biri çökerken diğerinin ayakta

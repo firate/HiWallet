@@ -101,9 +101,9 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - Arayüz Scalar. Üreteç yalnızca JSON dokümanı veriyor, UI ayrı bir bağımlılık.
 - İkisi de YALNIZCA Development'ta açılır; canlıda API yüzeyinin şeması yayınlanmıyor.
 - Tutarlı response yapısı (zarf var ya da bilinçli olarak yok — ama tutarlı).
-- **Kapsam:** İstemcisi olan iki serviste (`wallet-api`, `withdrawal-orchestrator`)
-  açık. İki webhook'ta YOK (`topup-webhook`, `bank-webhook`): sözleşmeyi karşı taraf
-  dayatıyor ve dokümanını da o veriyor. İkisi de gövdeyi imza için ham bayt olarak
+- **Kapsam:** İstemcisi olan servislerde (`wallet-api`, `withdrawal-orchestrator` ve
+  ön API'ler) açık. İki webhook'ta YOK (`topup-webhook`, `bank-webhook`): sözleşmeyi karşı
+  taraf dayatıyor ve dokümanını da o veriyor. İkisi de gövdeyi imza için ham bayt olarak
   okuyor, yani üretilecek şema da boş olurdu. Callback örnekleri `api-examples.md`'de.
 
 ### 10. Graceful Shutdown
