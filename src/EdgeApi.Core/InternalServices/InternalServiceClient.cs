@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Http.Extensions;
 
 namespace HiWallet.EdgeApi.InternalServices;
 
@@ -41,6 +43,27 @@ public abstract class InternalServiceClient(HttpClient http)
         using var response = await http.SendAsync(request, ct);
 
         return await ReadAsync<T>(response, ct);
+    }
+
+    /// <summary>
+    /// Sayfalı sorgunun adresi. Verilmeyen parametre iletilmiyor: varsayılan sayfa boyutu
+    /// ve tavan iç servisin bilgisi, ön API'de ikinci kopyası tutulmuyor.
+    /// </summary>
+    public static string Paged(string path, string? after, int? size)
+    {
+        var query = new QueryBuilder();
+
+        if (after is not null)
+        {
+            query.Add("after", after);
+        }
+
+        if (size is not null)
+        {
+            query.Add("size", size.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return path + query;
     }
 
     private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken ct)
