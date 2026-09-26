@@ -10,6 +10,7 @@ WORKDIR /src
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
 COPY src/BusinessApi/BusinessApi.csproj src/BusinessApi/
+COPY src/EdgeApi.Core/EdgeApi.Core.csproj src/EdgeApi.Core/
 COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
 COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
 RUN dotnet restore src/BusinessApi/BusinessApi.csproj
