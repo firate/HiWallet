@@ -23,19 +23,30 @@ olduğu yere taşınmıyor.
   reddederse **compensation** cüzdana parayı geri yazıyor: silmeyle değil, üç
   bacaklı ters kayıtla.
 
-## Altı uygulama, erişim seviyesine göre ayrılmış
+## On uygulama: önde ön API'ler, içeride cüzdan
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
-| `wallet-api` | **public** — mobil/web | `hiwallet_wallet` / `wallet_app` | — |
+| `personal-mobile-api` | **public** — ön API: bireysel mobil uygulama | — | — |
+| `business-api` | **public** — ön API: işyerinin sistem entegrasyonu | — | — |
+| `business-web-bff` | **public** — ön API: işyeri panelinin BFF'i | — | — |
+| `backoffice-bff` | **iç ağ** — ön API: backoffice panelinin BFF'i | — | — |
+| `wallet-api` | **iç ağ** — ön API'ler çağırıyor | `hiwallet_wallet` / `wallet_app` | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
-| `withdrawal-orchestrator` | public — çekim request'i | `hiwallet_withdrawal` | ikisi de |
+| `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
 
-Ayrımın sebebi erişim seviyesi: banka webhook'u belirli IP bloklarına açılacak, cüzdan
-API'si herkese. IP kısıtı process seviyesinde uygulanamaz.
+İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
+ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
+API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
+Tarayıcıdan kullanılan arayüzün ön API'si BFF: token sunucuda kalır, tarayıcı yalnızca
+HttpOnly oturum cookie'si taşır. Ön API'lerin uçları henüz yazılmadı; sağlık uçlarıyla
+ayaktalar.
+
+Webhook'larda ve ingress'siz uygulamalarda ayrımın sebebi erişim seviyesi: banka
+webhook'u belirli IP bloklarına açılacak. IP kısıtı process seviyesinde uygulanamaz.
 
 Bir de **bizim olmayan iki** uygulama var:
 
@@ -67,8 +78,8 @@ invariant'larının bir kısmı hiçbir constraint tarafından zorlanmıyor (cü
 düşememesi, bakiye satırlarının artan id sırasıyla güncellenmesi, `version`'ın birer
 artması). İkinci bir kopya, ilk sapmada sessizce bozulurdu.
 
-Public yüzeyin RabbitMQ bağımlılığı **yok**: tüketici ayrıldıktan sonra `wallet-api`
-yalnızca Postgres'e bağlı.
+`wallet-api`'nin RabbitMQ bağımlılığı **yok**: yalnızca Postgres'e bağlı. Ön API'lerin
+ne Postgres ne RabbitMQ bağlantısı var.
 
 Ana mesaj bu ayrımda: **tutarlılığın kritik olduğu çekirdeği tek boundary'de ACID tut,
 sadece dışarıyla konuşan kenarı dağıt.**
@@ -93,6 +104,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Banka entegrasyonu: asenkron sonuç, callback + mutabakat | evet |
 | Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | evet |
 | Sekiz container'ın compose'dan ayağa kalkması | evet |
+| Ön API'lerin compose'dan ayağa kalkması | denenmedi |
+| Ön API'lerin uçları | hayır — üçü de sağlık uçlarıyla ayakta |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
@@ -121,7 +134,7 @@ docker compose up --build
 
 Sırayla: Postgres ayağa kalkar, beş rol, dört uygulama veritabanı ve integration testlerin
 veritabanı (`hiwallet_schema_check`) kurulur → dört migrator
-şemaları uygular → sekiz container başlar (altısı bizim, ikisi sahte kurum). RabbitMQ
+şemaları uygular → on iki container başlar (onu bizim, ikisi sahte kurum). RabbitMQ
 paralel kalkar; hiçbiri onu BEKLEMEZ.
 
 ```bash
@@ -131,7 +144,14 @@ curl http://localhost:8093/health/ready   # withdrawal-orchestrator
 curl http://localhost:8094/health/ready   # bank-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8095/health/ready   # bank-webhook
 curl http://localhost:8096/health/ready   # stripe-fake (BİZİM DEĞİL, canlıda yok)
+curl http://localhost:8097/health/ready   # personal-mobile-api
+curl http://localhost:8098/health/ready   # business-api
+curl http://localhost:8099/health/ready   # backoffice-bff
+curl http://localhost:8100/health/ready   # business-web-bff
 ```
+
+`wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için
+host'a açıklar.
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
@@ -143,13 +163,17 @@ API dokümanı, yalnızca Development'ta:
 | --- | --- | --- |
 | `wallet-api` | <http://localhost:8091/scalar/> | `/openapi/v1.json` |
 | `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | `/openapi/v1.json` |
+| `personal-mobile-api` | <http://localhost:8097/scalar/> | `/openapi/v1.json` |
+| `business-api` | <http://localhost:8098/scalar/> | `/openapi/v1.json` |
+| `backoffice-bff` | <http://localhost:8099/scalar/> | `/openapi/v1.json` |
+| `business-web-bff` | <http://localhost:8100/scalar/> | `/openapi/v1.json` |
 
 Sondaki eğik çizgi bilerek: eğik çizgisiz adres `302` ile ona yönleniyor. Tarayıcı
 takip ediyor, `curl` varsayılan olarak etmiyor.
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8096`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8100`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 

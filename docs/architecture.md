@@ -8,13 +8,23 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 
 ---
 
-## 1. Topoloji: altı uygulama, dört veritabanı, bir broker
+## 1. Topoloji: on uygulama, dört veritabanı, bir broker
 
 ```mermaid
 flowchart LR
-    client["Mobil / Web<br/>istemci"]
+    client["Bireysel<br/>mobil uygulama"]
+    bclient["İşyeri<br/>sistemi"]
+    bwclient["İşyeri paneli<br/>tarayıcı"]
+    staff["Backoffice paneli<br/>tarayıcı"]
 
     subgraph public["public ingress"]
+        papi["<b>personal-mobile-api</b><br/>ön API"]
+        bapi["<b>business-api</b><br/>ön API, entegrasyon"]
+        bwapi["<b>business-web-bff</b><br/>ön API, panelin BFF'i"]
+    end
+
+    subgraph internal["iç ağ"]
+        boapi["<b>backoffice-bff</b><br/>ön API, panelin BFF'i"]
         api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
         orch["<b>withdrawal-orchestrator</b><br/>çekim saga'sı"]
     end
@@ -41,8 +51,17 @@ flowchart LR
     odb[("hiwallet_withdrawal")]
     bdb[("hiwallet_bank")]
 
-    client -->|HTTPS| api
-    client -->|HTTPS| orch
+    client -->|HTTPS| papi
+    bclient -->|HTTPS| bapi
+    bwclient -->|"HTTPS, cookie"| bwapi
+    staff -->|"HTTPS, cookie"| boapi
+    papi --> api
+    papi --> orch
+    bapi --> api
+    bapi --> orch
+    bwapi --> api
+    bwapi --> orch
+    boapi --> api
     stripe -->|"webhook + HMAC"| hook
     bank -->|"webhook + HMAC"| hook
     bank -->|"callback + HMAC"| bhook
@@ -65,15 +84,16 @@ flowchart LR
 ```
 
 
-**Ayrım ölçütü erişim seviyesi** (`decisions.md` madde 28). Farklı erişim seviyesi
-ayrı process'lere dağılıyor, aynı erişim seviyesi tek process'te toplanıyor:
-`wallet-consumer` hem top-up event'lerini hem çekim komutlarını hem settlement'ı
-dinliyor; üçü de ingress'siz ve aynı ledger'a yazıyor.
+**İstemci yalnızca kendi ön API'sine bağlanıyor**; `wallet-api` ve orchestrator iç
+servis. Webhook'lar ve ingress'siz uygulamalar erişim seviyesine göre ayrılıyor
+(`decisions.md` madde 28): farklı erişim seviyesi ayrı process'lere dağılıyor, aynı
+erişim seviyesi tek process'te toplanıyor. `wallet-consumer` hem top-up event'lerini hem
+çekim komutlarını hem settlement'ı dinliyor; üçü de ingress'siz ve aynı ledger'a yazıyor.
 
 Dikkat edilecek dört şey:
 
-**`wallet-api`'nin broker'a hiç bağlantısı yok.** Public yüzeyin tek bağımlılığı
-Postgres. Tüketici ayrı bir uygulamaya taşındıktan sonra bu kasıtlı olarak korunuyor.
+**`wallet-api`'nin ve ön API'lerin broker'a hiç bağlantısı yok.** `wallet-api`'nin tek
+bağımlılığı Postgres; ön API'lerin veritabanı da yok.
 
 **`ledger_entries`'e yazan iki uygulama var** — `wallet-api` ve `wallet-consumer` —
 ama **tek kod** üzerinden: `WalletService.Core`. İkinci bir kopya açılmıyor (madde 25).
@@ -93,25 +113,30 @@ kendi endpoint'lerine bakıyor ve kodda tek satır değişmiyor (madde 35).
 birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarındaki tek bağ
 `hiwallet_bank`; doğrudan çağrı yok.
 
-### İki public yüzey
+### Ön API'ler
 
-Müşteriye dönük endpoint'ler iki uygulamada:
+İstemcinin gördüğü tek adres kendi ön API'si:
 
-| endpoint | uygulama |
-| --- | --- |
-| `/v1/accounts`, `/v1/wallets`, `/v1/transfers`, `/v1/promos` | `wallet-api` |
-| `/v1/withdrawals` | `withdrawal-orchestrator` |
+| istemci | ön API | erişim | arkasında |
+| --- | --- | --- | --- |
+| bireysel mobil uygulama | `personal-mobile-api` | public | `wallet-api`, `withdrawal-orchestrator` |
+| işyerinin sistemi | `business-api` | public | `wallet-api`, `withdrawal-orchestrator` |
+| işyeri paneli (tarayıcı) | `business-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
+| backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api` |
 
-İkisinin erişim seviyesi aynı: public, müşteriye dönük, aynı istemciden çağrılıyor.
-Madde 28'in ölçütü onları tek process'te toplardı; ayrı durmalarının sebebi madde 7,
-yani orchestrator'ın kendi veritabanı ve kendi sınırı. İki ölçüt çakıştığında servis
-sınırı öncelikli.
+Ön API veritabanına ve broker'a bağlanmıyor; isteği doğrulayıp iç servise iletiyor.
+`wallet-api`'nin uçları (`/v1/accounts`, `/v1/wallets`, `/v1/transfers`, `/v1/promos`)
+ve orchestrator'ın `/v1/withdrawals` ucu iç sözleşme. Yeni bir istemci grubu kendi ön
+API'siyle geliyor; ihtiyaca göre public ya da yalnızca iç ağdan erişiliyor.
 
-Bugünkü bedeli: istemci iki base URL biliyor, iki yüzey ayrı ayrı güvenceye alınıyor,
-rate-limit'leniyor ve izleniyor. Tek adrese indirmenin iki yolu `decisions.md` madde
-33'te tartışılıyor: önüne bir gateway katmanı koymak ya da saga'yı wallet'ın içine
-taşımak. İkincisi madde 33'ün elenen alternatifi; referans uygulamasında dağıtık
-saga'nın kendisi çıktı olduğu için seçilmedi.
+Tarayıcıdan kullanılan arayüzün ön API'si BFF: token'ı kendisi saklıyor, tarayıcıya
+yalnızca HttpOnly oturum cookie'si veriyor. Bu yüzden işyerinin iki ön API'si var:
+token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki panel
+`business-web-bff`'ye bağlanıyor. Ön API'ler bugün sağlık uçlarıyla ayakta, uçları henüz
+yazılmadı.
+
+`wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
+veritabanı ve kendi sınırı var.
 
 ---
 
