@@ -104,8 +104,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Banka entegrasyonu: asenkron sonuç, callback + mutabakat | evet |
 | Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | evet |
 | Sekiz container'ın compose'dan ayağa kalkması | evet |
-| Ön API'lerin compose'dan ayağa kalkması | denenmedi |
-| Ön API'lerin uçları | hayır — üçü de sağlık uçlarıyla ayakta |
+| Ön API'lerin compose'dan ayağa kalkması | evet |
+| Ön API'lerin uçları | hayır — dördü de sağlık uçlarıyla ayakta |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
