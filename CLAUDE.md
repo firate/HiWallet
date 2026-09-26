@@ -101,9 +101,20 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   "Önce SELECT sonra INSERT" YOK.
 
 **Deployable'lar**
-- Ayrım ölçütü ERİŞİM SEVİYESİ (`decisions.md` madde 28): `wallet-api` public,
-  `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz,
-  `withdrawal-orchestrator` kendi sınırı ve kendi veritabanı (madde 7 ve 33).
+- **`wallet-api` ve `withdrawal-orchestrator` İÇ servis;** istemci onlara doğrudan
+  bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
+- Dışarıya açılan her yüzey bir **ön API**. Ön API ihtiyaç doğdukça açılır, kendi
+  istemcisine hizmet eder ve ya public ya da yalnızca iç ağdan erişilir:
+  `personal-mobile-api`, `business-api` ve `business-web-bff` public, `backoffice-bff`
+  iç ağda.
+- Tarayıcıdan kullanılan arayüzün ön API'si **BFF**: token sunucuda kalır, tarayıcı
+  yalnızca HttpOnly oturum cookie'si taşır. BFF'in adı `-bff` ile biter. Token taşıyan istemci (mobil uygulama,
+  sistem entegrasyonu) ile cookie taşıyan arayüz aynı ön API'yi PAYLAŞMAZ.
+- **Ön API veritabanına BAĞLANMAZ** ve `WalletService.Core`'a referans vermez. Ledger'a
+  giden her istek iç ağdaki `wallet-api`'den geçer. Public process'te `wallet_app`
+  parolası durmaz.
+- Ingress'i olmayan ve webhook alan deployable'larda ölçüt ERİŞİM SEVİYESİ
+  (`decisions.md` madde 28): `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz.
   Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı
   process'e BÖLÜNMEZ — `wallet-consumer` hem top-up event'lerini hem çekim
   komutlarını dinliyor, ikisi de ingress'siz ve aynı ledger'a yazıyor.
@@ -111,7 +122,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   Ledger'a yazan kodun tek kopyası orada; ikinci bir kopya AÇILMAZ (madde 25).
 - **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
   `topup-webhook` onu görmez.
-- `wallet-api`'nin RabbitMQ bağımlılığı YOK ve eklenmez.
+- `wallet-api`'nin ve ön API'lerin RabbitMQ bağımlılığı YOK ve eklenmez.
 - **`.Fake` son eki yalnızca BAŞKA BİR KURUMUN yerine duran servise konur**
   (`decisions.md` madde 35). Kendi yazdığımız ve canlıda da koşacak servis normal ad
   alır — bugün yalnızca testte koşuyor olması son ek sebebi DEĞİL. `bank-adapter`
