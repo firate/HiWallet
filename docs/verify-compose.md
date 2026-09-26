@@ -45,6 +45,7 @@ BANK_CALLBACK_SECRET=...        # bankanın sonuç callback'ini imzaladığı se
 
 KEYCLOAK_DB_PASSWORD=...        # Keycloak'ın kendi Postgres'i
 KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
+MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
 ```
 
 Stack başka bir makinede koşuyorsa `KEYCLOAK_PUBLIC_URL`'i o makinenin adresi yap
@@ -60,7 +61,7 @@ for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
          STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET \
-         KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD; do
+         KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -254,6 +255,41 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:8097/v1/accounts
 ```
 
 Beklenen: `401`. Token'la aynı istek `200` ve boş `items` döner; hesabı aşağıda açıyorsun.
+
+**Realm yalnızca ilk açılışta içe aktarılıyor.** Keycloak realm'i daha önce içe
+aktardıysa `docker/keycloak/realm-hiwallet.json`'daki değişiklik (yeni istemci, yeni
+hedef kitle) uygulanmıyor. Yönetim konsolunda realm'i sil ve `docker compose restart
+keycloak` ile dosyadan yeniden aktar; realm'deki kullanıcılar da silinir.
+
+#### İşyeri entegrasyonu
+
+İşyerinin sistemi token'ı kendi istemcisinin gizli anahtarıyla alıyor (client
+credentials). Compose'da örnek istemci `merchant-demo`; canlıda her işyerinin kendi
+istemcisi var.
+
+```bash
+MERCHANT_TOKEN=$(curl -s localhost:8101/realms/hiwallet/protocol/openid-connect/token \
+  -d grant_type=client_credentials -d client_id=merchant-demo \
+  -d client_secret="$MERCHANT_DEMO_CLIENT_SECRET" | jq -r .access_token)
+```
+
+İşyeri hesabı `business-api`'den açılmıyor: kayıt ve entegrasyonun hesaba bağlanması
+backoffice'in işi ve backoffice henüz yok. Compose'da iç ağdaki `wallet-api`'ye
+işyerinin token'ıyla açılıyor; hesabı açan kimlik, yani `merchant-demo`'nun servis
+hesabı, hesabın kullanıcısı oluyor:
+
+```bash
+MERCHANT=$(curl -s -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $MERCHANT_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"type":"Business"}' | jq -r .accountId)
+
+MERCHANT_WALLET=$(curl -s -X POST localhost:8091/v1/accounts/$MERCHANT/wallets -H "Authorization: Bearer $MERCHANT_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"Kasa","currency":"TRY"}' | jq -r .walletId)
+
+curl -s localhost:8098/v1/accounts -H "Authorization: Bearer $MERCHANT_TOKEN"
+```
+
+Beklenen: son istek işyeri hesabını dönüyor. Aynı istek mobil uygulamanın token'ıyla
+(`$TOKEN`) `401`: token `business-api` için verilmedi.
 
 ### Hesap ve cüzdan kurma
 

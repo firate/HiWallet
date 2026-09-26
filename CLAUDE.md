@@ -138,8 +138,14 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Kimlik sağlayıcı Keycloak. Token'ı ön API doğrular ve iç servise AYNEN iletir; iç
   servis onu YENİDEN doğrular. Ön API'ye körü körüne güvenilmez: kimlik başlıkla
   taşınmaz, iç servis ön API'nin beyanını değil token'ı okur.
+- Her ön API yalnızca KENDİSİ İÇİN verilmiş token'ı kabul eder: token'ın hedef
+  kitlesinde (`aud`) ön API'nin adı var. İç servisler `hiwallet-api`'yi arar. Mobil
+  uygulamanın token'ı `business-api`'de, işyerinin token'ı mobil ön API'de geçmez.
 - Varsayılan politika kimlik ister. Kimliksiz açık kalan uç (sağlık, API dokümanı) bunu
   `AllowAnonymous` ile kendisi söyler.
+- İşyerinin sistem entegrasyonu Keycloak'ta kendi istemcisi (client credentials);
+  istemcinin servis hesabı işyeri hesabının kullanıcısı. İşyeri hesabı ön API'den
+  AÇILMAZ: kayıt ve entegrasyonun hesaba bağlanması backoffice'in işi.
 - Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta (`account_members`), kimlik
   sağlayıcıda DEĞİL. Hesabı açan kimlik hesabın kullanıcısı olur.
 - Müşteri yalnızca kullanıcısı olduğu hesaba erişir. Sahibi olunmayan kaynak `404`,

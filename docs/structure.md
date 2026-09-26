@@ -168,39 +168,41 @@ RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
 ```
 PersonalMobileApi/             -- public; bireysel mobil uygulama
 ├── PersonalMobileApi.csproj   -- EdgeApi.Core ve Shared.Infrastructure'a referans
-├── Program.cs
+├── Program.cs                 -- token doğrulama, kovaların varsayılanı
 ├── PersonalMobileApiApp.cs    -- test giriş noktası işaretçisi
 ├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals
-├── Requests/                  -- ön API'nin kendi sözleşmesi
-├── Responses/
-├── Setup/                     -- RateLimiting
 ├── Dockerfile
-└── appsettings.json           -- iç servis zaman aşımı, rate limit
+└── appsettings.json           -- hedef kitle, iç servis zaman aşımı, rate limit
 
 BusinessApi/                   -- public; işyerinin sistem entegrasyonu
+├── ...                        -- aynı dosyalar
+└── Controllers/               -- Accounts, Wallets, Transfers, Promos, Withdrawals
+
 BusinessWebBff/                -- public; işyeri panelinin BFF'i
 BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i
-                                  (üçünde Controllers/, Requests/, Responses/ ve
-                                  Setup/ henüz yok)
+                                  (ikisinde Controllers/ henüz yok)
 ```
 
 Ön API'ler wallet sınırının dışında: `WalletService.Core`'a referans vermiyor,
 veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor.
-`personal-mobile-api`'nin uçları yazıldı; diğer üçünde sağlık uçları, ProblemDetails,
-OpenAPI ve telemetri kurulu. Tarayıcıdan kullanılan arayüzün ön API'si BFF: oturumu
-cookie ile tutar, token'ı tarayıcıya vermez.
+`personal-mobile-api` ve `business-api`'nin uçları yazıldı; iki BFF'te sağlık uçları,
+ProblemDetails, OpenAPI ve telemetri kurulu. Tarayıcıdan kullanılan arayüzün ön API'si
+BFF: oturumu cookie ile tutar, token'ı tarayıcıya vermez.
 
-Ön API'nin request ve response tipleri kendisinin. Bugün iç servisinkilerle aynı
-şekilde; iç servisin cevabı doğrudan ön API'nin tipine okunuyor. Ayrıştıkları gün eşleme
-controller'a ekleniyor.
+Request ve response tipleri `EdgeApi.Core`'da, iç servislerin sözleşmesiyle aynı
+şekilde; iç servisin cevabı doğrudan bu tiplere okunuyor. Bir ön API'nin sözleşmesi
+ayrıştığı gün o ön API kendi tipini yazıyor ve eşleme controller'a ekleniyor.
 
 ### EdgeApi.Core (kütüphane)
 
 ```
 EdgeApi.Core/
 ├── EdgeApi.Core.csproj
+├── Contracts/                 -- iç servislerin request ve response tipleri
 ├── InternalServices/          -- WalletApiClient, WithdrawalOrchestratorClient,
-│                                 adres ayarı, resilience pipeline'ı, token iletimi
+│                                 adres ayarı, resilience pipeline'ı, token iletimi,
+│                                 çekim başlatma
+├── RateLimiting/              -- istemci ve çekim kovaları; varsayılanı ön API veriyor
 └── Errors/                    -- iç servisin cevabını istemciye aktaran handler
 ```
 

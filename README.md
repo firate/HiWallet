@@ -43,8 +43,8 @@ olduğu yere taşınmıyor.
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
 API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token sunucuda kalır, tarayıcı yalnızca
-HttpOnly oturum cookie'si taşır. `personal-mobile-api`'nin uçları yazıldı; diğer ön
-API'ler sağlık uçlarıyla ayakta.
+HttpOnly oturum cookie'si taşır. `personal-mobile-api` ve `business-api`'nin uçları
+yazıldı; iki BFF sağlık uçlarıyla ayakta.
 
 Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
 iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
@@ -111,12 +111,14 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Sekiz container'ın compose'dan ayağa kalkması | evet |
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
-| Diğer ön API'lerin uçları | hayır — sağlık uçlarıyla ayakta |
+| `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
+| BFF'lerin uçları | hayır — sağlık uçlarıyla ayakta |
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
 | Keycloak'ın compose'dan ayağa kalkması | denenmedi |
-| Çalışan kimliği ve işyeri entegrasyonunun istemci kimliği | hayır |
+| Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
+| Çalışan kimliği | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
