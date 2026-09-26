@@ -19,6 +19,15 @@ public sealed record CommandActor
     public required string Type { get; init; }
 
     public required string Id { get; init; }
+
+    /// <summary>
+    /// İsteyen kimlik: kimlik sağlayıcıdaki kullanıcının <c>sub</c>'ı. Müşteri
+    /// aktöründe ZORUNLU. <see cref="Id"/> hangi hesap adına olduğunu, bu alan hesabın
+    /// hangi kullanıcısının istediğini söylüyor; wallet üyeliği ledger'a yazmadan önce
+    /// doğruluyor. Hesabın kullanıcılarını yalnızca wallet biliyor, komutu gönderen
+    /// servis bilmiyor.
+    /// </summary>
+    public string? Subject { get; init; }
 }
 
 /// <summary>

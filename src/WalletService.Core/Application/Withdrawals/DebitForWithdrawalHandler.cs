@@ -139,10 +139,28 @@ public sealed class DebitForWithdrawalHandler(
         // doğrulama burada yapılır.
         var actor = Actor.From(command.Actor);
 
-        if (actor.Type is ActorType.Customer && actor.Id != accountId.ToString())
+        if (actor.Type is ActorType.Customer)
         {
-            throw new InvalidOperationException(
-                $"Komuttaki müşteri aktörü ({actor.Id}) cüzdanın sahibi ({accountId}) değil.");
+            if (actor.Id != accountId.ToString())
+            {
+                throw new InvalidOperationException(
+                    $"Komuttaki müşteri aktörü ({actor.Id}) cüzdanın sahibi ({accountId}) değil.");
+            }
+
+            // Hesap doğru olsa da isteyen kimlik o hesabın kullanıcısı olmalı. Komutu
+            // gönderen orchestrator hesabın kullanıcılarını bilmiyor; kimliği taşıyor
+            // ve doğrulamayı ledger'ın sahibi yapıyor.
+            var subject = command.Actor.Subject
+                ?? throw new InvalidOperationException("Müşteri aktöründe isteyen kimlik yok.");
+
+            var member = await db.AccountMembers
+                .AnyAsync(m => m.Subject == subject && m.AccountId == accountId, ct);
+
+            if (!member)
+            {
+                throw new InvalidOperationException(
+                    $"Çekimi isteyen kimlik ({subject}) hesabın ({accountId}) kullanıcısı değil.");
+            }
         }
 
         var tx = LedgerTransaction.Create(
