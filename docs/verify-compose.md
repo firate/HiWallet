@@ -48,9 +48,21 @@ KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
 MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
 ```
 
-Stack başka bir makinede koşuyorsa `KEYCLOAK_PUBLIC_URL`'i o makinenin adresi yap
-(`http://homelab:8101`). Token'daki issuer bu adres; servisler başka bir issuer'ı
-kabul etmiyor ve yanlış yazılırsa her token `401` alır.
+`KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
+servisler başka bir issuer'ı kabul etmiyor ve yanlış yazılırsa her token `401` alır.
+
+Homelab'da Keycloak altyapının Traefik'inin arkasında ve HTTPS ile açılıyor
+(`docker-compose.homelab.yml`). Homelab'daki `.env`'e:
+
+```
+COMPOSE_FILE=docker-compose.yml:docker-compose.homelab.yml
+KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.firatergul.com
+```
+
+`COMPOSE_FILE` ile her `docker compose` komutu ek dosyayı da okuyor. Düz HTTP'de
+yönetim konsolu başka makineden açılmıyor: master realm özel ağ dışından gelen isteğe
+"HTTPS required" diyor ve Tailscale adresleri (`100.x`) Keycloak'ın özel ağ listesinde
+yok.
 
 **Elinde eski bir `.env` varsa** `cp` YAPMA — üstüne yazar. Stack her büyüdüğünde
 bu listeye yeni satır ekleniyor ve compose ilk eksik değişkende durup yalnızca
@@ -222,6 +234,8 @@ PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e veri
 geri alınmazsa sınır yalnızca kâğıt üstünde kalır.
 
 ### Kimlik
+
+Homelab'da aşağıdaki `localhost:8101` yerine `https://hiwallet-auth.firatergul.com`.
 
 Keycloak ayakta mı ve issuer doğru mu:
 
