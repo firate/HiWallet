@@ -13,6 +13,11 @@ Adresler ve `docker compose` komutları stack'in koştuğu makineye ait; hepsi o
 set -a; . ./.env; set +a          # webhook secret'ları kabuğa gelsin
 ```
 
+**Token.** `wallet-api`'nin, orchestrator'ın ve ön API'lerin uçları token istiyor;
+aşağıdaki komutlar `$TOKEN`'ı kullanıyor. Kullanıcı açmak ve token almak
+`verify-compose.md` "Kimlik" bölümünde. Hesabı açan kimlik hesabın kullanıcısı oluyor;
+başka bir kimliğin token'ıyla aynı hesaba giden istek `404` alıyor. Token'sız istek `401`.
+
 **Durum kodları neden bu şekilde:** `201` yaratıldı, `202` kalıcı olarak alındı ama
 henüz işlenmedi, `400` girdi bozuk, `404` kayıt yok, `409` eşzamanlılık çakışması,
 `422` request geçerli ama iş kuralı reddetti. `409` ile `422` karıştırılmaz — birincisi
@@ -25,7 +30,7 @@ henüz işlenmedi, `400` girdi bozuk, `404` kayıt yok, `409` eşzamanlılık ç
 ### Hesap aç
 
 ```bash
-curl -i -X POST localhost:8091/v1/accounts \
+curl -i -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"type":"Person"}'
 ```
@@ -52,7 +57,7 @@ uygulanır.
 <details><summary>Geçersiz tip → <code>400</code></summary>
 
 ```bash
-curl -i -X POST localhost:8091/v1/accounts \
+curl -i -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"type":"Robot"}'
 ```
 ```
@@ -64,7 +69,7 @@ Content-Type: application/problem+json
 ### Cüzdan aç
 
 ```bash
-curl -i -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets \
+curl -i -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Birikim","currency":"TRY"}'
 ```
@@ -111,7 +116,7 @@ edilemiyor. Bakiye her zaman `0` başlar — para yalnızca ledger üzerinden gi
 <details><summary>Sistem hesabı olmayan para birimi → <code>422</code></summary>
 
 ```bash
-curl -i -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets \
+curl -i -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"name":"Dolar","currency":"USD"}'
 ```
 ```json
@@ -142,7 +147,7 @@ ledger'ın bilgisi, sınırdaki doğrulayıcı bilemez.
 ### Cüzdanı sorgula
 
 ```bash
-curl -s localhost:8091/v1/wallets/$WALLET
+curl -s localhost:8091/v1/wallets/$WALLET -H "Authorization: Bearer $TOKEN"
 ```
 ```json
 {
@@ -178,7 +183,7 @@ cevaplayacağı soru değil.
 ### Cüzdanın hareketleri
 
 ```bash
-curl -s "localhost:8091/v1/wallets/$WALLET/movements?size=2"
+curl -s "localhost:8091/v1/wallets/$WALLET/movements?size=2" -H "Authorization: Bearer $TOKEN"
 ```
 ```json
 {
@@ -215,7 +220,7 @@ satır komisyon dahil toplamı gösterir (yukarıda 100 + 2).
 göndererek alınır:
 
 ```bash
-curl -s "localhost:8091/v1/wallets/$WALLET/movements?size=2&after=918270"
+curl -s "localhost:8091/v1/wallets/$WALLET/movements?size=2&after=918270" -H "Authorization: Bearer $TOKEN"
 ```
 
 Son sayfada `nextCursor` `null` döner; istemci listenin bittiğini buradan anlar ve
@@ -235,7 +240,7 @@ Sistem hesapları bu endpoint'ten de görünmez: `revenue` kimliğiyle sorarsan 
 ### Hesabı ve cüzdanlarını sorgula
 
 ```bash
-curl -s localhost:8091/v1/accounts/$ACCOUNT
+curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN"
 ```
 ```json
 {
@@ -277,7 +282,7 @@ girmeden görünüyor.
 ### Transfer
 
 ```bash
-curl -i -X POST localhost:8091/v1/transfers \
+curl -i -X POST localhost:8091/v1/transfers -H "Authorization: Bearer $TOKEN" \
   -H 'Idempotency-Key: transfer-1' -H 'Content-Type: application/json' \
   -d "{\"fromWalletId\":\"$FROM\",\"toWalletId\":\"$TO\",\"amount\":200,\"currency\":\"TRY\",\"type\":\"Payment\"}"
 ```
@@ -334,7 +339,7 @@ geçerli promo varken 100 TL'lik `Payment` (%2 komisyon): gönderen `promo -40`,
 `promo` kovası artar; parti yalnızca bu işyerinde geçerli.
 
 ```bash
-curl -i -X POST localhost:8091/v1/promos \
+curl -i -X POST localhost:8091/v1/promos -H "Authorization: Bearer $TOKEN" \
   -H 'Idempotency-Key: promo-1' -H 'Content-Type: application/json' \
   -d "{\"funderWalletId\":\"$SHOP_WALLET\",\"walletId\":\"$WALLET\",\"amount\":50,\"currency\":\"TRY\",\"expiresAt\":\"2026-12-31T23:59:59+03:00\"}"
 ```
@@ -366,7 +371,7 @@ fonlamıyor.
 ### Cüzdanın promo partileri
 
 ```bash
-curl -s "localhost:8091/v1/wallets/$WALLET/promos?size=2"
+curl -s "localhost:8091/v1/wallets/$WALLET/promos?size=2" -H "Authorization: Bearer $TOKEN"
 ```
 ```json
 {
@@ -495,7 +500,7 @@ olduğunu dışarıya söylemek istemiyoruz.
 ### Çekim başlat
 
 ```bash
-curl -i -X POST localhost:8093/v1/withdrawals \
+curl -i -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $TOKEN" \
   -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
   -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"destinationIban\":\"TR330006100519786457841326\"}"
 ```
@@ -522,7 +527,7 @@ normalize edilir; mod-97 geçmezse `400`.
 ### Çekimi sorgula
 
 ```bash
-curl -s localhost:8093/v1/withdrawals/$WD
+curl -s localhost:8093/v1/withdrawals/$WD -H "Authorization: Bearer $TOKEN"
 ```
 ```json
 {
@@ -774,9 +779,9 @@ relay'in işi.
 Banka kalıcı olarak reddettiğinde para üç bacaklı ters kayıtla geri döner:
 
 ```bash
-BEFORE=$(curl -s localhost:8091/v1/wallets/$WALLET | jq -r .balance)
+BEFORE=$(curl -s localhost:8091/v1/wallets/$WALLET -H "Authorization: Bearer $TOKEN" | jq -r .balance)
 
-WD=$(curl -s -X POST localhost:8093/v1/withdrawals \
+WD=$(curl -s -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $TOKEN" \
   -H 'Idempotency-Key: cekim-red' -H 'Content-Type: application/json' \
   -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"destinationIban\":\"TR330006100519786457841326\"}" | jq -r .withdrawalId)
 
@@ -789,8 +794,8 @@ curl -s -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' 
 # Banka sonucu ANINDA vermiyor: BANK_SETTLEMENT_DELAY kadar bekliyor, sonra
 # callback gönderiyor, sonra adaptörün relay'i cevabı yayınlıyor.
 sleep 10
-curl -s localhost:8093/v1/withdrawals/$WD; echo
-echo "önce=$BEFORE sonra=$(curl -s localhost:8091/v1/wallets/$WALLET | jq -r .balance)"
+curl -s localhost:8093/v1/withdrawals/$WD -H "Authorization: Bearer $TOKEN"; echo
+echo "önce=$BEFORE sonra=$(curl -s localhost:8091/v1/wallets/$WALLET -H "Authorization: Bearer $TOKEN" | jq -r .balance)"
 ```
 
 Beklenen: saga `failed`, bakiye **başladığı yerde**.

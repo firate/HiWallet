@@ -24,7 +24,8 @@ public sealed record CreateWithdrawalRequest(
     /// bir değer bu noktaya ulaşamıyor. IBAN sınırı BURASI — bu noktadan sonra
     /// akışta string IBAN dolaşmıyor (CLAUDE.md "Withdrawal saga").
     /// </summary>
-    public StartWithdrawalCommand ToCommand(string idempotencyKey)
+    /// <param name="subject">İsteyen kimlik, doğrulanmış token'dan.</param>
+    public StartWithdrawalCommand ToCommand(string idempotencyKey, string subject)
     {
         return new StartWithdrawalCommand(
             AccountId,
@@ -33,11 +34,9 @@ public sealed record CreateWithdrawalRequest(
             Currency.ToUpperInvariant(),
             Iban.From(DestinationIban),
             idempotencyKey,
-            // Bugün başlatan HER ZAMAN müşteri ve kimliği gövdeden geliyor — authn
-            // yok (baseline.md "Opsiyonel Katman A"). Authn geldiğinde burası
-            // DOĞRULANMIŞ özneden dolmalı ve gövdedeki AccountId ile eşleştiği
-            // kontrol edilmeli; backoffice çağırdığında da `employee` olmalı.
-            // Şu haliyle istemci kendi aktörünü beyan ediyor, bu bir güven varsayımı.
-            new CommandActor { Type = ActorTypes.Customer, Id = AccountId.ToString() });
+            // Başlatan müşteri: hesap gövdeden, isteyen kimlik token'dan. Orchestrator
+            // hesabın kullanıcılarını bilmiyor; kimliğin hesabın kullanıcısı olduğunu
+            // wallet düşmeden önce doğruluyor.
+            new CommandActor { Type = ActorTypes.Customer, Id = AccountId.ToString(), Subject = subject });
     }
 }

@@ -42,7 +42,14 @@ RabbitMq__Password=...
 STRIPE_FAKE_WEBHOOK_SECRET=...  # uzun ve rastgele
 BANK_FAKE_WEBHOOK_SECRET=...
 BANK_CALLBACK_SECRET=...        # bankanın sonuç callback'ini imzaladığı secret
+
+KEYCLOAK_DB_PASSWORD=...        # Keycloak'ın kendi Postgres'i
+KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
 ```
+
+Stack başka bir makinede koşuyorsa `KEYCLOAK_PUBLIC_URL`'i o makinenin adresi yap
+(`http://homelab:8101`). Token'daki issuer bu adres; servisler başka bir issuer'ı
+kabul etmiyor ve yanlış yazılırsa her token `401` alır.
 
 **Elinde eski bir `.env` varsa** `cp` YAPMA — üstüne yazar. Stack her büyüdüğünde
 bu listeye yeni satır ekleniyor ve compose ilk eksik değişkende durup yalnızca
@@ -52,7 +59,8 @@ onun adını söylüyor; sırayla düzeltmek uzun sürer. Hepsini birden gör:
 for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
-         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET; do
+         STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET \
+         KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -212,15 +220,50 @@ Beklenen tam olarak dört `BAĞLANDI`: her rol kendi veritabanına. On iki satı
 PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e verir,
 geri alınmazsa sınır yalnızca kâğıt üstünde kalır.
 
+### Kimlik
+
+Keycloak ayakta mı ve issuer doğru mu:
+
+```bash
+curl -s localhost:8101/realms/hiwallet/.well-known/openid-configuration | jq -r .issuer
+```
+
+Beklenen: `KEYCLOAK_PUBLIC_URL` + `/realms/hiwallet`.
+
+Kullanıcı aç: yönetim konsolunda (`http://localhost:8101/admin`, kullanıcı `admin`)
+`hiwallet` realm'i, Users, Add user; e-posta, ad ve soyadı da doldur, Credentials
+sekmesinde parola ver ve Temporary'yi kapat. Profil eksikse Keycloak parola akışında
+token vermiyor ("Account is not fully set up"). Kayıt sayfasından da açılabiliyor:
+`http://localhost:8101/realms/hiwallet/account`.
+
+Token al. `hiwallet-cli` istemcisi yalnızca compose'da var: parola akışıyla token veriyor,
+mobil uygulamanın tarayıcılı akışını curl'de taklit etmeye gerek bırakmıyor.
+
+```bash
+TOKEN=$(curl -s localhost:8101/realms/hiwallet/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=hiwallet-cli \
+  -d username=<kullanıcı> -d password=<parola> | jq -r .access_token)
+```
+
+Token beş dakika geçerli; süresi dolunca aynı komutla yenisi alınır.
+
+Token'sız istek reddediliyor mu:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8097/v1/accounts
+```
+
+Beklenen: `401`. Token'la aynı istek `200` ve boş `items` döner; hesabı aşağıda açıyorsun.
+
 ### Hesap ve cüzdan kurma
 
 Aşağıdaki iki akış da bir cüzdan istiyor. `jq` ile kimlikleri kabuk değişkenine al:
 
 ```bash
-ACCOUNT=$(curl -s -X POST localhost:8091/v1/accounts \
+ACCOUNT=$(curl -s -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"type":"Person"}' | jq -r .accountId)
 
-WALLET=$(curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets \
+WALLET=$(curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}' | jq -r .walletId)
 
 echo "$ACCOUNT / $WALLET"
@@ -234,7 +277,7 @@ bakiyeye yazan bir endpoint YOK — olsaydı zero-sum invariant'ı delerdi.
 Cüzdanda para olduktan sonra:
 
 ```bash
-curl -i -X POST localhost:8093/v1/withdrawals \
+curl -i -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $TOKEN" \
   -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
   -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",
        \"destinationIban\":\"TR330006100519786457841326\"}"
@@ -243,7 +286,7 @@ curl -i -X POST localhost:8093/v1/withdrawals \
 Beklenen: `202 Accepted` ve gövdede `withdrawalId`. Birkaç saniye sonra:
 
 ```bash
-curl -s localhost:8093/v1/withdrawals/<ID>
+curl -s localhost:8093/v1/withdrawals/<ID> -H "Authorization: Bearer $TOKEN"
 ```
 
 `state` sırayla `initiated` → `debited` → `bank_transfer_pending` → `completed`
@@ -281,6 +324,9 @@ docker compose down -v
 için, parola değiştirdiğinde bu şart.
 
 ## Doğrulama kaydı (iki uygulamalı sürüm)
+
+Aşağıdaki kayıtlar kimlik doğrulama gelmeden önce alındı. Bugün aynı komutlar
+`-H "Authorization: Bearer $TOKEN"` istiyor; token almak yukarıda, "Kimlik" bölümünde.
 
 `docker compose up --build` ile koşturuldu. O koşuda kanıtlananlar — imaj ve şema
 tarafı değişmediği için hâlâ geçerli:

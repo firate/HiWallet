@@ -296,7 +296,9 @@ public sealed class WithdrawalChainTests(
 
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("N"));
 
-        var response = await _api!.SendAsync(request, ct);
+        // Çekimi cüzdanın sahibi istiyor: wallet düşmeden önce kimliğin hesabın
+        // kullanıcısı olduğunu doğruluyor.
+        var response = await _api!.AsOwnerOf(wallet.AccountId).SendAsync(request, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 

@@ -1,5 +1,6 @@
 using HiWallet.EdgeApi.InternalServices;
 using HiWallet.PersonalMobileApi.Setup;
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.Errors;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
@@ -24,6 +25,10 @@ builder.AddHiWalletObservability(ServiceName);
 builder.Services.AddHealthChecks();
 builder.Services.AddHiWalletProblemDetails();
 
+// Müşterinin token'ı burada doğrulanıyor ve iç servislere aynen iletiliyor; iç
+// servisler onu yeniden doğruluyor.
+builder.Services.AddHiWalletAuthentication();
+
 // İç servis istemcileri. Adresleri eksikse uygulama açılmıyor.
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
@@ -36,7 +41,12 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+// Sıra: kimlik okunuyor, sonra kova seçiliyor, sonra kimlik zorunluluğu. Limiter
+// yetkilendirmeden önce: geçersiz token'la gelen istek de sınırlanıyor.
+app.UseAuthentication();
 app.UseRateLimiter();
+app.UseAuthorization();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();

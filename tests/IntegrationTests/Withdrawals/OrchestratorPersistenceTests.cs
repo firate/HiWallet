@@ -268,7 +268,7 @@ public sealed class OrchestratorPersistenceTests(OrchestratorFixture fixture)
             currency: "TRY",
             destination: Destination,
             idempotencyKey: idempotencyKey ?? Guid.NewGuid().ToString("N"),
-            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
+            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString(), Subject = "test-musteri" },
             startedAt: DateTimeOffset.UtcNow);
 
     private static OutboxMessage NewOutboxMessage(Guid commandId, Guid sagaId) => new()

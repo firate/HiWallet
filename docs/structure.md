@@ -170,7 +170,7 @@ PersonalMobileApi/             -- public; bireysel mobil uygulama
 ├── PersonalMobileApi.csproj   -- EdgeApi.Core ve Shared.Infrastructure'a referans
 ├── Program.cs
 ├── PersonalMobileApiApp.cs    -- test giriş noktası işaretçisi
-├── Controllers/               -- Wallets, Transfers, Withdrawals
+├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals
 ├── Requests/                  -- ön API'nin kendi sözleşmesi
 ├── Responses/
 ├── Setup/                     -- RateLimiting
@@ -200,7 +200,7 @@ controller'a ekleniyor.
 EdgeApi.Core/
 ├── EdgeApi.Core.csproj
 ├── InternalServices/          -- WalletApiClient, WithdrawalOrchestratorClient,
-│                                 adres ayarı, resilience pipeline'ı
+│                                 adres ayarı, resilience pipeline'ı, token iletimi
 └── Errors/                    -- iç servisin cevabını istemciye aktaran handler
 ```
 
@@ -366,6 +366,7 @@ Shared/
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
     ├── RateLimiting/          -- 429 gövdesi + Retry-After, token bucket ayarı
+    ├── Authentication/        -- token doğrulama; varsayılan politika kimlik istiyor
     └── HealthChecks/          -- /health/live ve /health/ready endpoint'leri
 ```
 

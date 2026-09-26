@@ -23,7 +23,7 @@ public sealed class WithdrawalSagaTests
         currency: "TRY",
         destination: Destination,
         idempotencyKey: "istek-1",
-        initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
+        initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString(), Subject = "test-musteri" },
         startedAt: Now);
 
     [Fact]
@@ -33,6 +33,26 @@ public sealed class WithdrawalSagaTests
 
         saga.State.ShouldBe(WithdrawalState.Initiated);
         saga.IsTerminal.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Müşteri çekimi isteyen kimliği taşımak zorunda: wallet düşmeden önce o kimliğin
+    /// hesabın kullanıcısı olduğunu doğruluyor ve kimliksiz komutu reddediyor. Saga
+    /// kimliksiz açılsaydı çekim düşmede takılırdı.
+    /// </summary>
+    [Fact]
+    public void MusteriCekimi_IsteyenKimlikOlmadanAcilmaz()
+    {
+        Should.Throw<ArgumentException>(() => WithdrawalSaga.Start(
+            Guid.NewGuid(),
+            accountId: Guid.NewGuid(),
+            walletId: Guid.NewGuid(),
+            amount: 100m,
+            currency: "TRY",
+            destination: Destination,
+            idempotencyKey: "istek-1",
+            initiatedBy: new CommandActor { Type = ActorTypes.Customer, Id = Guid.NewGuid().ToString() },
+            startedAt: Now));
     }
 
     // ------------------------------------------------------------------

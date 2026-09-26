@@ -45,6 +45,31 @@ public sealed class RateLimitTests(BankFixture bankDb)
     }
 
     /// <summary>
+    /// Kova kimlik başına: IP paylaşan müşteriler (mobil operatör, kurumsal NAT)
+    /// birbirinin limitini yemiyor. Kimliksiz istek IP'nin kovasına düşüyor.
+    /// </summary>
+    [Fact]
+    public async Task OnApi_KovaKimlikBasina()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        await using var factory = new PersonalMobileApiFactory(rateLimitBurst: Burst);
+        using var first = factory.CreateClient().As("test-birinci");
+        using var second = factory.CreateClient().As("test-ikinci");
+
+        for (var i = 0; i < Burst; i++)
+        {
+            await first.GetAsync($"/v1/withdrawals/{Guid.NewGuid()}", ct);
+        }
+
+        (await first.GetAsync($"/v1/withdrawals/{Guid.NewGuid()}", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.TooManyRequests);
+
+        (await second.GetAsync($"/v1/withdrawals/{Guid.NewGuid()}", ct)).StatusCode
+            .ShouldNotBe(HttpStatusCode.TooManyRequests, "başka kimliğin kovası dolu olmamalı");
+    }
+
+    /// <summary>
     /// Çekim başlatmanın kendi, daha dar kovası var: dışarıya para çıkarıyor. Kova
     /// ayrı olduğu için çekim sınırına takılan müşteri bakiyesini görmeye devam ediyor.
     /// </summary>

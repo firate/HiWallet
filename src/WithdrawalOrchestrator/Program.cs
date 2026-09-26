@@ -1,4 +1,5 @@
 using FluentValidation;
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Jobs;
 using HiWallet.Shared.Infrastructure.Messaging;
@@ -48,6 +49,8 @@ builder.Services.AddHiWalletJobLease(PersistenceSetup.ConnectionStringName);
 builder.Services.AddSingleton<StuckSagaScanner>();
 builder.Services.AddHostedService<StuckSagaScan>();
 
+// Token'ı ön API iletiyor, burada yeniden doğrulanıyor.
+builder.Services.AddHiWalletAuthentication();
 builder.Services.AddControllers();
 builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddHiWalletOpenApi();
@@ -56,6 +59,8 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();

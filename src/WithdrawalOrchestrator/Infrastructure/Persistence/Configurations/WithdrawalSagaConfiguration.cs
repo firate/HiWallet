@@ -29,6 +29,10 @@ internal sealed class WithdrawalSagaConfiguration : IEntityTypeConfiguration<Wit
         builder.Property(s => s.InitiatedById)
             .HasColumnName("initiated_by_id").HasColumnType("text").IsRequired();
 
+        // Nullable: yalnızca müşteri çekiminde dolu, zorunluluğu Start'ta.
+        builder.Property(s => s.InitiatedBySubject)
+            .HasColumnName("initiated_by_subject").HasColumnType("text");
+
         builder.Property(s => s.IdempotencyKey)
             .HasColumnName("idempotency_key")
             .HasColumnType("text")

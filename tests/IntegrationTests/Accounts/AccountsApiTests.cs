@@ -21,7 +21,9 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
     public ValueTask InitializeAsync()
     {
         _factory = new WalletApiFactory(postgres);
-        _client = _factory.CreateClient();
+
+        // Her test kendi kullanıcısıyla: açtığı hesapların kullanıcısı o oluyor.
+        _client = _factory.CreateClient().As($"test-{Guid.NewGuid():N}");
         return ValueTask.CompletedTask;
     }
 

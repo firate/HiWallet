@@ -411,6 +411,44 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
             .ShouldBeFalse();
     }
 
+    /// <summary>
+    /// Hesap doğru ama isteyen kimlik hesabın kullanıcısı değil. Orchestrator üyeliği
+    /// bilmiyor; kimliği komutla taşıyor ve doğrulamayı ledger'ın sahibi yapıyor.
+    /// </summary>
+    [Fact]
+    public async Task Dusme_HesabinKullanicisiOlmayanKimlikle_Reddedilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
+
+        var command = DebitCommand(walletId, 100m, accountId: accountId) with
+        {
+            Actor = CustomerActor(accountId, subject: $"test-{Guid.NewGuid():N}")
+        };
+
+        await Should.ThrowAsync<InvalidOperationException>(Debit().HandleAsync(command, ct));
+
+        await using var db = postgres.CreateContext();
+
+        (await db.LedgerTransactions.AnyAsync(
+            t => t.LedgerAccountId == walletId && t.Type == LedgerTransactionType.Withdrawal, ct))
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Dusme_KimliksizMusteriAktoruyle_Reddedilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct);
+
+        var command = DebitCommand(walletId, 100m, accountId: accountId) with
+        {
+            Actor = new CommandActor { Type = ActorTypes.Customer, Id = accountId.ToString() }
+        };
+
+        await Should.ThrowAsync<InvalidOperationException>(Debit().HandleAsync(command, ct));
+    }
+
     /// <param name="accountId">
     /// Aktör olarak kullanılıyor. Handler komuttaki `customer` iddiasını cüzdanın
     /// sahibiyle karşılaştırdığı için gerçek hesap verilmeli; uydurulmuş bir değer
@@ -428,8 +466,8 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
             Actor = CustomerActor(accountId ?? Guid.NewGuid())
         };
 
-    private static CommandActor CustomerActor(Guid accountId) =>
-        new() { Type = ActorTypes.Customer, Id = accountId.ToString() };
+    private static CommandActor CustomerActor(Guid accountId, string? subject = null) =>
+        new() { Type = ActorTypes.Customer, Id = accountId.ToString(), Subject = subject ?? TestTokens.SubjectOf(accountId) };
 
     /// <summary>
     /// Hesabı da döndürüyor: handler komuttaki <c>customer</c> aktörünü cüzdanın

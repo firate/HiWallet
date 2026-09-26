@@ -36,11 +36,15 @@ public static class OpenApiSetup
             return app;
         }
 
+        // İki uç da kimliksiz açık: yalnızca Development'ta varlar ve şema bir sır değil,
+        // uçları çağırmak yine token istiyor.
+
         // Doküman: /openapi/v1.json
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
 
         // Arayüz: /scalar — dokümanı yukarıdaki endpoint'ten okuyor.
-        app.MapScalarApiReference(options => options.WithTitle(app.Environment.ApplicationName));
+        app.MapScalarApiReference(options => options.WithTitle(app.Environment.ApplicationName))
+            .AllowAnonymous();
 
         return app;
     }

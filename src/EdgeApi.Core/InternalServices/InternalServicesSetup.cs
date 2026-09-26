@@ -47,6 +47,9 @@ public static class InternalServicesSetup
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IExceptionHandler, InternalServiceExceptionHandler>());
 
+        services.AddHttpContextAccessor();
+        services.TryAddTransient<ForwardAccessTokenHandler>();
+
         var builder = services.AddHttpClient<TClient>((provider, client) =>
         {
             var options = provider.GetRequiredService<IOptionsMonitor<InternalServiceOptions>>().Get(name);
@@ -57,6 +60,8 @@ public static class InternalServicesSetup
             // keserdi ve ikinci deneme daha başlamadan iptal olurdu.
             client.Timeout = Timeout.InfiniteTimeSpan;
         });
+
+        builder.AddHttpMessageHandler<ForwardAccessTokenHandler>();
 
         builder.AddStandardResilienceHandler().Configure((options, provider) =>
         {

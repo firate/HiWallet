@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.RateLimiting;
 
 namespace HiWallet.PersonalMobileApi.Setup;
@@ -7,8 +8,9 @@ namespace HiWallet.PersonalMobileApi.Setup;
 /// Müşteri başına rate limit (baseline.md madde 7). İstemciyi tanıyan ön API, sınır
 /// burada: iç servisler yalnızca ön API'lerin adresini görüyor.
 ///
-/// Anahtar IP. Kimlik doğrulama geldiğinde anahtar müşteri kimliği olacak: IP paylaşan
-/// müşteriler (mobil operatör, kurumsal NAT) bugün aynı kovayı kullanıyor.
+/// Anahtar müşterinin kimliği: IP paylaşan müşteriler (mobil operatör, kurumsal NAT)
+/// birbirinin limitini yemiyor. Kimliksiz istek IP'nin kovasına düşüyor; limiter kimlik
+/// kontrolünden önce koştuğu için geçersiz token'la yapılan istek de sınırlanıyor.
 ///
 /// In-memory, çok instance'ta efektif limit instance başına (decisions.md madde 12).
 /// </summary>
@@ -45,5 +47,7 @@ public static class RateLimitingSetup
     }
 
     private static string ClientKey(HttpContext context) =>
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        context.User.Identity?.IsAuthenticated == true
+            ? "sub:" + context.User.Subject()
+            : "ip:" + (context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
 }

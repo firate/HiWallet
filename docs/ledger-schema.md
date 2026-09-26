@@ -71,6 +71,28 @@ Kaynak tipi ayrımı bununla KARIŞTIRILMAZ: kovalar cüzdanın içinde durur
 Sonucu: günlük limitler cüzdan bazında değil **hesap bazında** uygulanır, yoksa müşteri
 ikinci cüzdan açarak limiti aşar.
 
+## account_members
+
+Hangi kimliğin hangi hesap üzerinde işlem yapabildiği. Kimlik, kimlik sağlayıcıdaki
+kullanıcının `sub`'ı. Kimlik sağlayıcı kişinin kim olduğunu söylüyor; hangi hesabın
+parasını yönettiğini ledger'ın sahibi biliyor.
+
+```sql
+CREATE TABLE account_members (
+    subject     text NOT NULL,
+    account_id  uuid NOT NULL REFERENCES accounts(id),
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (subject, account_id)
+);
+
+CREATE INDEX ix_account_members_account ON account_members (account_id);
+```
+
+Hesabı açan kimlik hesabın ilk kullanıcısı; hesap ile üyelik aynı transaction'da
+yazılıyor. Bir işyeri hesabının birden fazla kullanıcısı olabildiği için hesaba kolon
+değil, ayrı satır. PK kimlikten başlıyor: her istekte sorulan soru "bu kimliğin
+hesapları hangileri".
+
 ## ledger_accounts
 
 ```sql

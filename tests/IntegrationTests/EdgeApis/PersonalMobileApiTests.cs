@@ -10,6 +10,9 @@ namespace HiWallet.IntegrationTests.EdgeApis;
 /// personal-mobile-api, arkasında gerçek wallet-api ve withdrawal-orchestrator ile.
 /// Üç host da HTTP üzerinden konuşuyor; ön API'nin veritabanı yok, veri iç
 /// servislerin veritabanlarında kuruluyor.
+///
+/// Token ön API'den iç servislere AYNEN gidiyor ve üç host da onu ayrı ayrı
+/// doğruluyor; sahiplik kontrolü iç serviste.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class PersonalMobileApiTests(PostgresFixture postgres, OrchestratorFixture orchestratorDb)
@@ -41,7 +44,18 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
         await _walletApi.DisposeAsync();
     }
 
+    /// <summary>Cüzdanı açar ve istemciyi cüzdanın sahibi olarak ayarlar.</summary>
     private async Task<Guid> FundedWalletAsync(decimal amount, CancellationToken ct)
+    {
+        var (accountId, walletId) = await SeedWalletAsync(amount, ct);
+
+        _client.AsOwnerOf(accountId);
+
+        return walletId;
+    }
+
+    /// <summary>Cüzdanı açar, istemcinin kimliğine dokunmaz.</summary>
+    private async Task<(Guid AccountId, Guid WalletId)> SeedWalletAsync(decimal amount, CancellationToken ct)
     {
         await using var db = postgres.CreateContext();
 
@@ -53,7 +67,7 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
             await LedgerSeeder.FundAsync(db, walletId, amount, ct);
         }
 
-        return walletId;
+        return (accountId, walletId);
     }
 
     private Task<HttpResponseMessage> TransferAsync(
@@ -137,8 +151,8 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     public async Task Transfer_AyniAnahtarlaTekrar_YeniTransferYapmaz()
     {
         var ct = TestContext.Current.CancellationToken;
+        var (_, to) = await SeedWalletAsync(0m, ct);
         var from = await FundedWalletAsync(100m, ct);
-        var to = await FundedWalletAsync(0m, ct);
         var key = Guid.NewGuid().ToString();
 
         var first = await TransferAsync(from, to, 30m, key, ct);
@@ -153,8 +167,8 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
         secondBody.GetProperty("transactionId").GetGuid()
             .ShouldBe(firstBody.GetProperty("transactionId").GetGuid());
 
-        var wallet = await ReadAsync(await _client.GetAsync($"/v1/wallets/{to}", ct), ct);
-        wallet.GetProperty("balance").GetDecimal().ShouldBe(30m);
+        await using var db = postgres.CreateContext();
+        (await LedgerSeeder.BalanceAsync(db, to, ct)).ShouldBe(30m);
     }
 
     /// <summary>
@@ -165,8 +179,8 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     public async Task Transfer_AnahtarsizIstek_WalletApinin400uAynenDoner()
     {
         var ct = TestContext.Current.CancellationToken;
+        var (_, to) = await SeedWalletAsync(0m, ct);
         var from = await FundedWalletAsync(100m, ct);
-        var to = await FundedWalletAsync(0m, ct);
 
         var response = await TransferAsync(from, to, 30m, idempotencyKey: null, ct);
 
@@ -180,8 +194,8 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     public async Task Transfer_YetersizBakiye_422VeKuralAdiAynenDoner()
     {
         var ct = TestContext.Current.CancellationToken;
+        var (_, to) = await SeedWalletAsync(0m, ct);
         var from = await FundedWalletAsync(10m, ct);
-        var to = await FundedWalletAsync(0m, ct);
 
         var response = await TransferAsync(from, to, 500m, Guid.NewGuid().ToString(), ct);
 
@@ -194,6 +208,7 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     public async Task Cuzdan_Yok_404AynenDoner()
     {
         var ct = TestContext.Current.CancellationToken;
+        await FundedWalletAsync(0m, ct);
 
         var response = await _client.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct);
 
@@ -248,6 +263,7 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     public async Task Cekim_CuzdanYok_404Doner()
     {
         var ct = TestContext.Current.CancellationToken;
+        await FundedWalletAsync(0m, ct);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/withdrawals")
         {
@@ -265,6 +281,63 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task TokenYok_401VeIcServiseGidilmez()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var walletId = await FundedWalletAsync(10m, ct);
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var response = await _client.GetAsync($"/v1/wallets/{walletId}", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Ön API sahipliği kendisi kontrol etmiyor; token'ı iletiyor ve wallet-api
+    /// reddediyor. Kontrol ön API'de olsaydı ele geçirilmiş bir ön API onu atlayabilirdi.
+    /// </summary>
+    [Fact]
+    public async Task BaskasininCuzdani_WalletApinin404uDoner()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (_, walletId) = await SeedWalletAsync(10m, ct);
+        _client.As($"test-{Guid.NewGuid():N}");
+
+        var response = await _client.GetAsync($"/v1/wallets/{walletId}", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// Mobil uygulamanın ilk adımı: kimlikle hesap açılıyor, sonra hesabın cüzdanı.
+    /// Hesap tipi istemciden alınmıyor; bu ön API yalnızca bireysel hesap açıyor.
+    /// </summary>
+    [Fact]
+    public async Task HesapVeCuzdanAcma_KimligeBaglanir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.As($"test-{Guid.NewGuid():N}");
+
+        var opened = await _client.PostAsync("/v1/accounts", null, ct);
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _walletApi.Errors));
+        var account = await ReadAsync(opened, ct);
+        account.GetProperty("type").GetString().ShouldBe("Person");
+        var accountId = account.GetProperty("accountId").GetGuid();
+        opened.Headers.Location.ShouldNotBeNull().Host.ShouldBe(_client.BaseAddress!.Host);
+
+        var mine = await ReadAsync(await _client.GetAsync("/v1/accounts", ct), ct);
+        mine.GetProperty("items")[0].GetProperty("accountId").GetGuid().ShouldBe(accountId);
+
+        var wallet = await _client.PostAsJsonAsync($"/v1/accounts/{accountId}/wallets", new { name = "Birikim", currency = "TRY" }, ct);
+        wallet.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var walletId = (await ReadAsync(wallet, ct)).GetProperty("walletId").GetGuid();
+        wallet.Headers.Location.ShouldNotBeNull().AbsolutePath.ShouldBe($"/v1/wallets/{walletId}");
+
+        var detail = await ReadAsync(await _client.GetAsync($"/v1/accounts/{accountId}", ct), ct);
+        detail.GetProperty("wallets")[0].GetProperty("walletId").GetGuid().ShouldBe(walletId);
+    }
 }
 
 /// <summary>
@@ -279,7 +352,7 @@ public sealed class PersonalMobileApiUnavailableTests
         var ct = TestContext.Current.CancellationToken;
 
         await using var factory = new PersonalMobileApiFactory();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient().As("test-kapali");
 
         var response = await client.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct);
 
@@ -300,7 +373,7 @@ public sealed class PersonalMobileApiUnavailableTests
         var walletApi = new CountingHandler();
 
         await using var factory = new PersonalMobileApiFactory(walletApi: walletApi);
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient().As("test-kapali");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/transfers")
         {
@@ -328,7 +401,7 @@ public sealed class PersonalMobileApiUnavailableTests
         var walletApi = new CountingHandler();
 
         await using var factory = new PersonalMobileApiFactory(walletApi: walletApi);
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient().As("test-kapali");
 
         await client.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct);
 

@@ -81,6 +81,10 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("initiated_by_id");
 
+                    b.Property<string>("InitiatedBySubject")
+                        .HasColumnType("text")
+                        .HasColumnName("initiated_by_subject");
+
                     b.Property<string>("InitiatedByType")
                         .IsRequired()
                         .HasColumnType("text")

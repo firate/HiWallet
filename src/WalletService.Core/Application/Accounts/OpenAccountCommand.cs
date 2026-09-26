@@ -9,6 +9,10 @@ namespace HiWallet.WalletService.Application.Accounts;
 /// hareketini koruyor; burada tekrar eden request yalnızca boş bir hesap daha açıyor.
 /// Bedeli bir satır, karşılığı <c>accounts</c> üzerinde ikinci bir unique index.
 /// </summary>
-public sealed record OpenAccountCommand(AccountType Type);
+/// <param name="Subject">
+/// Hesabı açan kimlik. Hesabın ilk kullanıcısı oluyor; hesap ile üyelik aynı
+/// transaction'da yazılıyor, kullanıcısız hesap kalmıyor.
+/// </param>
+public sealed record OpenAccountCommand(AccountType Type, string Subject);
 
 public sealed record OpenAccountResult(Guid AccountId, AccountType Type, DateTimeOffset CreatedAt);

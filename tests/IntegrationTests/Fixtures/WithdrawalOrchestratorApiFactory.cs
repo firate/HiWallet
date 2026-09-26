@@ -1,6 +1,7 @@
 using HiWallet.WithdrawalOrchestrator;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 
 namespace HiWallet.IntegrationTests.Fixtures;
@@ -42,6 +43,9 @@ public sealed class WithdrawalOrchestratorApiFactory(
             }
 
             config.AddInMemoryCollection(overrides);
+            config.AddInMemoryCollection(TestTokens.Settings);
         });
+
+        builder.ConfigureTestServices(TestTokens.Trust);
     }
 }

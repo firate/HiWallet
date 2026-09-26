@@ -22,6 +22,9 @@
 #   withdrawal-orchestrator  iç ağ            — çekim saga'sı
 #   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
+# Kimlik sağlayıcı Keycloak: token'ı o imzalıyor, ön API'ler ve iç servisler
+# doğruluyor. Bizim kodumuz değil ama canlıda da koşuyor; kendi Postgres'i var.
+#
 # İç ağdaki servislerin portları burada elle denemek için host'a açık; canlıda
 # yalnızca iç ağdan erişiliyorlar.
 #
@@ -136,6 +139,64 @@ services:
       timeout: 5s
       retries: 20
 
+  # Keycloak'ın veritabanı, uygulamalarınkinden AYRI container. Uygulama
+  # Postgres'inin kurulum betiği yalnızca veri dizini boşken koşuyor; kalıcı bir
+  # ortama sonradan eklenen rol ve veritabanı orada hiç oluşmazdı. Kimlik verisi
+  # de para verisinden ayrı duruyor. Havuz bütçesine bu yüzden girmiyor.
+  keycloak-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD .env'de tanımlı değil}
+      POSTGRES_DB: keycloak
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U keycloak -d keycloak -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Kimlik sağlayıcı. Realm dosyası yalnızca realm YOKKEN içe aktarılıyor: var olan
+  # realm'e yapılan değişiklik dosyadan gelmiyor, yönetim konsolundan ya da realm
+  # silinip yeniden aktarılarak yapılıyor.
+  #
+  # Realm dosyasında yalnızca compose'a ait iki ayar var: sslRequired "none" (burada
+  # düz HTTP konuşuluyor, canlıda "all") ve hiwallet-cli istemcisi (curl ile token
+  # almak için parola akışı; canlıda YOK).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    command: ["start", "--import-realm"]
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD .env'de tanımlı değil}
+      KC_DB_POOL_MAX_SIZE: "10"
+      # Token'daki issuer bu adres: istemcinin Keycloak'a ulaştığı adres. Servisler
+      # anahtarları iç ağdan (keycloak:8080) okuyor; backchannel dinamik olduğu için
+      # iç adresten gelen isteğe iç adresler dönüyor, issuer değişmiyor.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD .env'de tanımlı değil}
+    volumes:
+      - ./docker/keycloak/realm-hiwallet.json:/opt/keycloak/data/import/realm-hiwallet.json:ro
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-8101}:8080"
+    healthcheck:
+      # İmajda curl ve wget yok; bash'in /dev/tcp'si ile yönetim portu soruluyor.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
   # Wallet şemasını uygulayan tek seferlik iş. wallet_owner ile koşuyor —
   # uygulamalar wallet_app ile bağlanacak ve ledger_entries üzerindeki REVOKE ancak
   # sahip OLMAYAN bir role işliyor (decisions.md madde 5).
@@ -215,6 +276,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD};Application Name=hiwallet-wallet-api;Maximum Pool Size=30
+      # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__Audience: hiwallet-api
+      Authentication__RequireHttpsMetadata: "false"
       # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
@@ -261,6 +327,11 @@ services:
       # İç ağdaki adresler. Eksikse uygulama açılmıyor.
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
+      # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__Audience: hiwallet-api
+      Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-personal-mobile-api
@@ -459,6 +530,11 @@ services:
       RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       # Bkz. wallet-consumer'daki aynı not.
       Jobs__StuckSagaScan__Interval: ${JOBS_STUCK_SAGA_SCAN_INTERVAL:-00:05:00}
+      # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__Audience: hiwallet-api
+      Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-withdrawal-orchestrator
@@ -662,3 +738,4 @@ services:
 volumes:
   postgres-data:
   rabbitmq-data:
+  keycloak-postgres-data:

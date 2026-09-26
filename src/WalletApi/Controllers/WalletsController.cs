@@ -1,4 +1,6 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi.Responses;
+using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Application.Balances;
 using HiWallet.WalletService.Application.Promos;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +10,7 @@ namespace HiWallet.WalletApi.Controllers;
 
 [ApiController]
 [Route("v1/wallets")]
-public sealed class WalletsController(IMessageBus bus) : ControllerBase
+public sealed class WalletsController(IMessageBus bus, AccountAccess access) : ControllerBase
 {
     /// <summary>
     /// Cüzdanın güncel bakiyesi. Sistem hesapları (clearing, revenue) bu endpoint'ten
@@ -19,6 +21,8 @@ public sealed class WalletsController(IMessageBus bus) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WalletResponse>> GetById(Guid walletId, CancellationToken ct)
     {
+        await access.EnsureWalletAsync(User.Subject(), walletId, ct);
+
         var view = await bus.InvokeAsync<WalletView>(new GetWalletQuery(walletId), ct);
 
         return Ok(WalletResponse.From(view));
@@ -46,6 +50,8 @@ public sealed class WalletsController(IMessageBus bus) : ControllerBase
         [FromQuery] long? after = null,
         [FromQuery] int size = WalletMovementPage.DefaultSize)
     {
+        await access.EnsureWalletAsync(User.Subject(), walletId, ct);
+
         var page = await bus.InvokeAsync<WalletMovementPage>(
             new GetWalletMovementsQuery(walletId, after, size), ct);
 
@@ -68,6 +74,8 @@ public sealed class WalletsController(IMessageBus bus) : ControllerBase
         [FromQuery] Guid? after = null,
         [FromQuery] int size = WalletPromoPage.DefaultSize)
     {
+        await access.EnsureWalletAsync(User.Subject(), walletId, ct);
+
         var page = await bus.InvokeAsync<WalletPromoPage>(new GetWalletPromosQuery(walletId, after, size), ct);
 
         return Ok(WalletPromosResponse.From(page));

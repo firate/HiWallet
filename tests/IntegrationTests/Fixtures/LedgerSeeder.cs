@@ -2,6 +2,7 @@ using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Balances;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.IntegrationTests.Fixtures;
 
@@ -18,6 +19,10 @@ public static class LedgerSeeder
     {
         var account = Account.Open(Guid.NewGuid(), type, SeedTime);
         db.Accounts.Add(account);
+
+        // Hesabın bir kullanıcısı var: test hesap kimliğinden token üretebiliyor
+        // (TestTokens.AsOwnerOf).
+        db.AccountMembers.Add(AccountMember.Of(account.Id, TestTokens.SubjectOf(account.Id), SeedTime));
         await db.SaveChangesAsync(ct);
         return account.Id;
     }
@@ -73,5 +78,13 @@ public static class LedgerSeeder
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Cüzdanın bakiyesi: kovaların toplamı.</summary>
+    public static async Task<decimal> BalanceAsync(WalletDbContext db, Guid walletId, CancellationToken ct)
+    {
+        return await db.LedgerBalances
+            .Where(b => b.LedgerAccountId == walletId)
+            .SumAsync(b => b.Balance, ct);
     }
 }

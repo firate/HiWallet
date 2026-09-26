@@ -1,4 +1,6 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi.Requests;
+using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletApi.Responses;
 using HiWallet.WalletService.Application.Promos;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +10,7 @@ namespace HiWallet.WalletApi.Controllers;
 
 [ApiController]
 [Route("v1/promos")]
-public sealed class PromosController(IMessageBus bus) : ControllerBase
+public sealed class PromosController(IMessageBus bus, AccountAccess access) : ControllerBase
 {
     /// <summary>
     /// İşyerinin kendi müşterisine promo vermesi (decisions.md madde 37). İşyerinin
@@ -38,6 +40,9 @@ public sealed class PromosController(IMessageBus bus) : ControllerBase
                     ["Idempotency-Key"] = ["Idempotency-Key başlığı zorunlu."]
                 }));
         }
+
+        // Fonlayan cüzdan çağıran işyerinin olmalı: promo onun cash kovasından çıkıyor.
+        await access.EnsureWalletAsync(User.Subject(), request.FunderWalletId, ct);
 
         var result = await bus.InvokeAsync<GrantPromoResult>(request.ToCommand(idempotencyKey), ct);
 

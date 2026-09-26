@@ -2,7 +2,6 @@ using System.Globalization;
 using HiWallet.EdgeApi.InternalServices;
 using HiWallet.PersonalMobileApi.Responses;
 using HiWallet.PersonalMobileApi.Setup;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -32,7 +31,8 @@ public sealed class WalletsController(WalletApiClient walletApi) : ControllerBas
         Guid walletId, [FromQuery] long? after, [FromQuery] int? size, CancellationToken ct)
     {
         return await walletApi.GetAsync<WalletMovementsResponse>(
-            Paged($"v1/wallets/{walletId}/movements", after?.ToString(CultureInfo.InvariantCulture), size), ct);
+            InternalServiceClient.Paged(
+                $"v1/wallets/{walletId}/movements", after?.ToString(CultureInfo.InvariantCulture), size), ct);
     }
 
     /// <summary>Cüzdanın promo partileri, yeniden eskiye. Sayfalama cursor ile.</summary>
@@ -45,27 +45,6 @@ public sealed class WalletsController(WalletApiClient walletApi) : ControllerBas
         Guid walletId, [FromQuery] Guid? after, [FromQuery] int? size, CancellationToken ct)
     {
         return await walletApi.GetAsync<WalletPromosResponse>(
-            Paged($"v1/wallets/{walletId}/promos", after?.ToString(), size), ct);
-    }
-
-    /// <summary>
-    /// Verilmeyen parametre iletilmiyor: varsayılan sayfa boyutu ve tavan wallet-api'nin
-    /// bilgisi, burada ikinci kopyası tutulmuyor.
-    /// </summary>
-    private static string Paged(string path, string? after, int? size)
-    {
-        var query = new QueryBuilder();
-
-        if (after is not null)
-        {
-            query.Add("after", after);
-        }
-
-        if (size is not null)
-        {
-            query.Add("size", size.Value.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return path + query;
+            InternalServiceClient.Paged($"v1/wallets/{walletId}/promos", after?.ToString(), size), ct);
     }
 }

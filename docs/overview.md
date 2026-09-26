@@ -75,6 +75,7 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **canlıda YOK**                      | —               |
 | topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
 | stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **canlıda YOK**                    | —               |
+| keycloak                | Kimlik sağlayıcı: token'ı imzalıyor; kendi Postgres'i                   | —               |
 
 Broker: RabbitMQ. Komut/event taşıma ve saga koordinasyonu burada.
 

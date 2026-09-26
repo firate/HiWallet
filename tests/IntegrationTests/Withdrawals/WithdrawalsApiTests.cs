@@ -24,7 +24,10 @@ public sealed class WithdrawalsApiTests(OrchestratorFixture fixture) : IAsyncLif
     public ValueTask InitializeAsync()
     {
         _factory = new WithdrawalOrchestratorApiFactory(fixture);
-        _client = _factory.CreateClient();
+
+        // Orchestrator hesabın kullanıcılarını bilmiyor; kimliği saga'ya yazıp düşme
+        // komutuyla wallet'a taşıyor. Buradaki testlerin konusu değil, tek kullanıcı yetiyor.
+        _client = _factory.CreateClient().As($"test-{Guid.NewGuid():N}");
         return ValueTask.CompletedTask;
     }
 

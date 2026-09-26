@@ -55,6 +55,31 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Accounts.AccountMember", b =>
+                {
+                    b.Property<string>("Subject")
+                        .HasColumnType("text")
+                        .HasColumnName("subject");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Subject", "AccountId")
+                        .HasName("pk_account_members");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_account_members_account");
+
+                    b.ToTable("account_members", (string)null);
+                });
+
             modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>
                 {
                     b.Property<Guid>("LedgerAccountId")
@@ -1118,6 +1143,16 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_provider_invoices_status", "status IN ('applied','pending_review')");
                         });
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Accounts.AccountMember", b =>
+                {
+                    b.HasOne("HiWallet.WalletService.Domain.Accounts.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_members_account");
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>

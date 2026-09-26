@@ -118,7 +118,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `Idempotency-Key` ile. İç servisin adresi dışarı çıkmaz, `Location` dahil.
 - Müşteri başına rate limit ön API'de. İç servislerde müşteri limiti YOK: yalnızca ön
   API'lerin adresini görüyorlar ve IP'ye göre bölünen bir kova bütün müşterileri tek
-  kovaya koyar.
+  kovaya koyar. Anahtar token'daki kimlik; kimliksiz istek IP'nin kovasına düşer.
 - Ingress'i olmayan ve webhook alan deployable'larda ölçüt ERİŞİM SEVİYESİ
   (`decisions.md` madde 28): `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz.
   Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı
@@ -133,6 +133,22 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   (`decisions.md` madde 35). Kendi yazdığımız ve canlıda da koşacak servis normal ad
   alır — bugün yalnızca testte koşuyor olması son ek sebebi DEĞİL. `bank-adapter`
   bizim, son ek almaz; `Bank.Fake` bankanın API'sinin yerine duruyor, alır.
+
+**Kimlik doğrulama**
+- Kimlik sağlayıcı Keycloak. Token'ı ön API doğrular ve iç servise AYNEN iletir; iç
+  servis onu YENİDEN doğrular. Ön API'ye körü körüne güvenilmez: kimlik başlıkla
+  taşınmaz, iç servis ön API'nin beyanını değil token'ı okur.
+- Varsayılan politika kimlik ister. Kimliksiz açık kalan uç (sağlık, API dokümanı) bunu
+  `AllowAnonymous` ile kendisi söyler.
+- Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta (`account_members`), kimlik
+  sağlayıcıda DEĞİL. Hesabı açan kimlik hesabın kullanıcısı olur.
+- Müşteri yalnızca kullanıcısı olduğu hesaba erişir. Sahibi olunmayan kaynak `404`,
+  `403` DEĞİL: başkasının cüzdanının var olduğu da dışarı verilmez.
+- Sahiplik wallet-api'nin uçlarında kontrol edilir, transfer ve promo çekirdeğinde
+  DEĞİL: kural çağırana göre değişiyor (çalışan müşterinin hesabında işlem yapabilir).
+- Müşteri çekiminde isteyen kimlik (`sub`) saga'ya yazılır ve düşme komutunun
+  aktöründe wallet'a gider; wallet ledger'a yazmadan önce üyeliği doğrular.
+  Orchestrator hesabın kullanıcılarını bilmez.
 
 **Top-up hattı**
 - `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —

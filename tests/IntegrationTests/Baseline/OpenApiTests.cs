@@ -107,8 +107,11 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
 
         // Yönlendirme takip EDİLMİYOR: takip edilseydi bir yönlendirme zinciri
         // sonunda 404'e varır ve endpoint "yok" görünürdü — oysa ilk endpoint var demektir.
+        //
+        // Token'la soruluyor: kimliksiz istek, uç olsa da olmasa da 401 alır ve
+        // ucun yokluğunu göstermez.
         using var client = production.CreateClient(
-            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }).As("test-openapi");
 
         var response = await client.GetAsync(path, ct);
 
