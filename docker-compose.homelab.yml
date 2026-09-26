@@ -8,14 +8,14 @@
 #   KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.firatergul.com
 # COMPOSE_FILE ile her docker compose komutu bu dosyayı da okuyor.
 services:
-  keycloak:
+  hiwallet-keycloak:
     environment:
       # İstemcinin adresi ve isteğin HTTPS olduğu Traefik'in X-Forwarded-*
       # başlıklarından okunuyor.
       KC_PROXY_HEADERS: xforwarded
     # Başlıklara güvenen Keycloak'a doğrudan port açık kalırsa başlığı istemci de
-    # yazabilir; erişim yalnızca Traefik'ten. Servisler iç ağdan (keycloak:8080)
-    # bağlanıyor, porta ihtiyaçları yok.
+    # yazabilir; erişim yalnızca Traefik'ten. Servisler iç ağdan
+    # (hiwallet-keycloak:8080) bağlanıyor, porta ihtiyaçları yok.
     ports: !reset []
     networks:
       - default

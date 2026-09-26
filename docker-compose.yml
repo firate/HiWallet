@@ -165,7 +165,11 @@ services:
   # düz HTTP konuşuluyor, canlıda "all"), hiwallet-cli istemcisi (curl ile token almak
   # için parola akışı) ve merchant-demo istemcisi (örnek işyeri entegrasyonu). İki
   # istemci de canlıda YOK; canlıda her işyerinin entegrasyonu kendi istemcisini alıyor.
-  keycloak:
+  #
+  # Adı hiwallet-keycloak: homelab'da Traefik'e ulaşmak için altyapının infra ağına
+  # da bağlanıyor ve orada başka projelerin kullandığı keycloak adlı bir Keycloak var.
+  # Aynı ad o ağda iki konteynere çözülürdü.
+  hiwallet-keycloak:
     image: quay.io/keycloak/keycloak:26.7.4
     command: ["start", "--import-realm"]
     depends_on:
@@ -178,7 +182,7 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD .env'de tanımlı değil}
       KC_DB_POOL_MAX_SIZE: "10"
       # Token'daki issuer bu adres: istemcinin Keycloak'a ulaştığı adres. Servisler
-      # anahtarları iç ağdan (keycloak:8080) okuyor; backchannel dinamik olduğu için
+      # anahtarları iç ağdan (hiwallet-keycloak:8080) okuyor; backchannel dinamik olduğu için
       # iç adresten gelen isteğe iç adresler dönüyor, issuer değişmiyor.
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
@@ -282,7 +286,7 @@ services:
       ConnectionStrings__Wallet: Host=postgres;Port=5432;Database=hiwallet_wallet;Username=wallet_app;Password=${WALLET_APP_PASSWORD};Application Name=hiwallet-wallet-api;Maximum Pool Size=30
       # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
-      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: hiwallet-api
       Authentication__RequireHttpsMetadata: "false"
       # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
@@ -334,7 +338,7 @@ services:
       # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan. Hedef
       # kitle bu ön API'nin adı: yalnızca kendisi için verilmiş token'ı kabul ediyor.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
-      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: personal-mobile-api
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -372,7 +376,7 @@ services:
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
       # Entegrasyon istemcisinin token'ı (client credentials). Hedef kitle bu ön API'nin adı.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
-      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: business-api
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -552,7 +556,7 @@ services:
       Jobs__StuckSagaScan__Interval: ${JOBS_STUCK_SAGA_SCAN_INTERVAL:-00:05:00}
       # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
-      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: hiwallet-api
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

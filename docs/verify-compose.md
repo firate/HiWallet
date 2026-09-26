@@ -273,7 +273,7 @@ Beklenen: `401`. Token'la aynı istek `200` ve boş `items` döner; hesabı aşa
 **Realm yalnızca ilk açılışta içe aktarılıyor.** Keycloak realm'i daha önce içe
 aktardıysa `docker/keycloak/realm-hiwallet.json`'daki değişiklik (yeni istemci, yeni
 hedef kitle) uygulanmıyor. Yönetim konsolunda realm'i sil ve `docker compose restart
-keycloak` ile dosyadan yeniden aktar; realm'deki kullanıcılar da silinir.
+hiwallet-keycloak` ile dosyadan yeniden aktar; realm'deki kullanıcılar da silinir.
 
 #### İşyeri entegrasyonu
 

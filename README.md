@@ -37,7 +37,7 @@ olduğu yere taşınmıyor.
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
-| `keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
+| `hiwallet-keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
 
 İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
