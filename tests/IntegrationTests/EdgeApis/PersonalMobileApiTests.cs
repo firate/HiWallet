@@ -209,7 +209,12 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     public async Task Cekim_202VeLocationOnApininAdresiniGosterir()
     {
         var ct = TestContext.Current.CancellationToken;
-        var walletId = await FundedWalletAsync(500m, ct);
+
+        // Bakiye YOK. Saga'yı bu test ilerletmiyor, ama bıraktığı komutu aynı şemada
+        // gerçek broker'la koşan WithdrawalChainTests'in relay'i yayınlıyor. Bakiyeli
+        // cüzdan gerçekten düşülür ve o testin gelir hesabını kaydırırdı; bakiyesiz
+        // cüzdanda düşme reddediliyor ve ledger'a hiçbir şey yazılmıyor.
+        var walletId = await FundedWalletAsync(0m, ct);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/v1/withdrawals")
         {
