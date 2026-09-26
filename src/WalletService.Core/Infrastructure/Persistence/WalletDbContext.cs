@@ -14,6 +14,9 @@ public sealed class WalletDbContext : DbContext
 
     public DbSet<Account> Accounts => Set<Account>();
 
+    /// <summary>Hangi kimliğin hangi hesap üzerinde işlem yapabildiği.</summary>
+    public DbSet<AccountMember> AccountMembers => Set<AccountMember>();
+
     public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
 
     public DbSet<LedgerTransaction> LedgerTransactions => Set<LedgerTransaction>();
