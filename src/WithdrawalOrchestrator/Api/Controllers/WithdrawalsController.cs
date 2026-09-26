@@ -1,4 +1,5 @@
 using FluentValidation;
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WithdrawalOrchestrator.Api.Requests;
 using HiWallet.WithdrawalOrchestrator.Api.Responses;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
@@ -49,7 +50,7 @@ public sealed class WithdrawalsController(
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
         }
 
-        var result = await handler.HandleAsync(request.ToCommand(idempotencyKey), ct);
+        var result = await handler.HandleAsync(request.ToCommand(idempotencyKey, User.Subject()), ct);
         var response = WithdrawalAcceptedResponse.From(result);
 
         // 202, 201 değil: kaynak yaratıldı ama işin kendisi bitmedi. Tekrar eden
@@ -61,7 +62,10 @@ public sealed class WithdrawalsController(
             value: response);
     }
 
-    /// <summary>Çekimin son durumu. <c>POST</c> response'undaki <c>Location</c> buraya işaret ediyor.</summary>
+    /// <summary>
+    /// Çekimin son durumu. <c>POST</c> response'undaki <c>Location</c> buraya işaret ediyor.
+    /// Çekimi yalnızca isteyen görüyor; başkasının çekimi yokmuş gibi <c>404</c>.
+    /// </summary>
     [HttpGet("{withdrawalId:guid}")]
     [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -70,7 +74,7 @@ public sealed class WithdrawalsController(
     {
         var saga = await queries.FindAsync(withdrawalId, ct);
 
-        if (saga is null)
+        if (saga is null || saga.InitiatedBySubject != User.Subject())
         {
             return Problem(
                 statusCode: StatusCodes.Status404NotFound,

@@ -43,6 +43,13 @@ public sealed class WithdrawalSaga
 
     public string InitiatedById { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// İsteyen kimlik: kimlik sağlayıcıdaki kullanıcının <c>sub</c>'ı. Müşteri çekiminde
+    /// dolu. Orchestrator hesabın kullanıcılarını bilmiyor; kimliği düşme komutuyla
+    /// wallet'a taşıyor ve üyeliği wallet doğruluyor.
+    /// </summary>
+    public string? InitiatedBySubject { get; private set; }
+
     public string IdempotencyKey { get; private set; } = string.Empty;
 
     /// <summary>Müşterinin çekmek istediği tutar. Komisyon HARİÇ.</summary>
@@ -121,6 +128,11 @@ public sealed class WithdrawalSaga
             throw new ArgumentException("Çekimi başlatan belirtilmeden saga açılamaz.", nameof(initiatedBy));
         }
 
+        if (initiatedBy.Type == ActorTypes.Customer && string.IsNullOrWhiteSpace(initiatedBy.Subject))
+        {
+            throw new ArgumentException("Müşteri çekimi isteyen kimlik olmadan açılamaz.", nameof(initiatedBy));
+        }
+
         return new WithdrawalSaga
         {
             Id = id,
@@ -128,6 +140,7 @@ public sealed class WithdrawalSaga
             WalletId = walletId,
             InitiatedByType = initiatedBy.Type,
             InitiatedById = initiatedBy.Id,
+            InitiatedBySubject = initiatedBy.Subject,
             Amount = amount,
             Currency = currency,
             Destination = destination,
@@ -257,7 +270,8 @@ public sealed class WithdrawalSaga
     };
 
     /// <summary>Çekimi başlatanın mesaja konulabilir hali.</summary>
-    public CommandActor InitiatedBy() => new() { Type = InitiatedByType, Id = InitiatedById };
+    public CommandActor InitiatedBy() =>
+        new() { Type = InitiatedByType, Id = InitiatedById, Subject = InitiatedBySubject };
 
     public TransitionResult Refunded(Guid ledgerTransactionId, DateTimeOffset now)
     {
