@@ -116,7 +116,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
-| Keycloak'ın compose'dan ayağa kalkması | denenmedi |
+| Keycloak'ın compose'dan ayağa kalkması | evet — homelab'da; token'la uçtan uca akış denenmedi |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
 | Çalışan kimliği | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
