@@ -1,6 +1,7 @@
 using HiWallet.WalletApi;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -26,7 +27,11 @@ public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationF
             {
                 ["ConnectionStrings:Wallet"] = postgres.ConnectionString
             });
+
+            config.AddInMemoryCollection(TestTokens.Settings);
         });
+
+        builder.ConfigureTestServices(TestTokens.Trust);
 
         // Sunucu tarafındaki istisnalar ProblemDetails'in arkasında kayboluyor;
         // test başarısız olduğunda sebebini görebilmek için yakalanıyor.

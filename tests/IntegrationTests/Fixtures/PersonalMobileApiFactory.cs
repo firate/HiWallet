@@ -46,10 +46,14 @@ public sealed class PersonalMobileApiFactory(
                 ["RateLimiting:Withdrawals:BurstSize"] = burst,
                 ["RateLimiting:Withdrawals:SustainedPerMinute"] = sustained
             });
+
+            config.AddInMemoryCollection(TestTokens.Settings);
         });
 
         builder.ConfigureTestServices(services =>
         {
+            TestTokens.Trust(services);
+
             services.AddHttpClient(nameof(WalletApiClient))
                 .ConfigurePrimaryHttpMessageHandler(() => walletApi ?? new UnreachableHandler());
 
