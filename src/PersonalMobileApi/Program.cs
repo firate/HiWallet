@@ -1,3 +1,5 @@
+using HiWallet.EdgeApi.InternalServices;
+using HiWallet.PersonalMobileApi.Setup;
 using HiWallet.Shared.Infrastructure.Errors;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
@@ -15,10 +17,18 @@ builder.Services.Configure<HostOptions>(options =>
 
 builder.AddHiWalletObservability(ServiceName);
 
-// Readiness listesi boş: host'un tek bağımlılığı wallet-api ve onu çağıran istemci
-// uçlarla birlikte geliyor.
+// Readiness listesi BOŞ: iç servisler burada kontrol edilmiyor. wallet-api düştüğünde
+// ön API trafikten çekilseydi istemci yük dengeleyicinin gövdesiz hatasını alırdı;
+// açık kalınca her istek ProblemDetails'li 503 dönüyor ve wallet-api dönünce kendiliğinden
+// düzeliyor.
 builder.Services.AddHealthChecks();
 builder.Services.AddHiWalletProblemDetails();
+
+// İç servis istemcileri. Adresleri eksikse uygulama açılmıyor.
+builder.Services.AddWalletApiClient();
+builder.Services.AddWithdrawalOrchestratorClient();
+
+builder.Services.AddPersonalMobileRateLimiting();
 builder.Services.AddControllers();
 builder.Services.AddHiWalletOpenApi();
 
@@ -26,9 +36,14 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseRateLimiter();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();
+
+// Health check'ler limitin DIŞINDA: probe'un limite takılması sağlıklı bir servisi
+// trafikten çektirir. Kovayı her controller kendi attribute'uyla seçiyor; çekim
+// başlatmanın kovası ayrı.
 app.MapHiWalletHealthChecks();
 app.MapControllers();
 
