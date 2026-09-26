@@ -51,21 +51,19 @@ builder.Services.AddHostedService<StuckSagaScan>();
 builder.Services.AddControllers();
 builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddHiWalletOpenApi();
-builder.Services.AddOrchestratorRateLimiting();
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-app.UseRateLimiter();
 
 // Development kapısı MapHiWalletOpenApi'nin içinde; canlıda iki endpoint da yok.
 app.MapHiWalletOpenApi();
 
-// Health check'ler limitin DIŞINDA: probe'un limite takılması sağlıklı bir
-// servisi trafikten çektirir.
 app.MapHiWalletHealthChecks();
-app.MapControllers().RequireRateLimiting(RateLimitingSetup.WithdrawalsPolicy);
+
+// Rate limit YOK: iç servis, müşteri başına sınır ön API'de.
+app.MapControllers();
 
 // Integration testler WebApplicationFactory<WithdrawalOrchestratorApp> ile ayağa
 // kaldırır; gerekçe WithdrawalOrchestratorApp.cs'te.

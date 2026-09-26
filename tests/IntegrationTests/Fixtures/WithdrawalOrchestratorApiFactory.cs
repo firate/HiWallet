@@ -15,13 +15,8 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// çekim kabul edebilmek. Relay ile tüketici arka planda yeniden deneyip duruyor,
 /// HTTP yolu etkilenmiyor — ve koşu broker'da kuyruk bırakmıyor.
 /// </param>
-/// <param name="rateLimitBurst">
-/// Verilmezse limit testin kendi request'lerini boğmayacak kadar yüksek. Verilirse
-/// kova bu kadar request alıyor ve dakikada bir token yenileniyor: test süresince
-/// dolmuyor, yani kaçıncı request'in reddedileceği kesin.
-/// </param>
 public sealed class WithdrawalOrchestratorApiFactory(
-    OrchestratorFixture fixture, bool useRealBroker = false, int? rateLimitBurst = null)
+    OrchestratorFixture fixture, bool useRealBroker = false)
     : WebApplicationFactory<WithdrawalOrchestratorApp>
 {
     private const string UnreachableHost = "rabbitmq-not-configured";
@@ -34,9 +29,7 @@ public sealed class WithdrawalOrchestratorApiFactory(
         {
             var overrides = new Dictionary<string, string?>
             {
-                ["ConnectionStrings:Withdrawal"] = fixture.ConnectionString,
-                ["RateLimiting:Withdrawals:BurstSize"] = (rateLimitBurst ?? 10_000).ToString(),
-                ["RateLimiting:Withdrawals:SustainedPerMinute"] = rateLimitBurst is null ? "10000" : "1"
+                ["ConnectionStrings:Withdrawal"] = fixture.ConnectionString
             };
 
             // Ayarlar her hâlükârda gerekli: AddHiWalletMessaging ValidateOnStart ile
