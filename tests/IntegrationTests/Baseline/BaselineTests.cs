@@ -92,49 +92,4 @@ public sealed class BaselineTests(PostgresFixture postgres) : IAsyncLifetime
         raw.ShouldNotContain("Password", Case.Insensitive);
         raw.ShouldNotContain("Host=", Case.Insensitive);
     }
-
-    [Fact]
-    public async Task RateLimit_AsildigindaRetryAfterIle429Doner()
-    {
-        var ct = TestContext.Current.CancellationToken;
-
-        // BurstSize 20; aynı IP'den arka arkaya request atınca kova boşalmalı.
-        // İstekler geçersiz (400) olsa bile limiter'dan geçiyorlar — limiter
-        // middleware, controller'dan önce.
-        HttpResponseMessage? limited = null;
-
-        for (var i = 0; i < 40 && limited is null; i++)
-        {
-            var response = await _client.PostAsJsonAsync("/v1/transfers", new
-            {
-                fromWalletId = Guid.Empty,
-                toWalletId = Guid.Empty,
-                amount = 0m,
-                currency = "TRY",
-                type = "P2P"
-            }, ct);
-
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                limited = response;
-            }
-        }
-
-        limited.ShouldNotBeNull("40 istekte rate limit hiç devreye girmedi");
-        limited.Headers.RetryAfter.ShouldNotBeNull("Retry-After yoksa client hemen tekrar dener");
-        limited.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
-    }
-
-    [Fact]
-    public async Task HealthCheckler_RateLimitEDILMEZ()
-    {
-        var ct = TestContext.Current.CancellationToken;
-
-        // Probe'un limite takılması sağlıklı bir servisi trafikten çektirir.
-        for (var i = 0; i < 50; i++)
-        {
-            var response = await _client.GetAsync("/health/live", ct);
-            response.StatusCode.ShouldBe(HttpStatusCode.OK, $"{i}. probe limite takıldı");
-        }
-    }
 }

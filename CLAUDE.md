@@ -113,6 +113,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - **Ön API veritabanına BAĞLANMAZ** ve `WalletService.Core`'a referans vermez. Ledger'a
   giden her istek iç ağdaki `wallet-api`'den geçer. Public process'te `wallet_app`
   parolası durmaz.
+- Ön API iç servisin reddini (400, 404, 409, 422) AYNEN aktarır, yeniden yorumlamaz;
+  iç servise ulaşılamazsa `503`. POST'u yeniden DENEMEZ: tekrar istemcinin işi, aynı
+  `Idempotency-Key` ile. İç servisin adresi dışarı çıkmaz, `Location` dahil.
+- Müşteri başına rate limit ön API'de. İç servislerde müşteri limiti YOK: yalnızca ön
+  API'lerin adresini görüyorlar ve IP'ye göre bölünen bir kova bütün müşterileri tek
+  kovaya koyar.
 - Ingress'i olmayan ve webhook alan deployable'larda ölçüt ERİŞİM SEVİYESİ
   (`decisions.md` madde 28): `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz.
   Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı

@@ -4,7 +4,7 @@ using System.Text.Json;
 using HiWallet.BackofficeBff;
 using HiWallet.BusinessApi;
 using HiWallet.BusinessWebBff;
-using HiWallet.PersonalMobileApi;
+using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace HiWallet.IntegrationTests.Baseline;
@@ -20,7 +20,9 @@ public sealed class ApiHostHealthTests
     [Fact]
     public async Task PersonalMobileApi_SaglikUclariCalisiyor()
     {
-        await using var factory = new WebApplicationFactory<PersonalMobileApiApp>();
+        // İç servis adresleri olmadan host açılmıyor; fabrika onları veriyor ama
+        // iç servislere bağlanmıyor. Sağlık ucu onlara bakmıyor.
+        await using var factory = new PersonalMobileApiFactory();
         using var client = factory.CreateClient();
 
         await AssertHealthAsync(client);

@@ -20,10 +20,10 @@
 #   bank-webhook             kısıtlı ingress  — yalnızca bankanın IP'leri
 #   wallet-consumer          ingress YOK      — mesajları kendisi kuyruktan çekiyor
 #   withdrawal-orchestrator  iç ağ            — çekim saga'sı
+#   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
 # İç ağdaki servislerin portları burada elle denemek için host'a açık; canlıda
 # yalnızca iç ağdan erişiliyorlar.
-#   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
 # Ve iki tane de BİZİM OLMAYAN (ikisi de `fakes/` altında, `src/` altında DEĞİL):
 #
@@ -49,7 +49,7 @@
 # Npgsql'in varsayılanı olan 100'ü isteyebilir ve altısı birden 600'e çıkar.
 # O noktada havuz tükenmeden ÖNCE Postgres "too many connections" der.
 #
-#   wallet-api                30   public, en yüksek eşzamanlılık
+#   wallet-api                30   ön API'lerin trafiği, en yüksek eşzamanlılık
 #   wallet-consumer           16   prefetch=1, sıralı tüketim
 #   withdrawal-orchestrator   16   API + tüketici + relay + job
 #   topup-webhook             10   IP kısıtlı, yalnızca inbox yazıyor
@@ -201,8 +201,8 @@ services:
       - Host=postgres;Port=5432;Database=hiwallet_bank;Username=bank_app;Password=${BANK_APP_PASSWORD}
     restart: "no"
 
-  # Public ingress. RabbitMQ ayarı YOK ve olmamalı: tüketici ayrı bir host'a
-  # taşındıktan sonra bu uygulamanın broker'a hiç işi kalmadı.
+  # İç servis: ön API'ler çağırıyor. RabbitMQ ayarı YOK ve olmamalı: tüketici ayrı
+  # bir host'a taşındıktan sonra bu uygulamanın broker'a hiç işi kalmadı.
   wallet-api:
     build:
       context: .
@@ -249,8 +249,18 @@ services:
       context: .
       dockerfile: src/PersonalMobileApi/Dockerfile
       target: final
+    depends_on:
+      # Sağlıklı olmaları BEKLENMİYOR: ön API onlarsız da açılıyor ve iç servis
+      # dönene kadar istemciye 503 veriyor.
+      wallet-api:
+        condition: service_started
+      withdrawal-orchestrator:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # İç ağdaki adresler. Eksikse uygulama açılmıyor.
+      InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
+      InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-personal-mobile-api
@@ -424,7 +434,7 @@ services:
     # ediliyor — kayıp değil, sadece gereksiz tekrar.
     stop_grace_period: 20s
 
-  # Public ingress: çekim isteği buradan giriyor. Broker'a hem yazıyor (outbox
+  # İç servis: çekim isteği ön API'lerden geliyor. Broker'a hem yazıyor (outbox
   # relay) hem okuyor (saga event'leri).
   withdrawal-orchestrator:
     build:

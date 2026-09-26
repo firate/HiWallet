@@ -68,6 +68,7 @@ src/
 ├── BusinessApi/            -- ön API, host
 ├── BusinessWebBff/         -- ön API, host
 ├── BackofficeBff/          -- ön API, host
+├── EdgeApi.Core/           -- kütüphane, host değil; ön API'lerin ortak kodu
 ├── WalletService.Core/     -- kütüphane, host değil
 ├── WalletApi/              -- host
 ├── WalletConsumer/         -- host
@@ -166,22 +167,45 @@ RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
 
 ```
 PersonalMobileApi/             -- public; bireysel mobil uygulama
-├── PersonalMobileApi.csproj   -- yalnızca Shared.Infrastructure'a referans
+├── PersonalMobileApi.csproj   -- EdgeApi.Core ve Shared.Infrastructure'a referans
 ├── Program.cs
 ├── PersonalMobileApiApp.cs    -- test giriş noktası işaretçisi
+├── Controllers/               -- Wallets, Transfers, Withdrawals
+├── Requests/                  -- ön API'nin kendi sözleşmesi
+├── Responses/
+├── Setup/                     -- RateLimiting
 ├── Dockerfile
-└── appsettings.json
+└── appsettings.json           -- iç servis zaman aşımı, rate limit
 
 BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 BusinessWebBff/                -- public; işyeri panelinin BFF'i
 BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i
-                                  (üçünde de aynı dosyalar)
+                                  (üçünde Controllers/, Requests/, Responses/ ve
+                                  Setup/ henüz yok)
 ```
 
 Ön API'ler wallet sınırının dışında: `WalletService.Core`'a referans vermiyor,
-veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor. Üçünde de
-henüz uç yok; sağlık uçları, ProblemDetails, OpenAPI ve telemetri kurulu. Tarayıcıdan
-kullanılan arayüzün ön API'si BFF: oturumu cookie ile tutar, token'ı tarayıcıya vermez.
+veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor.
+`personal-mobile-api`'nin uçları yazıldı; diğer üçünde sağlık uçları, ProblemDetails,
+OpenAPI ve telemetri kurulu. Tarayıcıdan kullanılan arayüzün ön API'si BFF: oturumu
+cookie ile tutar, token'ı tarayıcıya vermez.
+
+Ön API'nin request ve response tipleri kendisinin. Bugün iç servisinkilerle aynı
+şekilde; iç servisin cevabı doğrudan ön API'nin tipine okunuyor. Ayrıştıkları gün eşleme
+controller'a ekleniyor.
+
+### EdgeApi.Core (kütüphane)
+
+```
+EdgeApi.Core/
+├── EdgeApi.Core.csproj
+├── InternalServices/          -- WalletApiClient, WithdrawalOrchestratorClient,
+│                                 adres ayarı, resilience pipeline'ı
+└── Errors/                    -- iç servisin cevabını istemciye aktaran handler
+```
+
+Yalnızca ön API'ler referans veriyor; iç servisler bu kodu taşımıyor. Veritabanı ve
+broker bağımlılığı yok.
 
 ### WalletConsumer (ingress'siz host)
 
@@ -370,6 +394,7 @@ tests/
 └── IntegrationTests/
     ├── Fixtures/              -- PostgresFixture, InboxFixture, API fabrikaları
     ├── Baseline/              -- health, rate limiting
+    ├── EdgeApis/              -- ön API, arkasında gerçek iç servislerle
     ├── Transfers/             -- concurrency, idempotency replay
     ├── Ledger/                -- invariant, projeksiyon, rol yetkileri
     └── Topups/                -- webhook→inbox, tüketici, uçtan uca hat
