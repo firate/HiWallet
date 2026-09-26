@@ -124,7 +124,9 @@ birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarınd
 | işyeri paneli (tarayıcı) | `business-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
 | backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api` |
 
-Ön API veritabanına ve broker'a bağlanmıyor; isteği doğrulayıp iç servise iletiyor.
+Ön API veritabanına ve broker'a bağlanmıyor; isteği iç servise iletiyor. İç servisin
+reddi (400, 404, 409, 422) istemciye aynen dönüyor; iç servise ulaşılamazsa istemci
+`503` alıyor. Müşteri başına rate limit ön API'de, iç servislerde değil.
 `wallet-api`'nin uçları (`/v1/accounts`, `/v1/wallets`, `/v1/transfers`, `/v1/promos`)
 ve orchestrator'ın `/v1/withdrawals` ucu iç sözleşme. Yeni bir istemci grubu kendi ön
 API'siyle geliyor; ihtiyaca göre public ya da yalnızca iç ağdan erişiliyor.
@@ -132,8 +134,8 @@ API'siyle geliyor; ihtiyaca göre public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token'ı kendisi saklıyor, tarayıcıya
 yalnızca HttpOnly oturum cookie'si veriyor. Bu yüzden işyerinin iki ön API'si var:
 token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki panel
-`business-web-bff`'ye bağlanıyor. Ön API'ler bugün sağlık uçlarıyla ayakta, uçları henüz
-yazılmadı.
+`business-web-bff`'ye bağlanıyor. `personal-mobile-api`'nin uçları yazıldı: cüzdan,
+hareketler, promo partileri, transfer ve çekim. Diğer üçü sağlık uçlarıyla ayakta.
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.

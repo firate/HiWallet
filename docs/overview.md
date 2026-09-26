@@ -65,7 +65,7 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | wallet-service          | Cüzdanlar, double-entry ledger, transfer çekirdeği, bakiye projeksiyonu | Lokal ACID      |
 | ↳ wallet-api            | Yukarıdakinin HTTP host'u, iç ağda; ön API'ler çağırıyor                | —               |
 | ↳ wallet-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
-| personal-mobile-api     | Ön API: bireysel mobil uygulama; veritabanı yok, iskelet                | —               |
+| personal-mobile-api     | Ön API: bireysel mobil; cüzdan, transfer, çekim; veritabanı yok         | —               |
 | business-api            | Ön API: işyerinin sistem entegrasyonu; veritabanı yok, iskelet          | —               |
 | business-web-bff        | Ön API: işyeri panelinin BFF'i; veritabanı yok, iskelet                 | —               |
 | backoffice-bff          | Ön API, iç ağ: backoffice panelinin BFF'i; veritabanı yok, iskelet      | —               |

@@ -42,8 +42,8 @@ olduğu yere taşınmıyor.
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
 API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token sunucuda kalır, tarayıcı yalnızca
-HttpOnly oturum cookie'si taşır. Ön API'lerin uçları henüz yazılmadı; sağlık uçlarıyla
-ayaktalar.
+HttpOnly oturum cookie'si taşır. `personal-mobile-api`'nin uçları yazıldı; diğer ön
+API'ler sağlık uçlarıyla ayakta.
 
 Webhook'larda ve ingress'siz uygulamalarda ayrımın sebebi erişim seviyesi: banka
 webhook'u belirli IP bloklarına açılacak. IP kısıtı process seviyesinde uygulanamaz.
@@ -105,7 +105,9 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | evet |
 | Sekiz container'ın compose'dan ayağa kalkması | evet |
 | Ön API'lerin compose'dan ayağa kalkması | evet |
-| Ön API'lerin uçları | hayır — dördü de sağlık uçlarıyla ayakta |
+| `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
+| Diğer ön API'lerin uçları | hayır — sağlık uçlarıyla ayakta |
+| Müşteri başına rate limit ön API'de | evet — iç servislerde yok |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
