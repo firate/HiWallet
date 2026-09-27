@@ -36,6 +36,8 @@ export interface AccountWallet {
 }
 
 export interface AccountDetail extends Account {
+  /** Platform fonlu promo bu işyerinde geçiyor mu; bireysel hesapta hep false. */
+  acceptsPromo: boolean
   wallets: AccountWallet[]
 }
 

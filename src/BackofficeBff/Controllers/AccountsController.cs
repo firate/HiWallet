@@ -22,4 +22,18 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
     {
         return await walletApi.GetAsync<AccountDetailResponse>($"v1/accounts/{accountId}", ct);
     }
+
+    /// <summary>İşyerinin platform fonlu promo kabulü. Pazarlama rolü; wallet-api kontrol ediyor.</summary>
+    [HttpPut("{accountId:guid}/accepts-promo")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetAcceptsPromo(
+        Guid accountId, [FromBody] SetAcceptsPromoRequest request, CancellationToken ct)
+    {
+        await walletApi.PutAsync($"v1/accounts/{accountId}/accepts-promo", request, ct);
+
+        return NoContent();
+    }
 }

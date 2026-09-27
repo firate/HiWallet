@@ -47,4 +47,26 @@ public sealed class WalletsController(WalletApiClient walletApi) : ControllerBas
         return await walletApi.GetAsync<WalletPromosResponse>(
             InternalServiceClient.Paged($"v1/wallets/{walletId}/promos", after?.ToString(), size), ct);
     }
+
+    /// <summary>
+    /// Personel promo'su: müşteriye platform fonlu promo. Pazarlama rolü, tek seferlik
+    /// tavanlı; wallet-api kontrol ediyor. Ledger'da aktör çalışan.
+    /// </summary>
+    /// <param name="idempotencyKey">ZORUNLU. Aynı anahtarla ikinci istek yeni parti açmaz.</param>
+    [HttpPost("{walletId:guid}/promos")]
+    [ProducesResponseType<PromoGrantResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GrantStaffPromo(
+        Guid walletId,
+        [FromBody] GrantStaffPromoRequest request,
+        [FromHeader(Name = InternalServiceClient.IdempotencyKeyHeader)] string? idempotencyKey,
+        CancellationToken ct)
+    {
+        var response = await walletApi.PostAsync<PromoGrantResponse>(
+            $"v1/wallets/{walletId}/promos", request, idempotencyKey, ct);
+
+        return CreatedAtAction(nameof(GetPromos), new { walletId }, response);
+    }
 }
