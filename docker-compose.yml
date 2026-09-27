@@ -194,6 +194,8 @@ services:
       # Realm dosyasındaki ${MERCHANT_DEMO_CLIENT_SECRET} buradan dolduruluyor; secret
       # dosyaya yazılmıyor.
       MERCHANT_DEMO_CLIENT_SECRET: ${MERCHANT_DEMO_CLIENT_SECRET:?MERCHANT_DEMO_CLIENT_SECRET .env'de tanımlı değil}
+      # Bireysel web uygulamasının BFF'inin gizli anahtarı; realm dosyası buradan dolduruyor.
+      PERSONAL_WEB_CLIENT_SECRET: ${PERSONAL_WEB_CLIENT_SECRET:?PERSONAL_WEB_CLIENT_SECRET .env'de tanımlı değil}
       # Realm dosyasındaki ${PROXY_DOMAIN}: ters proxy arkasında yayında Scalar'ın
       # adresleri (docker-compose.proxy.yml). Proxy yoksa localhost; o adresler yerelde
       # hiçbir yere gitmiyor.
@@ -353,6 +355,52 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${PERSONAL_MOBILE_HOST_PORT:-8097}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # Bireysel müşterinin web uygulamasının BFF'i. Uygulamanın sayfalarını da bu host
+  # sunuyor; tarayıcı yalnızca oturum cookie'si taşıyor. Token'lar cookie'nin içinde,
+  # BFF'in anahtarıyla şifreli; anahtarlar volume'da, yeniden başlatınca oturumlar
+  # kapanmıyor.
+  personal-web-bff:
+    build:
+      context: .
+      dockerfile: src/PersonalWebBff/Dockerfile
+      target: final
+    depends_on:
+      # Sağlıklı olmaları BEKLENMİYOR: ön API onlarsız da açılıyor ve iç servis
+      # dönene kadar istemciye 503 veriyor.
+      wallet-api:
+        condition: service_started
+      withdrawal-orchestrator:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
+      InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
+      # Keycloak'taki istemci. Giriş sayfası tarayıcının gördüğü adreste, discovery
+      # ve token ucu iç ağdan.
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__RequireHttpsMetadata: "false"
+      Authentication__ClientSecret: ${PERSONAL_WEB_CLIENT_SECRET:?PERSONAL_WEB_CLIENT_SECRET .env'de tanımlı değil}
+      Authentication__KeysDirectory: /app/keys
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-personal-web-bff
+    volumes:
+      - personal-web-bff-keys:/app/keys
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Cookie yalnızca HTTPS'te ya da localhost'ta yazılıyor: başka bir makineden bu
+    # portla girilemiyor, ters proxy arkasındaki adres kullanılıyor.
+    ports:
+      - "${PERSONAL_WEB_BFF_HOST_PORT:-8102}:8080"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
       interval: 5s
@@ -768,3 +816,4 @@ volumes:
   postgres-data:
   rabbitmq-data:
   keycloak-postgres-data:
+  personal-web-bff-keys:
