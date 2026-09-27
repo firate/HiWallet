@@ -225,6 +225,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
   `string currency`. Komisyon ve limit wallet'ın bilgisi, komutta taşınmaz.
 - `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.
+- Tutarı inceleme eşiğinin ÜSTÜNDEKİ çekim düşüldükten sonra bankaya GİTMEZ
+  (`under_review`): operasyon rolünden bir çalışan serbest bırakır ya da iptal eder.
+  Kararı veren saga'ya yazılır; iptalde ters kaydın aktörü o çalışan. İptal banka
+  reddinden AYRI bir durumda biter (`cancelled`, `failed` değil). Eşik bölümü
+  (`Withdrawals:Review`) eksikse orchestrator AÇILMAZ.
+- İncelemedeki saga takılmış SAYILMAZ: sistemi değil bir insanı bekliyor.
 - Ledger'a yazdıran komutlar AKTÖR taşır (`DebitForWithdrawal`, `RefundWithdrawal`).
   Taşımazsa çalışanın başlattığı bir telafi ledger'a `system` olarak düşer ve kimin
   karar verdiği kalıcı kayıtta kaybolur. Aktör sözleşmede düz string: `Actor` tipi
