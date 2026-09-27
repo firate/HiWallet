@@ -189,7 +189,7 @@ BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 
 BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların realm'i
 ├── ...                        -- aynı dosyalar
-└── Controllers/               -- Accounts, Wallets, Withdrawals (görüntüleme), Session (/bff)
+└── Controllers/               -- Accounts, Wallets, Withdrawals, PromoCampaigns, Session (/bff)
 
 BusinessWebBff/                -- public; işyeri panelinin BFF'i (Controllers/ henüz yok)
 ```

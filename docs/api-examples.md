@@ -399,48 +399,51 @@ cevaplamıyor; her partinin kalanı ve geçerli olduğu işyerleri burada. Sıra
 eskiye, sayfalama `after=<grantId>` ile. `expired: true` olan parti ödemeye girmez;
 kalanı süre sonu işi kapatana kadar bakiyede görünür.
 
-### Kampanya tanımla (SQL)
+### Kampanya, personel promo'su, işyerinin promo kabulü (çalışan)
 
-Kampanyalar ve işyerinin platform promo'sunu kabulü backoffice gelene kadar SQL ile
-yönetiliyor (`decisions.md` madde 37). Kampanya promo'su platform fonlu ve yalnızca
-`accepts_promo` işaretli işyerlerinde harcanıyor.
+Üçü de pazarlama rolünün işi ve çalışanın token'ını istiyor (`decisions.md` madde 37).
+Çalışan token'ı tarayıcıda girişle alıyor, girişte OTP zorunlu; bu uçlar
+`backoffice-bff` üzerinden aynı yollarla çağrılıyor. Müşterinin token'ıyla `403`.
 
-```bash
-docker compose exec postgres psql -U postgres -d hiwallet_wallet
+| uç | ne yapıyor |
+| --- | --- |
+| `PUT /v1/accounts/{id}/accepts-promo` `{"acceptsPromo": true}` | işyeri platform promo'sunu kabul ediyor; `204`, bireysel hesapta `422` |
+| `POST /v1/wallets/{id}/promos` + `Idempotency-Key` | personel promo'su: platform fonlu, `scope` `all_businesses` ya da `selected_businesses` + `merchantAccountIds`; `201` |
+| `POST /v1/promo-campaigns` | kampanya açar; `201`, kural uyumsuzsa `400` |
+| `GET /v1/promo-campaigns`, `GET /v1/promo-campaigns/{id}` | kampanyalar, verilen toplamla (`granted`); her çalışan görüyor |
+| `POST /v1/promo-campaigns/{id}/end` | kampanyayı şimdi bitirir; verilmiş partiler etkilenmez |
+
+Personel promo'su para birimi başına tek seferlik tavanla sınırlı
+(`Promos:StaffGrant:MaxAmount`, TRY için 500); üstü `422`, büyük tutar kampanyayla verilir.
+
+Kampanya gövdesi, bu işyerine yapılan her ödemede %5, en fazla 25 TL; parti her yerde
+geçerli, 30 gün:
+
+```json
+{
+  "name": "Kahvede yüzde 5",
+  "rule": "payment_to_merchant",
+  "rewardType": "percentage",
+  "rewardRate": 0.05,
+  "rewardMax": 25,
+  "currency": "TRY",
+  "grantScope": "all_businesses",
+  "grantValidForDays": 30,
+  "budget": 10000,
+  "dailyCapPerAccount": 50,
+  "totalCapPerAccount": 200,
+  "startsAt": "<şimdi ya da sonrası>",
+  "triggerMerchantAccountIds": ["<isyeri-hesap-id>"]
+}
 ```
 
-```sql
--- İşyeri platform promo'sunu kabul ediyor.
-UPDATE accounts SET accepts_promo = true WHERE id = '<isyeri-hesap-id>';
-
--- Bu işyerine yapılan her ödemede %5, en fazla 25 TL; parti her yerde geçerli, 30 gün.
-WITH c AS (
-    INSERT INTO promo_campaigns
-        (id, name, rule, reward_type, reward_rate, reward_max, currency, grant_scope,
-         grant_valid_for, budget, daily_cap_per_account, total_cap_per_account, starts_at)
-    VALUES
-        (gen_random_uuid(), 'Kahvede yüzde 5', 'payment_to_merchant', 'percentage', 0.05, 25,
-         'TRY', 'all_businesses', interval '30 days', 10000, 50, 200, now())
-    RETURNING id)
-INSERT INTO promo_campaign_merchants (campaign_id, role, account_id)
-SELECT id, 'trigger', '<isyeri-hesap-id>' FROM c;
-
--- Gün içinde toplam 1000 TL ödeme yapana 50 TL, süresiz.
-INSERT INTO promo_campaigns
-    (id, name, rule, threshold_amount, reward_type, reward_amount, currency, grant_scope,
-     budget, daily_cap_per_account, total_cap_per_account, starts_at)
-VALUES
-    (gen_random_uuid(), 'Günde 1000 TL', 'daily_payment_total', 1000, 'fixed', 50,
-     'TRY', 'all_businesses', 5000, 50, 150, now());
-
--- Kampanyayı bitir. Verilmiş partiler etkilenmez.
-UPDATE promo_campaigns SET ends_at = now() WHERE name = 'Günde 1000 TL';
-```
+Günlük eşik kuralında `rule` `daily_payment_total`, `thresholdAmount` zorunlu ve ödül
+`fixed` (`rewardAmount`). Kural ve alan uyumsuzluğu (örneğin `daily_payment_total`'da
+yüzde ödül) `400` alıyor.
 
 Kampanyanın promo'su ödemeden sonra wallet-consumer'daki `PromoCampaignJob` ile düşer;
 iş dakikada bir koşuyor. Tabana yalnızca müşterinin `card` ve `cash` ile ödediği tutar
-giriyor: promo payı ve komisyon sayılmıyor. Kural ve alan uyumsuzluğu (örneğin
-`daily_payment_total`'da yüzde ödül) `ck_promo_campaigns_*` kısıtlarına takılır.
+giriyor: promo payı ve komisyon sayılmıyor.
 
 ---
 

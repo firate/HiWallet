@@ -131,7 +131,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
-| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice'in yazma uçlarını bekliyor |
+| Promo: personel promo'su, kampanya yönetimi, işyerinin promo kabulü | evet — backoffice'ten, pazarlama rolüyle |
+| Koruma hesabının fonlama kaydı | hayır |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
