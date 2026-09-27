@@ -132,6 +132,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
 | Promo: personel promo'su, kampanya yönetimi, işyerinin promo kabulü | evet — backoffice'ten, pazarlama rolüyle |
+| Çekim incelemesi: eşiğin üstü bekliyor, çalışan serbest bırakıyor ya da iptal ediyor | evet — iptal banka reddinden ayrı durumda |
 | Koruma hesabının fonlama kaydı | hayır |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |

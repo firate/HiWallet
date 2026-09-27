@@ -308,6 +308,12 @@ sequenceDiagram
 Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
 Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
 
+Tutarı inceleme eşiğinin üstündeki çekim (`Withdrawals:Review:Above`, TRY için 10.000)
+düşüldükten sonra bankaya gitmiyor: `debited → under_review`. Operasyon rolünden bir
+çalışan serbest bırakıyor (`under_review → bank_transfer_pending`, banka komutu o anda
+üretiliyor) ya da iptal ediyor (`under_review → cancelling → cancelled`; ters kaydın
+aktörü iptal eden çalışan). İncelemedeki saga takılmış saga taramasına girmiyor.
+
 **`StartBankTransfer`, kuyruktan geçen bir komut mesajı** (`Shared.Contracts`;
 alanları `CommandId`, `SagaId`, `Amount`, `Currency`, `DestinationIban`). Komutu
 saga'nın durum değişimi üretiyor: wallet parayı düşüp `WithdrawalDebited` dönünce

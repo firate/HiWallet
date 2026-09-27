@@ -551,6 +551,15 @@ curl -s localhost:8093/v1/withdrawals/$WD -H "Authorization: Bearer $TOKEN"
 bekliyor (clearing boşalıp `nostro`'ya yazılıyor) ve saniyeler sürüyor.
 Telafi yolunda: `debited` → `compensating` → `failed`. Reddedilmişse `rejected`.
 
+Tutarı inceleme eşiğinin üstündeki çekim (TRY için 10.000) `debited` → `under_review`'da
+bir çalışanın kararını bekliyor. Kuyruk ve karar çalışanın uçları; operasyon rolü:
+
+| uç | ne yapıyor |
+| --- | --- |
+| `GET /v1/withdrawals?state=under_review` | inceleme kuyruğu, en eski önce; her çalışan görüyor |
+| `POST /v1/withdrawals/{id}/release` | serbest bırakır, banka komutu gider; `200`, incelemede değilse `422` |
+| `POST /v1/withdrawals/{id}/cancel` `{"reason": "..."}` | iptal eder, para cüzdana döner; `202`, çekim `cancelling` → `cancelled` |
+
 `totalDebited` cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi
 yapana kadar `null` — `0` yazılmıyor, "komisyonsuz çekildi" ile karışırdı.
 

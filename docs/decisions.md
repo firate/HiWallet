@@ -1266,11 +1266,14 @@ olurdu.
 taşıyor — `account_id` "parası kimin", bunlar "kim istedi" sorusunu cevaplıyor ve
 backoffice müşteri adına çekim açtığında ikisi ayrışıyor.
 
-**Bilinen eksik.** Saga, bankanın reddiyle operatörün iptalini AYIRT EDEMİYOR: ikisi
-de `Refunded` geçişine varıyor, aradaki fark yalnızca komutun taşıdığı aktörde
-kalıyor. Telafi aynı olsa da sebep aynı değil ve "bu ay kaç çekim banka tarafından
-reddedildi" ile "kaç çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli.
-Ayrı bir geçiş gerekiyor; backoffice endpoint'i yazılırken eklenecek.
+**Banka reddi ile çalışanın iptali ayrı.** Telafi ikisinde de aynı (üç bacaklı ters
+kayıt) ama sebep aynı değil: "bu ay kaç çekim banka tarafından reddedildi" ile "kaç
+çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli. Banka reddi
+`compensating → failed`, çalışanın iptali `cancelling → cancelled` yolundan gidiyor ve
+iptalin ters kaydının aktörü iptal eden çalışan. İptal yalnızca incelemedeki çekimde
+mümkün: tutarı inceleme eşiğinin üstündeki çekim düşüldükten sonra bankaya gitmeden
+bir çalışanın kararını bekliyor. Serbest bırakma ledger'a yazmıyor; kararı veren
+saga'nın `reviewed_by` alanında.
 
 ---
 

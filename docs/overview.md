@@ -164,8 +164,14 @@ X = çekilen tutar, k = müşteriden alınan komisyon (yoksa k = 0).
   → [Debited]
 
 [Debited]
-  → bank-adapter'a komut: "X banka transferi başlat" (CommandId'li, idempotent)
+  → tutar inceleme eşiğinin üstündeyse → [UnderReview]
+  → değilse bank-adapter'a komut: "X banka transferi başlat" (CommandId'li, idempotent)
   → [BankTransferPending]
+
+[UnderReview]  (bir çalışanın kararını bekliyor; takılmış sayılmaz)
+  + serbest bırakıldı → banka komutu → [BankTransferPending]
+  + iptal edildi → RefundToWallet komutu, aktörü iptal eden çalışan → [Cancelling]
+       → ters kayıt yazıldı → [Cancelled]
 
 [BankTransferPending]
   + BankTransferSucceeded → [Completed]
@@ -225,7 +231,7 @@ Periyodik job'lar `ScheduledJob` üzerinde çalışıyor: `BackgroundService` + 
 
 - **Mutabakat (reconciliation) raporu:** Clearing hesabı bakiyesi ile dış sağlayıcının settlement kayıtları karşılaştırılır. Tutmuyorsa eksik/hatalı işlem işaretlenir. Clearing hesabı konseptini kapatan job budur.
 - **Business günlük özeti:** Her business için günlük işlem hacmi, işlem sayısı, kesilen komisyon toplamı.
-- **Stuck saga taraması:** Belirli süredir `BankTransferPending`/`Compensating` durumunda takılı kalmış withdrawal saga'larını bulup raporlar.
+- **Stuck saga taraması:** Belirli süredir `BankTransferPending`/`Compensating` durumunda takılı kalmış withdrawal saga'larını bulup raporlar. İncelemedeki (`UnderReview`) saga'yı takılmış saymaz: o bir insanı bekliyor.
 
 Graceful shutdown ile uyumlu: job'lar `CancellationToken`'a saygı duyar, SIGTERM'de yarıda kalan iş temiz biter (`baseline.md` madde 10).
 
