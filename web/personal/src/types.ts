@@ -5,6 +5,8 @@ export interface SessionUser {
   subject: string
   name: string | null
   email: string | null
+  /** Çalışanın rolleri; müşteride boş. */
+  roles: string[]
 }
 
 export interface Account {

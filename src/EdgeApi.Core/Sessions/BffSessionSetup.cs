@@ -125,6 +125,7 @@ public static class BffSessionSetup
                 // Claim adları token'daki gibi: "sub" .NET'in uzun URI'sine çevrilmiyor.
                 oidc.MapInboundClaims = false;
                 oidc.TokenValidationParameters.NameClaimType = "name";
+                oidc.TokenValidationParameters.RoleClaimType = AuthenticationSetup.RolesClaim;
             });
 
         services.AddAuthorizationBuilder()
@@ -133,9 +134,17 @@ public static class BffSessionSetup
         return services;
     }
 
-    /// <summary>Kimliğin kullanıcıya gösterilen kısmı. Token'lar tarayıcıya gitmiyor.</summary>
+    /// <summary>
+    /// Kimliğin kullanıcıya gösterilen kısmı; token'lar tarayıcıya gitmiyor. Roller
+    /// arayüzün hangi işi göstereceği için; yetkiyi iç servis kendisi kontrol ediyor.
+    /// </summary>
     public static SessionUser ToSessionUser(this System.Security.Claims.ClaimsPrincipal user) =>
-        new(user.Subject(), user.FindFirst("name")?.Value, user.FindFirst("email")?.Value);
+        new(
+            user.Subject(),
+            user.FindFirst("name")?.Value,
+            user.FindFirst("email")?.Value,
+            [.. user.FindAll(AuthenticationSetup.RolesClaim).Select(claim => claim.Value)]);
 }
 
-public sealed record SessionUser(string Subject, string? Name, string? Email);
+/// <param name="Roles">Çalışanın rolleri. Müşteride boş.</param>
+public sealed record SessionUser(string Subject, string? Name, string? Email, IReadOnlyList<string> Roles);
