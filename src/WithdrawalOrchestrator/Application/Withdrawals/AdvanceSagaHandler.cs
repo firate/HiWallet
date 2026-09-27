@@ -2,6 +2,7 @@ using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.WithdrawalOrchestrator.Domain;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 
@@ -21,6 +22,7 @@ namespace HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 public sealed class AdvanceSagaHandler(
     IDbContextFactory<OrchestratorDbContext> contextFactory,
     TimeProvider timeProvider,
+    IOptions<WithdrawalReviewOptions> review,
     ILogger<AdvanceSagaHandler> logger)
 {
     public Task<TransitionResult> HandleAsync(WithdrawalDebited @event, CancellationToken ct) =>
@@ -29,6 +31,14 @@ public sealed class AdvanceSagaHandler(
             var result = saga.Debited(@event.LedgerTransactionId, @event.TotalDebited, now);
 
             if (result is not TransitionResult.Applied) return (result, null);
+
+            // Eşiğin üstü bankaya gitmiyor: para düşüldü ve clearing'de bekliyor, kararı
+            // bir çalışan verecek. Banka komutu serbest bırakmada üretiliyor.
+            if (review.Value.Requires(saga.Currency, saga.Amount))
+            {
+                saga.HoldForReview(now);
+                return (result, null);
+            }
 
             // Bankaya giden tutar müşterinin İSTEDİĞİ tutar; komisyon bizde kalıyor
             // ve TotalDebited'ın farkı o. IBAN burada string'e dönüyor — sözleşme

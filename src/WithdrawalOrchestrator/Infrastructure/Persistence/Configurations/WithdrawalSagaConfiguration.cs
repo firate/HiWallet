@@ -77,6 +77,9 @@ internal sealed class WithdrawalSagaConfiguration : IEntityTypeConfiguration<Wit
 
         builder.Property(s => s.BankReference).HasColumnName("bank_reference").HasColumnType("text");
 
+        builder.Property(s => s.ReviewedBy).HasColumnName("reviewed_by").HasColumnType("text");
+        builder.Property(s => s.ReviewedAt).HasColumnName("reviewed_at");
+
         // Ledger ile AYNI tip: settlement komutunda taşınıp wallet'ta ledger'a
         // yazılıyor, farklı ölçek yuvarlama farkı üretirdi.
         builder.Property(s => s.BankFee).HasColumnName("bank_fee").HasColumnType("numeric(19,4)");

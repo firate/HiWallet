@@ -31,6 +31,16 @@ builder.Services.AddOrchestratorHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<StartWithdrawalHandler>();
 builder.Services.AddScoped<AdvanceSagaHandler>();
+builder.Services.AddScoped<ReviewWithdrawalHandler>();
+
+// İnceleme eşiği. Bölüm eksikse uygulama açılmıyor: sessizce incelemesiz çalışmamalı.
+builder.Services.AddOptions<WithdrawalReviewOptions>()
+    .BindConfiguration(WithdrawalReviewOptions.SectionName)
+    .Validate(options => options.Above.Count > 0,
+        $"{WithdrawalReviewOptions.SectionName}:Above boş; hangi çekimin incelemeye gireceği bilinmiyor.")
+    .Validate(options => options.Above.Values.All(threshold => threshold > 0m),
+        $"{WithdrawalReviewOptions.SectionName}:Above değerleri pozitif olmalı.")
+    .ValidateOnStart();
 builder.Services.AddScoped<WithdrawalQueries>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateWithdrawalRequestValidator>();
 

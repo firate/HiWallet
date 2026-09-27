@@ -3,6 +3,7 @@ using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WithdrawalOrchestrator.Api.Requests;
 using HiWallet.WithdrawalOrchestrator.Api.Responses;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using HiWallet.WithdrawalOrchestrator.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,8 +13,10 @@ namespace HiWallet.WithdrawalOrchestrator.Api.Controllers;
 [Route("v1/withdrawals")]
 public sealed class WithdrawalsController(
     StartWithdrawalHandler handler,
+    ReviewWithdrawalHandler review,
     WithdrawalQueries queries,
-    IValidator<CreateWithdrawalRequest> validator) : ControllerBase
+    IValidator<CreateWithdrawalRequest> validator,
+    IValidator<CancelWithdrawalRequest> cancelValidator) : ControllerBase
 {
     /// <summary>
     /// Para çekme başlatır. Saga ile yürüyor (overview.md madde 6): bu response
@@ -86,5 +89,107 @@ public sealed class WithdrawalsController(
         }
 
         return WithdrawalResponse.From(saga);
+    }
+
+    /// <summary>
+    /// Bir durumdaki çekimler, en eski önce. İnceleme kuyruğu:
+    /// <c>state=under_review</c>. Çalışanın ucu, her rol görüyor.
+    /// </summary>
+    /// <param name="state">Durumun metin adı (<c>under_review</c>, <c>bank_transfer_pending</c>, ...).</param>
+    /// <param name="after">Önceki sayfanın <c>nextCursor</c> değeri. İlk sayfada verilmiyor.</param>
+    /// <param name="size">Sayfa boyutu. Tavanın üstü tavana çekiliyor.</param>
+    [HttpGet]
+    [Authorize(Policy = HiWalletPolicies.Staff)]
+    [ProducesResponseType<WithdrawalsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<WithdrawalsResponse>> List(
+        [FromQuery] string state,
+        CancellationToken ct,
+        [FromQuery] Guid? after = null,
+        [FromQuery] int size = WithdrawalPage.DefaultSize)
+    {
+        WithdrawalState parsed;
+
+        try
+        {
+            parsed = WithdrawalStates.FromText(state);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["state"] = [$"Bilinmeyen çekim durumu: {state}"] }));
+        }
+
+        return WithdrawalsResponse.From(await queries.ListAsync(parsed, after, size, ct));
+    }
+
+    /// <summary>
+    /// İncelemedeki çekimi serbest bırakır: banka komutu gidiyor. Operasyon rolü; kararı
+    /// veren çalışan saga'ya yazılıyor.
+    /// </summary>
+    [HttpPost("{withdrawalId:guid}/release")]
+    [Authorize(Policy = HiWalletPolicies.Operations)]
+    [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<WithdrawalResponse>> Release(Guid withdrawalId, CancellationToken ct)
+    {
+        return Decided(await review.ReleaseAsync(withdrawalId, User.Subject(), ct), StatusCodes.Status200OK);
+    }
+
+    /// <summary>
+    /// İncelemedeki çekimi iptal eder: para cüzdana geri veriliyor ve çekim banka
+    /// reddinden ayrı bir durumda (<c>cancelled</c>) bitiyor. Operasyon rolü. <c>202</c>:
+    /// ters kaydı wallet yazıyor, dönüldüğünde henüz yazılmadı.
+    /// </summary>
+    [HttpPost("{withdrawalId:guid}/cancel")]
+    [Authorize(Policy = HiWalletPolicies.Operations)]
+    [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status202Accepted)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<WithdrawalResponse>> Cancel(
+        Guid withdrawalId, [FromBody] CancelWithdrawalRequest request, CancellationToken ct)
+    {
+        var validation = await cancelValidator.ValidateAsync(request, ct);
+
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(new ValidationProblemDetails(
+                validation.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
+        }
+
+        return Decided(
+            await review.CancelAsync(withdrawalId, User.Subject(), request.Reason.Trim(), ct),
+            StatusCodes.Status202Accepted);
+    }
+
+    /// <summary>
+    /// Karar yalnızca incelemedeki çekimde geçerli; başka durumda <c>422</c>: istek
+    /// geçerli, kural izin vermiyor. Aynı anda verilen ikinci karar ise <c>409</c>
+    /// (saga'nın version'ı).
+    /// </summary>
+    private ActionResult<WithdrawalResponse> Decided(ReviewOutcome outcome, int status)
+    {
+        if (outcome.Saga is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Çekim bulunamadı",
+                type: "https://hiwallet.dev/problems/withdrawal-not-found");
+        }
+
+        if (outcome.Result is not TransitionResult.Applied)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "Çekim incelemede değil",
+                detail: $"Çekimin durumu {outcome.Saga.State.ToText()}; karar yalnızca incelemedeki çekimde verilir.",
+                type: "https://hiwallet.dev/problems/withdrawal-not-under-review");
+        }
+
+        return StatusCode(status, WithdrawalResponse.From(outcome.Saga));
     }
 }
