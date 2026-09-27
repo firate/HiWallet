@@ -110,6 +110,8 @@ export interface WithdrawalAccepted {
 
 export interface Withdrawal {
   withdrawalId: string
+  accountId: string
+  walletId: string
   state: string
   amount: number
   currency: string
