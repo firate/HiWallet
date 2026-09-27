@@ -102,10 +102,19 @@ public static class AuthenticationSetup
             .AddPolicy(HiWalletPolicies.CustomerOrStaff, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireAssertion(context =>
-                    !context.User.IsEmployee() || StaffRoles.All.Any(context.User.IsInRole)));
+                    !context.User.IsEmployee() || StaffRoles.All.Any(context.User.IsInRole)))
+            .AddPolicy(HiWalletPolicies.Staff, policy => StaffWith(policy, StaffRoles.All))
+            .AddPolicy(HiWalletPolicies.Marketing, policy => StaffWith(policy, [StaffRoles.Marketing]))
+            .AddPolicy(HiWalletPolicies.Operations, policy => StaffWith(policy, [StaffRoles.Operations]))
+            .AddPolicy(HiWalletPolicies.Finance, policy => StaffWith(policy, [StaffRoles.Finance]));
 
         return services;
     }
+
+    /// <summary>Çalışanların realm'inden ve rollerden biriyle; müşterinin token'ı geçmiyor.</summary>
+    private static void StaffWith(AuthorizationPolicyBuilder policy, IReadOnlyList<string> roles) =>
+        policy.RequireAuthenticatedUser()
+            .RequireAssertion(context => context.User.IsEmployee() && roles.Any(context.User.IsInRole));
 
     private static void ConfigureBearer(
         IServiceCollection services,
@@ -195,6 +204,18 @@ public static class HiWalletPolicies
     /// Yalnızca okuma uçlarında; müşterinin para hareketi başlatan uçları çalışana kapalı.
     /// </summary>
     public const string CustomerOrStaff = "customer-or-staff";
+
+    /// <summary>Herhangi bir rolü olan çalışan. Müşteriye kapalı görüntüleme uçları.</summary>
+    public const string Staff = "staff";
+
+    /// <summary>Kampanya, personel promo'su, işyerinin promo kabulü.</summary>
+    public const string Marketing = "staff-marketing";
+
+    /// <summary>Ters kayıt ve çekim incelemesi.</summary>
+    public const string Operations = "staff-operations";
+
+    /// <summary>Koruma hesabının fonlanması.</summary>
+    public const string Finance = "staff-finance";
 }
 
 public sealed class TokenValidationSettings
