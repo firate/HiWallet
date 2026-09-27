@@ -3,6 +3,7 @@ using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WithdrawalOrchestrator.Api.Requests;
 using HiWallet.WithdrawalOrchestrator.Api.Responses;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HiWallet.WithdrawalOrchestrator.Api.Controllers;
@@ -64,9 +65,11 @@ public sealed class WithdrawalsController(
 
     /// <summary>
     /// Çekimin son durumu. <c>POST</c> response'undaki <c>Location</c> buraya işaret ediyor.
-    /// Çekimi yalnızca isteyen görüyor; başkasının çekimi yokmuş gibi <c>404</c>.
+    /// Müşteri yalnızca kendi başlattığı çekimi görüyor; başkasının çekimi yokmuş gibi
+    /// <c>404</c>. Çalışan bir rolüyle her çekimi görüyor.
     /// </summary>
     [HttpGet("{withdrawalId:guid}")]
+    [Authorize(Policy = HiWalletPolicies.CustomerOrStaff)]
     [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WithdrawalResponse>> GetById(
@@ -74,7 +77,7 @@ public sealed class WithdrawalsController(
     {
         var saga = await queries.FindAsync(withdrawalId, ct);
 
-        if (saga is null || saga.InitiatedBySubject != User.Subject())
+        if (saga is null || (!User.IsEmployee() && saga.InitiatedBySubject != User.Subject()))
         {
             return Problem(
                 statusCode: StatusCodes.Status404NotFound,

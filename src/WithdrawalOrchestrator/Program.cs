@@ -49,8 +49,9 @@ builder.Services.AddHiWalletJobLease(PersistenceSetup.ConnectionStringName);
 builder.Services.AddSingleton<StuckSagaScanner>();
 builder.Services.AddHostedService<StuckSagaScan>();
 
-// Token'ı ön API iletiyor, burada yeniden doğrulanıyor.
-builder.Services.AddHiWalletAuthentication();
+// Token'ı ön API iletiyor, burada yeniden doğrulanıyor. Çalışanların realm'inin
+// token'ı da kabul ediliyor; çalışan yalnızca izin veren uçtan geçiyor.
+builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
 builder.Services.AddControllers();
 builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddHiWalletOpenApi(TokenFlows.AuthorizationCode | TokenFlows.ClientCredentials);

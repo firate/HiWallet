@@ -39,8 +39,9 @@ builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 
 // Token'ı ön API iletiyor, burada yeniden doğrulanıyor: ön API'ye körü körüne
-// güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde.
-builder.Services.AddHiWalletAuthentication();
+// güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde. Çalışanların
+// realm'inin token'ı da kabul ediliyor; çalışan yalnızca izin veren uçtan geçiyor.
+builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
 builder.Services.AddSingleton<AccountAccess>();
 
 builder.Services

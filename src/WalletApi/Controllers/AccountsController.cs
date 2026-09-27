@@ -2,6 +2,8 @@ using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi.Requests;
 using HiWallet.WalletApi.Responses;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletApi.Setup;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 
@@ -49,11 +51,12 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
 
     /// <summary>Hesap ve altındaki cüzdanlar, bakiyeleriyle.</summary>
     [HttpGet("{accountId:guid}")]
+    [Authorize(Policy = HiWalletPolicies.CustomerOrStaff)]
     [ProducesResponseType<AccountDetailResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AccountDetailResponse>> GetById(Guid accountId, CancellationToken ct)
     {
-        await access.EnsureAccountAsync(User.Subject(), accountId, ct);
+        await access.EnsureViewableAccountAsync(User, accountId, ct);
 
         var view = await bus.InvokeAsync<AccountView>(new GetAccountQuery(accountId), ct);
 
