@@ -43,7 +43,9 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 
 // Uygulamanın dosyaları (wwwroot) kimliksiz: giriş sayfası da onlardan açılıyor.
-// Veri API'den geliyor ve API oturum istiyor.
+// Veri API'den geliyor ve API oturum istiyor. Kök adres index.html'e çevriliyor; aşağıdaki
+// yedek yol boş yolu eşleştirmiyor ve kök adres varsayılan politikaya düşüp 401 alıyordu.
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseAuthentication();
