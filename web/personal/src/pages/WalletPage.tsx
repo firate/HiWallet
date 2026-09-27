@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
@@ -36,7 +37,8 @@ export function WalletPage() {
           ))}
         </ul>
         <p className="muted">
-          Cüzdan numarası (sana para gönderecek kişiye ver): <code>{walletId}</code>
+          Cüzdan numarası (sana para gönderecek kişiye ver): <code>{walletId}</code>{' '}
+          <CopyButton text={walletId} />
         </p>
         <div className="actions">
           <Link className="button" to={`/cuzdanlar/${walletId}/transfer`}>
@@ -50,6 +52,21 @@ export function WalletPage() {
       <Movements walletId={walletId} />
       <Promos walletId={walletId} />
     </>
+  )
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+  }
+
+  return (
+    <button type="button" className="link" onClick={copy}>
+      {copied ? 'Kopyalandı' : 'Kopyala'}
+    </button>
   )
 }
 
@@ -81,10 +98,10 @@ function Movements({ walletId }: { walletId: string }) {
           <tbody>
             {items.map((movement) => (
               <tr key={movement.movementId}>
-                <td>{date(movement.createdAt)}</td>
                 <td>
                   {movementType(movement.type)}
                   <span className="muted"> ({fundType(movement.fundType)})</span>
+                  <div className="muted small">{date(movement.createdAt)}</div>
                 </td>
                 <td className={movement.amount < 0 ? 'amount out' : 'amount in'}>
                   {money(movement.amount, movement.currency)}
@@ -118,10 +135,12 @@ function Promos({ walletId }: { walletId: string }) {
         <tbody>
           {promos.data.items.map((promo) => (
             <tr key={promo.grantId}>
-              <td>{money(promo.remaining, promo.currency)} kaldı</td>
-              <td className="muted">{money(promo.amount, promo.currency)} yüklendi</td>
-              <td className="muted">
-                {promo.expired ? 'Süresi doldu' : promo.expiresAt ? `Son gün ${date(promo.expiresAt)}` : 'Süresiz'}
+              <td>
+                {money(promo.remaining, promo.currency)} kaldı
+                <div className="muted small">
+                  {money(promo.amount, promo.currency)} yüklendi,{' '}
+                  {promo.expired ? 'süresi doldu' : promo.expiresAt ? `son gün ${date(promo.expiresAt)}` : 'süresiz'}
+                </div>
               </td>
             </tr>
           ))}

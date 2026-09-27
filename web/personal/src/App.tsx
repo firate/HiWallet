@@ -1,4 +1,4 @@
-import { Link, Route, Routes } from 'react-router'
+import { Link, Navigate, Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
 import { AccountsPage } from './pages/AccountsPage'
 import { TransferPage } from './pages/TransferPage'
@@ -13,6 +13,7 @@ export function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<AccountsPage />} />
+          <Route path="cuzdanlar" element={<Navigate to="/" replace />} />
           <Route path="cuzdanlar/:walletId" element={<WalletPage />} />
           <Route path="cuzdanlar/:walletId/transfer" element={<TransferPage />} />
           <Route path="cuzdanlar/:walletId/cekim" element={<WithdrawalPage />} />

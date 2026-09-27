@@ -42,7 +42,8 @@ export function TransferPage() {
     return <ErrorMessage error={wallet.error} />
   }
 
-  const { name, currency, balance } = wallet.data
+  const { name, currency, balance, balances } = wallet.data
+  const promo = balances.find((bucket) => bucket.fundType === 'promo')?.balance ?? 0
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -57,7 +58,10 @@ export function TransferPage() {
       </p>
       <section className="card">
         <h1>Para gönder</h1>
-        <p className="muted">Bakiye: {money(balance, currency)}</p>
+        <p className="muted">
+          Bakiye: {money(balance, currency)}
+          {promo > 0 && <>. Bunun {money(promo, currency)} kadarı promo ve yalnızca işyerine ödemede harcanıyor.</>}
+        </p>
         <form className="stacked" onSubmit={submit}>
           <label>
             Ne için
