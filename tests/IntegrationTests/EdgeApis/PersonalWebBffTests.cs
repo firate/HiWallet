@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Web;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.WalletService.Domain.Accounts;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace HiWallet.IntegrationTests.EdgeApis;
@@ -224,5 +225,37 @@ public sealed class PersonalWebBffSessionTests
         var response = await client.GetAsync("/v1/olmayan-uc", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// Uygulamanın sayfası kimliksiz geliyor: kök adres de uygulamanın kendi yolları da.
+    /// Oturum açmayan kullanıcı giriş düğmesini bu sayfada görüyor.
+    /// </summary>
+    [Fact]
+    public async Task UygulamaninSayfasi_KimliksizGelir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var webRoot = Directory.CreateTempSubdirectory("hiwallet-web-");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(webRoot.FullName, "index.html"), "<!doctype html><title>HiWallet</title>", ct);
+            await using var factory = new PersonalWebBffFactory();
+            await using var withPages = factory.WithWebHostBuilder(builder => builder.UseWebRoot(webRoot.FullName));
+            using var client = withPages.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+            foreach (var path in new[] { "/", "/cuzdanlar/abc" })
+            {
+                var response = await client.GetAsync(path, ct);
+
+                response.StatusCode.ShouldBe(HttpStatusCode.OK, path);
+                response.Content.Headers.ContentType?.MediaType.ShouldBe("text/html", path);
+            }
+        }
+        finally
+        {
+            webRoot.Delete(recursive: true);
+        }
     }
 }

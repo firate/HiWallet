@@ -21,11 +21,11 @@ x-behind-gateway: &behind-gateway
 
 services:
   hiwallet-gateway:
-    image: caddy:2.11.4-alpine
+    # Caddyfile imajın içinde; gerekçe docker/gateway/Dockerfile'da.
+    build:
+      context: docker/gateway
     environment:
       PROXY_DOMAIN: ${PROXY_DOMAIN:?PROXY_DOMAIN .env'de tanımlı değil}
-    volumes:
-      - ./docker/gateway/Caddyfile:/etc/caddy/Caddyfile:ro
     # Proxy'nin ağına yalnızca kapı bağlanıyor; servisler kendi ağında kalıyor.
     networks:
       - default
