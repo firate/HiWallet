@@ -1,6 +1,9 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 namespace HiWallet.Shared.Infrastructure.OpenApi;
@@ -18,9 +21,81 @@ namespace HiWallet.Shared.Infrastructure.OpenApi;
 /// </summary>
 public static class OpenApiSetup
 {
-    public static IServiceCollection AddHiWalletOpenApi(this IServiceCollection services)
+    public const string SecuritySchemeName = "keycloak";
+
+    /// <summary>
+    /// Scalar'daki girişin istemcisi. Compose'daki realm'de tanımlı, canlıda YOK;
+    /// Scalar da yalnızca Development'ta.
+    /// </summary>
+    public const string DocsClientId = "api-docs";
+
+    /// <param name="flows">
+    /// API'yi çağıranın token'ı hangi yoldan aldığı. Doküman bunu kimlik şeması olarak
+    /// taşıyor ve Scalar giriş düğmesini buradan çıkarıyor. Kimlik istemeyen servis
+    /// vermiyor.
+    /// </param>
+    public static IServiceCollection AddHiWalletOpenApi(
+        this IServiceCollection services, TokenFlows flows = TokenFlows.None)
     {
-        return services.AddOpenApi();
+        services.AddSingleton(new DocumentedTokenFlows(flows));
+
+        return services.AddOpenApi(options =>
+        {
+            if (flows == TokenFlows.None)
+            {
+                return;
+            }
+
+            options.AddDocumentTransformer((document, context, _) =>
+            {
+                var settings = context.ApplicationServices.GetRequiredService<IOptions<TokenValidationSettings>>().Value;
+                AddSecurityScheme(document, settings.Issuer!, flows);
+                return Task.CompletedTask;
+            });
+        });
+    }
+
+    /// <summary>
+    /// Adresler Keycloak'ın; issuer tarayıcının kimlik sağlayıcıya ulaştığı adres
+    /// olduğu için giriş sayfası da oradan açılıyor.
+    /// </summary>
+    private static void AddSecurityScheme(OpenApiDocument document, string issuer, TokenFlows flows)
+    {
+        var tokenUrl = new Uri($"{issuer.TrimEnd('/')}/protocol/openid-connect/token");
+        var oauthFlows = new OpenApiOAuthFlows();
+
+        if (flows.HasFlag(TokenFlows.AuthorizationCode))
+        {
+            oauthFlows.AuthorizationCode = new OpenApiOAuthFlow
+            {
+                AuthorizationUrl = new Uri($"{issuer.TrimEnd('/')}/protocol/openid-connect/auth"),
+                TokenUrl = tokenUrl,
+                Scopes = new Dictionary<string, string>()
+            };
+        }
+
+        if (flows.HasFlag(TokenFlows.ClientCredentials))
+        {
+            oauthFlows.ClientCredentials = new OpenApiOAuthFlow
+            {
+                TokenUrl = tokenUrl,
+                Scopes = new Dictionary<string, string>()
+            };
+        }
+
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes[SecuritySchemeName] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.OAuth2,
+            Flows = oauthFlows
+        };
+
+        document.Security ??= [];
+        document.Security.Add(new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference(SecuritySchemeName, document)] = []
+        });
     }
 
     /// <summary>
@@ -36,6 +111,8 @@ public static class OpenApiSetup
             return app;
         }
 
+        var flows = app.Services.GetRequiredService<DocumentedTokenFlows>().Flows;
+
         // İki uç da kimliksiz açık: yalnızca Development'ta varlar ve şema bir sır değil,
         // uçları çağırmak yine token istiyor.
 
@@ -43,9 +120,43 @@ public static class OpenApiSetup
         app.MapOpenApi().AllowAnonymous();
 
         // Arayüz: /scalar — dokümanı yukarıdaki endpoint'ten okuyor.
-        app.MapScalarApiReference(options => options.WithTitle(app.Environment.ApplicationName))
+        app.MapScalarApiReference(options =>
+            {
+                options.WithTitle(app.Environment.ApplicationName);
+
+                if (flows == TokenFlows.None)
+                {
+                    return;
+                }
+
+                options.AddPreferredSecuritySchemes([SecuritySchemeName]);
+
+                // İşyerinin istemci kimliği ve gizli anahtarı sayfada elle giriliyor;
+                // yalnızca müşteri girişinin istemcisi önceden dolu.
+                if (flows.HasFlag(TokenFlows.AuthorizationCode))
+                {
+                    options.AddAuthorizationCodeFlow(SecuritySchemeName, flow => flow
+                        .WithClientId(DocsClientId)
+                        .WithPkce(Pkce.Sha256));
+                }
+            })
             .AllowAnonymous();
 
         return app;
     }
+
+    private sealed record DocumentedTokenFlows(TokenFlows Flows);
+}
+
+/// <summary>API'yi çağıranın token'ı kimlik sağlayıcıdan hangi yoldan aldığı.</summary>
+[Flags]
+public enum TokenFlows
+{
+    None = 0,
+
+    /// <summary>Kullanıcı tarayıcıda kimlik sağlayıcıya girip token alıyor (PKCE).</summary>
+    AuthorizationCode = 1,
+
+    /// <summary>Sistem entegrasyonu kendi istemci kimliği ve gizli anahtarıyla token alıyor.</summary>
+    ClientCredentials = 2
 }

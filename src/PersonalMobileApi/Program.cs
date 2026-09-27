@@ -38,7 +38,7 @@ builder.Services.AddEdgeRateLimiting(
     client: new BucketDefaults(BurstSize: 20, SustainedPerMinute: 60),
     withdrawals: new BucketDefaults(BurstSize: 10, SustainedPerMinute: 30));
 builder.Services.AddControllers();
-builder.Services.AddHiWalletOpenApi();
+builder.Services.AddHiWalletOpenApi(TokenFlows.AuthorizationCode);
 
 var app = builder.Build();
 

@@ -50,7 +50,7 @@ builder.Services
         // enum'a yeni bir değer eklemek mevcut client'ların anlamını kaydırırdı.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddHiWalletOpenApi();
+builder.Services.AddHiWalletOpenApi(TokenFlows.AuthorizationCode | TokenFlows.ClientCredentials);
 
 var app = builder.Build();
 
