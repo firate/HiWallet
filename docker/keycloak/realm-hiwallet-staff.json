@@ -1,0 +1,87 @@
+{
+  "realm": "hiwallet-staff",
+  "displayName": "HiWallet çalışanlar",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "verifyEmail": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      {
+        "name": "support",
+        "description": "Müşteri kaydını görüntüler"
+      },
+      {
+        "name": "operations",
+        "description": "Ters kayıt ve çekim iptali"
+      },
+      {
+        "name": "finance",
+        "description": "Koruma hesabının fonlanması"
+      },
+      {
+        "name": "marketing",
+        "description": "Kampanya, personel promo'su, işyerinin promo kabulü"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "backoffice",
+      "name": "HiWallet backoffice paneli",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${BACKOFFICE_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8099/signin-oidc",
+        "http://localhost:5174/signin-oidc",
+        "https://hiwallet-backoffice-bff.${PROXY_DOMAIN}/signin-oidc"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8099/signout-callback-oidc##http://localhost:5174/signout-callback-oidc##https://hiwallet-backoffice-bff.${PROXY_DOMAIN}/signout-callback-oidc"
+      },
+      "protocolMappers": [
+        {
+          "name": "hiwallet-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "hiwallet-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}
