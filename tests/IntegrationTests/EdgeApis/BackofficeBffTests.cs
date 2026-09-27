@@ -3,6 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Web;
 using HiWallet.IntegrationTests.Fixtures;
+using Microsoft.Extensions.DependencyInjection;
+using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletService.Domain.Accounts;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -219,6 +222,49 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         ended.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await ended.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("endsAt").ValueKind
             .ShouldNotBe(JsonValueKind.Null);
+    }
+
+    /// <summary>
+    /// Operasyon inceleme kuyruğunu panelde görüyor ve çekimi serbest bırakıyor; karar
+    /// orchestrator'da, çalışanın token'ıyla.
+    /// </summary>
+    [Fact]
+    public async Task Operasyon_IncelemedekiCekimiSerbestBirakir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var accountId = Guid.NewGuid();
+
+        using var customer = _orchestrator.CreateClient().As(TestTokens.SubjectOf(accountId));
+        var started = await customer.SendAsync(new HttpRequestMessage(HttpMethod.Post, "/v1/withdrawals")
+        {
+            Content = JsonContent.Create(new
+            {
+                accountId,
+                walletId = Guid.NewGuid(),
+                amount = 15_000m,
+                currency = "TRY",
+                destinationIban = "TR330006100519786457841326"
+            }),
+            Headers = { { "Idempotency-Key", Guid.NewGuid().ToString() } }
+        }, ct);
+        var withdrawalId = (await started.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("withdrawalId").GetGuid();
+
+        await using (var scope = _orchestrator.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AdvanceSagaHandler>().HandleAsync(
+                new WithdrawalDebited { SagaId = withdrawalId, LedgerTransactionId = Guid.NewGuid(), TotalDebited = 15_005m }, ct);
+        }
+
+        _client.SignedInAs(NewStaff(), StaffRoles.Operations);
+
+        var queue = await _client.GetFromJsonAsync<JsonElement>("/v1/withdrawals?state=under_review&size=100", ct);
+        queue.GetProperty("items").EnumerateArray().ShouldContain(w => w.GetProperty("withdrawalId").GetGuid() == withdrawalId);
+
+        var released = await _client.PostAsync($"/v1/withdrawals/{withdrawalId}/release", null, ct);
+
+        released.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await released.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("state").GetString()
+            .ShouldBe("bank_transfer_pending");
     }
 }
 

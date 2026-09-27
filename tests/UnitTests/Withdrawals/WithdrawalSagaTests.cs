@@ -273,4 +273,94 @@ public sealed class WithdrawalSagaTests
         saga.Amount.ShouldBe(100m);
         saga.TotalDebited.ShouldBe(102m);
     }
+
+    // ------------------------------------------------------------------
+    // İnceleme: eşiğin üstündeki çekim düşüldükten sonra bir çalışanı bekliyor
+    // ------------------------------------------------------------------
+
+    private static WithdrawalSaga UnderReview()
+    {
+        var saga = NewSaga();
+        saga.Debited(Guid.NewGuid(), 101.50m, Now);
+        saga.HoldForReview(Now).ShouldBe(TransitionResult.Applied);
+        return saga;
+    }
+
+    [Fact]
+    public void Inceleme_DusmedenSonraBekler_BankayaGitmez()
+    {
+        var saga = UnderReview();
+
+        saga.State.ShouldBe(WithdrawalState.UnderReview);
+        saga.BankCommandId.ShouldBeNull();
+        saga.IsTerminal.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SerbestBirakma_BankayaGonderir_InceleyeniYazar()
+    {
+        var saga = UnderReview();
+        var command = Guid.NewGuid();
+
+        saga.Release("calisan-1", command, Now.AddMinutes(5)).ShouldBe(TransitionResult.Applied);
+
+        saga.State.ShouldBe(WithdrawalState.BankTransferPending);
+        saga.BankCommandId.ShouldBe(command);
+        saga.ReviewedBy.ShouldBe("calisan-1");
+    }
+
+    /// <summary>
+    /// İptal parayı cüzdana geri veriyor ve banka reddinden AYRI bir durumda bitiyor:
+    /// "banka reddetti" ile "çalışan iptal etti" aynı sayıya düşmemeli (madde 34).
+    /// </summary>
+    [Fact]
+    public void Iptal_IadeyleBiter_BankaReddindenAyri()
+    {
+        var saga = UnderReview();
+
+        saga.Cancel("calisan-1", "Şüpheli işlem", Now.AddMinutes(5)).ShouldBe(TransitionResult.Applied);
+        saga.State.ShouldBe(WithdrawalState.Cancelling);
+        saga.FailureReason.ShouldBe("Şüpheli işlem");
+        saga.ReviewedBy.ShouldBe("calisan-1");
+
+        saga.Refunded(Guid.NewGuid(), Now.AddMinutes(6)).ShouldBe(TransitionResult.Applied);
+        saga.State.ShouldBe(WithdrawalState.Cancelled);
+        saga.IsTerminal.ShouldBeTrue();
+    }
+
+    /// <summary>İptal edilen çekim bir daha serbest bırakılamaz; serbest bırakılan iptal edilemez.</summary>
+    [Fact]
+    public void KararVerilmisCekim_IkinciKarar_CELISKI()
+    {
+        var cancelled = UnderReview();
+        cancelled.Cancel("calisan-1", "sebep", Now);
+        cancelled.Release("calisan-2", Guid.NewGuid(), Now).ShouldBe(TransitionResult.Conflict);
+        cancelled.State.ShouldBe(WithdrawalState.Cancelling);
+
+        var released = UnderReview();
+        released.Release("calisan-1", Guid.NewGuid(), Now);
+        released.Cancel("calisan-2", "sebep", Now).ShouldBe(TransitionResult.Conflict);
+        released.State.ShouldBe(WithdrawalState.BankTransferPending);
+    }
+
+    /// <summary>İncelemede olmayan çekimde karar yok: incelemeye girmeyen çekim zaten bankada.</summary>
+    [Fact]
+    public void IncelemedeOlmayanCekim_KararVerilemez()
+    {
+        var saga = NewSaga();
+
+        saga.Release("calisan-1", Guid.NewGuid(), Now).ShouldBe(TransitionResult.Conflict);
+        saga.Cancel("calisan-1", "sebep", Now).ShouldBe(TransitionResult.Conflict);
+        saga.State.ShouldBe(WithdrawalState.Initiated);
+    }
+
+    /// <summary>İncelemedeki çekime gelen tekrar düşme cevabı zararsız.</summary>
+    [Fact]
+    public void Incelemede_TekrarDusmeCevabi_YokSayilir()
+    {
+        var saga = UnderReview();
+
+        saga.Debited(Guid.NewGuid(), 101.50m, Now).ShouldBe(TransitionResult.Ignored);
+        saga.HoldForReview(Now).ShouldBe(TransitionResult.Ignored);
+    }
 }
