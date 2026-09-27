@@ -116,7 +116,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
-| Keycloak'ın compose'dan ayağa kalkması | evet — homelab'da; token'la uçtan uca akış denenmedi |
+| Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
 | Çalışan kimliği | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
@@ -171,22 +171,27 @@ host'a açıklar.
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
 açmasının sebebi olmazdı.
 
-API dokümanı, yalnızca Development'ta:
+API dokümanı, yalnızca Development'ta. Ters proxy arkasında aynı sayfa
+`https://hiwallet-<servis>.<PROXY_DOMAIN>/scalar/` adresinde:
 
-| | Scalar arayüzü | OpenAPI dokümanı |
+| | Scalar arayüzü | Sayfadaki giriş |
 | --- | --- | --- |
-| `wallet-api` | <http://localhost:8091/scalar/> | `/openapi/v1.json` |
-| `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | `/openapi/v1.json` |
-| `personal-mobile-api` | <http://localhost:8097/scalar/> | `/openapi/v1.json` |
-| `business-api` | <http://localhost:8098/scalar/> | `/openapi/v1.json` |
-| `backoffice-bff` | <http://localhost:8099/scalar/> | `/openapi/v1.json` |
-| `business-web-bff` | <http://localhost:8100/scalar/> | `/openapi/v1.json` |
+| `wallet-api` | <http://localhost:8091/scalar/> | müşteri, işyeri |
+| `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | müşteri, işyeri |
+| `personal-mobile-api` | <http://localhost:8097/scalar/> | müşteri |
+| `business-api` | <http://localhost:8098/scalar/> | işyeri |
+| `backoffice-bff` | <http://localhost:8099/scalar/> | — |
+| `business-web-bff` | <http://localhost:8100/scalar/> | — |
+| `stripe-fake` | <http://localhost:8096/scalar/> | — |
+| `bank-fake` | <http://localhost:8094/scalar/> | — |
 
-Sondaki eğik çizgi bilerek: eğik çizgisiz adres `302` ile ona yönleniyor. Tarayıcı
-takip ediyor, `curl` varsayılan olarak etmiyor.
+OpenAPI dokümanı her serviste `/openapi/v1.json`. Sondaki eğik çizgi bilerek: eğik
+çizgisiz adres `302` ile ona yönleniyor. Tarayıcı takip ediyor, `curl` varsayılan
+olarak etmiyor.
 
-Doküman ve arayüz kimliksiz açık; uçları çağırmak token istiyor. Kullanıcı açmak ve
-token almak `docs/verify-compose.md` "Kimlik" bölümünde.
+Doküman ve arayüz kimliksiz açık; uçları çağırmak token istiyor. Sayfadaki girişte
+müşteri Keycloak'ın giriş sayfasına gidiyor, işyeri istemci kimliğini ve gizli
+anahtarını giriyor. Ayrıntısı `docs/verify-compose.md` "Kimlik" bölümünde.
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
