@@ -226,6 +226,30 @@ public sealed class EdgeAudienceTests
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    /// <summary>
+    /// Müşteriye hizmet eden ön API çalışanların realm'ini tanımıyor: imzası geçerli ve
+    /// hedef kitlesi doğru olsa da çalışanın token'ı reddediliyor.
+    /// </summary>
+    [Fact]
+    public async Task CalisaninTokeni_MobilOnApide401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        await using var factory = new PersonalMobileApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            TestTokens.For(
+                "test-calisan",
+                audiences: [TestTokens.PersonalMobileAudience, TestTokens.InternalAudience],
+                issuer: TestTokens.StaffIssuer,
+                roles: ["support"]));
+
+        var response = await client.GetAsync("/v1/accounts", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
     [Fact]
     public async Task IsyerininTokeni_MobilOnApide401()
     {
