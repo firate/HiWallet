@@ -149,8 +149,17 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   istemcisiyle. Access token dolmak üzereyken BFF yeniler; aynı refresh token için TEK
   istek: Keycloak refresh token'ı her kullanımda değiştiriyor ve eskisini kabul etmiyor,
   eşzamanlı iki yenileme oturumu kapatırdı.
-- Varsayılan politika kimlik ister. Kimliksiz açık kalan uç (sağlık, API dokümanı) bunu
-  `AllowAnonymous` ile kendisi söyler.
+- Varsayılan politika kimlik ister ve ÇALIŞANI DIŞARIDA BIRAKIR: yeni bir uç
+  kendiliğinden çalışana kapalı açılır. Kimliksiz açık kalan uç (sağlık, API dokümanı)
+  `AllowAnonymous` ile, çalışanın geçebildiği uç kendi politikasıyla bunu söyler.
+- Çalışanların realm'i ayrı (`hiwallet-staff`); kayıt sayfası kapalı, girişte OTP
+  zorunlu. İç servisler iki realm'in token'ını da kabul eder; hangi realm'den geldiğini
+  token'ın içeriği değil onu doğrulayan şema söyler. Müşterinin ön API'leri çalışan
+  token'ını kabul ETMEZ.
+- Çalışanın rolleri iş grubuna göre: `support`, `operations`, `finance`, `marketing`.
+  Her rol müşteri kaydını görüntüler; yazma işi rolün kendi ucunda. Müşterinin para
+  hareketi başlatan uçları çalışana KAPALI: çalışan müşteri yerine işlem başlatmaz,
+  kendi ucundan ve kendi aktörüyle yapar.
 - İşyerinin sistem entegrasyonu Keycloak'ta kendi istemcisi (client credentials);
   istemcinin servis hesabı işyeri hesabının kullanıcısı. İşyeri hesabı ön API'den
   AÇILMAZ: kayıt ve entegrasyonun hesaba bağlanması backoffice'in işi.
