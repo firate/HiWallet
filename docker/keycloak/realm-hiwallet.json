@@ -57,6 +57,40 @@
       ]
     },
     {
+      "clientId": "personal-web",
+      "name": "HiWallet bireysel web uygulaması",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${PERSONAL_WEB_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8102/signin-oidc",
+        "http://localhost:5173/signin-oidc",
+        "https://hiwallet-personal-web-bff.${PROXY_DOMAIN}/signin-oidc"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8102/signout-callback-oidc##http://localhost:5173/signout-callback-oidc##https://hiwallet-personal-web-bff.${PROXY_DOMAIN}/signout-callback-oidc"
+      },
+      "protocolMappers": [
+        {
+          "name": "hiwallet-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "hiwallet-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "hiwallet-cli",
       "name": "Elle deneme (yalnızca compose)",
       "enabled": true,
