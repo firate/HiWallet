@@ -1,0 +1,57 @@
+# Ters proxy arkasında yayında HiWallet'in proxy ağına açılan tek kapısı
+# (docker-compose.proxy.yml). Traefik TLS'i sonlandırıp isteği buraya düz HTTP ile
+# getiriyor; burası alan adını servise eşliyor.
+#
+# Servisler proxy'nin ağına bağlanmıyor: o ağ başka projelerle ortak olabilir ve iki
+# ağdaki bir servis postgres ya da rabbitmq adını başka bir projenin konteynerine
+# çözebilirdi. Bu kapı da iki ağda; aşağıdaki servis adları proxy'nin ağında
+# kullanılmayan adlar olmalı.
+{
+	auto_https off
+	servers {
+		# Traefik'in X-Forwarded-* başlıkları korunuyor: servisler isteğin HTTPS
+		# olduğunu buradan görüyor.
+		trusted_proxies static private_ranges
+	}
+}
+
+http://hiwallet-auth.{$PROXY_DOMAIN} {
+	reverse_proxy hiwallet-keycloak:8080
+}
+
+http://hiwallet-personal-mobile-api.{$PROXY_DOMAIN} {
+	reverse_proxy personal-mobile-api:8080
+}
+
+http://hiwallet-business-api.{$PROXY_DOMAIN} {
+	reverse_proxy business-api:8080
+}
+
+http://hiwallet-business-web-bff.{$PROXY_DOMAIN} {
+	reverse_proxy business-web-bff:8080
+}
+
+http://hiwallet-backoffice-bff.{$PROXY_DOMAIN} {
+	reverse_proxy backoffice-bff:8080
+}
+
+http://hiwallet-wallet-api.{$PROXY_DOMAIN} {
+	reverse_proxy wallet-api:8080
+}
+
+http://hiwallet-withdrawal-orchestrator.{$PROXY_DOMAIN} {
+	reverse_proxy withdrawal-orchestrator:8080
+}
+
+http://hiwallet-stripe-fake.{$PROXY_DOMAIN} {
+	reverse_proxy stripe-fake:8080
+}
+
+http://hiwallet-bank-fake.{$PROXY_DOMAIN} {
+	reverse_proxy bank-fake:8080
+}
+
+# Listede olmayan ad hiçbir servise gitmiyor.
+:80 {
+	respond 404
+}
