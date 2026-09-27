@@ -73,7 +73,8 @@ PROXY_CERT_RESOLVER=...   # Traefik'in sertifika çözücüsü
 Traefik `hiwallet-*` adlarını `hiwallet-gateway`'e veriyor, kapı adı servise eşliyor
 (`docker/gateway/Caddyfile`). Traefik'in ağına yalnızca kapı bağlanıyor: o ağ başka
 projelerle ortak olabilir ve iki ağdaki bir servis `postgres` ya da `rabbitmq` adını
-başka bir projenin konteynerine çözebilirdi.
+başka bir projenin konteynerine çözebilirdi. Caddyfile kapının imajında; değişince
+`docker compose up -d --build` kapıyı yeni dosyayla yeniden kuruyor.
 
 HTTPS iki yerde şart. Keycloak'ın yönetim konsolu özel ağ dışından gelen düz HTTP'yi
 reddediyor ("HTTPS required"). Scalar'daki giriş de tarayıcıda PKCE için güvenli sayfa
