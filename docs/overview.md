@@ -69,7 +69,7 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | personal-web-bff        | Ön API: bireysel web uygulamasının BFF'i, sayfaları da sunuyor          | —               |
 | business-api            | Ön API: işyerinin sistem entegrasyonu; veritabanı yok                   | —               |
 | business-web-bff        | Ön API: işyeri panelinin BFF'i; veritabanı yok, iskelet                 | —               |
-| backoffice-bff          | Ön API, iç ağ: backoffice panelinin BFF'i; veritabanı yok, iskelet      | —               |
+| backoffice-bff          | Ön API, iç ağ: backoffice panelinin BFF'i; çalışanın oturumu            | —               |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
 | bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | Idempotent      |
 | bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | Idempotent      |

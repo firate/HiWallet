@@ -47,6 +47,7 @@ KEYCLOAK_DB_PASSWORD=...        # Keycloak'ın kendi Postgres'i
 KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
 MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
 PERSONAL_WEB_CLIENT_SECRET=...  # bireysel web uygulamasının BFF'inin gizli anahtarı
+BACKOFFICE_CLIENT_SECRET=...    # backoffice panelinin BFF'inin gizli anahtarı
 ```
 
 `KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
@@ -90,7 +91,7 @@ for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
          STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET \
          KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET \
-         PERSONAL_WEB_CLIENT_SECRET; do
+         PERSONAL_WEB_CLIENT_SECRET BACKOFFICE_CLIENT_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -323,6 +324,27 @@ başlığı taşımıyor, `X-CSRF` taşıyor.
 
 Başka bir makinenin düz HTTP portundan giriş çalışmıyor: tarayıcı `Secure` cookie'yi
 yalnızca HTTPS'te ve `localhost`'ta yazıyor.
+
+#### Çalışan girişi
+
+Çalışanlar `hiwallet-staff` realm'inde; kayıt sayfası yok. `keycloak-setup` işi bitti mi:
+
+```bash
+docker compose logs keycloak-setup | tail -1
+```
+
+Beklenen: `hiwallet-staff: girişte OTP zorunlu.`
+
+Yönetim konsolunda `hiwallet-staff` realm'i, Users, Add user; e-posta, ad ve soyadı
+doldur, Credentials'ta parola ver. Role mapping'de bir rol ata: `support`,
+`operations`, `finance` ya da `marketing`. Rolsüz çalışan panelde hiçbir şey görmüyor.
+
+`http://localhost:8099/bff/login` (ters proxy arkasında
+`https://hiwallet-backoffice-bff.<PROXY_DOMAIN>/bff/login`) aç. İlk girişte Keycloak bir
+doğrulayıcı uygulamayla OTP kurduruyor; sonraki her girişte kodu soruyor. Girişten sonra
+`/bff/user` kullanıcıyı rolleriyle dönüyor. Panelin arayüzü henüz yok; görüntüleme
+uçlarını tarayıcının geliştirici araçlarından `X-CSRF: 1` başlığıyla çağır, örneğin
+`/v1/accounts/<hesap>`.
 
 #### İşyeri entegrasyonu
 

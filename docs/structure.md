@@ -187,15 +187,18 @@ BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 ├── ...                        -- aynı dosyalar
 └── Controllers/               -- Accounts, Wallets, Transfers, Promos, Withdrawals
 
-BusinessWebBff/                -- public; işyeri panelinin BFF'i
-BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i
-                                  (ikisinde Controllers/ henüz yok)
+BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların realm'i
+├── ...                        -- aynı dosyalar
+└── Controllers/               -- Accounts, Wallets, Withdrawals (görüntüleme), Session (/bff)
+
+BusinessWebBff/                -- public; işyeri panelinin BFF'i (Controllers/ henüz yok)
 ```
 
 Ön API'ler wallet sınırının dışında: `WalletService.Core`'a referans vermiyor,
 veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor.
-`personal-mobile-api`, `personal-web-bff` ve `business-api`'nin uçları yazıldı; işyeri
-ve backoffice BFF'lerinde sağlık uçları, ProblemDetails, OpenAPI ve telemetri kurulu.
+`personal-mobile-api`, `personal-web-bff` ve `business-api`'nin uçları yazıldı;
+`backoffice-bff`'in görüntüleme uçları var. İşyeri BFF'inde sağlık uçları,
+ProblemDetails, OpenAPI ve telemetri kurulu.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: oturumu cookie ile tutar, token'ı
 tarayıcıdaki koda vermez.
 
@@ -214,7 +217,8 @@ EdgeApi.Core/
 │                                 çekim başlatma
 ├── RateLimiting/              -- istemci ve çekim kovaları; varsayılanı ön API veriyor
 ├── Sessions/                  -- BFF'lerin tarayıcı oturumu: cookie, Keycloak girişi,
-│                                 token yenileme, X-CSRF başlığı
+│                                 token yenileme, X-CSRF başlığı, giriş/çıkış/kullanıcı
+│                                 uçlarının ortak controller'ı
 └── Errors/                    -- iç servisin cevabını istemciye aktaran handler
 ```
 

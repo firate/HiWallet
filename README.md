@@ -45,7 +45,8 @@ olduğu yere taşınmıyor.
 API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token tarayıcıdaki koda verilmez, tarayıcı
 yalnızca HttpOnly oturum cookie'si taşır. `personal-mobile-api`, `personal-web-bff` ve
-`business-api`'nin uçları yazıldı; işyeri ve backoffice BFF'leri sağlık uçlarıyla ayakta.
+`business-api`'nin uçları yazıldı; `backoffice-bff`'in görüntüleme uçları var, işyeri
+BFF'i sağlık uçlarıyla ayakta.
 
 Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
 iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
@@ -115,13 +116,14 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
 | Bireysel web uygulaması: giriş, cüzdan, hareketler, transfer, çekim | evet — testte; compose'da denenmedi |
 | BFF oturumu: şifreli cookie, token yenileme, X-CSRF | evet |
-| İşyeri ve backoffice BFF'lerinin uçları | hayır — sağlık uçlarıyla ayakta |
+| `backoffice-bff`: çalışanın oturumu, görüntüleme uçları | evet — testte; compose'da denenmedi |
+| İşyeri BFF'inin uçları | hayır — sağlık uçlarıyla ayakta |
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
-| Çalışan kimliği | hayır |
+| Çalışan kimliği: ayrı realm, iş grubuna göre roller, OTP zorunlu | evet — roller ve iç servislerin kontrolü testte; realm ve OTP kurulumu compose'da denenmedi |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
@@ -129,12 +131,12 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
-| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice ve çalışan kimliği bekliyor |
+| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice'in yazma uçlarını bekliyor |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-459 test: 133 unit (DB'siz), 326 integration — gerçek Postgres ve gerçek RabbitMQ.
+477 test: 133 unit (DB'siz), 344 integration — gerçek Postgres ve gerçek RabbitMQ.
 Web uygulamasının 8 testi ayrı (Vitest).
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →

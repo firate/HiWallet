@@ -128,7 +128,7 @@ birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarınd
 | bireysel web uygulaması (tarayıcı) | `personal-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
 | işyerinin sistemi | `business-api` | public | `wallet-api`, `withdrawal-orchestrator` |
 | işyeri paneli (tarayıcı) | `business-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
-| backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api` |
+| backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api`, `withdrawal-orchestrator` |
 
 Ön API veritabanına ve broker'a bağlanmıyor; isteği iç servise iletiyor. İç servisin
 reddi (400, 404, 409, 422) istemciye aynen dönüyor; iç servise ulaşılamazsa istemci
@@ -146,8 +146,9 @@ panel `business-web-bff`'ye bağlanıyor.
 `personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: hesap, cüzdan, hareketler,
 promo partileri, transfer ve çekim. Web uygulamasının sayfalarını da `personal-web-bff`
 sunuyor (`web/personal`). `business-api`'nin uçları: hesap, cüzdan, hareketler, transfer
-(`B2P`, `B2B`), müşteriye promo ve çekim. `business-web-bff` ve `backoffice-bff` sağlık
-uçlarıyla ayakta.
+(`B2P`, `B2B`), müşteriye promo ve çekim. `backoffice-bff`'in uçları şimdilik
+görüntüleme: müşterinin hesabı, cüzdanı, hareketleri, promo partileri ve çekimi.
+`business-web-bff` sağlık uçlarıyla ayakta.
 
 ### Kimlik
 
@@ -182,6 +183,23 @@ entegrasyonu hesaba backoffice'ten bağlanacak. `wallet-api` her uçta çağıra
 kullanıcısı olduğunu kontrol ediyor; değilse kaynak yokmuş gibi `404`. Orchestrator
 hesabın kullanıcılarını bilmiyor: çekimi isteyen kimliği saga'ya yazıyor, düşme
 komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğruluyor.
+
+Çalışanlar ayrı bir realm'de (`hiwallet-staff`): kayıt sayfası yok, kullanıcıyı yönetici
+açıyor ve girişte tek kullanımlık kod (TOTP) zorunlu. Çalışan backoffice panelinden
+giriyor; `backoffice-bff` oturumdaki çalışan token'ını iç servise iletiyor.
+
+```
+tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator
+                     rolü yoksa reddeder                 realm'e göre doğrular, rolü kontrol eder
+```
+
+İç servisler iki realm'in token'ını da kabul ediyor; token'ın hangi realm'den geldiğini
+onu doğrulayan şema söylüyor, token'ın içeriği değil. Varsayılan politika çalışanı
+dışarıda bırakıyor: yeni bir uç kendiliğinden çalışana kapalı. Çalışanın rolleri iş
+grubuna göre (`support`, `operations`, `finance`, `marketing`); her rol müşteri kaydını
+görüntüleyebiliyor, üyelik aranmıyor. Müşterinin para hareketi başlatan uçları
+çalışana kapalı; çalışanın yazma işleri kendi uçlarında, rolüne bağlı ve ledger'a
+çalışanın aktörüyle düşüyor. Müşterinin ön API'leri çalışanların realm'ini tanımıyor.
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.
