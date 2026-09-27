@@ -34,6 +34,8 @@
     <!-- Kimlik sağlayıcının (Keycloak) imzaladığı token'ı doğrulamak için. Ön API'ler
          de iç servisler de doğruluyor: token iç servise aynen iletiliyor. -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <!-- BFF'in tarayıcı oturumu: Keycloak'la kod akışı, token'lar sunucuda. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup Label="Messaging">
