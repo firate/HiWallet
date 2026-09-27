@@ -127,6 +127,99 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         user.GetProperty("roles").EnumerateArray().Select(role => role.GetString())
             .ShouldBe([StaffRoles.Support, StaffRoles.Operations], ignoreOrder: true);
     }
+
+    /// <summary>Pazarlama işyerinin promo kabulünü panelden işaretliyor.</summary>
+    [Fact]
+    public async Task Pazarlama_PromoKabulunuIsaretler()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        Guid merchant;
+        await using (var db = postgres.CreateContext())
+        {
+            merchant = await LedgerSeeder.CreateAccountAsync(db, AccountType.Business, ct);
+        }
+
+        _client.SignedInAs(NewStaff(), StaffRoles.Marketing);
+
+        var response = await _client.PutAsJsonAsync($"/v1/accounts/{merchant}/accepts-promo", new { acceptsPromo = true }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent, string.Join("\n", _walletApi.Errors));
+        (await _client.GetFromJsonAsync<JsonElement>($"/v1/accounts/{merchant}", ct))
+            .GetProperty("acceptsPromo").GetBoolean().ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Personel promo'su panelden: anahtar BFF'ten iç servise aynen gidiyor ve aynı
+    /// anahtarla tekrar yeni parti açmıyor.
+    /// </summary>
+    [Fact]
+    public async Task Pazarlama_PersonelPromoVerir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), StaffRoles.Marketing);
+        var key = Guid.NewGuid().ToString();
+
+        HttpRequestMessage Grant() => new(HttpMethod.Post, $"/v1/wallets/{_wallet}/promos")
+        {
+            Content = JsonContent.Create(new { amount = 15m, currency = "TRY", scope = "all_businesses" }),
+            Headers = { { "Idempotency-Key", key } }
+        };
+
+        var first = await _client.SendAsync(Grant(), ct);
+        first.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _walletApi.Errors));
+        first.Headers.Location!.AbsolutePath.ShouldBe($"/v1/wallets/{_wallet}/promos");
+
+        var second = await _client.SendAsync(Grant(), ct);
+        (await second.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("replayed").GetBoolean().ShouldBeTrue();
+    }
+
+    /// <summary>Rolün yetkisini wallet-api kontrol ediyor; BFF reddi aynen aktarıyor.</summary>
+    [Fact]
+    public async Task Destek_PersonelPromoVeremez_403()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), StaffRoles.Support);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/v1/wallets/{_wallet}/promos")
+        {
+            Content = JsonContent.Create(new { amount = 15m, currency = "TRY", scope = "all_businesses" }),
+            Headers = { { "Idempotency-Key", Guid.NewGuid().ToString() } }
+        };
+
+        (await _client.SendAsync(request, ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Pazarlama_KampanyaAcarVeBitirir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), StaffRoles.Marketing);
+
+        var created = await _client.PostAsJsonAsync("/v1/promo-campaigns", new
+        {
+            name = $"Panel {Guid.NewGuid():N}",
+            rule = "daily_payment_total",
+            thresholdAmount = 500m,
+            rewardType = "fixed",
+            rewardAmount = 10m,
+            currency = "TRY",
+            grantScope = "all_businesses",
+            budget = 1000m,
+            dailyCapPerAccount = 10m,
+            totalCapPerAccount = 50m,
+            startsAt = DateTimeOffset.UtcNow.AddDays(1)
+        }, ct);
+
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _walletApi.Errors));
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("campaignId").GetGuid();
+        created.Headers.Location!.AbsolutePath.ShouldBe($"/v1/promo-campaigns/{id}");
+
+        var ended = await _client.PostAsync($"/v1/promo-campaigns/{id}/end", null, ct);
+        ended.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await ended.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("endsAt").ValueKind
+            .ShouldNotBe(JsonValueKind.Null);
+    }
 }
 
 /// <summary>Backoffice oturumu: giriş çalışanların realm'ine gidiyor.</summary>
