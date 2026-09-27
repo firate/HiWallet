@@ -1,4 +1,4 @@
-namespace HiWallet.PersonalMobileApi.Requests;
+namespace HiWallet.EdgeApi.Contracts;
 
 /// <summary>
 /// Hesap kimliği istemciden ALINMIYOR: cüzdanın hesabı wallet-api'den okunuyor.

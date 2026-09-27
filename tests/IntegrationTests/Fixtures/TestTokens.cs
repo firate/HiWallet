@@ -18,14 +18,23 @@ public static class TestTokens
 {
     public const string Issuer = "https://idp.hiwallet.test/realms/hiwallet";
 
-    public const string Audience = "hiwallet-api";
+    /// <summary>İç servislerin (wallet-api, orchestrator) kabul ettiği hedef kitle.</summary>
+    public const string InternalAudience = "hiwallet-api";
+
+    /// <summary>
+    /// Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor: mobil uygulamanın
+    /// token'ı business-api'de, işyerinin token'ı mobil ön API'de geçmiyor.
+    /// </summary>
+    public const string PersonalMobileAudience = "personal-mobile-api";
+
+    public const string BusinessAudience = "business-api";
 
     private static readonly RsaSecurityKey SigningKey = new(RSA.Create(2048)) { KeyId = "integration-tests" };
 
     public static IReadOnlyDictionary<string, string?> Settings { get; } = new Dictionary<string, string?>
     {
         ["Authentication:Issuer"] = Issuer,
-        ["Authentication:Audience"] = Audience
+        ["Authentication:Audience"] = InternalAudience
     };
 
     /// <summary>Host'un doğrulayıcısı anahtarı kimlik sağlayıcıdan değil buradan alıyor.</summary>
@@ -44,15 +53,21 @@ public static class TestTokens
     /// <summary>Seeder'ın açtığı hesabın kullanıcısı. Hesap kimliğini bilen test token'ı da üretebiliyor.</summary>
     public static string SubjectOf(Guid accountId) => $"test-{accountId:N}";
 
-    public static string For(string subject, SecurityKey? signingKey = null, string audience = Audience)
+    /// <param name="audiences">
+    /// Verilmezse mobil uygulamanın token'ı: mobil ön API ve iç servisler için.
+    /// </param>
+    public static string For(string subject, SecurityKey? signingKey = null, string[]? audiences = null)
     {
         var now = DateTime.UtcNow;
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = Issuer,
-            Audience = audience,
-            Claims = new Dictionary<string, object> { ["sub"] = subject },
+            Claims = new Dictionary<string, object>
+            {
+                ["sub"] = subject,
+                ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience]
+            },
             IssuedAt = now,
             NotBefore = now,
             Expires = now.AddHours(1),
@@ -68,4 +83,15 @@ public static class TestTokens
 
     public static HttpClient AsOwnerOf(this HttpClient client, Guid accountId) =>
         client.As(SubjectOf(accountId));
+
+    /// <summary>İşyerinin sistem entegrasyonu: business-api ve iç servisler için token.</summary>
+    public static HttpClient AsIntegration(this HttpClient client, string subject)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", For(subject, audiences: [BusinessAudience, InternalAudience]));
+        return client;
+    }
+
+    public static HttpClient AsIntegrationOf(this HttpClient client, Guid accountId) =>
+        client.AsIntegration(SubjectOf(accountId));
 }

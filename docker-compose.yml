@@ -161,9 +161,10 @@ services:
   # realm'e yapılan değişiklik dosyadan gelmiyor, yönetim konsolundan ya da realm
   # silinip yeniden aktarılarak yapılıyor.
   #
-  # Realm dosyasında yalnızca compose'a ait iki ayar var: sslRequired "none" (burada
-  # düz HTTP konuşuluyor, canlıda "all") ve hiwallet-cli istemcisi (curl ile token
-  # almak için parola akışı; canlıda YOK).
+  # Realm dosyasında yalnızca compose'a ait üç ayar var: sslRequired "none" (burada
+  # düz HTTP konuşuluyor, canlıda "all"), hiwallet-cli istemcisi (curl ile token almak
+  # için parola akışı) ve merchant-demo istemcisi (örnek işyeri entegrasyonu). İki
+  # istemci de canlıda YOK; canlıda her işyerinin entegrasyonu kendi istemcisini alıyor.
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4
     command: ["start", "--import-realm"]
@@ -185,6 +186,9 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD .env'de tanımlı değil}
+      # Realm dosyasındaki ${MERCHANT_DEMO_CLIENT_SECRET} buradan dolduruluyor; secret
+      # dosyaya yazılmıyor.
+      MERCHANT_DEMO_CLIENT_SECRET: ${MERCHANT_DEMO_CLIENT_SECRET:?MERCHANT_DEMO_CLIENT_SECRET .env'de tanımlı değil}
     volumes:
       - ./docker/keycloak/realm-hiwallet.json:/opt/keycloak/data/import/realm-hiwallet.json:ro
     ports:
@@ -327,10 +331,11 @@ services:
       # İç ağdaki adresler. Eksikse uygulama açılmıyor.
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
-      # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
+      # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan. Hedef
+      # kitle bu ön API'nin adı: yalnızca kendisi için verilmiş token'ı kabul ediyor.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
       Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
-      Authentication__Audience: hiwallet-api
+      Authentication__Audience: personal-mobile-api
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
@@ -353,8 +358,23 @@ services:
       context: .
       dockerfile: src/BusinessApi/Dockerfile
       target: final
+    depends_on:
+      # Sağlıklı olmaları BEKLENMİYOR: ön API onlarsız da açılıyor ve iç servis
+      # dönene kadar istemciye 503 veriyor.
+      wallet-api:
+        condition: service_started
+      withdrawal-orchestrator:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # İç ağdaki adresler. Eksikse uygulama açılmıyor.
+      InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
+      InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
+      # Entegrasyon istemcisinin token'ı (client credentials). Hedef kitle bu ön API'nin adı.
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__Audience: business-api
+      Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-business-api

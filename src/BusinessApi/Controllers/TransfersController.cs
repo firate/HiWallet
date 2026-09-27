@@ -4,14 +4,17 @@ using HiWallet.EdgeApi.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace HiWallet.PersonalMobileApi.Controllers;
+namespace HiWallet.BusinessApi.Controllers;
 
 [ApiController]
 [Route("v1/transfers")]
 [EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
 public sealed class TransfersController(WalletApiClient walletApi) : ControllerBase
 {
-    /// <summary>Cüzdanlar arası transfer.</summary>
+    /// <summary>
+    /// İşyerinin cüzdanından transfer: müşteriye ödeme (<c>B2P</c>) ya da başka bir
+    /// işyerine (<c>B2B</c>). Gönderen cüzdan entegrasyonun bağlı olduğu hesabın olmalı.
+    /// </summary>
     /// <param name="idempotencyKey">
     /// ZORUNLU. Aynı anahtarla ikinci istek yeni transfer yapmaz, mevcut işlemi
     /// <c>replayed: true</c> ile döner. Cevap alınamayan istek aynı anahtarla tekrar
@@ -30,8 +33,7 @@ public sealed class TransfersController(WalletApiClient walletApi) : ControllerB
     {
         var response = await walletApi.PostAsync<TransferResponse>("v1/transfers", request, idempotencyKey, ct);
 
-        // Location YOK: işlemin detay ucu yok. wallet-api'nin Location'ı iç adres ve
-        // dışarı verilmiyor.
+        // Location YOK: işlemin detay ucu yok. wallet-api'nin Location'ı iç adres.
         return StatusCode(StatusCodes.Status201Created, response);
     }
 }

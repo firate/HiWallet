@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using HiWallet.BackofficeBff;
-using HiWallet.BusinessApi;
 using HiWallet.BusinessWebBff;
 using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -31,7 +30,7 @@ public sealed class ApiHostHealthTests
     [Fact]
     public async Task BusinessApi_SaglikUclariCalisiyor()
     {
-        await using var factory = new WebApplicationFactory<BusinessApiApp>();
+        await using var factory = new BusinessApiFactory();
         using var client = factory.CreateClient();
 
         await AssertHealthAsync(client);

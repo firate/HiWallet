@@ -4,7 +4,7 @@ using HiWallet.EdgeApi.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace HiWallet.PersonalMobileApi.Controllers;
+namespace HiWallet.BusinessApi.Controllers;
 
 [ApiController]
 [Route("v1/withdrawals")]
@@ -14,8 +14,8 @@ public sealed class WithdrawalsController(
     WithdrawalOrchestratorClient orchestrator) : ControllerBase
 {
     /// <summary>
-    /// IBAN'a para çekme başlatır. Cevap döndüğünde henüz hiçbir para hareket etmedi;
-    /// sonuç <c>Location</c>'daki adresten izleniyor.
+    /// İşyerinin kasasından IBAN'a çekim. Cevap döndüğünde henüz hiçbir para hareket
+    /// etmedi; sonuç <c>Location</c>'daki adresten izleniyor.
     /// </summary>
     /// <param name="idempotencyKey">
     /// ZORUNLU. Aynı anahtarla ikinci istek yeni çekim açmaz, mevcut olanı döner.

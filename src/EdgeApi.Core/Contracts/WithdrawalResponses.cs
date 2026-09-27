@@ -1,4 +1,4 @@
-namespace HiWallet.PersonalMobileApi.Responses;
+namespace HiWallet.EdgeApi.Contracts;
 
 /// <summary>
 /// Verilen söz "para gönderildi" değil, "istek kalıcı olarak alındı". Sonuç

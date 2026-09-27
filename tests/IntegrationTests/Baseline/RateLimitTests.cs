@@ -70,6 +70,31 @@ public sealed class RateLimitTests(BankFixture bankDb)
     }
 
     /// <summary>
+    /// İşyerinin entegrasyonunda da kova istemci başına: bir işyerinin patlaması
+    /// diğerinin entegrasyonunu durdurmuyor.
+    /// </summary>
+    [Fact]
+    public async Task BusinessApi_KovaIstemciBasina()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        await using var factory = new BusinessApiFactory(rateLimitBurst: Burst);
+        using var first = factory.CreateClient().AsIntegration("test-isyeri-bir");
+        using var second = factory.CreateClient().AsIntegration("test-isyeri-iki");
+
+        for (var i = 0; i < Burst; i++)
+        {
+            await first.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct);
+        }
+
+        (await first.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.TooManyRequests);
+
+        (await second.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct)).StatusCode
+            .ShouldNotBe(HttpStatusCode.TooManyRequests, "başka işyerinin kovası dolu olmamalı");
+    }
+
+    /// <summary>
     /// Çekim başlatmanın kendi, daha dar kovası var: dışarıya para çıkarıyor. Kova
     /// ayrı olduğu için çekim sınırına takılan müşteri bakiyesini görmeye devam ediyor.
     /// </summary>

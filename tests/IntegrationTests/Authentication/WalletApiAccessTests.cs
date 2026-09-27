@@ -83,7 +83,7 @@ public sealed class WalletApiAccessTests(PostgresFixture postgres) : IAsyncLifet
         var ct = TestContext.Current.CancellationToken;
         var (accountId, walletId) = await FundedWalletAsync(0m, ct);
 
-        var token = TestTokens.For(TestTokens.SubjectOf(accountId), audience: "baska-bir-api");
+        var token = TestTokens.For(TestTokens.SubjectOf(accountId), audiences: ["baska-bir-api"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.GetAsync($"/v1/wallets/{walletId}", ct);

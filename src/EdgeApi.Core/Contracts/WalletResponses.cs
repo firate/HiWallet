@@ -1,4 +1,4 @@
-namespace HiWallet.PersonalMobileApi.Responses;
+namespace HiWallet.EdgeApi.Contracts;
 
 /// <param name="Withdrawable">IBAN'a çıkabilen kısım; toplamdan ayrı dönüyor.</param>
 /// <param name="Balances">Kova kırılımı. Sıfır bakiyeli kovalar da dönüyor.</param>

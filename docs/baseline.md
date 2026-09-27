@@ -72,6 +72,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
   | servis | anahtar | varsayılan (anlık / dakikada) |
   | --- | --- | --- |
   | `personal-mobile-api` | token'daki kimlik, yoksa IP | 20 / 60; çekim başlatma ayrı kovada 10 / 30 |
+  | `business-api` | token'daki kimlik (entegrasyon istemcisi), yoksa IP | 100 / 600; çekim başlatma ayrı kovada 10 / 30 |
   | `topup-webhook` | sağlayıcı adı | 100 / 600 |
   | `bank-webhook` | banka adı | 100 / 600 |
 
@@ -138,7 +139,7 @@ Her servis bu 12 katmanı içerir. Dominant tema bunun **üstüne** eklenir, yer
 - Authn (kim) ve authz (ne yapabilir) ayrımı, token validation.
 - **Neden opsiyonel:** Dominant tema güvenlik olmadığında endpoint'leri açık bırakıp odakta kalmak daha temiz.
 - **HiWallet'ta:** Token'ı Keycloak imzalıyor; servisler JWT bearer ile doğruluyor, anahtarları kimlik sağlayıcının JWKS'inden okuyor. Varsayılan politika kimlik istiyor, sağlık ve API dokümanı uçları açık. Token'ı ön API ve iç servis ayrı ayrı doğruluyor.
-- **Yetki bugün sahiplik:** müşteri yalnızca kullanıcısı olduğu hesaba erişiyor (`account_members`, wallet'ta). Çalışanın rol tabanlı yetkisi ve işyeri entegrasyonunun istemci kimliği henüz yok. Multi-tenancy kapsam dışı (`decisions.md` madde 12).
+- **Yetki bugün sahiplik:** müşteri ve işyerinin entegrasyonu yalnızca kullanıcısı olduğu hesaba erişiyor (`account_members`, wallet'ta). Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor (`aud`). Çalışanın rol tabanlı yetkisi henüz yok. Multi-tenancy kapsam dışı (`decisions.md` madde 12).
 
 ## Çıkış kriteri
 

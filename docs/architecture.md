@@ -135,7 +135,9 @@ Tarayıcıdan kullanılan arayüzün ön API'si BFF: token'ı kendisi saklıyor,
 yalnızca HttpOnly oturum cookie'si veriyor. Bu yüzden işyerinin iki ön API'si var:
 token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki panel
 `business-web-bff`'ye bağlanıyor. `personal-mobile-api`'nin uçları yazıldı: hesap,
-cüzdan, hareketler, promo partileri, transfer ve çekim. Diğer üçü sağlık uçlarıyla ayakta.
+cüzdan, hareketler, promo partileri, transfer ve çekim. `business-api`'nin uçları da:
+hesap, cüzdan, hareketler, transfer (`B2P`, `B2B`), müşteriye promo ve çekim. İki BFF
+sağlık uçlarıyla ayakta.
 
 ### Kimlik
 
@@ -149,8 +151,14 @@ mobil uygulama ──token──▶ personal-mobile-api ──aynı token──�
                            doğrular                           yeniden doğrular, sahipliği kontrol eder
 ```
 
+Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor: token'ın hedef
+kitlesinde ön API'nin adı ve iç servislerin ortak adı (`hiwallet-api`) var. Mobil
+uygulama token'ı kullanıcının girişiyle alıyor; işyerinin sistemi kendi istemcisinin
+gizli anahtarıyla (client credentials) ve token'daki kimlik o istemcinin servis hesabı.
+
 Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta (`account_members`); hesabı
-açan kimlik hesabın kullanıcısı oluyor. `wallet-api` her uçta çağıranın kaynağın
+açan kimlik hesabın kullanıcısı oluyor. İşyeri hesabı ön API'den açılmıyor; işyerinin
+entegrasyonu hesaba backoffice'ten bağlanacak. `wallet-api` her uçta çağıranın kaynağın
 kullanıcısı olduğunu kontrol ediyor; değilse kaynak yokmuş gibi `404`. Orchestrator
 hesabın kullanıcılarını bilmiyor: çekimi isteyen kimliği saga'ya yazıyor, düşme
 komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğruluyor.
