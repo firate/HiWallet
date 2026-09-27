@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using HiWallet.IntegrationTests.Fixtures;
+using HiWallet.Shared.Infrastructure.OpenApi;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -54,6 +55,31 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Doküman token'ın nereden alındığını söylüyor; Scalar'daki giriş buradan çıkıyor.
+    /// Adresler token'ı imzalayan kimlik sağlayıcınınki. wallet-api'yi hem müşterinin
+    /// token'ı (tarayıcıda giriş) hem işyerinin entegrasyonu (client credentials) çağırıyor.
+    /// </summary>
+    [Fact]
+    public async Task Dokuman_KimlikSaglayiciyaGirisiTanimliyor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var document = JsonDocument.Parse(await _client.GetStringAsync("/openapi/v1.json", ct)).RootElement;
+
+        var scheme = document.GetProperty("components").GetProperty("securitySchemes").GetProperty("keycloak");
+        scheme.GetProperty("type").GetString().ShouldBe("oauth2");
+
+        var flows = scheme.GetProperty("flows");
+        var code = flows.GetProperty("authorizationCode");
+        code.GetProperty("authorizationUrl").GetString().ShouldBe($"{TestTokens.Issuer}/protocol/openid-connect/auth");
+        code.GetProperty("tokenUrl").GetString().ShouldBe($"{TestTokens.Issuer}/protocol/openid-connect/token");
+        flows.GetProperty("clientCredentials").GetProperty("tokenUrl").GetString()
+            .ShouldBe($"{TestTokens.Issuer}/protocol/openid-connect/token");
+
+        document.GetProperty("security")[0].TryGetProperty("keycloak", out _).ShouldBeTrue();
+    }
+
+    /// <summary>
     /// Eğik çizgisiz <c>/scalar</c> sayfayı DÖNMÜYOR, <c>/scalar/</c>'a yönlendiriyor.
     /// Arayüz göreli varlık yüklüyor; eğik çizgi olmadan o varlıkların yolu bir seviye
     /// yukarıdan çözülürdü.
@@ -87,6 +113,17 @@ public sealed class OpenApiTests(PostgresFixture postgres) : IAsyncLifetime
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("text/html");
+    }
+
+    /// <summary>Müşteri girişinin istemcisi sayfada dolu; giriş düğmesi doğrudan Keycloak'a gidiyor.</summary>
+    [Fact]
+    public async Task ScalarArayuzu_GirisIstemcisiDolu()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var page = await _client.GetStringAsync("/scalar/", ct);
+
+        page.ShouldContain(OpenApiSetup.DocsClientId);
     }
 
     /// <summary>
