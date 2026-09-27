@@ -19,6 +19,7 @@ HiWallet/
 ├── Directory.Packages.props       -- merkezi paket versiyonlama
 ├── docs/
 ├── src/
+├── web/                           -- tarayıcı uygulamaları; her biri kendi BFF'inin imajına giriyor
 └── tests/
 ```
 
@@ -67,6 +68,7 @@ Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj
 ```
 src/
 ├── PersonalMobileApi/      -- ön API, host
+├── PersonalWebBff/         -- ön API, host
 ├── BusinessApi/            -- ön API, host
 ├── BusinessWebBff/         -- ön API, host
 ├── BackofficeBff/          -- ön API, host
@@ -165,7 +167,7 @@ WalletApi/
 
 RabbitMQ referansı yok ve eklenmez (`decisions.md` madde 28).
 
-### Ön API'ler: PersonalMobileApi, BusinessApi, BusinessWebBff, BackofficeBff
+### Ön API'ler: PersonalMobileApi, PersonalWebBff, BusinessApi, BusinessWebBff, BackofficeBff
 
 ```
 PersonalMobileApi/             -- public; bireysel mobil uygulama
@@ -175,6 +177,11 @@ PersonalMobileApi/             -- public; bireysel mobil uygulama
 ├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals
 ├── Dockerfile
 └── appsettings.json           -- hedef kitle, iç servis zaman aşımı, rate limit
+
+PersonalWebBff/                -- public; bireysel web uygulamasının BFF'i
+├── ...                        -- aynı dosyalar
+├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals, Session (/bff)
+└── Dockerfile                 -- web/personal'ı derleyip wwwroot'a koyuyor
 
 BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 ├── ...                        -- aynı dosyalar
@@ -187,9 +194,10 @@ BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i
 
 Ön API'ler wallet sınırının dışında: `WalletService.Core`'a referans vermiyor,
 veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor.
-`personal-mobile-api` ve `business-api`'nin uçları yazıldı; iki BFF'te sağlık uçları,
-ProblemDetails, OpenAPI ve telemetri kurulu. Tarayıcıdan kullanılan arayüzün ön API'si
-BFF: oturumu cookie ile tutar, token'ı tarayıcıya vermez.
+`personal-mobile-api`, `personal-web-bff` ve `business-api`'nin uçları yazıldı; işyeri
+ve backoffice BFF'lerinde sağlık uçları, ProblemDetails, OpenAPI ve telemetri kurulu.
+Tarayıcıdan kullanılan arayüzün ön API'si BFF: oturumu cookie ile tutar, token'ı
+tarayıcıdaki koda vermez.
 
 Request ve response tipleri `EdgeApi.Core`'da, iç servislerin sözleşmesiyle aynı
 şekilde; iç servisin cevabı doğrudan bu tiplere okunuyor. Bir ön API'nin sözleşmesi
@@ -205,8 +213,30 @@ EdgeApi.Core/
 │                                 adres ayarı, resilience pipeline'ı, token iletimi,
 │                                 çekim başlatma
 ├── RateLimiting/              -- istemci ve çekim kovaları; varsayılanı ön API veriyor
+├── Sessions/                  -- BFF'lerin tarayıcı oturumu: cookie, Keycloak girişi,
+│                                 token yenileme, X-CSRF başlığı
 └── Errors/                    -- iç servisin cevabını istemciye aktaran handler
 ```
+
+### web/ (tarayıcı uygulamaları)
+
+```
+web/
+└── personal/                  -- bireysel müşteri; BFF'i personal-web-bff
+    ├── package.json           -- sürümler tam, package-lock.json ile
+    ├── vite.config.ts         -- geliştirmede API ve oturum yollarını BFF'e iletiyor
+    ├── index.html
+    └── src/
+        ├── api.ts             -- BFF'e istekler: X-CSRF, Idempotency-Key, ProblemDetails
+        ├── session.tsx        -- oturum yoksa giriş
+        ├── pages/             -- sayfa başına bir bileşen, testi yanında
+        ├── components/
+        └── test/              -- sahte BFF ve render yardımcısı
+```
+
+React, TypeScript ve Vite; router React Router, veri TanStack Query, test Vitest ve
+Testing Library. Uygulama token görmüyor: oturum BFF'te, uygulama yalnızca BFF'in
+`/v1` ve `/bff` yollarını çağırıyor.
 
 Yalnızca ön API'ler referans veriyor; iç servisler bu kodu taşımıyor. Veritabanı ve
 broker bağımlılığı yok.
