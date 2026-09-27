@@ -10,6 +10,7 @@ WORKDIR /src
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
 COPY src/BackofficeBff/BackofficeBff.csproj src/BackofficeBff/
+COPY src/EdgeApi.Core/EdgeApi.Core.csproj src/EdgeApi.Core/
 COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
 COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
 RUN dotnet restore src/BackofficeBff/BackofficeBff.csproj
@@ -20,6 +21,10 @@ RUN dotnet publish src/BackofficeBff/BackofficeBff.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
+
+# Cookie'yi şifreleyen anahtarların dizini. Volume ilk bağlandığında sahipliği
+# buradan alıyor; uygulama root olmadan yazabiliyor.
+RUN mkdir -p /app/keys && chown app:app /app/keys
 
 # Root olarak çalışmıyor. aspnet imajı 'app' kullanıcısını hazır getiriyor.
 USER app
