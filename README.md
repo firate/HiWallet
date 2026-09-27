@@ -37,7 +37,7 @@ olduğu yere taşınmıyor.
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
-| `keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
+| `hiwallet-keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
 
 İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
@@ -116,7 +116,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
-| Keycloak'ın compose'dan ayağa kalkması | denenmedi |
+| Keycloak'ın compose'dan ayağa kalkması | evet — homelab'da; token'la uçtan uca akış denenmedi |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
 | Çalışan kimliği | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
