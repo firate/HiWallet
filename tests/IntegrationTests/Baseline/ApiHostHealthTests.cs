@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using HiWallet.BackofficeBff;
 using HiWallet.BusinessWebBff;
 using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -48,7 +47,16 @@ public sealed class ApiHostHealthTests
     [Fact]
     public async Task BackofficeBff_SaglikUclariCalisiyor()
     {
-        await using var factory = new WebApplicationFactory<BackofficeBffApp>();
+        await using var factory = new BackofficeBffFactory();
+        using var client = factory.CreateClient();
+
+        await AssertHealthAsync(client);
+    }
+
+    [Fact]
+    public async Task PersonalWebBff_SaglikUclariCalisiyor()
+    {
+        await using var factory = new PersonalWebBffFactory();
         using var client = factory.CreateClient();
 
         await AssertHealthAsync(client);
