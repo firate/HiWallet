@@ -3,9 +3,11 @@ using HiWallet.WalletService.Domain.Accounts;
 
 namespace HiWallet.WalletApi.Responses;
 
+/// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
 public sealed record AccountDetailResponse(
     Guid AccountId,
     AccountType Type,
+    bool AcceptsPromo,
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletResponse> Wallets)
 {
@@ -14,6 +16,7 @@ public sealed record AccountDetailResponse(
         return new AccountDetailResponse(
             view.AccountId,
             view.Type,
+            view.AcceptsPromo,
             view.CreatedAt,
             view.Wallets
                 .Select(w => new AccountWalletResponse(

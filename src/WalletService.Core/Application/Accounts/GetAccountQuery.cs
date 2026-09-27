@@ -9,9 +9,11 @@ namespace HiWallet.WalletService.Application.Accounts;
 /// </summary>
 public sealed record GetAccountQuery(Guid AccountId);
 
+/// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
 public sealed record AccountView(
     Guid AccountId,
     AccountType Type,
+    bool AcceptsPromo,
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletView> Wallets);
 

@@ -1,4 +1,5 @@
 using HiWallet.Shared.Infrastructure.Authentication;
+using HiWallet.WalletApi.Requests;
 using HiWallet.WalletApi.Responses;
 using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Application.Balances;
@@ -84,5 +85,45 @@ public sealed class WalletsController(IMessageBus bus, AccountAccess access) : C
         var page = await bus.InvokeAsync<WalletPromoPage>(new GetWalletPromosQuery(walletId, after, size), ct);
 
         return Ok(WalletPromosResponse.From(page));
+    }
+
+    /// <summary>
+    /// Personel promo'su: çalışanın müşteriye platform fonlu promo vermesi (decisions.md
+    /// madde 37). Pazarlama rolü; tutar para birimi başına tek seferlik tavanla sınırlı.
+    /// Ledger'da aktör çalışan.
+    /// </summary>
+    /// <param name="idempotencyKey">
+    /// ZORUNLU: para hareket ettiriyor. Kapsamı promo'yu alan cüzdan; aynı anahtarla
+    /// ikinci istek yeni parti açmaz, mevcut partiyi <c>replayed: true</c> ile döner.
+    /// </param>
+    [HttpPost("{walletId:guid}/promos")]
+    [Authorize(Policy = HiWalletPolicies.Marketing)]
+    [ProducesResponseType<PromoGrantResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<PromoGrantResponse>> GrantStaffPromo(
+        Guid walletId,
+        [FromBody] GrantStaffPromoRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]>
+                {
+                    ["Idempotency-Key"] = ["Idempotency-Key başlığı zorunlu."]
+                }));
+        }
+
+        var result = await bus.InvokeAsync<GrantPromoResult>(
+            request.ToCommand(walletId, User.Subject(), idempotencyKey), ct);
+
+        return CreatedAtAction(
+            actionName: nameof(GetPromos),
+            routeValues: new { walletId },
+            value: PromoGrantResponse.From(result));
     }
 }

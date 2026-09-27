@@ -124,6 +124,45 @@ public sealed class PromoGrant
     /// Kampanyanın verdiği promo. Platform fonlu; kapsam ve süre kampanyadan yükleme
     /// anında kopyalanıyor, kampanya sonradan değişse de parti etkilenmiyor.
     /// </summary>
+    /// <summary>
+    /// Personel promo'su: platform fonlu, kapsamı çalışanın seçtiği (decisions.md madde 37).
+    /// </summary>
+    public static PromoGrant ByStaff(
+        Guid id,
+        Guid walletId,
+        Money amount,
+        PromoScope scope,
+        IReadOnlyCollection<Guid> merchantAccountIds,
+        DateTimeOffset? expiresAt,
+        Guid ledgerTransactionId,
+        DateTimeOffset createdAt)
+    {
+        if (amount.Amount <= 0m)
+        {
+            throw new ArgumentException("Promo tutarı pozitif olmalı.", nameof(amount));
+        }
+
+        if (expiresAt <= createdAt)
+        {
+            throw new ArgumentException("Bitiş tarihi yüklemeden sonra olmalı.", nameof(expiresAt));
+        }
+
+        if ((scope is PromoScope.SelectedBusinesses) != (merchantAccountIds.Count > 0))
+        {
+            throw new ArgumentException(
+                "Seçili işyerleri kapsamında işyeri listesi zorunlu, her yerde geçerli kapsamda boş.",
+                nameof(merchantAccountIds));
+        }
+
+        var grant = new PromoGrant(
+            id, walletId, amount, PromoFunder.Platform, funderLedgerAccountId: null,
+            scope, expiresAt, ledgerTransactionId, createdAt);
+
+        grant._merchants.AddRange(merchantAccountIds.Distinct().Select(a => new PromoGrantMerchant(id, a)));
+
+        return grant;
+    }
+
     public static PromoGrant FromCampaign(
         Guid id,
         Guid walletId,

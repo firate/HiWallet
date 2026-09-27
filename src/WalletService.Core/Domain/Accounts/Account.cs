@@ -1,3 +1,5 @@
+using HiWallet.WalletService.Domain.Errors;
+
 namespace HiWallet.WalletService.Domain.Accounts;
 
 /// <summary>
@@ -41,6 +43,20 @@ public sealed class Account
     public bool AcceptsPromo { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>
+    /// Platform fonlu promo bu işyerinde geçsin mi (decisions.md madde 37). İşaret
+    /// promo kabulünü sözleşmesi olan işyerleriyle sınırlıyor; bireysel hesapta anlamı yok.
+    /// </summary>
+    public void SetAcceptsPromo(bool acceptsPromo)
+    {
+        if (Type is not AccountType.Business)
+        {
+            throw new AccountRuleException("Promo kabulü yalnızca işyeri hesabında işaretlenir.");
+        }
+
+        AcceptsPromo = acceptsPromo;
+    }
 
     public static Account Open(Guid id, AccountType type, DateTimeOffset createdAt)
     {

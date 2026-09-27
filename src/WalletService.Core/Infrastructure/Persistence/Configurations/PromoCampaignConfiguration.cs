@@ -36,7 +36,9 @@ internal sealed class PromoCampaignConfiguration : IEntityTypeConfiguration<Prom
                 "AND (reward_max IS NULL OR reward_max > 0)");
             t.HasCheckConstraint("ck_promo_campaigns_limits",
                 "budget > 0 AND daily_cap_per_account > 0 AND total_cap_per_account > 0");
-            t.HasCheckConstraint("ck_promo_campaigns_period", "ends_at IS NULL OR ends_at > starts_at");
+            // Eşitlik yalnızca başlamadan bitirilen kampanyada: hiç çalışmadı. Açılışta
+            // bitiş başlangıçtan sonra olmak zorunda (PromoCampaign.Create).
+            t.HasCheckConstraint("ck_promo_campaigns_period", "ends_at IS NULL OR ends_at >= starts_at");
             t.HasCheckConstraint("ck_promo_campaigns_grant_valid_for",
                 "grant_valid_for IS NULL OR grant_valid_for > interval '0'");
             t.HasCheckConstraint("ck_promo_campaigns_name", "btrim(name) <> ''");
@@ -93,6 +95,9 @@ internal sealed class PromoCampaignConfiguration : IEntityTypeConfiguration<Prom
         builder.Property(c => c.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");
+
+        builder.Property(c => c.CreatedBy).HasColumnName("created_by").HasColumnType("text");
+        builder.Property(c => c.EndedBy).HasColumnName("ended_by").HasColumnType("text");
 
         builder.Ignore(c => c.TriggerMerchants);
         builder.Ignore(c => c.ScopeMerchants);

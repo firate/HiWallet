@@ -24,3 +24,10 @@ public sealed class AccountNotFoundException(Guid accountId)
 {
     public Guid AccountId { get; } = accountId;
 }
+
+/// <summary>Promo kampanyası bulunamadı.</summary>
+public sealed class PromoCampaignNotFoundException(Guid campaignId)
+    : NotFoundException($"Kampanya bulunamadı: {campaignId}")
+{
+    public Guid CampaignId { get; } = campaignId;
+}

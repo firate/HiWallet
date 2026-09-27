@@ -23,6 +23,7 @@ public static class ProblemDetailsSetup
 
         // Sıra önemli: ilk eşleşen kazanır, en özelden genele. Hiçbiri eşleşmezse
         // ortak taban devreye giriyor ve detaysız 500 yazıyor.
+        services.AddExceptionHandler<InvalidDefinitionExceptionHandler>();
         services.AddExceptionHandler<DomainExceptionHandler>();
         services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<ConcurrencyExceptionHandler>();
@@ -57,6 +58,7 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
             LimitExceededException limit => limit.LimitName,
             UnsupportedCurrencyException => "unsupported_currency",
             PromoGrantRejectedException => "promo_grant_rejected",
+            AccountRuleException => "account_rule",
             _ => "business_rule"
         };
 
@@ -66,6 +68,37 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
         {
             HttpContext = context,
             ProblemDetails = problem,
+            Exception = exception
+        });
+    }
+}
+
+/// <summary>
+/// Tutarsız tanım → <c>400</c>: kuralın parçaları birbirini tutmuyor. Kuralları domain
+/// fabrikası tutuyor, mesaj oradan geliyor.
+/// </summary>
+internal sealed class InvalidDefinitionExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
+{
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext context, Exception exception, CancellationToken ct)
+    {
+        if (exception is not InvalidDefinitionException invalid)
+        {
+            return false;
+        }
+
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+        return await problemDetails.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = context,
+            ProblemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Tanım tutarsız",
+                Detail = invalid.Message,
+                Type = "https://hiwallet.dev/problems/invalid-definition"
+            },
             Exception = exception
         });
     }
@@ -96,12 +129,14 @@ internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDet
                 Title = notFound switch
                 {
                     AccountNotFoundException => "Hesap bulunamadı",
+                    PromoCampaignNotFoundException => "Kampanya bulunamadı",
                     _ => "Cüzdan bulunamadı"
                 },
                 Detail = notFound.Message,
                 Type = notFound switch
                 {
                     AccountNotFoundException => "https://hiwallet.dev/problems/account-not-found",
+                    PromoCampaignNotFoundException => "https://hiwallet.dev/problems/campaign-not-found",
                     _ => "https://hiwallet.dev/problems/wallet-not-found"
                 }
             },

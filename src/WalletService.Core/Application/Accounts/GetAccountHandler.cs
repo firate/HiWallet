@@ -54,6 +54,6 @@ public sealed class GetAccountHandler(IDbContextFactory<WalletDbContext> context
                     .ToArray()))
             .ToArray();
 
-        return new AccountView(account.Id, account.Type, account.CreatedAt, wallets);
+        return new AccountView(account.Id, account.Type, account.AcceptsPromo, account.CreatedAt, wallets);
     }
 }

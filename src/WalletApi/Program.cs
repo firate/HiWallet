@@ -5,6 +5,7 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletService.Application.Promos;
 using HiWallet.WalletService.Setup;
 using Wolverine;
 
@@ -43,6 +44,14 @@ builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 // realm'inin token'ı da kabul ediliyor; çalışan yalnızca izin veren uçtan geçiyor.
 builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
 builder.Services.AddSingleton<AccountAccess>();
+
+// Personel promo'sunun tek seferlik tavanı. Tanımlı olmayan para biriminde personel
+// promo'su verilmiyor.
+builder.Services.AddOptions<StaffPromoOptions>()
+    .BindConfiguration(StaffPromoOptions.SectionName)
+    .Validate(options => options.MaxAmount.Values.All(max => max > 0m),
+        $"{StaffPromoOptions.SectionName}:MaxAmount değerleri pozitif olmalı.")
+    .ValidateOnStart();
 
 builder.Services
     .AddControllers(options => options.Filters.AddService<ValidationFilter>())
