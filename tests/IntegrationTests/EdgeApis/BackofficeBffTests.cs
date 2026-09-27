@@ -8,6 +8,7 @@ using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletService.Domain.Accounts;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace HiWallet.IntegrationTests.EdgeApis;
@@ -297,5 +298,34 @@ public sealed class BackofficeBffSessionTests
         var response = await client.GetAsync($"/v1/wallets/{Guid.NewGuid()}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>Panelin sayfası kimliksiz geliyor: kök adres de panelin kendi yolları da.</summary>
+    [Fact]
+    public async Task PanelinSayfasi_KimliksizGelir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var webRoot = Directory.CreateTempSubdirectory("hiwallet-backoffice-");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(webRoot.FullName, "index.html"), "<!doctype html><title>Backoffice</title>", ct);
+            await using var factory = new BackofficeBffFactory();
+            await using var withPages = factory.WithWebHostBuilder(builder => builder.UseWebRoot(webRoot.FullName));
+            using var client = withPages.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+            foreach (var path in new[] { "/", "/cekimler/inceleme" })
+            {
+                var response = await client.GetAsync(path, ct);
+
+                response.StatusCode.ShouldBe(HttpStatusCode.OK, path);
+                response.Content.Headers.ContentType?.MediaType.ShouldBe("text/html", path);
+            }
+        }
+        finally
+        {
+            webRoot.Delete(recursive: true);
+        }
     }
 }
