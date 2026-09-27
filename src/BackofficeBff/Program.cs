@@ -51,7 +51,9 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-// Panelin dosyaları (wwwroot) kimliksiz: giriş sayfası da onlardan açılıyor.
+// Panelin dosyaları (wwwroot) kimliksiz: giriş sayfası da onlardan açılıyor. Kök adres
+// index.html'e çevriliyor; aşağıdaki yedek yol boş yolu eşleştirmiyor.
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseAuthentication();
