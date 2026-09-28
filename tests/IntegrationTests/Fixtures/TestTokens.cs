@@ -56,18 +56,28 @@ public static class TestTokens
     /// <param name="audiences">
     /// Verilmezse mobil uygulamanın token'ı: mobil ön API ve iç servisler için.
     /// </param>
-    public static string For(string subject, SecurityKey? signingKey = null, string[]? audiences = null)
+    /// <param name="authorizedParty">
+    /// Token'ı alan istemci (<c>azp</c>). Servislerin kendi token'larında istemcinin adı.
+    /// </param>
+    public static string For(
+        string subject, SecurityKey? signingKey = null, string[]? audiences = null, string? authorizedParty = null)
     {
         var now = DateTime.UtcNow;
+        var claims = new Dictionary<string, object>
+        {
+            ["sub"] = subject,
+            ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience]
+        };
+
+        if (authorizedParty is not null)
+        {
+            claims["azp"] = authorizedParty;
+        }
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = Issuer,
-            Claims = new Dictionary<string, object>
-            {
-                ["sub"] = subject,
-                ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience]
-            },
+            Claims = claims,
             IssuedAt = now,
             NotBefore = now,
             Expires = now.AddHours(1),
@@ -94,4 +104,20 @@ public static class TestTokens
 
     public static HttpClient AsIntegrationOf(this HttpClient client, Guid accountId) =>
         client.AsIntegration(SubjectOf(accountId));
+
+    public const string OnboardingClientId = "onboarding";
+
+    /// <summary>
+    /// Onboarding servisinin kendi token'ı (client credentials): kimlik istemcinin servis
+    /// hesabı, <c>azp</c> istemcinin adı.
+    /// </summary>
+    public static HttpClient AsOnboarding(this HttpClient client)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", For(
+                $"service-account-{OnboardingClientId}",
+                audiences: [InternalAudience],
+                authorizedParty: OnboardingClientId));
+        return client;
+    }
 }
