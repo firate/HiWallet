@@ -47,6 +47,9 @@ KEYCLOAK_DB_PASSWORD=...        # Keycloak'ın kendi Postgres'i
 KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
 MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
 PERSONAL_WEB_CLIENT_SECRET=...  # bireysel web uygulamasının BFF'inin gizli anahtarı
+ONBOARDING_CLIENT_SECRET=...    # kayıt servisinin istemcisi: kullanıcı açıyor, wallet'ı çağırıyor
+ONBOARDING_OWNER_PASSWORD=...   # onboarding'in Postgres'i: şemanın sahibi
+ONBOARDING_APP_PASSWORD=...     # onboarding'in Postgres'i: uygulamanın rolü
 ```
 
 `KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
@@ -300,8 +303,8 @@ her isteğe ekliyor. Hangi girişin sunulduğu servisi kimin çağırdığına g
 (README'deki tablo):
 
 - **Müşteri:** Authorization Code, istemci `api-docs` ve PKCE önceden dolu. Keycloak'ın
-  giriş sayfası açılıyor; hesap yoksa oradan kayıt olunuyor. `api-docs` yalnızca
-  compose'da.
+  giriş sayfası açılıyor. Kullanıcı Keycloak'ta açılmıyor; önce web uygulamasından ya da
+  onboarding'in kayıt uçlarından kayıt olunuyor (aşağıda). `api-docs` yalnızca compose'da.
 - **İşyeri:** Client Credentials; istemci kimliği `merchant-demo`, gizli anahtar
   `MERCHANT_DEMO_CLIENT_SECRET`. İkisi de sayfada elle giriliyor.
 
@@ -313,10 +316,26 @@ dönüyor; liste realm dosyasında.
 #### Web uygulaması
 
 `http://localhost:8102` (ters proxy arkasında `https://hiwallet-personal-web-bff.<PROXY_DOMAIN>`)
-aç ve "Giriş yap"a tıkla. Keycloak'ın giriş sayfası açılıyor; kullanıcı yoksa oradan
-kayıt ol. Dönüşte uygulama açılıyor; hesap aç, cüzdan aç. Para girişi için
-`stripe-fake`'in Scalar sayfasından cüzdana yükleme yap, sonra uygulamadan transfer ve
-çekimi dene.
+aç ve "Kayıt ol"a tıkla:
+
+1. E-postanı yaz. Kod Mailpit'e düşüyor: `http://localhost:8106` (ters proxy arkasında
+   `https://hiwallet-mailpit.<PROXY_DOMAIN>`).
+2. Kodu gir, parolanı belirle (en az 8 karakter). Keycloak'ta kullanıcı ve wallet'ta
+   `Unknown` seviyesinde hesap ile bir TRY cüzdanı açılıyor.
+3. "Giriş yap": Keycloak'ın sayfası HiWallet temasıyla, e-posta dolu.
+4. Uygulama doğrulamayı öneriyor. Telefon numaranı yaz; SMS kodu `sms-fake`'in kutusunda:
+   `GET http://localhost:8104/v1/messages?to=%2B905XXXXXXXXX`.
+5. Ad, soyad, TCKN ve doğum tarihi. Nüfus kaydının yerinde `nvi-fake` duruyor: biçimi
+   geçerli her TCKN eşleşiyor (örnek `10000000146`). Eşleşmeyen denemek için önce
+   `POST http://localhost:8105/v1/scenarios` `{"nationalId":"...","outcome":"Mismatch"}`.
+6. Sözleşme ve aydınlatma metnini onayla. Hesap `Unverified`'a geçiyor.
+
+Para girişi için `stripe-fake`'in Scalar sayfasından cüzdana yükleme yap. `Unverified`
+hesap para alabiliyor ve işyerine ödeyebiliyor; başka birine gönderemiyor ve çekim
+yapamıyor, kendi cüzdanları arasında aktarabiliyor. Seviye limitleri wallet-api'nin ve
+wallet-consumer'ın `appsettings.json`'ında.
+
+Keycloak'ın parola sıfırlama e-postası da Mailpit'e düşüyor.
 
 Tarayıcıda token olmadığını geliştirici araçlarından gör: cookie'ler arasında yalnızca
 `__Host-hiwallet` var, HttpOnly ve Secure; uygulamanın istekleri `Authorization`

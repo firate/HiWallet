@@ -23,7 +23,7 @@ olduğu yere taşınmıyor.
   reddederse **compensation** cüzdana parayı geri yazıyor: silmeyle değil, üç
   bacaklı ters kayıtla.
 
-## On bir uygulama: önde ön API'ler, içeride cüzdan
+## On iki uygulama: önde ön API'ler, içeride cüzdan
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
@@ -33,6 +33,7 @@ olduğu yere taşınmıyor.
 | `business-web-bff` | **public** — ön API: işyeri panelinin BFF'i | — | — |
 | `backoffice-bff` | **iç ağ** — ön API: backoffice panelinin BFF'i | — | — |
 | `wallet-api` | **iç ağ** — ön API'ler çağırıyor | `hiwallet_wallet` / `wallet_app` | — |
+| `onboarding` | **iç ağ** — kayıt ve kimlik doğrulaması | `hiwallet_onboarding` / `onboarding_app`, kendi Postgres sunucusu | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
@@ -51,17 +52,26 @@ Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen 
 iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
 duruyor ve müşteri yalnızca kendi hesabına erişiyor.
 
+Kayıt `onboarding`'de: e-posta kodu ve parola, sonra Keycloak'ta kullanıcı ve wallet'ta
+hesap. Parola Keycloak'ta, kişisel veri (e-posta, telefon, TCKN, onaylar) onboarding'in
+kendi Postgres sunucusunda, ledger'da yalnızca doğrulamanın sonucu: hesabın seviyesi.
+Seviye (`Unknown`, `Unverified`, `Verified`, `Contracted`) hangi hareketin ayda ne kadar
+yapılabildiğini belirliyor. Giriş Keycloak'ın sayfasında, HiWallet temasıyla.
+
 Webhook'larda ve ingress'siz uygulamalarda ayrımın sebebi erişim seviyesi: banka
 webhook'u belirli IP bloklarına açılacak. IP kısıtı process seviyesinde uygulanamaz.
 
-Bir de **bizim olmayan iki** uygulama var:
+Bir de **başka kurumların yerinde duran** uygulamalar var:
 
 | | temsil ettiği kurum | ne yapıyor |
 | --- | --- | --- |
 | `bank-fake` | bankamız | para girişi **ve** çıkışı; hafızası bellekte, veritabanı yok |
 | `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
+| `sms-fake` | SMS sağlayıcısı | mesajı göndermiyor, kutusunda tutuyor; veritabanı yok |
+| `nvi-fake` | nüfus kaydı | kimlik bilgisi eşleşiyor mu; eşleşmeyen numara senaryoyla |
+| `mailpit` | e-posta sağlayıcısı | SMTP'yi kabul ediyor, dışarı göndermiyor (bizim kodumuz değil) |
 
-İkisi de canlıda yok — yerlerine kurumların kendi endpoint'leri geçiyor. `.Fake` son ekinin
+Hepsi canlıda yok — yerlerine kurumların kendi endpoint'leri geçiyor. `.Fake` son ekinin
 ölçütü "test amaçlı mı" değil, "başka bir kurumun yerine mi duruyor" (`decisions.md`
 madde 35).
 
@@ -113,7 +123,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
 | `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
-| Bireysel web uygulaması: giriş, cüzdan, hareketler, transfer, çekim | evet — testte; compose'da denenmedi |
+| Bireysel web uygulaması: kayıt, doğrulama, giriş, cüzdan, hareketler, transfer, çekim | evet — testte |
 | BFF oturumu: şifreli cookie, token yenileme, X-CSRF | evet |
 | İşyeri ve backoffice BFF'lerinin uçları | hayır — sağlık uçlarıyla ayakta |
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
@@ -122,6 +132,11 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
 | Çalışan kimliği | hayır |
+| Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet — testte; compose'da denenmedi |
+| Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet — testte; compose'da denenmedi |
+| Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
+| `Verified`: kendi banka hesabından ilk havale | hayır |
+| `Contracted`: backoffice'ten | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
@@ -134,8 +149,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-460 test: 133 unit (DB'siz), 327 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamasının 8 testi ayrı (Vitest).
+537 test: 174 unit (DB'siz), 363 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamasının 14 testi ayrı (Vitest).
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -150,9 +165,9 @@ docker compose up --build
 ```
 
 Sırayla: Postgres ayağa kalkar, beş rol, dört uygulama veritabanı ve integration testlerin
-veritabanı (`hiwallet_schema_check`) kurulur → dört migrator
-şemaları uygular → on üç container başlar (on biri bizim, ikisi sahte kurum). RabbitMQ
-paralel kalkar; hiçbiri onu BEKLEMEZ.
+veritabanı (`hiwallet_schema_check`) kurulur; onboarding'in Postgres'i kendi rolüyle
+ayrıca kalkar → beş migrator şemaları uygular → uygulamalar başlar (on ikisi bizim,
+beşi başka kurumların yerinde). RabbitMQ paralel kalkar; hiçbiri onu BEKLEMEZ.
 
 ```bash
 curl http://localhost:8091/health/ready   # wallet-api
@@ -166,14 +181,19 @@ curl http://localhost:8098/health/ready   # business-api
 curl http://localhost:8099/health/ready   # backoffice-bff
 curl http://localhost:8100/health/ready   # business-web-bff
 curl http://localhost:8102/health/ready   # personal-web-bff
+curl http://localhost:8103/health/ready   # onboarding
+curl http://localhost:8104/health/ready   # sms-fake (BİZİM DEĞİL, canlıda yok)
+curl http://localhost:8105/health/ready   # nvi-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration   # keycloak
 ```
 
 `wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için
 host'a açıklar.
 
-Bireysel web uygulaması <http://localhost:8102>'de. Giriş Keycloak'ın sayfasından; hesabı
-olmayan orada kayıt oluyor. Oturum cookie'si yalnızca HTTPS'te ve `localhost`'ta
+Bireysel web uygulaması <http://localhost:8102>'de. Kayıt uygulamanın kendi sayfasında
+(`/kayit`): e-postaya giden kod Mailpit'te (<http://localhost:8106>), telefona giden kod
+`sms-fake`'in kutusunda (`GET http://localhost:8104/v1/messages`). Giriş Keycloak'ın
+sayfasından, HiWallet temasıyla. Oturum cookie'si yalnızca HTTPS'te ve `localhost`'ta
 yazıldığı için başka bir makineden bu portla girilemiyor; orada ters proxy arkasındaki
 adres kullanılıyor (`docs/verify-compose.md`).
 
@@ -195,11 +215,14 @@ API dokümanı, yalnızca Development'ta. Ters proxy arkasında aynı sayfa
 | `wallet-api` | <http://localhost:8091/scalar/> | müşteri, işyeri |
 | `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | müşteri, işyeri |
 | `personal-mobile-api` | <http://localhost:8097/scalar/> | müşteri |
+| `onboarding` | <http://localhost:8103/scalar/> | müşteri |
 | `business-api` | <http://localhost:8098/scalar/> | işyeri |
 | `backoffice-bff` | <http://localhost:8099/scalar/> | — |
 | `business-web-bff` | <http://localhost:8100/scalar/> | — |
 | `stripe-fake` | <http://localhost:8096/scalar/> | — |
 | `bank-fake` | <http://localhost:8094/scalar/> | — |
+| `sms-fake` | <http://localhost:8104/scalar/> | — |
+| `nvi-fake` | <http://localhost:8105/scalar/> | — |
 
 OpenAPI dokümanı her serviste `/openapi/v1.json`. Sondaki eğik çizgi bilerek: eğik
 çizgisiz adres `302` ile ona yönleniyor. Tarayıcı takip ediyor, `curl` varsayılan
@@ -211,7 +234,7 @@ anahtarını giriyor. Ayrıntısı `docs/verify-compose.md` "Kimlik" bölümünd
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8102`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8106`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 

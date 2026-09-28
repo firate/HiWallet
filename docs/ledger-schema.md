@@ -47,18 +47,40 @@ Müşteri tek cüzdan görür, içinde üç kova vardır.
 
 ## accounts
 
-Müşteri hesabı. Müşteri yönetimi tablosu DEĞİL — ad, e-posta, KYC verisi burada durmaz,
-onlar bu sistemin kapsamı dışında. İki iş yapar: sahipliğin kimliği olmak ve
-kişi/işletme ayrımını tek yerde tutmak (`decisions.md` madde 20).
+Müşteri hesabı. Müşteri yönetimi tablosu DEĞİL: ad, e-posta, TCKN ve doğrulamanın
+kanıtları onboarding'in kendi veritabanında. Burada para hareketini belirleyenler var:
+sahipliğin kimliği, kişi/işletme ayrımı (`decisions.md` madde 20) ve bireysel hesapta
+doğrulamanın sonucu.
 
 ```sql
 CREATE TABLE accounts (
     id             uuid PRIMARY KEY,
     type           text NOT NULL CHECK (type IN ('person','business')),
+    holder         text,        -- bireysel hesabın sahibi: kimlik sağlayıcıdaki sub
+    kyc_level      text,        -- unknown | unverified | verified | contracted
     accepts_promo  boolean NOT NULL DEFAULT false,  -- platform fonlu promo kabulü
-    created_at     timestamptz NOT NULL DEFAULT now()
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ck_accounts_kyc_level CHECK (
+        (type = 'person' AND kyc_level IN ('unknown','unverified','verified','contracted'))
+        OR (type = 'business' AND kyc_level IS NULL)),
+    CONSTRAINT ck_accounts_holder CHECK (type = 'person' OR holder IS NULL)
 );
+
+CREATE UNIQUE INDEX ux_accounts_person_holder ON accounts (holder) WHERE holder IS NOT NULL;
 ```
+
+Bireysel hesabı onboarding açıyor, kayıt tamamlanınca (`POST /v1/person-accounts`). Kimlik
+başına tek bireysel hesap: açılış `ux_accounts_person_holder`'a `ON CONFLICT DO NOTHING`
+ile yazıyor, tekrarı ya da eşzamanlısı mevcut hesabı dönüyor. Hesapla birlikte ilk TRY
+cüzdanı ve bakiye satırları aynı transaction'da açılıyor. Kayıt akışından önce açılmış
+bireysel hesapların `holder`'ı boş ve seviyeleri `unknown`.
+
+`kyc_level` yalnızca yükseliyor; seviyeyi yükselten yollar birbirinden habersiz ve geç
+gelen bir alt seviye ulaşılmış üst seviyeyi geri almıyor. Yükseltme satırı
+`SELECT ... FOR UPDATE` ile kilitliyor. Seviye hangi hareketin ayda ne kadar
+yapılabildiğini belirliyor (wallet-api'de gelen transfer, giden transfer ve ödeme;
+wallet-consumer'da çekim), günlük ve işlem başına tarifenin üstüne. Hesabın kendi
+cüzdanları arasındaki aktarım sayılmıyor. İşyeri hesabının seviyesi yok.
 
 `accepts_promo` işyerinin platform fonlu promo ile ödeme kabul edip etmediği
 (`decisions.md` madde 37). İşyerinin kendi verdiği promo bu kolona bakmıyor.

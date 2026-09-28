@@ -180,7 +180,8 @@ PersonalMobileApi/             -- public; bireysel mobil uygulama
 
 PersonalWebBff/                -- public; bireysel web uygulamasının BFF'i
 ├── ...                        -- aynı dosyalar
-├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals, Session (/bff)
+├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals, Session (/bff),
+│                                 Registrations ve Onboarding (tabanı EdgeApi.Core'da)
 └── Dockerfile                 -- web/personal'ı derleyip wwwroot'a koyuyor
 
 BusinessApi/                   -- public; işyerinin sistem entegrasyonu
@@ -194,7 +195,8 @@ BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i
 
 Ön API'ler wallet sınırının dışında: `WalletService.Core`'a referans vermiyor,
 veritabanına bağlanmıyor. Ledger'a giden her istek `wallet-api`'den geçiyor.
-`personal-mobile-api`, `personal-web-bff` ve `business-api`'nin uçları yazıldı; işyeri
+`personal-mobile-api`, `personal-web-bff` ve `business-api`'nin uçları yazıldı; kayıt ve
+doğrulama uçları iki bireysel ön API'de aynı, tabanları `EdgeApi.Core/Onboarding`'de; işyeri
 ve backoffice BFF'lerinde sağlık uçları, ProblemDetails, OpenAPI ve telemetri kurulu.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: oturumu cookie ile tutar, token'ı
 tarayıcıdaki koda vermez.
@@ -209,10 +211,12 @@ ayrıştığı gün o ön API kendi tipini yazıyor ve eşleme controller'a ekle
 EdgeApi.Core/
 ├── EdgeApi.Core.csproj
 ├── Contracts/                 -- iç servislerin request ve response tipleri
-├── InternalServices/          -- WalletApiClient, WithdrawalOrchestratorClient,
+├── InternalServices/          -- WalletApiClient, WithdrawalOrchestratorClient, OnboardingClient,
 │                                 adres ayarı, resilience pipeline'ı, token iletimi,
 │                                 çekim başlatma
-├── RateLimiting/              -- istemci ve çekim kovaları; varsayılanı ön API veriyor
+├── RateLimiting/              -- istemci, çekim ve kayıt kovaları; varsayılanı ön API veriyor
+├── Onboarding/                -- kayıt ve doğrulama uçlarının soyut tabanları; rota ve
+│                                 kovayı ön API alt sınıfta veriyor
 ├── Sessions/                  -- BFF'lerin tarayıcı oturumu: cookie, Keycloak girişi,
 │                                 token yenileme, X-CSRF başlığı
 └── Errors/                    -- iç servisin cevabını istemciye aktaran handler
@@ -228,7 +232,7 @@ web/
     ├── index.html
     └── src/
         ├── api.ts             -- BFF'e istekler: X-CSRF, Idempotency-Key, ProblemDetails
-        ├── session.tsx        -- oturum yoksa giriş
+        ├── session.tsx        -- oturum yoksa giriş; kayıt (/kayit) oturumun dışında
         ├── pages/             -- sayfa başına bir bileşen, testi yanında
         ├── components/
         └── test/              -- sahte BFF ve render yardımcısı
@@ -331,6 +335,23 @@ fakes/Bank.Fake/               -- BANKANIN YERİNDE; canlıda YOK, `src/` ALTIND
 
 fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı YOK
 └── Api/Controllers/           -- TopupsController (Fakes.Core'dan türüyor)
+
+Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulaması
+├── Domain/                    -- Registration, PhoneVerification, Customer, Consent,
+│                                 NationalId, PhoneNumber, VerificationCode
+├── Application/               -- RegistrationService, VerificationService, dış servislerin
+│                                 arayüzleri (Abstractions/)
+├── Infrastructure/
+│   ├── Persistence/           -- OnboardingDbContext, migration'lar; kendi Postgres sunucusu
+│   ├── Keycloak/              -- yönetim API'si ve servisin kendi token'ı
+│   ├── Wallet/                -- WalletAccountsClient: hesabı aç, seviyeyi yükselt
+│   ├── Messaging/             -- SMTP e-posta, SMS sağlayıcısı
+│   └── PopulationRegistry/    -- nüfus kaydı
+├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla)
+└── Setup/
+
+fakes/Sms.Fake/                -- SMS SAĞLAYICISI; canlıda YOK, mesajlar bellekte
+fakes/Nvi.Fake/                -- NÜFUS KAYDI; canlıda YOK, senaryolar bellekte
 ```
 
 ### `fakes/` — canlıda olmayan servisler
@@ -345,6 +366,8 @@ fakes/
 │   └── bank-fake.http
 ├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
 │   └── stripe-fake.http
+├── Sms.Fake/                -- SMS sağlayıcısı: mesajı kutusunda tutuyor
+├── Nvi.Fake/                -- nüfus kaydı: kimlik eşleşiyor mu
 ├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
 ├── http-client.env.json     -- Rider ortamı: local
 └── http-client.private.env.json.example
