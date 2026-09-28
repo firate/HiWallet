@@ -153,7 +153,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-537 test: 174 unit (DB'siz), 363 integration — gerçek Postgres ve gerçek RabbitMQ.
+595 test: 183 unit (DB'siz), 412 integration — gerçek Postgres ve gerçek RabbitMQ.
 Web uygulamasının 14 testi ayrı (Vitest).
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
