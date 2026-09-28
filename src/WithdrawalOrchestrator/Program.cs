@@ -53,7 +53,7 @@ builder.Services.AddHostedService<StuckSagaScan>();
 builder.Services.AddHiWalletAuthentication();
 builder.Services.AddControllers();
 builder.Services.AddHiWalletProblemDetails();
-builder.Services.AddHiWalletOpenApi();
+builder.Services.AddHiWalletOpenApi(TokenFlows.AuthorizationCode | TokenFlows.ClientCredentials);
 
 var app = builder.Build();
 

@@ -1,0 +1,67 @@
+# Ters proxy arkasında yayın: stack başka bir makinede koşuyor ve API'ler ile Keycloak
+# o makinedeki Traefik'in arkasından HTTPS ile açılıyor. Traefik TLS'i sonlandırıyor ve
+# hiwallet-* adlarını hiwallet-gateway'e veriyor; kapı adı servise eşliyor
+# (docker/gateway/Caddyfile). Adres hiwallet-<servis>.<PROXY_DOMAIN>, Keycloak
+# hiwallet-auth.<PROXY_DOMAIN>.
+#
+# HTTPS iki yerde şart: Keycloak'ın yönetim konsolu özel ağ dışından gelen düz HTTP'yi
+# reddediyor, Scalar'daki giriş de tarayıcıda PKCE için güvenli sayfa istiyor.
+#
+# .env'de:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
+#   KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.<PROXY_DOMAIN>
+#   PROXY_DOMAIN, PROXY_NETWORK, PROXY_ENTRYPOINT, PROXY_CERT_RESOLVER
+# COMPOSE_FILE ile her docker compose komutu bu dosyayı da okuyor.
+
+# Kapının arkasındaki .NET servisleri isteğin HTTPS olduğunu X-Forwarded-Proto'dan
+# okuyor; okumasa dokümandaki sunucu adresi ve Location http olurdu.
+x-behind-gateway: &behind-gateway
+  environment:
+    ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+
+services:
+  hiwallet-gateway:
+    # Caddyfile imajın içinde; gerekçe docker/gateway/Dockerfile'da.
+    build:
+      context: docker/gateway
+    environment:
+      PROXY_DOMAIN: ${PROXY_DOMAIN:?PROXY_DOMAIN .env'de tanımlı değil}
+    # Proxy'nin ağına yalnızca kapı bağlanıyor; servisler kendi ağında kalıyor.
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - 'traefik.http.routers.hiwallet-gateway.rule=HostRegexp(`^hiwallet-[a-z-]+\.${PROXY_DOMAIN}$$`)'
+      - "traefik.http.routers.hiwallet-gateway.entrypoints=${PROXY_ENTRYPOINT:?PROXY_ENTRYPOINT .env'de tanımlı değil}"
+      - "traefik.http.routers.hiwallet-gateway.tls=true"
+      - "traefik.http.routers.hiwallet-gateway.tls.certresolver=${PROXY_CERT_RESOLVER:?PROXY_CERT_RESOLVER .env'de tanımlı değil}"
+      - "traefik.http.routers.hiwallet-gateway.tls.domains[0].main=${PROXY_DOMAIN}"
+      - "traefik.http.routers.hiwallet-gateway.tls.domains[0].sans=*.${PROXY_DOMAIN}"
+      - "traefik.http.services.hiwallet-gateway.loadbalancer.server.port=80"
+
+  hiwallet-keycloak:
+    environment:
+      # İstemcinin adresi ve isteğin HTTPS olduğu X-Forwarded-* başlıklarından
+      # okunuyor.
+      KC_PROXY_HEADERS: xforwarded
+    # Başlıklara güvenen Keycloak'a doğrudan port açık kalırsa başlığı istemci de
+    # yazabilir; erişim yalnızca kapıdan. Servisler iç ağdan (hiwallet-keycloak:8080)
+    # bağlanıyor, porta ihtiyaçları yok.
+    ports: !reset []
+
+  wallet-api: *behind-gateway
+  withdrawal-orchestrator: *behind-gateway
+  personal-mobile-api: *behind-gateway
+  business-api: *behind-gateway
+  business-web-bff: *behind-gateway
+  backoffice-bff: *behind-gateway
+  stripe-fake: *behind-gateway
+  bank-fake: *behind-gateway
+
+# Traefik'in Docker ağı. Başka projelerle ortak olabilir; bu yüzden servisler değil
+# yalnızca kapı bağlanıyor (docker/gateway/Caddyfile).
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:?PROXY_NETWORK .env'de tanımlı değil}

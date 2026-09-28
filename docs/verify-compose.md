@@ -51,18 +51,34 @@ MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
 `KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
 servisler başka bir issuer'ı kabul etmiyor ve yanlış yazılırsa her token `401` alır.
 
-Homelab'da Keycloak altyapının Traefik'inin arkasında ve HTTPS ile açılıyor
-(`docker-compose.homelab.yml`). Homelab'daki `.env`'e:
+**Ters proxy arkasında yayın.** Stack başka bir makinede koşuyorsa API'si olan
+servisler ve Keycloak o makinedeki Traefik'in arkasından HTTPS ile açılıyor
+(`docker-compose.proxy.yml`). `.env`'e:
 
 ```
-COMPOSE_FILE=docker-compose.yml:docker-compose.homelab.yml
-KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.firatergul.com
+COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
+KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.<PROXY_DOMAIN>
+PROXY_DOMAIN=...          # alan adı; sertifikası Traefik'te
+PROXY_NETWORK=...         # Traefik'in Docker ağı
+PROXY_ENTRYPOINT=...      # Traefik'in HTTPS entrypoint'i
+PROXY_CERT_RESOLVER=...   # Traefik'in sertifika çözücüsü
 ```
 
-`COMPOSE_FILE` ile her `docker compose` komutu ek dosyayı da okuyor. Düz HTTP'de
-yönetim konsolu başka makineden açılmıyor: master realm özel ağ dışından gelen isteğe
-"HTTPS required" diyor ve Tailscale adresleri (`100.x`) Keycloak'ın özel ağ listesinde
-yok.
+`COMPOSE_FILE` ile her `docker compose` komutu ek dosyayı da okuyor. Adres
+`https://hiwallet-<servis>.<PROXY_DOMAIN>` (`hiwallet-wallet-api`,
+`hiwallet-personal-mobile-api`, `hiwallet-stripe-fake`, ...); Keycloak
+`https://hiwallet-auth.<PROXY_DOMAIN>`. Webhook'lar dışarıda: onları sahteler iç ağdan
+çağırıyor.
+
+Traefik `hiwallet-*` adlarını `hiwallet-gateway`'e veriyor, kapı adı servise eşliyor
+(`docker/gateway/Caddyfile`). Traefik'in ağına yalnızca kapı bağlanıyor: o ağ başka
+projelerle ortak olabilir ve iki ağdaki bir servis `postgres` ya da `rabbitmq` adını
+başka bir projenin konteynerine çözebilirdi. Caddyfile kapının imajında; değişince
+`docker compose up -d --build` kapıyı yeni dosyayla yeniden kuruyor.
+
+HTTPS iki yerde şart. Keycloak'ın yönetim konsolu özel ağ dışından gelen düz HTTP'yi
+reddediyor ("HTTPS required"). Scalar'daki giriş de tarayıcıda PKCE için güvenli sayfa
+istiyor.
 
 **Elinde eski bir `.env` varsa** `cp` YAPMA — üstüne yazar. Stack her büyüdüğünde
 bu listeye yeni satır ekleniyor ve compose ilk eksik değişkende durup yalnızca
@@ -235,7 +251,7 @@ geri alınmazsa sınır yalnızca kâğıt üstünde kalır.
 
 ### Kimlik
 
-Homelab'da aşağıdaki `localhost:8101` yerine `https://hiwallet-auth.firatergul.com`.
+Ters proxy arkasında aşağıdaki `localhost:8101` yerine `https://hiwallet-auth.<PROXY_DOMAIN>`.
 
 Keycloak ayakta mı ve issuer doğru mu:
 
@@ -274,6 +290,23 @@ Beklenen: `401`. Token'la aynı istek `200` ve boş `items` döner; hesabı aşa
 aktardıysa `docker/keycloak/realm-hiwallet.json`'daki değişiklik (yeni istemci, yeni
 hedef kitle) uygulanmıyor. Yönetim konsolunda realm'i sil ve `docker compose restart
 hiwallet-keycloak` ile dosyadan yeniden aktar; realm'deki kullanıcılar da silinir.
+
+#### Scalar'da deneme
+
+Kimlik isteyen servislerin `/scalar/` sayfasında giriş var; token'ı sayfa alıyor ve
+her isteğe ekliyor. Hangi girişin sunulduğu servisi kimin çağırdığına göre
+(README'deki tablo):
+
+- **Müşteri:** Authorization Code, istemci `api-docs` ve PKCE önceden dolu. Keycloak'ın
+  giriş sayfası açılıyor; hesap yoksa oradan kayıt olunuyor. `api-docs` yalnızca
+  compose'da.
+- **İşyeri:** Client Credentials; istemci kimliği `merchant-demo`, gizli anahtar
+  `MERCHANT_DEMO_CLIENT_SECRET`. İkisi de sayfada elle giriliyor.
+
+Giriş güvenli sayfa istiyor: yerelde `http://localhost:<port>/scalar/`, ters proxy
+arkasında `https://hiwallet-<servis>.<PROXY_DOMAIN>/scalar/`. Başka bir makinenin düz
+HTTP portundaki sayfa açılıyor ama giriş çalışmıyor. Keycloak yalnızca bu adreslere
+dönüyor; liste realm dosyasında.
 
 #### İşyeri entegrasyonu
 

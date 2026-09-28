@@ -84,7 +84,7 @@ kararıyla çelişmiyor: kural commit başına değil, PR başına.
 ### C2. Migration'ın canlı veriyle uyumu
 
 Bugün: migration'lar dört veritabanına da uygulanıyor, ama uygulanmış şemanın koddaki
-model ile aynı olduğunu doğrulayan bir adım yok. 2026-09-23'te homelab'da tam bu
+model ile aynı olduğunu doğrulayan bir adım yok. 2026-09-23'te test ortamında tam bu
 ayrıştı: image yeni koddu, `__EFMigrationsHistory` squash öncesindeki id'leri
 taşıyordu, uygulamalar `500` dönüyordu.
 

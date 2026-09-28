@@ -11,7 +11,8 @@ HiWallet/
 ├── README.md
 ├── HiWallet.sln
 ├── docker-compose.yml
-├── docker-compose.homelab.yml     -- homelab'a özel ek: Keycloak Traefik'in arkasında
+├── docker-compose.proxy.yml       -- ek: API'ler ve Keycloak bir Traefik'in arkasında,
+│                                     kapısı docker/gateway/ (Caddyfile ve imajı)
 ├── .env.example
 ├── .gitignore
 ├── Directory.Build.props          -- ortak TargetFramework, Nullable, LangVersion
