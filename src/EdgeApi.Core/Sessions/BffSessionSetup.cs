@@ -125,6 +125,18 @@ public static class BffSessionSetup
                 // Claim adları token'daki gibi: "sub" .NET'in uzun URI'sine çevrilmiyor.
                 oidc.MapInboundClaims = false;
                 oidc.TokenValidationParameters.NameClaimType = "name";
+
+                // Girişi başlatan uç kullanıcı adını biliyorsa (kaydı yeni biten müşteri)
+                // Keycloak'ın formunda dolu geliyor.
+                oidc.Events.OnRedirectToIdentityProvider = context =>
+                {
+                    if (context.Properties.Items.TryGetValue(LoginHintItem, out var hint) && !string.IsNullOrEmpty(hint))
+                    {
+                        context.ProtocolMessage.LoginHint = hint;
+                    }
+
+                    return Task.CompletedTask;
+                };
             });
 
         services.AddAuthorizationBuilder()
@@ -132,6 +144,9 @@ public static class BffSessionSetup
 
         return services;
     }
+
+    /// <summary>Girişin kimlik sağlayıcıya ileteceği kullanıcı adı ipucu (<c>login_hint</c>).</summary>
+    public const string LoginHintItem = "login_hint";
 
     /// <summary>Kimliğin kullanıcıya gösterilen kısmı. Token'lar tarayıcıya gitmiyor.</summary>
     public static SessionUser ToSessionUser(this System.Security.Claims.ClaimsPrincipal user) =>
