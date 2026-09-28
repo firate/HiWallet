@@ -124,7 +124,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
 | `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
-| Bireysel web uygulaması: kayıt, doğrulama, giriş, cüzdan, hareketler, transfer, çekim | evet — testte |
+| Bireysel web uygulaması: kayıt, doğrulama, giriş, cüzdan, hareketler, transfer, çekim | evet |
 | BFF oturumu: şifreli cookie, token yenileme, X-CSRF | evet |
 | `backoffice-bff`: çalışanın oturumu, görüntüleme uçları | evet — testte; compose'da denenmedi |
 | İşyeri BFF'inin uçları | hayır — sağlık uçlarıyla ayakta |
@@ -134,8 +134,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
 | Çalışan kimliği: ayrı realm, iş grubuna göre roller, OTP zorunlu | evet — roller ve iç servislerin kontrolü testte; realm ve OTP kurulumu compose'da denenmedi |
-| Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet — testte; compose'da denenmedi |
-| Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet — testte; compose'da denenmedi |
+| Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
+| Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
 | `Verified`: kendi banka hesabından ilk havale | hayır |
 | `Contracted`: backoffice'ten | hayır |
