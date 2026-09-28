@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using HiWallet.IntegrationTests.Fixtures;
@@ -112,6 +113,27 @@ public sealed class PersonAccountTests(PostgresFixture postgres) : IAsyncLifetim
 
         viaOnboardingEndpoint.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         viaAccounts.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Onboarding'in istemcisi müşterinin realm'inde. Çalışanların realm'inde aynı adla
+    /// açılmış bir istemcinin token'ı onun yerine geçmiyor: realm'i token'ın içeriği değil
+    /// onu doğrulayan şema söylüyor.
+    /// </summary>
+    [Fact]
+    public async Task CalisanRealmindeAyniAdliIstemci_403()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var impostor = _factory.CreateClient();
+        impostor.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(
+            $"service-account-{TestTokens.OnboardingClientId}",
+            audiences: [TestTokens.InternalAudience],
+            issuer: TestTokens.StaffIssuer,
+            authorizedParty: TestTokens.OnboardingClientId));
+
+        var response = await impostor.PostAsJsonAsync("/v1/person-accounts", new { holder = NewHolder() }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]
