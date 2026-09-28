@@ -1,8 +1,8 @@
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi.Requests;
 using HiWallet.WalletApi.Responses;
-using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletApi.Setup;
+using HiWallet.WalletService.Application.Accounts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
@@ -14,9 +14,10 @@ namespace HiWallet.WalletApi.Controllers;
 public sealed class AccountsController(IMessageBus bus, AccountAccess access) : ControllerBase
 {
     /// <summary>
-    /// Müşteri hesabı açar. Para tutmaz; para cüzdanlarda durur ve bir hesabın aynı
+    /// İşyeri hesabı açar. Para tutmaz; para cüzdanlarda durur ve bir hesabın aynı
     /// para biriminde birden fazla cüzdanı olabilir (decisions.md madde 20). Hesabı
-    /// açan kimlik hesabın kullanıcısı oluyor.
+    /// açan kimlik hesabın kullanıcısı oluyor. Bireysel hesabı kayıt açıyor
+    /// (<c>POST /v1/person-accounts</c>).
     /// </summary>
     [HttpPost]
     [ProducesResponseType<AccountResponse>(StatusCodes.Status201Created)]
@@ -104,5 +105,27 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
         await bus.InvokeAsync(new SetAcceptsPromoCommand(accountId, request.AcceptsPromo), ct);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Bireysel hesabın doğrulama seviyesini yükseltir. Yalnızca onboarding çağırıyor.
+    /// Hesap zaten o seviyede ya da üstündeyse değişmiyor ve mevcut seviye dönüyor:
+    /// seviyeyi yükselten yollar birbirinden habersiz, geç gelen bir alt seviye ulaşılmış
+    /// üst seviyeyi geri almamalı.
+    /// </summary>
+    [HttpPut("{accountId:guid}/kyc-level")]
+    [Authorize(Policy = OnboardingAccess.Policy)]
+    [ProducesResponseType<KycLevelResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<KycLevelResponse>> RaiseKycLevel(
+        Guid accountId,
+        [FromBody] RaiseKycLevelRequest request,
+        CancellationToken ct)
+    {
+        var result = await bus.InvokeAsync<KycLevelResult>(request.ToCommand(accountId), ct);
+
+        return Ok(KycLevelResponse.From(result));
     }
 }

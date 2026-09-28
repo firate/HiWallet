@@ -14,10 +14,23 @@ public static class LedgerSeeder
 {
     private static readonly DateTimeOffset SeedTime = new(2026, 1, 2, 0, 0, 0, TimeSpan.Zero);
 
+    /// <param name="kycLevel">
+    /// Bireysel hesabın doğrulama seviyesi. Varsayılan en üst seviye: seviyeyi sınamayan
+    /// testler seviye limitine takılmasın.
+    /// </param>
     public static async Task<Guid> CreateAccountAsync(
-        WalletDbContext db, AccountType type, CancellationToken ct)
+        WalletDbContext db, AccountType type, CancellationToken ct, KycLevel kycLevel = KycLevel.Contracted)
     {
-        var account = Account.Open(Guid.NewGuid(), type, SeedTime);
+        var id = Guid.NewGuid();
+        var account = type is AccountType.Person
+            ? Account.OpenPerson(id, TestTokens.SubjectOf(id), SeedTime)
+            : Account.OpenBusiness(id, SeedTime);
+
+        if (type is AccountType.Person)
+        {
+            account.RaiseKycLevel(kycLevel);
+        }
+
         db.Accounts.Add(account);
 
         // Hesabın bir kullanıcısı var: test hesap kimliğinden token üretebiliyor

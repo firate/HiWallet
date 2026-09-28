@@ -19,8 +19,10 @@ public abstract class BffFactory<TEntryPoint>(
     string clientId,
     bool staff,
     HttpMessageHandler? walletApi,
-    HttpMessageHandler? withdrawalOrchestrator)
-    : EdgeApiFactory<TEntryPoint>(TestTokens.InternalAudience, walletApi, withdrawalOrchestrator, rateLimitBurst: null)
+    HttpMessageHandler? withdrawalOrchestrator,
+    HttpMessageHandler? onboarding = null)
+    : EdgeApiFactory<TEntryPoint>(
+        TestTokens.InternalAudience, walletApi, withdrawalOrchestrator, rateLimitBurst: null, onboarding)
     where TEntryPoint : class
 {
     public string AuthorizationEndpoint => $"{issuer}/protocol/openid-connect/auth";

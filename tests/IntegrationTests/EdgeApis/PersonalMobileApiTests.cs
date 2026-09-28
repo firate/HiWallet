@@ -311,24 +311,29 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     }
 
     /// <summary>
-    /// Mobil uygulamanın ilk adımı: kimlikle hesap açılıyor, sonra hesabın cüzdanı.
-    /// Hesap tipi istemciden alınmıyor; bu ön API yalnızca bireysel hesap açıyor.
+    /// Hesabı kayıt açıyor (onboarding, wallet-api'de); mobil ön API hesap açmıyor.
+    /// Kaydı biten kimlik hesabını listeden buluyor ve ona cüzdan açabiliyor.
     /// </summary>
     [Fact]
-    public async Task HesapVeCuzdanAcma_KimligeBaglanir()
+    public async Task HesabiKayitAcar_MobildenCuzdanAcilir()
     {
         var ct = TestContext.Current.CancellationToken;
-        _client.As($"test-{Guid.NewGuid():N}");
+        var subject = $"test-{Guid.NewGuid():N}";
+        _client.As(subject);
 
-        var opened = await _client.PostAsync("/v1/accounts", null, ct);
-        opened.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _walletApi.Errors));
-        var account = await ReadAsync(opened, ct);
-        account.GetProperty("type").GetString().ShouldBe("Person");
-        var accountId = account.GetProperty("accountId").GetGuid();
-        opened.Headers.Location.ShouldNotBeNull().Host.ShouldBe(_client.BaseAddress!.Host);
+        using (var onboarding = _walletApi.CreateClient().AsOnboarding())
+        {
+            (await onboarding.PostAsJsonAsync("/v1/person-accounts", new { holder = subject }, ct))
+                .StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _walletApi.Errors));
+        }
+
+        (await _client.PostAsync("/v1/accounts", null, ct)).StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
 
         var mine = await ReadAsync(await _client.GetAsync("/v1/accounts", ct), ct);
-        mine.GetProperty("items")[0].GetProperty("accountId").GetGuid().ShouldBe(accountId);
+        var account = mine.GetProperty("items")[0];
+        account.GetProperty("type").GetString().ShouldBe("Person");
+        account.GetProperty("kycLevel").GetString().ShouldBe("Unknown");
+        var accountId = account.GetProperty("accountId").GetGuid();
 
         var wallet = await _client.PostAsJsonAsync($"/v1/accounts/{accountId}/wallets", new { name = "Birikim", currency = "TRY" }, ct);
         wallet.StatusCode.ShouldBe(HttpStatusCode.Created);
@@ -336,7 +341,7 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
         wallet.Headers.Location.ShouldNotBeNull().AbsolutePath.ShouldBe($"/v1/wallets/{walletId}");
 
         var detail = await ReadAsync(await _client.GetAsync($"/v1/accounts/{accountId}", ct), ct);
-        detail.GetProperty("wallets")[0].GetProperty("walletId").GetGuid().ShouldBe(walletId);
+        detail.GetProperty("wallets").EnumerateArray().Select(w => w.GetProperty("walletId").GetGuid()).ShouldContain(walletId);
     }
 }
 

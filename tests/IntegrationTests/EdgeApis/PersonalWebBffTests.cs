@@ -195,6 +195,23 @@ public sealed class PersonalWebBffSessionTests
     }
 
     /// <summary>
+    /// Kaydı biten müşteri girişe e-postası dolu gidiyor: Keycloak'a <c>login_hint</c>.
+    /// </summary>
+    [Fact]
+    public async Task Giris_EpostaIpucuKeycloakaGider()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var factory = new PersonalWebBffFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync("/bff/login?returnUrl=/&loginHint=musteri%40ornek.com", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        var query = HttpUtility.ParseQueryString(response.Headers.Location.ShouldNotBeNull().Query);
+        query["login_hint"].ShouldBe("musteri@ornek.com");
+    }
+
+    /// <summary>
     /// Başlıksız API isteği reddediliyor. Cookie aynı sitedeki başka bir alt alan adından
     /// gelen isteğe de ekleniyor; o sayfa bu başlığı ekleyemiyor, çünkü başlık tarayıcıda
     /// CORS ön kontrolünü tetikliyor ve BFF buna izin vermiyor.

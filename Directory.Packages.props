@@ -36,6 +36,8 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <!-- BFF'in tarayıcı oturumu: Keycloak'la kod akışı, token'lar sunucuda. -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.12" />
+    <!-- Onboarding'in e-postası SMTP ile. .NET'in SmtpClient'ı yeni kod için önerilmiyor. -->
+    <PackageVersion Include="MailKit" Version="4.18.1" />
   </ItemGroup>
 
   <ItemGroup Label="Messaging">

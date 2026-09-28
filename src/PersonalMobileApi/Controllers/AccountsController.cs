@@ -9,22 +9,12 @@ namespace HiWallet.PersonalMobileApi.Controllers;
 [ApiController]
 [Route("v1/accounts")]
 [EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
+/// <remarks>
+/// Hesap buradan AÇILMIYOR: bireysel hesabı kayıt açıyor, kimlik doğrulandıktan sonra.
+/// Buradan açılabilseydi kayıt ve doğrulama adımları atlanırdı.
+/// </remarks>
 public sealed class AccountsController(WalletApiClient walletApi) : ControllerBase
 {
-    /// <summary>
-    /// Bireysel hesap açar; token'daki kimlik hesabın kullanıcısı oluyor. Hesap tipi
-    /// istemciden ALINMIYOR: bu ön API yalnızca bireysel müşteriye hizmet ediyor.
-    /// </summary>
-    [HttpPost]
-    [ProducesResponseType<AccountResponse>(StatusCodes.Status201Created)]
-    public async Task<IActionResult> Open(CancellationToken ct)
-    {
-        var response = await walletApi.PostAsync<AccountResponse>(
-            "v1/accounts", new { type = "Person" }, idempotencyKey: null, ct);
-
-        return CreatedAtAction(nameof(GetById), new { accountId = response.AccountId }, response);
-    }
-
     /// <summary>Kimliğin kullanıcısı olduğu hesaplar. Yeni bir cihazda hesap buradan bulunuyor.</summary>
     /// <param name="after">Önceki sayfanın <c>nextCursor</c> değeri. İlk sayfada verilmiyor.</param>
     /// <param name="size">Sayfa boyutu. Verilmezse varsayılan; tavanın üstü tavana çekiliyor.</param>

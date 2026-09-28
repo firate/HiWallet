@@ -103,8 +103,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   "Önce SELECT sonra INSERT" YOK.
 
 **Deployable'lar**
-- **`wallet-api` ve `withdrawal-orchestrator` İÇ servis;** istemci onlara doğrudan
-  bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
+- **`wallet-api`, `withdrawal-orchestrator` ve `onboarding` İÇ servis;** istemci onlara
+  doğrudan bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
 - Dışarıya açılan her yüzey bir **ön API**. Ön API ihtiyaç doğdukça açılır, kendi
   istemcisine hizmet eder ve ya public ya da yalnızca iç ağdan erişilir:
   `personal-mobile-api`, `personal-web-bff`, `business-api` ve `business-web-bff` public,
@@ -174,6 +174,35 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Müşteri çekiminde isteyen kimlik (`sub`) saga'ya yazılır ve düşme komutunun
   aktöründe wallet'a gider; wallet ledger'a yazmadan önce üyeliği doğrular.
   Orchestrator hesabın kullanıcılarını bilmez.
+
+**Kayıt ve doğrulama**
+- Kayıt `onboarding`'de: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap.
+  Keycloak'ta kendi kendine kayıt KAPALI; müşterinin kullanıcısını onboarding kendi
+  istemcisinin servis hesabıyla yönetim API'sinden açar. Parola bizim kodumuzda
+  SAKLANMAZ, yalnızca kullanıcıyı açan istekte geçer.
+- Giriş Keycloak'ın sayfasında (HiWallet teması). Parolayla token isteği (password
+  grant) YOK: RFC 9700 yasaklıyor ve OTP, parola sıfırlama, hesap kilidi gibi adımları
+  bize bırakırdı.
+- E-posta kodu doğrulanmadan kullanıcı AÇILMAZ; parola ancak ondan sonra sorulur. Adresin
+  kayıtlı olduğu kod doğrulanmadan SÖYLENMEZ: başkasının e-postasının müşteri olup
+  olmadığını verirdi.
+- Doğrulama kodu (e-posta, SMS) düz SAKLANMAZ; on dakika geçerli, beş yanlış denemede
+  kilitlenir.
+- Kişisel veri (e-posta, telefon, TCKN, doğum tarihi, onaylar) onboarding'in KENDİ
+  Postgres sunucusunda; ledger'la aynı yerde DURMAZ. Wallet yalnızca doğrulamanın
+  sonucunu (seviye) bilir. Onaylar değişmez ve silinmez (REVOKE).
+- TCKN ve telefon sınırda doğrulanıp tipe dönüşür (`NationalId`, `PhoneNumber`), akışta
+  string dolaşmaz, maskeli görünür. Bir TCKN tek müşteride.
+- Bireysel hesabı YALNIZCA onboarding açar (`POST /v1/person-accounts`, token'ın
+  `azp`'si onboarding'in istemcisi); müşteri açamaz, açabilseydi doğrulamayı atlardı.
+  Kimlik başına tek bireysel hesap (`accounts.holder` UNIQUE), açılış tekrar edilebilir.
+- Seviyeler `Unknown = 10`, `Unverified = 20`, `Verified = 30`, `Contracted = 40`.
+  Seviye yalnızca YÜKSELİR; yükselten yollar birbirinden habersiz, satır kilitlenerek
+  yazılır. İşyeri hesabının seviyesi yok.
+- Seviye limitleri AYLIK ve hareket tipine göre (gelen transfer, giden transfer, ödeme,
+  çekim), günlük tarifenin ÜSTÜNE. Hesabın kendi cüzdanları arası sayılmaz. Alıcının
+  limiti de kontrol edilir; hata alıcının hesabını söylemez. Tarifede olmayan satır
+  KAPALI sayılır ve eksik tarifeyle uygulama AÇILMAZ.
 
 **Top-up hattı**
 - `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —

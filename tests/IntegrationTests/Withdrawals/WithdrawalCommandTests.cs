@@ -31,6 +31,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     private DebitForWithdrawalHandler Debit(WithdrawalPolicy? policy = null) => new(
         postgres.ContextFactory,
         policy ?? Policy(),
+        TestKycLimits.Policy,
         new SystemClock(),
         NullLogger<DebitForWithdrawalHandler>.Instance);
 
@@ -124,6 +125,22 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
         reply.Payload.ShouldContain("Withdrawal.PerTransaction");
+    }
+
+    /// <summary>
+    /// Doğrulama seviyesinin aylık çekim limiti: <c>Unverified</c> hesap bankaya para
+    /// çekemiyor, ürün tarifesi izin verse de.
+    /// </summary>
+    [Fact]
+    public async Task Unverified_CekimYapamaz()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (walletId, accountId) = await NewFundedWalletAsync(1_000m, ct, KycLevel.Unverified);
+
+        var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m, accountId: accountId), ct);
+
+        reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
+        reply.Payload.ShouldContain("Kyc.Withdrawal.Monthly");
     }
 
     /// <summary>
@@ -474,11 +491,11 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     /// sahibiyle karşılaştırdığı için testin gerçek hesabı bilmesi gerekiyor.
     /// </summary>
     private async Task<(Guid WalletId, Guid AccountId)> NewFundedWalletAsync(
-        decimal amount, CancellationToken ct)
+        decimal amount, CancellationToken ct, KycLevel kycLevel = KycLevel.Contracted)
     {
         await using var db = postgres.CreateContext();
 
-        var accountId = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+        var accountId = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct, kycLevel);
         var walletId = await LedgerSeeder.CreateWalletAsync(db, accountId, "çekim", ct);
 
         await LedgerSeeder.FundAsync(db, walletId, amount, ct);

@@ -32,11 +32,14 @@ builder.Services.AddHiWalletAuthentication();
 // İç servis istemcileri. Adresleri eksikse uygulama açılmıyor.
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
+builder.Services.AddOnboardingClient();
 
 // Müşterinin kovası: anlık 20, dakikada 60. Çekim başlatma ayrı kovada, 10 ve 30.
 builder.Services.AddEdgeRateLimiting(
     client: new BucketDefaults(BurstSize: 20, SustainedPerMinute: 60),
-    withdrawals: new BucketDefaults(BurstSize: 10, SustainedPerMinute: 30));
+    withdrawals: new BucketDefaults(BurstSize: 10, SustainedPerMinute: 30),
+    // Her kayıt bir e-posta gönderiyor: IP başına dar.
+    registration: new BucketDefaults(BurstSize: 5, SustainedPerMinute: 10));
 builder.Services.AddControllers();
 builder.Services.AddHiWalletOpenApi(TokenFlows.AuthorizationCode);
 

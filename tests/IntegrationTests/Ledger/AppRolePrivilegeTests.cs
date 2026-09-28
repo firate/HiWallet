@@ -149,6 +149,7 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
         var handler = new CreateTransferHandler(
             new AppContextFactory(postgres.AppConnectionString),
             new LimitPolicy(new Dictionary<TransferType, TransferLimit>()),
+            TestKycLimits.Policy,
             new CommissionPolicy(new Dictionary<TransferType, CommissionRate>()),
             new SystemClock(),
             NullLogger<CreateTransferHandler>.Instance);

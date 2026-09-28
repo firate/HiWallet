@@ -55,6 +55,23 @@ http://hiwallet-bank-fake.{$PROXY_DOMAIN} {
 	reverse_proxy bank-fake:8080
 }
 
+http://hiwallet-onboarding.{$PROXY_DOMAIN} {
+	reverse_proxy onboarding:8080
+}
+
+http://hiwallet-sms-fake.{$PROXY_DOMAIN} {
+	reverse_proxy sms-fake:8080
+}
+
+http://hiwallet-nvi-fake.{$PROXY_DOMAIN} {
+	reverse_proxy nvi-fake:8080
+}
+
+# Gönderilen e-postalar: kayıt kodu ve parola sıfırlama.
+http://hiwallet-mailpit.{$PROXY_DOMAIN} {
+	reverse_proxy mailpit:8025
+}
+
 # Listede olmayan ad hiçbir servise gitmiyor.
 :80 {
 	respond 404

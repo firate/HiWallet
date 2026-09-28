@@ -5,10 +5,12 @@ namespace HiWallet.WalletService.Domain.Accounts;
 /// <summary>
 /// Müşteri hesabı. Altında birden fazla cüzdan durur (decisions.md madde 20).
 ///
-/// Müşteri yönetimi entity'si DEĞİL — ad, e-posta, KYC verisi burada durmaz, onlar bu
-/// sistemin kapsamı dışında. Tek taşıdığı bilgi <see cref="Type"/>: bu hesap bir kişiye mi
-/// yoksa işletmeye mi ait. Cüzdanlar buna kendileri karar veremez, yoksa aynı müşterinin
-/// bir cüzdanı <c>person</c> diğeri <c>business</c> olabilirdi.
+/// Müşteri yönetimi entity'si DEĞİL: ad, e-posta, TCKN ve doğrulamanın kanıtları
+/// onboarding'in veritabanında; ledger'la aynı yerde durmuyor. Burada yalnızca para
+/// hareketini belirleyenler var: <see cref="Type"/> (kişi mi işletme mi; cüzdanlar buna
+/// kendileri karar veremez, yoksa aynı müşterinin bir cüzdanı <c>person</c> diğeri
+/// <c>business</c> olabilirdi) ve bireysel hesapta doğrulamanın SONUCU
+/// (<see cref="KycLevel"/>).
 ///
 /// Limitlerin toplandığı kimlik de budur: günlük limit cüzdan bazında değil hesap
 /// bazında uygulanır, aksi halde müşteri ikinci cüzdan açarak limiti aşar.
@@ -24,6 +26,11 @@ public sealed class Account
 
     private Account(Guid id, AccountType type, DateTimeOffset createdAt)
     {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("Hesap kimliği boş olamaz.", nameof(id));
+        }
+
         Id = id;
         Type = type;
         CreatedAt = createdAt;
@@ -32,6 +39,17 @@ public sealed class Account
     public Guid Id { get; private set; }
 
     public AccountType Type { get; private set; }
+
+    /// <summary>
+    /// Bireysel hesabın kime ait olduğu: kimlik sağlayıcıdaki <c>sub</c>. Bir kimliğin tek
+    /// bireysel hesabı var ve açılış buna göre tekrar edilebilir. İşyeri hesabında
+    /// <c>null</c>: birden fazla kullanıcısı olabiliyor ve kullanıcılar
+    /// <c>account_members</c>'ta.
+    /// </summary>
+    public string? Holder { get; private set; }
+
+    /// <summary>Bireysel hesabın doğrulama seviyesi. İşyeri hesabında <c>null</c>.</summary>
+    public KycLevel? KycLevel { get; private set; }
 
     /// <summary>
     /// İşyeri platform fonlu promo ile ödeme kabul ediyor mu (decisions.md madde 37).
@@ -58,13 +76,46 @@ public sealed class Account
         AcceptsPromo = acceptsPromo;
     }
 
-    public static Account Open(Guid id, AccountType type, DateTimeOffset createdAt)
+    /// <summary>
+    /// Kaydı tamamlanan kimliğin hesabı. <see cref="Accounts.KycLevel.Unknown"/>'da açılıyor:
+    /// kimlik henüz doğrulanmadı, para hareketi yok.
+    /// </summary>
+    public static Account OpenPerson(Guid id, string holder, DateTimeOffset createdAt)
     {
-        if (id == Guid.Empty)
+        if (string.IsNullOrWhiteSpace(holder))
         {
-            throw new ArgumentException("Hesap kimliği boş olamaz.", nameof(id));
+            throw new ArgumentException("Bireysel hesap bir kimliğe ait olmalı.", nameof(holder));
         }
 
-        return new Account(id, type, createdAt);
+        return new Account(id, AccountType.Person, createdAt)
+        {
+            Holder = holder,
+            KycLevel = Accounts.KycLevel.Unknown
+        };
+    }
+
+    public static Account OpenBusiness(Guid id, DateTimeOffset createdAt) =>
+        new(id, AccountType.Business, createdAt);
+
+    /// <summary>
+    /// Seviyeyi yükseltir. Yükselten yollar birbirinden habersiz (kayıt, bankadan gelen
+    /// para, backoffice); geç gelen bir alt seviye ulaşılmış üst seviyeyi geri almıyor.
+    /// </summary>
+    /// <returns>Seviye değiştiyse <c>true</c>; hesap zaten o seviyede ya da üstündeyse <c>false</c>.</returns>
+    /// <exception cref="KycLevelNotApplicableException">Hesap bireysel değil.</exception>
+    public bool RaiseKycLevel(KycLevel level)
+    {
+        if (Type is not AccountType.Person)
+        {
+            throw new KycLevelNotApplicableException(Id);
+        }
+
+        if (KycLevel >= level)
+        {
+            return false;
+        }
+
+        KycLevel = level;
+        return true;
     }
 }

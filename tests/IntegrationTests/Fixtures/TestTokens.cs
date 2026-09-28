@@ -71,12 +71,16 @@ public static class TestTokens
     /// <param name="audiences">
     /// Verilmezse mobil uygulamanın token'ı: mobil ön API ve iç servisler için.
     /// </param>
+    /// <param name="authorizedParty">
+    /// Token'ı alan istemci (<c>azp</c>). Servislerin kendi token'larında istemcinin adı.
+    /// </param>
     public static string For(
         string subject,
         SecurityKey? signingKey = null,
         string[]? audiences = null,
         string issuer = Issuer,
-        string[]? roles = null)
+        string[]? roles = null,
+        string? authorizedParty = null)
     {
         var now = DateTime.UtcNow;
         var claims = new Dictionary<string, object>
@@ -88,6 +92,11 @@ public static class TestTokens
         if (roles is not null)
         {
             claims["roles"] = roles;
+        }
+
+        if (authorizedParty is not null)
+        {
+            claims["azp"] = authorizedParty;
         }
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
@@ -128,6 +137,22 @@ public static class TestTokens
     public static HttpClient AsStaff(this HttpClient client, string subject, params string[] roles)
     {
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ForStaff(subject, roles));
+        return client;
+    }
+
+    public const string OnboardingClientId = "onboarding";
+
+    /// <summary>
+    /// Onboarding servisinin kendi token'ı (client credentials): kimlik istemcinin servis
+    /// hesabı, <c>azp</c> istemcinin adı.
+    /// </summary>
+    public static HttpClient AsOnboarding(this HttpClient client)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", For(
+                $"service-account-{OnboardingClientId}",
+                audiences: [InternalAudience],
+                authorizedParty: OnboardingClientId));
         return client;
     }
 }

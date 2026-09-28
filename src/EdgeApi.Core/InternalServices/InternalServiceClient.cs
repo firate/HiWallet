@@ -46,6 +46,14 @@ public abstract class InternalServiceClient(HttpClient http)
         return await ReadAsync<T>(response, ct);
     }
 
+    /// <summary>Gövdeli cevap bekleyen güncelleme.</summary>
+    public async Task<T> PutAsync<T>(string path, object body, CancellationToken ct)
+    {
+        using var response = await http.PutAsJsonAsync(path, body, ct);
+
+        return await ReadAsync<T>(response, ct);
+    }
+
     /// <summary>
     /// Sayfalı sorgunun adresi. Verilmeyen parametre iletilmiyor: varsayılan sayfa boyutu
     /// ve tavan iç servisin bilgisi, ön API'de ikinci kopyası tutulmuyor.
@@ -100,3 +108,6 @@ public sealed class WalletApiClient(HttpClient http) : InternalServiceClient(htt
 
 /// <summary>İç ağdaki <c>withdrawal-orchestrator</c>: çekim başlatma ve durumu.</summary>
 public sealed class WithdrawalOrchestratorClient(HttpClient http) : InternalServiceClient(http);
+
+/// <summary>İç ağdaki <c>onboarding</c>: kayıt ve kimlik doğrulaması.</summary>
+public sealed class OnboardingClient(HttpClient http) : InternalServiceClient(http);

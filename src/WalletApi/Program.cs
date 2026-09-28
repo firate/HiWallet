@@ -6,6 +6,7 @@ using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Application.Promos;
+using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Setup;
 using Wolverine;
 
@@ -35,6 +36,10 @@ builder.Host.UseWolverine(options =>
 // tüketicisi ayrı bir host'a taşındıktan sonra burada tek bağımlılık Postgres kaldı.
 builder.Services.AddHiWalletPersistence();
 builder.Services.AddHiWalletPolicies(builder.Configuration);
+
+// Seviyenin transfer ve ödeme limitleri yalnızca burada; çekim limiti wallet-consumer'da.
+builder.Services.AddKycLimits(
+    builder.Configuration, KycMovement.IncomingTransfer, KycMovement.OutgoingTransfer, KycMovement.Payment);
 builder.Services.AddHiWalletValidation();
 builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
@@ -43,6 +48,7 @@ builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 // güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde. Çalışanların
 // realm'inin token'ı da kabul ediliyor; çalışan yalnızca izin veren uçtan geçiyor.
 builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
+builder.Services.AddOnboardingAccess(builder.Configuration);
 builder.Services.AddSingleton<AccountAccess>();
 
 // Personel promo'sunun tek seferlik tavanı. Tanımlı olmayan para biriminde personel

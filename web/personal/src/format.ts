@@ -35,6 +35,17 @@ export function movementType(value: string): string {
   return movementTypes[value] ?? value
 }
 
+const kycLevels: Record<string, string> = {
+  Unknown: 'Doğrulanmadı',
+  Unverified: 'Temel doğrulama',
+  Verified: 'Doğrulanmış',
+  Contracted: 'Sözleşmeli',
+}
+
+export function kycLevel(value: string): string {
+  return kycLevels[value] ?? value
+}
+
 const withdrawalStates: Record<string, string> = {
   initiated: 'Alındı',
   rejected: 'Reddedildi',

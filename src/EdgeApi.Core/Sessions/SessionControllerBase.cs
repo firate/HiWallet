@@ -22,11 +22,20 @@ public abstract class SessionControllerBase : ControllerBase
     /// Girişten sonra açılacak sayfa. Yalnızca bu sitenin yolu; başka adres verilirse
     /// ana sayfa. Aksi halde giriş bağlantısı başka siteye yönlendirmek için kullanılırdı.
     /// </param>
+    /// <param name="loginHint">
+    /// Formda dolu gelecek e-posta: kaydı yeni biten müşteri adresini ikinci kez yazmıyor.
+    /// Yalnızca ipucu; kimlik sağlayıcı yine parolayı soruyor.
+    /// </param>
     [HttpGet("login")]
     [AllowAnonymous]
-    public IActionResult Login([FromQuery] string? returnUrl)
+    public IActionResult Login([FromQuery] string? returnUrl, [FromQuery] string? loginHint)
     {
         var properties = new AuthenticationProperties { RedirectUri = Url.IsLocalUrl(returnUrl) ? returnUrl : "/" };
+
+        if (loginHint is { Length: > 0 and <= 254 })
+        {
+            properties.Items[BffSessionSetup.LoginHintItem] = loginHint;
+        }
 
         return Challenge(properties, OpenIdConnectDefaults.AuthenticationScheme);
     }

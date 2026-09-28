@@ -25,8 +25,11 @@
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/WalletConsumer/WalletConsumer.csproj"/>
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
+        <ProjectReference Include="../../src/Onboarding/Onboarding.csproj"/>
         <ProjectReference Include="../../fakes/Bank.Fake/Bank.Fake.csproj"/>
         <ProjectReference Include="../../fakes/Stripe.Fake/Stripe.Fake.csproj"/>
+        <ProjectReference Include="../../fakes/Sms.Fake/Sms.Fake.csproj"/>
+        <ProjectReference Include="../../fakes/Nvi.Fake/Nvi.Fake.csproj"/>
         <ProjectReference Include="../../src/BankAdapter/BankAdapter.csproj"/>
         <ProjectReference Include="../../src/BankWebhook/BankWebhook.csproj"/>
     </ItemGroup>

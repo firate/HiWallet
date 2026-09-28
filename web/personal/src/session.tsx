@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createContext, use, type ReactNode } from 'react'
-import { useLocation } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { api, loginUrl, SessionExpiredError } from './api'
 import { ErrorMessage } from './components/ErrorMessage'
 import type { SessionUser } from './types'
@@ -51,6 +51,9 @@ function SignIn() {
       <a className="button" href={loginUrl(location.pathname + location.search)}>
         Giriş yap
       </a>
+      <p className="muted small">
+        Hesabın yok mu? <Link to="/kayit">Kayıt ol</Link>
+      </p>
     </section>
   )
 }

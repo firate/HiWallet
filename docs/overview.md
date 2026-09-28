@@ -67,6 +67,7 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | ↳ wallet-consumer        | Yukarıdakinin ingress'siz worker host'u; kuyruktan okuyup ledger'a yazar | Idempotent     |
 | personal-mobile-api     | Ön API: bireysel mobil; cüzdan, transfer, çekim; veritabanı yok         | —               |
 | personal-web-bff        | Ön API: bireysel web uygulamasının BFF'i, sayfaları da sunuyor          | —               |
+| onboarding              | Kayıt ve kimlik doğrulaması; kişisel veri kendi Postgres sunucusunda    | Tekrar edilebilir adımlar |
 | business-api            | Ön API: işyerinin sistem entegrasyonu; veritabanı yok                   | —               |
 | business-web-bff        | Ön API: işyeri panelinin BFF'i; veritabanı yok, iskelet                 | —               |
 | backoffice-bff          | Ön API, iç ağ: backoffice panelinin BFF'i; çalışanın oturumu            | —               |
