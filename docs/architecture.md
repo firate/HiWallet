@@ -8,17 +8,19 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 
 ---
 
-## 1. Topoloji: on uygulama, dört veritabanı, bir broker
+## 1. Topoloji: on bir uygulama, dört veritabanı, bir broker
 
 ```mermaid
 flowchart LR
     client["Bireysel<br/>mobil uygulama"]
+    wclient["Bireysel web<br/>tarayıcı"]
     bclient["İşyeri<br/>sistemi"]
     bwclient["İşyeri paneli<br/>tarayıcı"]
     staff["Backoffice paneli<br/>tarayıcı"]
 
     subgraph public["public ingress"]
         papi["<b>personal-mobile-api</b><br/>ön API"]
+        pwapi["<b>personal-web-bff</b><br/>ön API, web'in BFF'i"]
         bapi["<b>business-api</b><br/>ön API, entegrasyon"]
         bwapi["<b>business-web-bff</b><br/>ön API, panelin BFF'i"]
     end
@@ -52,11 +54,14 @@ flowchart LR
     bdb[("hiwallet_bank")]
 
     client -->|HTTPS| papi
+    wclient -->|"HTTPS, cookie"| pwapi
     bclient -->|HTTPS| bapi
     bwclient -->|"HTTPS, cookie"| bwapi
     staff -->|"HTTPS, cookie"| boapi
     papi --> api
     papi --> orch
+    pwapi --> api
+    pwapi --> orch
     bapi --> api
     bapi --> orch
     bwapi --> api
@@ -120,6 +125,7 @@ birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarınd
 | istemci | ön API | erişim | arkasında |
 | --- | --- | --- | --- |
 | bireysel mobil uygulama | `personal-mobile-api` | public | `wallet-api`, `withdrawal-orchestrator` |
+| bireysel web uygulaması (tarayıcı) | `personal-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
 | işyerinin sistemi | `business-api` | public | `wallet-api`, `withdrawal-orchestrator` |
 | işyeri paneli (tarayıcı) | `business-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
 | backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api` |
@@ -131,13 +137,17 @@ reddi (400, 404, 409, 422) istemciye aynen dönüyor; iç servise ulaşılamazsa
 ve orchestrator'ın `/v1/withdrawals` ucu iç sözleşme. Yeni bir istemci grubu kendi ön
 API'siyle geliyor; ihtiyaca göre public ya da yalnızca iç ağdan erişiliyor.
 
-Tarayıcıdan kullanılan arayüzün ön API'si BFF: token'ı kendisi saklıyor, tarayıcıya
-yalnızca HttpOnly oturum cookie'si veriyor. Bu yüzden işyerinin iki ön API'si var:
-token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki panel
-`business-web-bff`'ye bağlanıyor. `personal-mobile-api`'nin uçları yazıldı: hesap,
-cüzdan, hareketler, promo partileri, transfer ve çekim. `business-api`'nin uçları da:
-hesap, cüzdan, hareketler, transfer (`B2P`, `B2B`), müşteriye promo ve çekim. İki BFF
-sağlık uçlarıyla ayakta.
+Tarayıcıdan kullanılan arayüzün ön API'si BFF: token'ı tarayıcıdaki koda vermiyor,
+tarayıcı yalnızca HttpOnly oturum cookie'si taşıyor. Bu yüzden müşterinin ve işyerinin
+ikişer ön API'si var: mobil uygulama `personal-mobile-api`'ye, tarayıcıdaki uygulama
+`personal-web-bff`'ye; token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki
+panel `business-web-bff`'ye bağlanıyor.
+
+`personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: hesap, cüzdan, hareketler,
+promo partileri, transfer ve çekim. Web uygulamasının sayfalarını da `personal-web-bff`
+sunuyor (`web/personal`). `business-api`'nin uçları: hesap, cüzdan, hareketler, transfer
+(`B2P`, `B2B`), müşteriye promo ve çekim. `business-web-bff` ve `backoffice-bff` sağlık
+uçlarıyla ayakta.
 
 ### Kimlik
 
@@ -149,6 +159,16 @@ yani ele geçirilmiş bir ön API başkası adına istek yazdıramıyor.
 ```
 mobil uygulama ──token──▶ personal-mobile-api ──aynı token──▶ wallet-api / orchestrator
                            doğrular                           yeniden doğrular, sahipliği kontrol eder
+```
+
+Tarayıcıda token yok. Girişi BFF yapıyor: Keycloak'la kod akışı ve PKCE, kendi gizli
+anahtarlı istemcisiyle. Token'lar cookie'nin içinde BFF'in anahtarıyla şifreli; iç
+servise giden istek token'ı oradan okuyor. Access token dolmak üzereyken BFF onu
+yeniliyor ve cookie'yi yeniden yazıyor.
+
+```
+tarayıcı ──cookie──▶ personal-web-bff ──oturumdaki token──▶ wallet-api / orchestrator
+                     çözer, gerekirse yeniler                yeniden doğrular, sahipliği kontrol eder
 ```
 
 Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor: token'ın hedef

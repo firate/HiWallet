@@ -23,6 +23,10 @@ http://hiwallet-personal-mobile-api.{$PROXY_DOMAIN} {
 	reverse_proxy personal-mobile-api:8080
 }
 
+http://hiwallet-personal-web-bff.{$PROXY_DOMAIN} {
+	reverse_proxy personal-web-bff:8080
+}
+
 http://hiwallet-business-api.{$PROXY_DOMAIN} {
 	reverse_proxy business-api:8080
 }

@@ -105,11 +105,15 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
 - Dışarıya açılan her yüzey bir **ön API**. Ön API ihtiyaç doğdukça açılır, kendi
   istemcisine hizmet eder ve ya public ya da yalnızca iç ağdan erişilir:
-  `personal-mobile-api`, `business-api` ve `business-web-bff` public, `backoffice-bff`
-  iç ağda.
-- Tarayıcıdan kullanılan arayüzün ön API'si **BFF**: token sunucuda kalır, tarayıcı
-  yalnızca HttpOnly oturum cookie'si taşır. BFF'in adı `-bff` ile biter. Token taşıyan istemci (mobil uygulama,
-  sistem entegrasyonu) ile cookie taşıyan arayüz aynı ön API'yi PAYLAŞMAZ.
+  `personal-mobile-api`, `personal-web-bff`, `business-api` ve `business-web-bff` public,
+  `backoffice-bff` iç ağda.
+- Tarayıcıdan kullanılan arayüzün ön API'si **BFF**: token tarayıcıdaki koda VERİLMEZ.
+  Tarayıcı yalnızca HttpOnly oturum cookie'si taşır; token'lar cookie'nin içinde, BFF'in
+  anahtarıyla şifreli. BFF'in adı `-bff` ile biter. Token taşıyan istemci (mobil
+  uygulama, sistem entegrasyonu) ile cookie taşıyan arayüz aynı ön API'yi PAYLAŞMAZ.
+- BFF'in API istekleri `X-CSRF` başlığı ister; `SameSite` aynı sitenin başka alt alan
+  adından gelen isteği kesmez. Oturumsuz API isteği giriş sayfasına YÖNLENDİRİLMEZ,
+  `401` alır; girişi uygulama başlatır.
 - **Ön API veritabanına BAĞLANMAZ** ve `WalletService.Core`'a referans vermez. Ledger'a
   giden her istek iç ağdaki `wallet-api`'den geçer. Public process'te `wallet_app`
   parolası durmaz.
@@ -141,6 +145,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Her ön API yalnızca KENDİSİ İÇİN verilmiş token'ı kabul eder: token'ın hedef
   kitlesinde (`aud`) ön API'nin adı var. İç servisler `hiwallet-api`'yi arar. Mobil
   uygulamanın token'ı `business-api`'de, işyerinin token'ı mobil ön API'de geçmez.
+- BFF'in girişi Keycloak'la kod akışı ve PKCE, BFF'in gizli anahtarlı kendi
+  istemcisiyle. Access token dolmak üzereyken BFF yeniler; aynı refresh token için TEK
+  istek: Keycloak refresh token'ı her kullanımda değiştiriyor ve eskisini kabul etmiyor,
+  eşzamanlı iki yenileme oturumu kapatırdı.
 - Varsayılan politika kimlik ister. Kimliksiz açık kalan uç (sağlık, API dokümanı) bunu
   `AllowAnonymous` ile kendisi söyler.
 - İşyerinin sistem entegrasyonu Keycloak'ta kendi istemcisi (client credentials);

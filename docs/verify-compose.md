@@ -46,6 +46,7 @@ BANK_CALLBACK_SECRET=...        # bankanın sonuç callback'ini imzaladığı se
 KEYCLOAK_DB_PASSWORD=...        # Keycloak'ın kendi Postgres'i
 KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
 MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
+PERSONAL_WEB_CLIENT_SECRET=...  # bireysel web uygulamasının BFF'inin gizli anahtarı
 ```
 
 `KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
@@ -89,7 +90,8 @@ for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
          STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET \
-         KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET; do
+         KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET \
+         PERSONAL_WEB_CLIENT_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -307,6 +309,21 @@ Giriş güvenli sayfa istiyor: yerelde `http://localhost:<port>/scalar/`, ters p
 arkasında `https://hiwallet-<servis>.<PROXY_DOMAIN>/scalar/`. Başka bir makinenin düz
 HTTP portundaki sayfa açılıyor ama giriş çalışmıyor. Keycloak yalnızca bu adreslere
 dönüyor; liste realm dosyasında.
+
+#### Web uygulaması
+
+`http://localhost:8102` (ters proxy arkasında `https://hiwallet-personal-web-bff.<PROXY_DOMAIN>`)
+aç ve "Giriş yap"a tıkla. Keycloak'ın giriş sayfası açılıyor; kullanıcı yoksa oradan
+kayıt ol. Dönüşte uygulama açılıyor; hesap aç, cüzdan aç. Para girişi için
+`stripe-fake`'in Scalar sayfasından cüzdana yükleme yap, sonra uygulamadan transfer ve
+çekimi dene.
+
+Tarayıcıda token olmadığını geliştirici araçlarından gör: cookie'ler arasında yalnızca
+`__Host-hiwallet` var, HttpOnly ve Secure; uygulamanın istekleri `Authorization`
+başlığı taşımıyor, `X-CSRF` taşıyor.
+
+Başka bir makinenin düz HTTP portundan giriş çalışmıyor: tarayıcı `Secure` cookie'yi
+yalnızca HTTPS'te ve `localhost`'ta yazıyor.
 
 #### İşyeri entegrasyonu
 

@@ -23,11 +23,12 @@ olduğu yere taşınmıyor.
   reddederse **compensation** cüzdana parayı geri yazıyor: silmeyle değil, üç
   bacaklı ters kayıtla.
 
-## On uygulama: önde ön API'ler, içeride cüzdan
+## On bir uygulama: önde ön API'ler, içeride cüzdan
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
 | `personal-mobile-api` | **public** — ön API: bireysel mobil uygulama | — | — |
+| `personal-web-bff` | **public** — ön API: bireysel web uygulamasının BFF'i | — | — |
 | `business-api` | **public** — ön API: işyerinin sistem entegrasyonu | — | — |
 | `business-web-bff` | **public** — ön API: işyeri panelinin BFF'i | — | — |
 | `backoffice-bff` | **iç ağ** — ön API: backoffice panelinin BFF'i | — | — |
@@ -42,9 +43,9 @@ olduğu yere taşınmıyor.
 İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
 API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
-Tarayıcıdan kullanılan arayüzün ön API'si BFF: token sunucuda kalır, tarayıcı yalnızca
-HttpOnly oturum cookie'si taşır. `personal-mobile-api` ve `business-api`'nin uçları
-yazıldı; iki BFF sağlık uçlarıyla ayakta.
+Tarayıcıdan kullanılan arayüzün ön API'si BFF: token tarayıcıdaki koda verilmez, tarayıcı
+yalnızca HttpOnly oturum cookie'si taşır. `personal-mobile-api`, `personal-web-bff` ve
+`business-api`'nin uçları yazıldı; işyeri ve backoffice BFF'leri sağlık uçlarıyla ayakta.
 
 Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
 iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
@@ -112,7 +113,9 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
 | `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
-| BFF'lerin uçları | hayır — sağlık uçlarıyla ayakta |
+| Bireysel web uygulaması: giriş, cüzdan, hareketler, transfer, çekim | evet — testte; compose'da denenmedi |
+| BFF oturumu: şifreli cookie, token yenileme, X-CSRF | evet |
+| İşyeri ve backoffice BFF'lerinin uçları | hayır — sağlık uçlarıyla ayakta |
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
@@ -131,7 +134,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-447 test: 133 unit (DB'siz), 314 integration — gerçek Postgres ve gerçek RabbitMQ.
+460 test: 133 unit (DB'siz), 327 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamasının 8 testi ayrı (Vitest).
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -147,7 +151,7 @@ docker compose up --build
 
 Sırayla: Postgres ayağa kalkar, beş rol, dört uygulama veritabanı ve integration testlerin
 veritabanı (`hiwallet_schema_check`) kurulur → dört migrator
-şemaları uygular → on iki container başlar (onu bizim, ikisi sahte kurum). RabbitMQ
+şemaları uygular → on üç container başlar (on biri bizim, ikisi sahte kurum). RabbitMQ
 paralel kalkar; hiçbiri onu BEKLEMEZ.
 
 ```bash
@@ -161,11 +165,23 @@ curl http://localhost:8097/health/ready   # personal-mobile-api
 curl http://localhost:8098/health/ready   # business-api
 curl http://localhost:8099/health/ready   # backoffice-bff
 curl http://localhost:8100/health/ready   # business-web-bff
+curl http://localhost:8102/health/ready   # personal-web-bff
 curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration   # keycloak
 ```
 
 `wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için
 host'a açıklar.
+
+Bireysel web uygulaması <http://localhost:8102>'de. Giriş Keycloak'ın sayfasından; hesabı
+olmayan orada kayıt oluyor. Oturum cookie'si yalnızca HTTPS'te ve `localhost`'ta
+yazıldığı için başka bir makineden bu portla girilemiyor; orada ters proxy arkasındaki
+adres kullanılıyor (`docs/verify-compose.md`).
+
+Arayüzü geliştirirken Vite'ın sunucusu, arkada compose'daki BFF:
+
+```bash
+cd web/personal && npm install && npm run dev   # http://localhost:5173
+```
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
 koşuyor (`docker compose ps` ile görülür). Ingress'i olmayan bir uygulamanın port
@@ -195,7 +211,7 @@ anahtarını giriyor. Ayrıntısı `docs/verify-compose.md` "Kimlik" bölümünd
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8101`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8102`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 
@@ -362,6 +378,7 @@ sapmamış. Testin iddiası "her transfer başarılı olur" değil — çakışa
 
 ```bash
 dotnet test
+cd web/personal && npm test
 ```
 
 Integration testler bir Postgres sunucusu ister; bağlantı

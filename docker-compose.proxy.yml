@@ -53,6 +53,7 @@ services:
   wallet-api: *behind-gateway
   withdrawal-orchestrator: *behind-gateway
   personal-mobile-api: *behind-gateway
+  personal-web-bff: *behind-gateway
   business-api: *behind-gateway
   business-web-bff: *behind-gateway
   backoffice-bff: *behind-gateway
