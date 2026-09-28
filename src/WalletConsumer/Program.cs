@@ -2,6 +2,7 @@ using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.WalletConsumer;
+using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Setup;
 using HiWallet.Shared.Infrastructure.Errors;
 
@@ -29,6 +30,10 @@ builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
 // Çekim tarifesi yalnızca burada: çekim komutlarını işleyen tek uygulama bu.
 // Bölüm eksikse startup'ta patlıyor (baseline.md madde 1).
 builder.Services.AddWithdrawalPolicy(builder.Configuration);
+
+// Seviyenin çekim limiti de yalnızca burada, aynı gerekçeyle; transfer ve ödeme
+// limitleri wallet-api'de.
+builder.Services.AddKycLimits(builder.Configuration, KycMovement.Withdrawal);
 
 // Sağlayıcı ücret tarifeleri, aynı gerekçeyle yalnızca burada: top-up'ı işleyen
 // tek uygulama bu ve provider_fees satırını o akış yazıyor (decisions.md madde 10).

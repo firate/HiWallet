@@ -55,6 +55,8 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
             InsufficientFundsException => "insufficient_funds",
             TransferTypeMismatchException => "transfer_type_mismatch",
             LimitExceededException limit => limit.LimitName,
+            IncomingLimitExceededException incoming => incoming.LimitName,
+            KycLevelNotApplicableException => "kyc_level_not_applicable",
             UnsupportedCurrencyException => "unsupported_currency",
             PromoGrantRejectedException => "promo_grant_rejected",
             _ => "business_rule"

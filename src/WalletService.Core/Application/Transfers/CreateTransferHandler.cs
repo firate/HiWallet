@@ -18,6 +18,7 @@ namespace HiWallet.WalletService.Application.Transfers;
 public sealed class CreateTransferHandler(
     IDbContextFactory<WalletDbContext> contextFactory,
     LimitPolicy limitPolicy,
+    KycLimitPolicy kycLimits,
     CommissionPolicy commissionPolicy,
     IClock clock,
     ILogger<CreateTransferHandler> logger)
@@ -98,13 +99,13 @@ public sealed class CreateTransferHandler(
         // ve ona çekirdek değil policy bakıyor (madde 6). Kapıdan SONRA: tekrar eden
         // request bu kuralı da yeniden değerlendirmez (madde 21). İki cüzdan aynı
         // hesaba ait olabilir; o zaman sözlükte tek satır olur.
-        var accountTypes = await db.Accounts
+        var accounts = await db.Accounts
             .AsNoTracking()
             .Where(a => a.Id == senderAccountId || a.Id == receiverAccountId)
-            .ToDictionaryAsync(a => a.Id, a => a.Type, ct);
+            .ToDictionaryAsync(a => a.Id, a => new { a.Type, a.KycLevel }, ct);
 
-        var senderType = accountTypes[senderAccountId];
-        var receiverType = accountTypes[receiverAccountId];
+        var senderType = accounts[senderAccountId].Type;
+        var receiverType = accounts[receiverAccountId].Type;
 
         if (!command.Type.Matches(senderType, receiverType))
         {
@@ -120,6 +121,27 @@ public sealed class CreateTransferHandler(
         // (decisions.md madde 20). Limit cüzdandan ÇIKAN toplama uygulanıyor, yani
         // komisyon dahil — koruduğu şey "bu hesaptan bugün ne kadar para çıktı".
         limitPolicy.Ensure(senderAccountId, command.Type, debit, spentToday);
+
+        // Doğrulama seviyesinin aylık limitleri, yalnızca bireysel hesapta. Hesabın
+        // kendi cüzdanları arasındaki aktarım başka birine gönderim değil, sayılmıyor.
+        // Alıcının limiti de burada: aşan transfer hiç yazılmıyor, reddi gönderen görüyor.
+        if (senderAccountId != receiverAccountId)
+        {
+            if (accounts[senderAccountId].KycLevel is { } senderLevel)
+            {
+                var movement = command.Type is TransferType.Payment ? KycMovement.Payment : KycMovement.OutgoingTransfer;
+                var sent = await SentThisMonthAsync(db, senderAccountId, movement, currency, ct);
+
+                kycLimits.EnsureOutgoing(senderAccountId, senderLevel, movement, debit, sent);
+            }
+
+            if (accounts[receiverAccountId].KycLevel is { } receiverLevel)
+            {
+                var received = await ReceivedThisMonthAsync(db, receiverAccountId, currency, ct);
+
+                kycLimits.EnsureIncoming(receiverLevel, KycMovement.IncomingTransfer, amount, received);
+            }
+        }
 
         // --- Ledger ---------------------------------------------------------------
         var now = clock.UtcNow;
@@ -281,6 +303,70 @@ public sealed class CreateTransferHandler(
                 g.Scope == PromoScope.SelectedBusinesses,
                 g.CreatedAt))
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Bu ay hesabın cüzdanlarından başka hesaplara bu hareketle çıkan toplam, komisyon
+    /// dahil. Kendi cüzdanına aktarım sayılmıyor: aynı işlemde hesabın bir cüzdanına
+    /// alacak bacağı var. Ay UTC'ye göre, günlük limitteki gün gibi.
+    /// </summary>
+    private async Task<Money> SentThisMonthAsync(
+        WalletDbContext db, Guid accountId, KycMovement movement, Currency currency, CancellationToken ct)
+    {
+        var since = StartOfMonth();
+        LedgerTransactionType[] types = movement is KycMovement.Payment
+            ? [LedgerTransactionType.Payment]
+            : [LedgerTransactionType.P2P, LedgerTransactionType.P2B];
+
+        var walletIds = db.LedgerAccounts
+            .Where(a => a.AccountId == accountId)
+            .Select(a => a.Id);
+
+        var debited = await db.LedgerEntries
+            .Where(e => walletIds.Contains(e.LedgerAccountId)
+                        && e.Amount < 0m
+                        && e.Currency == currency
+                        && e.CreatedAt >= since
+                        && db.LedgerTransactions.Any(t => t.Id == e.TransactionId && types.Contains(t.Type))
+                        && !db.LedgerEntries.Any(other => other.TransactionId == e.TransactionId
+                                                          && other.Amount > 0m
+                                                          && walletIds.Contains(other.LedgerAccountId)))
+            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+
+        return new Money(-debited, currency);
+    }
+
+    /// <summary>
+    /// Bu ay başka hesaplardan hesabın cüzdanlarına transferle gelen toplam. İşlemin
+    /// kapsamı gönderen cüzdan; kendi cüzdanından gelen aktarım o yüzden dışarıda.
+    /// </summary>
+    private async Task<Money> ReceivedThisMonthAsync(
+        WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct)
+    {
+        var since = StartOfMonth();
+
+        var walletIds = db.LedgerAccounts
+            .Where(a => a.AccountId == accountId)
+            .Select(a => a.Id);
+
+        var credited = await db.LedgerEntries
+            .Where(e => walletIds.Contains(e.LedgerAccountId)
+                        && e.Amount > 0m
+                        && e.Currency == currency
+                        && e.CreatedAt >= since
+                        && db.LedgerTransactions.Any(t => t.Id == e.TransactionId
+                                                          && (t.Type == LedgerTransactionType.P2P
+                                                              || t.Type == LedgerTransactionType.B2P)
+                                                          && !walletIds.Contains(t.LedgerAccountId)))
+            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+
+        return new Money(credited, currency);
+    }
+
+    private DateTimeOffset StartOfMonth()
+    {
+        var now = clock.UtcNow.UtcDateTime;
+        return new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
     }
 
     /// <summary>

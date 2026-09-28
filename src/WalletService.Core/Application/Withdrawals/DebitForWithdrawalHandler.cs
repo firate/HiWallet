@@ -30,6 +30,7 @@ namespace HiWallet.WalletService.Application.Withdrawals;
 public sealed class DebitForWithdrawalHandler(
     IDbContextFactory<WalletDbContext> contextFactory,
     WithdrawalPolicy policy,
+    KycLimitPolicy kycLimits,
     IClock clock,
     ILogger<DebitForWithdrawalHandler> logger)
 {
@@ -97,6 +98,19 @@ public sealed class DebitForWithdrawalHandler(
         // Kapsam hesap, cüzdan değil (decisions.md madde 20). Kontrol edilen tutar
         // komisyon DAHİL (madde 22).
         policy.EnsureWithinLimit(accountId, totalDebit, spentToday);
+
+        // Doğrulama seviyesinin aylık çekim limiti, yalnızca bireysel hesapta.
+        var level = await db.Accounts
+            .Where(a => a.Id == accountId)
+            .Select(a => a.KycLevel)
+            .SingleAsync(ct);
+
+        if (level is { } kycLevel)
+        {
+            var spentThisMonth = await SpentSinceAsync(db, accountId, currency, StartOfMonth(), ct);
+
+            kycLimits.EnsureOutgoing(accountId, kycLevel, KycMovement.Withdrawal, totalDebit, spentThisMonth);
+        }
 
         // --- Projeksiyon --------------------------------------------------------------
         // Ledger'dan ÖNCE uygulanıyor, bilerek: yetersiz bakiye burada ortaya çıkıyor
@@ -258,11 +272,21 @@ public sealed class DebitForWithdrawalHandler(
     /// İşaretli toplam alınıyor: düşme bacağı negatif, iade bacağı pozitif, ikisi
     /// birbirini götürüyor. Sonuç ters çevrilip pozitif "harcanan" olarak dönüyor.
     /// </summary>
-    private async Task<Money> SpentTodayAsync(
-        WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct)
-    {
-        var since = new DateTimeOffset(clock.UtcNow.UtcDateTime.Date, TimeSpan.Zero);
+    private Task<Money> SpentTodayAsync(
+        WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct) =>
+        SpentSinceAsync(db, accountId, currency, new DateTimeOffset(clock.UtcNow.UtcDateTime.Date, TimeSpan.Zero), ct);
 
+    /// <summary>Ay UTC'ye göre, günlük limitteki gün gibi.</summary>
+    private DateTimeOffset StartOfMonth()
+    {
+        var now = clock.UtcNow.UtcDateTime;
+        return new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+    }
+
+    /// <summary>Verilen andan bu yana çekimle çıkan NET tutar; iade edilenler düşülmüş.</summary>
+    private static async Task<Money> SpentSinceAsync(
+        WalletDbContext db, Guid accountId, Currency currency, DateTimeOffset since, CancellationToken ct)
+    {
         var walletIds = db.LedgerAccounts
             .Where(a => a.AccountId == accountId)
             .Select(a => a.Id);

@@ -362,6 +362,7 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         await new CreateTransferHandler(
                 postgres.ContextFactory,
                 new LimitPolicy(new Dictionary<TransferType, TransferLimit>()),
+                TestKycLimits.Policy,
                 new CommissionPolicy(new Dictionary<TransferType, CommissionRate>()),
                 new FixedClock(Now),
                 NullLogger<CreateTransferHandler>.Instance)
