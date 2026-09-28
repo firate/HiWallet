@@ -10,7 +10,19 @@ internal sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
     public void Configure(EntityTypeBuilder<Account> builder)
     {
         builder.ToTable("accounts", t =>
-            t.HasCheckConstraint("ck_accounts_type", "type IN ('person','business')"));
+        {
+            t.HasCheckConstraint("ck_accounts_type", "type IN ('person','business')");
+
+            // Seviye yalnızca bireysel hesapta ve her bireysel hesapta var: işyeri
+            // doğrulaması ayrı bir iş, seviyesiz bir bireysel hesap limitsiz kalırdı.
+            t.HasCheckConstraint(
+                "ck_accounts_kyc_level",
+                "(type = 'person' AND kyc_level IN ('unknown','unverified','verified','contracted')) " +
+                "OR (type = 'business' AND kyc_level IS NULL)");
+
+            // İşyeri hesabının tek bir sahibi yok, kullanıcıları account_members'ta.
+            t.HasCheckConstraint("ck_accounts_holder", "type = 'person' OR holder IS NULL");
+        });
 
         builder.HasKey(a => a.Id).HasName("pk_accounts");
 
@@ -21,6 +33,23 @@ internal sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasConversion(ValueConverters.AccountType)
             .HasColumnType("text")
             .IsRequired();
+
+        builder.Property(a => a.Holder)
+            .HasColumnName("holder")
+            .HasColumnType("text");
+
+        builder.Property(a => a.KycLevel)
+            .HasColumnName("kyc_level")
+            .HasConversion(ValueConverters.KycLevel)
+            .HasColumnType("text");
+
+        // Kimlik başına tek bireysel hesap. Açılış bu index'e ON CONFLICT ile yazıyor;
+        // tekrar eden ya da eşzamanlı açılış ikinci hesap üretmiyor. Sahibi olmayan eski
+        // bireysel hesaplar (NULL) dışarıda.
+        builder.HasIndex(a => a.Holder)
+            .HasDatabaseName("ux_accounts_person_holder")
+            .IsUnique()
+            .HasFilter("holder IS NOT NULL");
 
         builder.Property(a => a.AcceptsPromo)
             .HasColumnName("accepts_promo")
