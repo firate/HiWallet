@@ -1,10 +1,14 @@
 import type {
-  Account,
   AccountDetail,
   AccountsPage,
+  IdentityRequest,
   MovementsPage,
+  OnboardingStatus,
+  PhoneVerificationStarted,
   ProblemDetails,
   PromosPage,
+  RegistrationCompleted,
+  RegistrationStarted,
   SessionUser,
   TransferRequest,
   TransferResponse,
@@ -89,7 +93,6 @@ export const api = {
   // Bir müşterinin birkaç hesabı olur; tavan sayfa yeterli.
   accounts: () => send<AccountsPage>('GET', '/v1/accounts?size=100'),
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
-  openAccount: () => send<Account>('POST', '/v1/accounts'),
   openWallet: (accountId: string, name: string, currency: string) =>
     send<Wallet>('POST', `/v1/accounts/${accountId}/wallets`, { body: { name, currency } }),
 
@@ -103,9 +106,36 @@ export const api = {
   withdraw: (request: WithdrawalRequest, idempotencyKey: string) =>
     send<WithdrawalAccepted>('POST', '/v1/withdrawals', { body: request, idempotencyKey }),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+
+  // Kayıt, oturumsuz. Hesabı kayıt açıyor; uygulamada hesap açma yok.
+  startRegistration: (email: string) =>
+    send<RegistrationStarted>('POST', '/v1/registrations', { body: { email } }),
+  verifyRegistrationEmail: (registrationId: string, code: string) =>
+    send<{ emailVerified: boolean }>('POST', `/v1/registrations/${registrationId}/email-verification`, {
+      body: { code },
+    }),
+  completeRegistration: (registrationId: string, password: string) =>
+    send<RegistrationCompleted>('POST', `/v1/registrations/${registrationId}/completion`, { body: { password } }),
+
+  // Temel doğrulama, oturumla.
+  onboardingStatus: () => send<OnboardingStatus>('GET', '/v1/me/onboarding'),
+  startPhoneVerification: (phone: string) =>
+    send<PhoneVerificationStarted>('POST', '/v1/me/phone-verifications', { body: { phone } }),
+  confirmPhone: (verificationId: string, code: string) =>
+    send<{ phone: string }>('POST', `/v1/me/phone-verifications/${verificationId}/confirmation`, { body: { code } }),
+  verifyIdentity: (identity: IdentityRequest) =>
+    send<{ nationalId: string }>('PUT', '/v1/me/identity', { body: identity }),
+  completeBasicVerification: (termsVersion: string, privacyNoticeVersion: string) =>
+    send<{ accountId: string; kycLevel: string }>('POST', '/v1/me/basic-verification', {
+      body: { termsVersion, privacyNoticeVersion },
+    }),
 }
 
-/** Keycloak'a gidip dönen giriş. Dönüşte aynı sayfa açılıyor. */
-export function loginUrl(returnUrl: string): string {
-  return `/bff/login?returnUrl=${encodeURIComponent(returnUrl)}`
+/**
+ * Keycloak'a gidip dönen giriş. Dönüşte aynı sayfa açılıyor. Kaydı yeni biten müşteride
+ * e-posta formda dolu geliyor.
+ */
+export function loginUrl(returnUrl: string, loginHint?: string): string {
+  const url = `/bff/login?returnUrl=${encodeURIComponent(returnUrl)}`
+  return loginHint ? `${url}&loginHint=${encodeURIComponent(loginHint)}` : url
 }

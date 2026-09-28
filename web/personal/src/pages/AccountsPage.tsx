@@ -3,18 +3,17 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { money } from '../format'
+import { kycLevel, money } from '../format'
+import type { KycLevel } from '../types'
 
 const currencies = ['TRY', 'USD', 'EUR']
 
-/** Hesaplar ve altındaki cüzdanlar. Hesabı olmayan müşteri buradan açıyor. */
+/**
+ * Hesaplar ve altındaki cüzdanlar. Hesabı kayıt açıyor; burada hesap açma yok.
+ * Doğrulanmamış hesapta müşteri doğrulamaya yönleniyor.
+ */
 export function AccountsPage() {
-  const queryClient = useQueryClient()
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: api.accounts })
-  const openAccount = useMutation({
-    mutationFn: api.openAccount,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-  })
 
   if (accounts.isPending) {
     return <p className="muted">Yükleniyor...</p>
@@ -28,11 +27,7 @@ export function AccountsPage() {
     return (
       <section className="card">
         <h1>Hoş geldin</h1>
-        <p>Henüz bir hesabın yok. Hesap açınca içine cüzdan açabilirsin.</p>
-        <button onClick={() => openAccount.mutate()} disabled={openAccount.isPending}>
-          Hesap aç
-        </button>
-        {openAccount.error && <ErrorMessage error={openAccount.error} />}
+        <p>Bu kullanıcıya bağlı bir hesap yok.</p>
       </section>
     )
   }
@@ -41,13 +36,29 @@ export function AccountsPage() {
     <>
       <h1>Cüzdanlarım</h1>
       {accounts.data.items.map((account) => (
-        <AccountCard key={account.accountId} accountId={account.accountId} />
+        <AccountCard key={account.accountId} accountId={account.accountId} level={account.kycLevel} />
       ))}
     </>
   )
 }
 
-function AccountCard({ accountId }: { accountId: string }) {
+/** Doğrulama seviyesi ve müşterinin sonraki adımı. */
+function LevelNotice({ level }: { level: KycLevel }) {
+  if (level === 'Unknown') {
+    return (
+      <div className="notice">
+        <p>Hesabın henüz doğrulanmadı. Para alıp gönderebilmek için telefonunu ve kimliğini doğrula.</p>
+        <Link className="button" to="/dogrulama">
+          Doğrulamayı tamamla
+        </Link>
+      </div>
+    )
+  }
+
+  return <p className="muted small">Doğrulama seviyesi: {kycLevel(level)}</p>
+}
+
+function AccountCard({ accountId, level }: { accountId: string; level: KycLevel | null }) {
   const account = useQuery({ queryKey: ['accounts', accountId], queryFn: () => api.account(accountId) })
 
   if (account.isPending) {
@@ -60,6 +71,7 @@ function AccountCard({ accountId }: { accountId: string }) {
 
   return (
     <section className="card">
+      {level !== null && <LevelNotice level={level} />}
       {account.data.wallets.length === 0 ? (
         <p className="muted">Bu hesapta henüz cüzdan yok.</p>
       ) : (

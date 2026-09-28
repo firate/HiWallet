@@ -7,9 +7,13 @@ export interface SessionUser {
   email: string | null
 }
 
+/** Bireysel hesabın doğrulama seviyesi; işyeri hesabında null. */
+export type KycLevel = 'Unknown' | 'Unverified' | 'Verified' | 'Contracted'
+
 export interface Account {
   accountId: string
   type: 'Person' | 'Business'
+  kycLevel: KycLevel | null
   createdAt: string
 }
 
@@ -116,10 +120,47 @@ export interface Withdrawal {
   updatedAt: string
 }
 
-/** RFC 7807. Doğrulama hatalarında alan başına mesajlar `errors`'ta. */
+/**
+ * RFC 7807. Doğrulama hatalarında alan başına mesajlar `errors`'ta; iş kuralı
+ * reddinde makinenin okuyacağı ad `rule`'da.
+ */
 export interface ProblemDetails {
   title?: string
   detail?: string
   status?: number
+  rule?: string
   errors?: Record<string, string[]>
+}
+
+export interface RegistrationStarted {
+  registrationId: string
+  codeExpiresAt: string
+}
+
+export interface RegistrationCompleted {
+  accountId: string
+  email: string
+}
+
+/** Temel doğrulamanın adımları ve onaylanacak metinlerin güncel sürümleri. */
+export interface OnboardingStatus {
+  email: string | null
+  phone: string | null
+  phoneVerified: boolean
+  identityVerified: boolean
+  basicVerificationCompleted: boolean
+  documents: { termsVersion: string; privacyNoticeVersion: string }
+}
+
+export interface PhoneVerificationStarted {
+  verificationId: string
+  phone: string
+  expiresAt: string
+}
+
+export interface IdentityRequest {
+  firstName: string
+  lastName: string
+  nationalId: string
+  birthDate: string
 }
