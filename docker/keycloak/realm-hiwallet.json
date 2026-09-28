@@ -198,7 +198,9 @@
         "http://localhost:8097/*",
         "https://hiwallet-wallet-api.${PROXY_DOMAIN}/*",
         "https://hiwallet-withdrawal-orchestrator.${PROXY_DOMAIN}/*",
-        "https://hiwallet-personal-mobile-api.${PROXY_DOMAIN}/*"
+        "https://hiwallet-personal-mobile-api.${PROXY_DOMAIN}/*",
+        "http://localhost:8103/*",
+        "https://hiwallet-onboarding.${PROXY_DOMAIN}/*"
       ],
       "webOrigins": [
         "+"
