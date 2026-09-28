@@ -11,8 +11,15 @@ public sealed class OpenAccountHandler(
 {
     public async Task<OpenAccountResult> HandleAsync(OpenAccountCommand command, CancellationToken ct)
     {
+        // Bireysel hesabı kayıt açıyor (OpenPersonAccountCommand); buradan açılsaydı
+        // kayıt ve doğrulama atlanırdı. Sınırdaki validator bunu zaten reddediyor.
+        if (command.Type is not AccountType.Business)
+        {
+            throw new ArgumentException("Bireysel hesap kayıt akışıyla açılıyor.", nameof(command));
+        }
+
         var now = clock.UtcNow;
-        var account = Account.Open(Guid.NewGuid(), command.Type, now);
+        var account = Account.OpenBusiness(Guid.NewGuid(), now);
 
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 

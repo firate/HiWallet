@@ -3,9 +3,11 @@ using HiWallet.WalletService.Domain.Accounts;
 
 namespace HiWallet.WalletApi.Responses;
 
+/// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
 public sealed record AccountDetailResponse(
     Guid AccountId,
     AccountType Type,
+    KycLevel? KycLevel,
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletResponse> Wallets)
 {
@@ -14,6 +16,7 @@ public sealed record AccountDetailResponse(
         return new AccountDetailResponse(
             view.AccountId,
             view.Type,
+            view.KycLevel,
             view.CreatedAt,
             view.Wallets
                 .Select(w => new AccountWalletResponse(

@@ -3,16 +3,17 @@ using HiWallet.WalletService.Domain.Accounts;
 
 namespace HiWallet.WalletApi.Responses;
 
-public sealed record AccountResponse(Guid AccountId, AccountType Type, DateTimeOffset CreatedAt)
+/// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
+public sealed record AccountResponse(Guid AccountId, AccountType Type, KycLevel? KycLevel, DateTimeOffset CreatedAt)
 {
     public static AccountResponse From(OpenAccountResult result)
     {
-        return new AccountResponse(result.AccountId, result.Type, result.CreatedAt);
+        return new AccountResponse(result.AccountId, result.Type, KycLevel: null, result.CreatedAt);
     }
 
     public static AccountResponse From(AccountSummary summary)
     {
-        return new AccountResponse(summary.AccountId, summary.Type, summary.CreatedAt);
+        return new AccountResponse(summary.AccountId, summary.Type, summary.KycLevel, summary.CreatedAt);
     }
 }
 
