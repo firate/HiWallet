@@ -22,11 +22,15 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// Verilmezse limit testin kendi request'lerini boğmayacak kadar yüksek. Verilirse
 /// iki kova da bu kadar request alıyor ve dakikada bir token yenileniyor.
 /// </param>
+/// <param name="onboarding">
+/// onboarding'e giden handler; yalnızca bireysel müşterinin ön API'leri onu kullanıyor.
+/// </param>
 public abstract class EdgeApiFactory<TEntryPoint>(
     string audience,
     HttpMessageHandler? walletApi,
     HttpMessageHandler? withdrawalOrchestrator,
-    int? rateLimitBurst)
+    int? rateLimitBurst,
+    HttpMessageHandler? onboarding = null)
     : WebApplicationFactory<TEntryPoint>
     where TEntryPoint : class
 {
@@ -43,6 +47,9 @@ public abstract class EdgeApiFactory<TEntryPoint>(
             {
                 ["InternalServices:WalletApi:BaseUrl"] = "http://wallet-api",
                 ["InternalServices:WithdrawalOrchestrator:BaseUrl"] = "http://withdrawal-orchestrator",
+                ["InternalServices:Onboarding:BaseUrl"] = "http://onboarding",
+                ["RateLimiting:Registration:BurstSize"] = burst,
+                ["RateLimiting:Registration:SustainedPerMinute"] = sustained,
                 ["RateLimiting:Client:BurstSize"] = burst,
                 ["RateLimiting:Client:SustainedPerMinute"] = sustained,
                 ["RateLimiting:Withdrawals:BurstSize"] = burst,
@@ -65,6 +72,9 @@ public abstract class EdgeApiFactory<TEntryPoint>(
 
             services.AddHttpClient(nameof(WithdrawalOrchestratorClient))
                 .ConfigurePrimaryHttpMessageHandler(() => withdrawalOrchestrator ?? new UnreachableHandler());
+
+            services.AddHttpClient(nameof(OnboardingClient))
+                .ConfigurePrimaryHttpMessageHandler(() => onboarding ?? new UnreachableHandler());
         });
     }
 }

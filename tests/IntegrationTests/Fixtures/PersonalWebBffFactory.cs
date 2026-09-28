@@ -15,8 +15,10 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// </summary>
 public sealed class PersonalWebBffFactory(
     HttpMessageHandler? walletApi = null,
-    HttpMessageHandler? withdrawalOrchestrator = null)
-    : EdgeApiFactory<PersonalWebBffApp>(TestTokens.InternalAudience, walletApi, withdrawalOrchestrator, rateLimitBurst: null)
+    HttpMessageHandler? withdrawalOrchestrator = null,
+    HttpMessageHandler? onboarding = null)
+    : EdgeApiFactory<PersonalWebBffApp>(
+        TestTokens.InternalAudience, walletApi, withdrawalOrchestrator, rateLimitBurst: null, onboarding)
 {
     public const string ClientId = "personal-web";
 
