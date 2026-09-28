@@ -5,6 +5,7 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Setup;
 using Wolverine;
 
@@ -34,6 +35,10 @@ builder.Host.UseWolverine(options =>
 // tüketicisi ayrı bir host'a taşındıktan sonra burada tek bağımlılık Postgres kaldı.
 builder.Services.AddHiWalletPersistence();
 builder.Services.AddHiWalletPolicies(builder.Configuration);
+
+// Seviyenin transfer ve ödeme limitleri yalnızca burada; çekim limiti wallet-consumer'da.
+builder.Services.AddKycLimits(
+    builder.Configuration, KycMovement.IncomingTransfer, KycMovement.OutgoingTransfer, KycMovement.Payment);
 builder.Services.AddHiWalletValidation();
 builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
@@ -41,6 +46,7 @@ builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 // Token'ı ön API iletiyor, burada yeniden doğrulanıyor: ön API'ye körü körüne
 // güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde.
 builder.Services.AddHiWalletAuthentication();
+builder.Services.AddOnboardingAccess(builder.Configuration);
 builder.Services.AddSingleton<AccountAccess>();
 
 builder.Services

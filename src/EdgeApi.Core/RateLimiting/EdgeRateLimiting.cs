@@ -33,8 +33,20 @@ public static class EdgeRateLimiting
     /// </summary>
     public const string WithdrawalsPolicy = "withdrawals";
 
+    /// <summary>
+    /// Kaydın kovası: kimliksiz, anahtar hep IP. Her kayıt bir e-posta gönderiyor; kova
+    /// olmasa ön API başkalarının adresine kod yağdırmanın aracı olurdu.
+    /// </summary>
+    public const string RegistrationPolicy = "registration";
+
+    /// <param name="registration">
+    /// Kayıt uçları olan ön API'ler veriyor; verilmezse politika yok ve o uçlar da yok.
+    /// </param>
     public static IServiceCollection AddEdgeRateLimiting(
-        this IServiceCollection services, BucketDefaults client, BucketDefaults withdrawals)
+        this IServiceCollection services,
+        BucketDefaults client,
+        BucketDefaults withdrawals,
+        BucketDefaults? registration = null)
     {
         services.AddRateLimiter(options =>
         {
@@ -51,6 +63,15 @@ public static class EdgeRateLimiting
                     ClientKey(context),
                     _ => TokenBucketLimits.Read(
                         context, "RateLimiting:Withdrawals", withdrawals.BurstSize, withdrawals.SustainedPerMinute)));
+
+            if (registration is not null)
+            {
+                options.AddPolicy(RegistrationPolicy, context =>
+                    RateLimitPartition.GetTokenBucketLimiter(
+                        "ip:" + (context.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+                        _ => TokenBucketLimits.Read(
+                            context, "RateLimiting:Registration", registration.BurstSize, registration.SustainedPerMinute)));
+            }
 
             options.OnRejected = RateLimitRejection.WriteAsync;
         });

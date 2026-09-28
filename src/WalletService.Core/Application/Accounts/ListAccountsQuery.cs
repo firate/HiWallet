@@ -13,7 +13,8 @@ namespace HiWallet.WalletService.Application.Accounts;
 /// <param name="Size">İstenen sayfa boyutu. <see cref="AccountPage.MaxSize"/>'a çekiliyor.</param>
 public sealed record ListAccountsQuery(string Subject, Guid? After, int Size);
 
-public sealed record AccountSummary(Guid AccountId, AccountType Type, DateTimeOffset CreatedAt);
+/// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
+public sealed record AccountSummary(Guid AccountId, AccountType Type, KycLevel? KycLevel, DateTimeOffset CreatedAt);
 
 /// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
 public sealed record AccountPage(IReadOnlyList<AccountSummary> Items, int Size, Guid? NextCursor)

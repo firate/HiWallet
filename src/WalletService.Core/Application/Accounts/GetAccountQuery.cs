@@ -9,9 +9,11 @@ namespace HiWallet.WalletService.Application.Accounts;
 /// </summary>
 public sealed record GetAccountQuery(Guid AccountId);
 
+/// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
 public sealed record AccountView(
     Guid AccountId,
     AccountType Type,
+    KycLevel? KycLevel,
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletView> Wallets);
 

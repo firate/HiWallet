@@ -8,7 +8,7 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 
 ---
 
-## 1. Topoloji: on bir uygulama, dört veritabanı, bir broker
+## 1. Topoloji: on iki uygulama, beş veritabanı, bir broker
 
 ```mermaid
 flowchart LR
@@ -29,6 +29,7 @@ flowchart LR
         boapi["<b>backoffice-bff</b><br/>ön API, panelin BFF'i"]
         api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
         orch["<b>withdrawal-orchestrator</b><br/>çekim saga'sı"]
+        onb["<b>onboarding</b><br/>kayıt, kimlik doğrulaması"]
     end
 
     subgraph restricted["IP kısıtlı ingress"]
@@ -44,7 +45,12 @@ flowchart LR
     subgraph outside["dış kurumlar — canlıda gerçekleri"]
         bank["<b>bank-fake</b><br/>bankanın API'si:<br/>havale girişi ve transfer"]
         stripe["<b>stripe-fake</b><br/>kart sağlayıcısı:<br/>yalnızca giriş"]
+        sms["<b>sms-fake</b><br/>SMS sağlayıcısı"]
+        nvi["<b>nvi-fake</b><br/>nüfus kaydı"]
+        mail["<b>mailpit</b><br/>e-posta sağlayıcısı"]
     end
+
+    idp["<b>hiwallet-keycloak</b><br/>kimlik sağlayıcı"]
 
     mq[["RabbitMQ"]]
 
@@ -52,6 +58,7 @@ flowchart LR
     tdb[("hiwallet_topup")]
     odb[("hiwallet_withdrawal")]
     bdb[("hiwallet_bank")]
+    ndb[("hiwallet_onboarding<br/>kendi sunucusu")]
 
     client -->|HTTPS| papi
     wclient -->|"HTTPS, cookie"| pwapi
@@ -62,6 +69,14 @@ flowchart LR
     papi --> orch
     pwapi --> api
     pwapi --> orch
+    papi --> onb
+    pwapi --> onb
+    onb -->|"hesabı aç, seviyeyi yükselt"| api
+    onb -->|"kullanıcıyı aç"| idp
+    onb -->|HTTP| sms
+    onb -->|HTTP| nvi
+    onb -->|SMTP| mail
+    onb --> ndb
     bapi --> api
     bapi --> orch
     bwapi --> api
@@ -89,8 +104,8 @@ flowchart LR
 ```
 
 
-**İstemci yalnızca kendi ön API'sine bağlanıyor**; `wallet-api` ve orchestrator iç
-servis. Webhook'lar ve ingress'siz uygulamalar erişim seviyesine göre ayrılıyor
+**İstemci yalnızca kendi ön API'sine bağlanıyor**; `wallet-api`, orchestrator ve
+`onboarding` iç servis. Webhook'lar ve ingress'siz uygulamalar erişim seviyesine göre ayrılıyor
 (`decisions.md` madde 28): farklı erişim seviyesi ayrı process'lere dağılıyor, aynı
 erişim seviyesi tek process'te toplanıyor. `wallet-consumer` hem top-up event'lerini hem
 çekim komutlarını hem settlement'ı dinliyor; üçü de ingress'siz ve aynı ledger'a yazıyor.
@@ -124,8 +139,8 @@ birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarınd
 
 | istemci | ön API | erişim | arkasında |
 | --- | --- | --- | --- |
-| bireysel mobil uygulama | `personal-mobile-api` | public | `wallet-api`, `withdrawal-orchestrator` |
-| bireysel web uygulaması (tarayıcı) | `personal-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
+| bireysel mobil uygulama | `personal-mobile-api` | public | `wallet-api`, `withdrawal-orchestrator`, `onboarding` |
+| bireysel web uygulaması (tarayıcı) | `personal-web-bff` | public | `wallet-api`, `withdrawal-orchestrator`, `onboarding` |
 | işyerinin sistemi | `business-api` | public | `wallet-api`, `withdrawal-orchestrator` |
 | işyeri paneli (tarayıcı) | `business-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
 | backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api` |
@@ -143,8 +158,9 @@ ikişer ön API'si var: mobil uygulama `personal-mobile-api`'ye, tarayıcıdaki 
 `personal-web-bff`'ye; token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki
 panel `business-web-bff`'ye bağlanıyor.
 
-`personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: hesap, cüzdan, hareketler,
-promo partileri, transfer ve çekim. Web uygulamasının sayfalarını da `personal-web-bff`
+`personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: kayıt ve doğrulama, hesap,
+cüzdan, hareketler, promo partileri, transfer ve çekim. Hesap ön API'den açılmıyor, kayıt
+açıyor. Web uygulamasının sayfalarını da `personal-web-bff`
 sunuyor (`web/personal`). `business-api`'nin uçları: hesap, cüzdan, hareketler, transfer
 (`B2P`, `B2B`), müşteriye promo ve çekim. `business-web-bff` ve `backoffice-bff` sağlık
 uçlarıyla ayakta.
@@ -185,6 +201,35 @@ komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğr
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.
+
+### Kayıt ve doğrulama
+
+Kaydı `onboarding` yürütüyor; ön API'ler kayıt uçlarını kimliksiz, doğrulama uçlarını
+müşterinin token'ıyla ona iletiyor. Keycloak'ta kendi kendine kayıt kapalı: müşterinin
+kullanıcısını onboarding açıyor, kendi istemcisinin servis hesabıyla yönetim API'sinden.
+Giriş yine Keycloak'ın sayfasında, HiWallet temasıyla.
+
+```
+kayıt:  e-posta ──▶ kod (e-postayla) ──▶ parola ──▶ Keycloak'ta kullanıcı ──▶ wallet'ta hesap (Unknown)
+giriş:  Keycloak'ın sayfası, e-posta dolu
+temel:  telefon (SMS kodu) ──▶ kimlik (nüfus kaydı) ──▶ sözleşme ve aydınlatma metni ──▶ Unverified
+```
+
+E-posta parola sorulmadan doğrulanıyor; parola yalnızca kullanıcıyı açan istekte geçiyor,
+hiçbir yerde saklanmıyor. Kişisel veri (e-posta, telefon, TCKN, doğum tarihi, onaylar)
+onboarding'in kendi Postgres sunucusunda; wallet yalnızca sonucu, hesabın seviyesini
+biliyor. Bireysel hesabı ve seviyeyi yalnızca onboarding değiştirebiliyor: wallet-api'de
+bu uçlar token'ın `azp`'sinde onboarding'in istemcisini arıyor.
+
+| seviye | nasıl | ayda ne kadar |
+| --- | --- | --- |
+| `Unknown` | kayıt tamamlandı | hiçbir hareket |
+| `Unverified` | telefon, kimlik, onaylar | gelen transfer ve işyerine ödeme; giden transfer ve çekim yok |
+| `Verified` | kendi banka hesabından ilk havale | hepsi, orta limit |
+| `Contracted` | uzaktan kimlik tespiti ya da fiziksel sözleşme | hepsi, en yüksek limit |
+
+Tutarlar wallet-api'nin (transfer, ödeme) ve wallet-consumer'ın (çekim) ayarında. Seviye
+yalnızca yükseliyor. `Verified` ve `Contracted`'a geçiş henüz yok.
 
 ---
 

@@ -36,6 +36,7 @@ public sealed class TransferTests(PostgresFixture postgres)
         return new CreateTransferHandler(
             postgres.ContextFactory,
             new LimitPolicy(limits),
+            TestKycLimits.Policy,
             new CommissionPolicy(commissions),
             new SystemClock(),
             NullLogger<CreateTransferHandler>.Instance);
@@ -302,7 +303,10 @@ public sealed class TransferTests(PostgresFixture postgres)
         {
             await db.Accounts
                 .Where(a => a.Id == receiverAccount)
-                .ExecuteUpdateAsync(s => s.SetProperty(a => a.Type, AccountType.Business), ct);
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(a => a.Type, AccountType.Business)
+                    .SetProperty(a => a.KycLevel, (KycLevel?)null)
+                    .SetProperty(a => a.Holder, (string?)null), ct);
         }
 
         var second = await handler.HandleAsync(command, ct);

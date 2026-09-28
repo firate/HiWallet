@@ -149,7 +149,8 @@ public sealed class WalletApiAccessTests(PostgresFixture postgres) : IAsyncLifet
         var ct = TestContext.Current.CancellationToken;
         var owner = NewSubject();
 
-        var opened = await _client.As(owner).PostAsJsonAsync("/v1/accounts", new { type = "Person" }, ct);
+        // İşyeri hesabı: bireysel hesabı kayıt açıyor (PersonAccountTests).
+        var opened = await _client.As(owner).PostAsJsonAsync("/v1/accounts", new { type = "Business" }, ct);
         opened.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _factory.Errors));
         var accountId = (await opened.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accountId").GetGuid();
 

@@ -28,6 +28,9 @@ internal static class ValueConverters
     public static readonly ValueConverter<AccountType, string> AccountType =
         new(t => ToText(t), text => ToAccountType(text));
 
+    public static readonly ValueConverter<KycLevel, string> KycLevel =
+        new(l => ToText(l), text => ToKycLevel(text));
+
     public static readonly ValueConverter<LedgerAccountType, string> LedgerAccountType =
         new(t => ToText(t), text => ToLedgerAccountType(text));
 
@@ -102,6 +105,30 @@ internal static class ValueConverters
             "person" => Domain.Accounts.AccountType.Person,
             "business" => Domain.Accounts.AccountType.Business,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen hesap tipi.")
+        };
+    }
+
+    private static string ToText(KycLevel level)
+    {
+        return level switch
+        {
+            Domain.Accounts.KycLevel.Unknown => "unknown",
+            Domain.Accounts.KycLevel.Unverified => "unverified",
+            Domain.Accounts.KycLevel.Verified => "verified",
+            Domain.Accounts.KycLevel.Contracted => "contracted",
+            _ => throw new ArgumentOutOfRangeException(nameof(level), level, "Eşlemesi yazılmamış doğrulama seviyesi.")
+        };
+    }
+
+    private static KycLevel ToKycLevel(string text)
+    {
+        return text switch
+        {
+            "unknown" => Domain.Accounts.KycLevel.Unknown,
+            "unverified" => Domain.Accounts.KycLevel.Unverified,
+            "verified" => Domain.Accounts.KycLevel.Verified,
+            "contracted" => Domain.Accounts.KycLevel.Contracted,
+            _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen doğrulama seviyesi.")
         };
     }
 

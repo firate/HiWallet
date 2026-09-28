@@ -196,12 +196,16 @@ services:
       MERCHANT_DEMO_CLIENT_SECRET: ${MERCHANT_DEMO_CLIENT_SECRET:?MERCHANT_DEMO_CLIENT_SECRET .env'de tanımlı değil}
       # Bireysel web uygulamasının BFF'inin gizli anahtarı; realm dosyası buradan dolduruyor.
       PERSONAL_WEB_CLIENT_SECRET: ${PERSONAL_WEB_CLIENT_SECRET:?PERSONAL_WEB_CLIENT_SECRET .env'de tanımlı değil}
+      # Kayıt servisinin istemcisi: kullanıcı açıyor ve wallet-api'yi kendi kimliğiyle çağırıyor.
+      ONBOARDING_CLIENT_SECRET: ${ONBOARDING_CLIENT_SECRET:?ONBOARDING_CLIENT_SECRET .env'de tanımlı değil}
       # Realm dosyasındaki ${PROXY_DOMAIN}: ters proxy arkasında yayında Scalar'ın
       # adresleri (docker-compose.proxy.yml). Proxy yoksa localhost; o adresler yerelde
       # hiçbir yere gitmiyor.
       PROXY_DOMAIN: ${PROXY_DOMAIN:-localhost}
     volumes:
       - ./docker/keycloak/realm-hiwallet.json:/opt/keycloak/data/import/realm-hiwallet.json:ro
+      # Giriş sayfasının görünümü (realm'de loginTheme: hiwallet). Akış Keycloak'ın.
+      - ./docker/keycloak/themes/hiwallet:/opt/keycloak/themes/hiwallet:ro
     ports:
       - "${KEYCLOAK_HOST_PORT:-8101}:8080"
     healthcheck:
@@ -211,6 +215,143 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+
+  # Müşteri kaydı ve kimlik doğrulaması. İÇ SERVİS: ön API'ler (personal-web-bff,
+  # personal-mobile-api) çağırıyor. Kişisel veri (e-posta, telefon, TCKN, onaylar)
+  # kendi Postgres sunucusunda, ledger'la aynı yerde değil. Keycloak'ta kullanıcıyı
+  # açıyor, wallet'ta hesabı; ikisine de kendi istemcisinin token'ıyla gidiyor.
+  onboarding-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: onboarding_owner
+      POSTGRES_PASSWORD: ${ONBOARDING_OWNER_PASSWORD:?ONBOARDING_OWNER_PASSWORD .env'de tanımlı değil}
+      POSTGRES_DB: hiwallet_onboarding
+      ONBOARDING_APP_PASSWORD: ${ONBOARDING_APP_PASSWORD:?ONBOARDING_APP_PASSWORD .env'de tanımlı değil}
+    volumes:
+      - onboarding-postgres-data:/var/lib/postgresql/data
+      - ./docker/onboarding/postgres-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U onboarding_owner -d hiwallet_onboarding -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Şemayı sahibi olarak uygulayan tek seferlik iş; uygulama onboarding_app ile bağlanıyor.
+  onboarding-migrator:
+    build:
+      context: .
+      dockerfile: src/Onboarding/Dockerfile
+      target: migrator
+    depends_on:
+      onboarding-postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=onboarding-postgres;Port=5432;Database=hiwallet_onboarding;Username=onboarding_owner;Password=${ONBOARDING_OWNER_PASSWORD}
+    restart: "no"
+
+  onboarding:
+    build:
+      context: .
+      dockerfile: src/Onboarding/Dockerfile
+      target: final
+    depends_on:
+      onboarding-migrator:
+        condition: service_completed_successfully
+      # Keycloak, wallet-api ve sahteler BEKLENMİYOR: onlarsız da açılıyor ve adım
+      # onlara ulaşana kadar 503 dönüyor.
+      hiwallet-keycloak:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Onboarding: Host=onboarding-postgres;Port=5432;Database=hiwallet_onboarding;Username=onboarding_app;Password=${ONBOARDING_APP_PASSWORD};Application Name=hiwallet-onboarding;Maximum Pool Size=16
+      # Kullanıcı açmak ve kendi token'ını almak için iç ağdan.
+      Keycloak__BaseUrl: http://hiwallet-keycloak:8080
+      Keycloak__ClientSecret: ${ONBOARDING_CLIENT_SECRET:?ONBOARDING_CLIENT_SECRET .env'de tanımlı değil}
+      InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
+      # E-posta Mailpit'e gidiyor; gönderilen her şey onun arayüzünde.
+      Email__Host: mailpit
+      Email__Port: "1025"
+      Email__UseStartTls: "false"
+      Email__From: HiWallet <kayit@hiwallet.test>
+      Sms__BaseUrl: http://sms-fake:8080
+      PopulationRegistry__BaseUrl: http://nvi-fake:8080
+      # Doğrulama uçlarında müşterinin token'ı; ön API iletiyor, burada yeniden doğrulanıyor.
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__Audience: hiwallet-api
+      Authentication__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-onboarding
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${ONBOARDING_HOST_PORT:-8103}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
+  # SMS SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS, canlıda YOK. Mesajı göndermiyor,
+  # kutusunda tutuyor: doğrulama kodu GET /v1/messages?to=+905... ile okunuyor.
+  sms-fake:
+    build:
+      context: .
+      dockerfile: fakes/Sms.Fake/Dockerfile
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-sms-fake
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${SMS_FAKE_HOST_PORT:-8104}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # NÜFUS KAYDININ YERİNDE DURAN SAHTE SERVİS, canlıda YOK. Biçimi geçerli her kimlik
+  # numarası eşleşiyor; eşleşmemesi istenen numara POST /v1/scenarios ile.
+  nvi-fake:
+    build:
+      context: .
+      dockerfile: fakes/Nvi.Fake/Dockerfile
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-nvi-fake
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${NVI_FAKE_HOST_PORT:-8105}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # E-POSTA SAĞLAYICISININ YERİNDE, canlıda YOK. SMTP'yi kabul ediyor, hiçbir şeyi
+  # dışarı göndermiyor; gelen e-postalar web arayüzünde. Kayıt kodu ve Keycloak'ın
+  # parola sıfırlama e-postası buraya düşüyor. Kod SMTP konuştuğu için değişmiyor:
+  # canlıda yalnızca Email__Host ve kimlik bilgileri değişiyor.
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports:
+      - "${MAILPIT_HOST_PORT:-8106}:8025"
+      # dotnet run ile yerelden gönderebilmek için.
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
 
   # Wallet şemasını uygulayan tek seferlik iş. wallet_owner ile koşuyor —
   # uygulamalar wallet_app ile bağlanacak ve ledger_entries üzerindeki REVOKE ancak
@@ -337,11 +478,14 @@ services:
         condition: service_started
       withdrawal-orchestrator:
         condition: service_started
+      onboarding:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       # İç ağdaki adresler. Eksikse uygulama açılmıyor.
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
+      InternalServices__Onboarding__BaseUrl: http://onboarding:8080
       # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan. Hedef
       # kitle bu ön API'nin adı: yalnızca kendisi için verilmiş token'ı kabul ediyor.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
@@ -379,10 +523,13 @@ services:
         condition: service_started
       withdrawal-orchestrator:
         condition: service_started
+      onboarding:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
+      InternalServices__Onboarding__BaseUrl: http://onboarding:8080
       # Keycloak'taki istemci. Giriş sayfası tarayıcının gördüğü adreste, discovery
       # ve token ucu iç ağdan.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
@@ -816,4 +963,5 @@ volumes:
   postgres-data:
   rabbitmq-data:
   keycloak-postgres-data:
+  onboarding-postgres-data:
   personal-web-bff-keys:

@@ -41,6 +41,14 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("Holder")
+                        .HasColumnType("text")
+                        .HasColumnName("holder");
+
+                    b.Property<string>("KycLevel")
+                        .HasColumnType("text")
+                        .HasColumnName("kyc_level");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("text")
@@ -49,8 +57,17 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_accounts");
 
+                    b.HasIndex("Holder")
+                        .IsUnique()
+                        .HasDatabaseName("ux_accounts_person_holder")
+                        .HasFilter("holder IS NOT NULL");
+
                     b.ToTable("accounts", null, t =>
                         {
+                            t.HasCheckConstraint("ck_accounts_holder", "type = 'person' OR holder IS NULL");
+
+                            t.HasCheckConstraint("ck_accounts_kyc_level", "(type = 'person' AND kyc_level IN ('unknown','unverified','verified','contracted')) OR (type = 'business' AND kyc_level IS NULL)");
+
                             t.HasCheckConstraint("ck_accounts_type", "type IN ('person','business')");
                         });
                 });

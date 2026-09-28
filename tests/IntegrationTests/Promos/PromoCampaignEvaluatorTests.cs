@@ -85,6 +85,7 @@ public sealed class PromoCampaignEvaluatorTests(PostgresFixture postgres)
         var handler = new CreateTransferHandler(
             postgres.ContextFactory,
             new LimitPolicy(new Dictionary<TransferType, TransferLimit>()),
+            TestKycLimits.Policy,
             new CommissionPolicy(new Dictionary<TransferType, CommissionRate>
             {
                 [TransferType.Payment] = rate ?? CommissionRate.None

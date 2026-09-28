@@ -3,7 +3,8 @@ using HiWallet.WalletService.Domain.Accounts;
 namespace HiWallet.WalletService.Application.Accounts;
 
 /// <summary>
-/// Müşteri hesabı açar. Hesap para tutmaz — cüzdanlar tutar (decisions.md madde 20).
+/// İşyeri hesabı açar. Hesap para tutmaz — cüzdanlar tutar (decisions.md madde 20).
+/// Bireysel hesap buradan açılmıyor: onu kayıt açıyor (<see cref="OpenPersonAccountCommand"/>).
 ///
 /// <c>Idempotency-Key</c> YOK, transfer ve çekimin aksine. O ikisinde anahtar para
 /// hareketini koruyor; burada tekrar eden request yalnızca boş bir hesap daha açıyor.

@@ -259,3 +259,38 @@ dt {
 dd {
   margin: 0;
 }
+
+.notice {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+}
+
+.notice p {
+  margin: 0 0 0.75rem;
+}
+
+.steps {
+  display: flex;
+  gap: 1rem;
+  padding: 0;
+  margin: 0 0 1rem;
+  list-style: none;
+  color: var(--muted);
+}
+
+.steps .current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.steps .done {
+  color: var(--in);
+}
+
+form.stacked label.check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}

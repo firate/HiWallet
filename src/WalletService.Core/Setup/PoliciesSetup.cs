@@ -1,3 +1,4 @@
+using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
 
@@ -12,6 +13,7 @@ public static class PoliciesSetup
     private const string LimitsSection = "Transfers:Limits";
     private const string CommissionsSection = "Transfers:Commissions";
     private const string WithdrawalSection = "Withdrawals";
+    private const string KycLimitsSection = "Kyc:MonthlyLimits";
 
     /// <summary>
     /// topup-webhook da aynı adı kullanıyor ama başka bir anahtar için
@@ -128,6 +130,64 @@ public static class PoliciesSetup
         }
 
         services.AddSingleton(new ProviderPolicy(terms));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Doğrulama seviyesine göre aylık limitler (<see cref="KycLimitPolicy"/>). Her
+    /// uygulama yalnızca kendi uyguladığı hareketleri istiyor: wallet-api transferleri ve
+    /// ödemeyi, wallet-consumer çekimi. Çekim tarifesiyle aynı gerekçe: bölüm tek yerde
+    /// durmalı, iki kopya ayrıştığında müşteri beklediğinden farklı limitle karşılaşırdı.
+    ///
+    /// Her seviye ve istenen her hareket yazılmış olmak zorunda; eksikse PATLIYOR.
+    /// Politika eksik satırı kapalı sayıyor ama bir yazım hatası bir seviyeyi sessizce
+    /// kapatmamalı. Tanınmayan seviye ya da hareket adı da patlıyor.
+    /// </summary>
+    public static IServiceCollection AddKycLimits(
+        this IServiceCollection services, IConfiguration configuration, params KycMovement[] movements)
+    {
+        var limits = new Dictionary<KycLevel, IReadOnlyDictionary<KycMovement, decimal>>();
+
+        foreach (var levelSection in configuration.GetSection(KycLimitsSection).GetChildren())
+        {
+            if (!Enum.TryParse<KycLevel>(levelSection.Key, ignoreCase: false, out var level))
+            {
+                throw new InvalidOperationException(
+                    $"{KycLimitsSection}:{levelSection.Key} bilinmeyen bir seviye. " +
+                    $"Geçerli değerler: {string.Join(", ", Enum.GetNames<KycLevel>())}");
+            }
+
+            var perMovement = new Dictionary<KycMovement, decimal>();
+
+            foreach (var movementSection in levelSection.GetChildren())
+            {
+                if (!Enum.TryParse<KycMovement>(movementSection.Key, ignoreCase: false, out var movement))
+                {
+                    throw new InvalidOperationException(
+                        $"{KycLimitsSection}:{level}:{movementSection.Key} bilinmeyen bir hareket. " +
+                        $"Geçerli değerler: {string.Join(", ", Enum.GetNames<KycMovement>())}");
+                }
+
+                perMovement[movement] = movementSection.Get<decimal>();
+            }
+
+            limits[level] = perMovement;
+        }
+
+        var missing = Enum.GetValues<KycLevel>()
+            .SelectMany(level => movements
+                .Where(movement => !limits.TryGetValue(level, out var perMovement) || !perMovement.ContainsKey(movement))
+                .Select(movement => $"{KycLimitsSection}:{level}:{movement}"))
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Zorunlu konfigürasyon eksik: {string.Join(", ", missing)}. Seviye limiti varsayılana bırakılmaz.");
+        }
+
+        services.AddSingleton(new KycLimitPolicy(limits));
 
         return services;
     }

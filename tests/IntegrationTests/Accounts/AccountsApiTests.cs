@@ -17,13 +17,15 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private WalletApiFactory _factory = null!;
     private HttpClient _client = null!;
+    private string _subject = null!;
 
     public ValueTask InitializeAsync()
     {
         _factory = new WalletApiFactory(postgres);
 
         // Her test kendi kullanıcısıyla: açtığı hesapların kullanıcısı o oluyor.
-        _client = _factory.CreateClient().As($"test-{Guid.NewGuid():N}");
+        _subject = $"test-{Guid.NewGuid():N}";
+        _client = _factory.CreateClient().As(_subject);
         return ValueTask.CompletedTask;
     }
 
@@ -33,12 +35,25 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
         await _factory.DisposeAsync();
     }
 
+    /// <summary>
+    /// İşyeri hesabını kullanıcı açıyor; bireysel hesabı kayıt (onboarding) açıyor ve
+    /// kimlik başına tek hesap var: tekrar çağrı aynı hesabı döner.
+    /// </summary>
     private async Task<Guid> OpenAccountAsync(AccountType type, CancellationToken ct)
     {
-        var response = await _client.PostAsJsonAsync(
-            "/v1/accounts", new { type = type.ToString() }, ct);
+        HttpResponseMessage response;
 
-        response.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _factory.Errors));
+        if (type is AccountType.Person)
+        {
+            using var onboarding = _factory.CreateClient().AsOnboarding();
+            response = await onboarding.PostAsJsonAsync("/v1/person-accounts", new { holder = _subject }, ct);
+        }
+        else
+        {
+            response = await _client.PostAsJsonAsync("/v1/accounts", new { type = type.ToString() }, ct);
+        }
+
+        response.IsSuccessStatusCode.ShouldBeTrue(string.Join("\n", _factory.Errors));
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         return body.GetProperty("accountId").GetGuid();
@@ -97,17 +112,19 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
     /// Asıl kanıt: endpoint'ten açılan cüzdan ledger'da GERÇEKTEN kullanılabiliyor mu.
     /// Bakiye satırı açılmasaydı cüzdan yaratılırdı ama ilk transfer
     /// "Bakiye satırı yok" ile 500 verirdi — sessiz ve geç ortaya çıkan kusur.
+    ///
+    /// İki cüzdan aynı hesapta: yeni açılan hesap henüz doğrulanmadı ve başka birine
+    /// gönderemiyor, kendi cüzdanları arasındaki aktarım seviyeye takılmıyor.
     /// </summary>
     [Fact]
     public async Task AcilanCuzdan_TransferdeKullanilabiliyor()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var senderAccount = await OpenAccountAsync(AccountType.Person, ct);
-        var receiverAccount = await OpenAccountAsync(AccountType.Person, ct);
+        var accountId = await OpenAccountAsync(AccountType.Person, ct);
 
-        var sender = await OpenWalletAsync(senderAccount, "Gönderen", ct);
-        var receiver = await OpenWalletAsync(receiverAccount, "Alıcı", ct);
+        var sender = await OpenWalletAsync(accountId, "Gönderen", ct);
+        var receiver = await OpenWalletAsync(accountId, "Alıcı", ct);
 
         // Para ledger üzerinden giriyor; bakiyeye doğrudan yazmak zero-sum'ı bozardı.
         await using (var db = postgres.CreateContext())
@@ -186,7 +203,9 @@ public sealed class AccountsApiTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task Get_Hesap_CuzdanlariBakiyeleriyleListeler()
     {
         var ct = TestContext.Current.CancellationToken;
-        var accountId = await OpenAccountAsync(AccountType.Person, ct);
+
+        // İşyeri hesabı: bireysel hesap kayıtla ilk cüzdanıyla birlikte açılıyor.
+        var accountId = await OpenAccountAsync(AccountType.Business, ct);
 
         // Aynı hesabın aynı para biriminde iki cüzdanı — decisions.md madde 20'nin
         // izin verdiği durum; ad dışında ayırt edilemiyorlar.
