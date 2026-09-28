@@ -1,0 +1,94 @@
+/*
+ * keycloak.v2 teması PatternFly 5 kullanıyor; renkler onun değişkenleriyle veriliyor.
+ * Değerler bireysel web uygulamasının renkleri (web/personal/src/styles.css).
+ */
+:root {
+  --hiwallet-bg: #f6f7f9;
+  --hiwallet-surface: #ffffff;
+  --hiwallet-text: #1c2430;
+  --hiwallet-muted: #667085;
+  --hiwallet-border: #e3e6eb;
+  --hiwallet-accent: #2f5bea;
+  --hiwallet-accent-hover: #2349c4;
+
+  --pf-v5-global--primary-color--100: var(--hiwallet-accent);
+  --pf-v5-global--primary-color--200: var(--hiwallet-accent-hover);
+  --pf-v5-global--link--Color: var(--hiwallet-accent);
+  --pf-v5-global--link--Color--hover: var(--hiwallet-accent-hover);
+  --pf-v5-global--FontFamily--text: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --pf-v5-global--FontFamily--heading: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hiwallet-bg: #12151b;
+    --hiwallet-surface: #1b2029;
+    --hiwallet-text: #e6e9ef;
+    --hiwallet-muted: #98a2b3;
+    --hiwallet-border: #2c3340;
+    --hiwallet-accent: #6d8dff;
+    --hiwallet-accent-hover: #8aa4ff;
+  }
+}
+
+body,
+.pf-v5-c-login {
+  background: var(--hiwallet-bg) !important;
+  color: var(--hiwallet-text);
+}
+
+/* Keycloak'ın arka plan görseli yok; sade zemin. */
+.pf-v5-c-login__container {
+  grid-template-columns: minmax(0, 28rem);
+  justify-content: center;
+}
+
+.pf-v5-c-login__main {
+  background: var(--hiwallet-surface);
+  border: 1px solid var(--hiwallet-border);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  color: var(--hiwallet-text);
+}
+
+/* Marka: realm'in displayNameHtml'i (hiwallet-brand). */
+.pf-v5-c-login__header,
+#kc-header-wrapper {
+  text-align: center;
+  color: var(--hiwallet-text);
+}
+
+.hiwallet-brand {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--hiwallet-text);
+}
+
+.hiwallet-brand span {
+  color: var(--hiwallet-accent);
+}
+
+.pf-v5-c-button.pf-m-primary {
+  background: var(--hiwallet-accent);
+  border-radius: 8px;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background: var(--hiwallet-accent-hover);
+}
+
+.pf-v5-c-form-control {
+  border-radius: 8px;
+}
+
+.pf-v5-c-login__main-footer-band,
+.pf-v5-c-helper-text,
+.pf-v5-c-login__main-header-desc {
+  color: var(--hiwallet-muted);
+}

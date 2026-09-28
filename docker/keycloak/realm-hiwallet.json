@@ -1,13 +1,28 @@
 {
   "realm": "hiwallet",
   "displayName": "HiWallet",
+  "displayNameHtml": "<div class=\"hiwallet-brand\">Hi<span>Wallet</span></div>",
   "enabled": true,
   "sslRequired": "none",
-  "registrationAllowed": true,
+  "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
   "verifyEmail": false,
+  "passwordPolicy": "length(8)",
+  "loginTheme": "hiwallet",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "tr",
+    "en"
+  ],
+  "defaultLocale": "tr",
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "kayit@hiwallet.test",
+    "fromDisplayName": "HiWallet"
+  },
   "bruteForceProtected": true,
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
@@ -215,6 +230,45 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "onboarding",
+      "name": "Kayıt servisi",
+      "description": "Kaydı tamamlanan müşterinin kullanıcısını açar ve wallet-api'yi kendi kimliğiyle çağırır.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${ONBOARDING_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "hiwallet-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "hiwallet-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-onboarding",
+      "enabled": true,
+      "serviceAccountClientId": "onboarding",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users"
+        ]
+      }
     }
   ]
 }
