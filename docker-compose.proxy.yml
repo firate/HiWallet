@@ -59,6 +59,9 @@ services:
   backoffice-bff: *behind-gateway
   stripe-fake: *behind-gateway
   bank-fake: *behind-gateway
+  onboarding: *behind-gateway
+  sms-fake: *behind-gateway
+  nvi-fake: *behind-gateway
 
 # Traefik'in Docker ağı. Başka projelerle ortak olabilir; bu yüzden servisler değil
 # yalnızca kapı bağlanıyor (docker/gateway/Caddyfile).
