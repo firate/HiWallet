@@ -47,4 +47,10 @@ public readonly record struct PhoneNumber
         phone = new PhoneNumber(CountryCode + national);
         return true;
     }
+
+    public static PhoneNumber Parse(string? value) =>
+        TryParse(value, out var phone)
+            ? phone
+            // Mesajda ham girdi YOK: kişisel veri ve log'a düşüyor.
+            : throw new ArgumentException("Geçersiz cep telefonu numarası.", nameof(value));
 }
