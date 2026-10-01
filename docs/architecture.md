@@ -202,8 +202,9 @@ hesabın kullanıcılarını bilmiyor: çekimi isteyen kimliği saga'ya yazıyor
 komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğruluyor.
 
 Çalışanlar ayrı bir realm'de (`hiwallet-staff`): kayıt sayfası yok, kullanıcıyı yönetici
-açıyor ve girişte tek kullanımlık kod (TOTP) zorunlu. Çalışan backoffice panelinden
-giriyor; `backoffice-bff` oturumdaki çalışan token'ını iç servise iletiyor.
+açıyor ve girişte tek kullanımlık kod (TOTP) zorunlu. Giriş ve kodun kurulumu
+Keycloak'ın sayfasında, müşterininkiyle aynı HiWallet temasıyla. Çalışan backoffice
+panelinden giriyor; `backoffice-bff` oturumdaki çalışan token'ını iç servise iletiyor.
 
 ```
 tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator
