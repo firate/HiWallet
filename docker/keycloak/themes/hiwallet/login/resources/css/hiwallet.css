@@ -74,6 +74,13 @@ body,
   color: var(--hiwallet-accent);
 }
 
+/* Çalışanların realm'i: markanın yanında hangi uygulamaya girildiği. */
+.hiwallet-brand small {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--hiwallet-muted);
+}
+
 .pf-v5-c-button.pf-m-primary {
   background: var(--hiwallet-accent);
   border-radius: 8px;

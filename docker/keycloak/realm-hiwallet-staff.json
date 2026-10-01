@@ -1,6 +1,7 @@
 {
   "realm": "hiwallet-staff",
   "displayName": "HiWallet çalışanlar",
+  "displayNameHtml": "<div class=\"hiwallet-brand\">Hi<span>Wallet</span> <small>Backoffice</small></div>",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
@@ -8,6 +9,13 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
   "verifyEmail": false,
+  "loginTheme": "hiwallet",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "tr",
+    "en"
+  ],
+  "defaultLocale": "tr",
   "bruteForceProtected": true,
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
