@@ -4,16 +4,16 @@ import { describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { fakeBff } from '../test/fakeBff'
 import { renderAt } from '../test/render'
-import type { StaffRole } from '../types'
+import type { StaffPermission } from '../types'
 
-function staff(...roles: StaffRole[]) {
-  return { status: 200, body: { subject: 's1', name: 'Çalışan', email: null, roles } }
+function staff(...permissions: StaffPermission[]) {
+  return { status: 200, body: { subject: 's1', name: 'Çalışan', email: null, roles: permissions } }
 }
 
 describe('NewCampaignPage', () => {
   it('günlük ödeme toplamı kampanyasını tavanlarıyla açıyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': staff('marketing'),
+      'GET /bff/user': staff('customer.view', 'promo.grant', 'campaign.view', 'campaign.manage', 'merchant.promo_acceptance'),
       'POST /v1/promo-campaigns': { status: 201, body: { campaignId: 'k1' } },
       'GET /v1/promo-campaigns/k1': {
         status: 200,
@@ -78,12 +78,12 @@ describe('NewCampaignPage', () => {
     expect(typeof body.startsAt).toBe('string')
   })
 
-  it('pazarlama rolü olmayan çalışana formu göstermiyor', async () => {
-    fakeBff({ 'GET /bff/user': staff('operations') })
+  it('kampanya yönetme izni olmayan çalışana formu göstermiyor', async () => {
+    fakeBff({ 'GET /bff/user': staff('customer.view', 'withdrawal.review') })
 
     renderAt('/kampanyalar/yeni', <App />)
 
-    expect(await screen.findByText(/pazarlama rolü/)).toBeTruthy()
+    expect(await screen.findByText(/kampanya yönetme izni/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Kampanyayı aç' })).toBeNull()
   })
 })

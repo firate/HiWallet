@@ -4,10 +4,10 @@ import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { date, money, withdrawalState } from '../format'
-import { useHasRole } from '../session'
+import { useHasPermission } from '../session'
 import type { Withdrawal } from '../types'
 
-/** Çekimin durumu; incelemedeyse operasyon buradan serbest bırakıyor ya da iptal ediyor. */
+/** Çekimin durumu; incelemedeyse buradan serbest bırakılıyor ya da iptal ediliyor. */
 export function WithdrawalPage() {
   const { withdrawalId = '' } = useParams()
   const withdrawal = useQuery({
@@ -77,10 +77,10 @@ export function WithdrawalPage() {
 /**
  * Eşiğin üstündeki çekim düşüldükten sonra bankaya gitmeden bekliyor. Serbest bırakmak
  * banka komutunu gönderiyor; iptal parayı cüzdana geri veriyor ve ters kaydın aktörü
- * iptal eden çalışan. Karar operasyon rolünün.
+ * iptal eden çalışan. Karar çekim inceleme izniyle.
  */
 function Review({ withdrawal }: { withdrawal: Withdrawal }) {
-  const operations = useHasRole('operations')
+  const allowed = useHasPermission('withdrawal.review')
   const queryClient = useQueryClient()
   const [reason, setReason] = useState('')
 
@@ -95,10 +95,10 @@ function Review({ withdrawal }: { withdrawal: Withdrawal }) {
     onSuccess: show,
   })
 
-  if (!operations) {
+  if (!allowed) {
     return (
       <section className="card">
-        <p className="muted">Bu çekim incelemede. Serbest bırakma ve iptal operasyon rolünün işi.</p>
+        <p className="muted">Bu çekim incelemede. Serbest bırakmak ve iptal etmek için çekim inceleme izni gerekiyor.</p>
       </section>
     )
   }

@@ -1,4 +1,4 @@
-import type { StaffRole } from './types'
+import type { StaffPermission } from './types'
 
 const dateFormat = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -10,16 +10,21 @@ export function date(value: string): string {
   return dateFormat.format(new Date(value))
 }
 
-const staffRoles: Record<StaffRole, string> = {
-  support: 'Destek',
-  operations: 'Operasyon',
-  finance: 'Finans',
-  marketing: 'Pazarlama',
-}
+const permissions: readonly StaffPermission[] = [
+  'customer.view',
+  'withdrawal.review',
+  'promo.grant',
+  'campaign.view',
+  'campaign.manage',
+  'merchant.promo_acceptance',
+  'staff.manage',
+]
 
-/** Çalışanın rolleri; Keycloak'ın kendi varsayılan rolleri (offline_access gibi) gösterilmiyor. */
+const keycloakRoles = /^(default-roles-.+|offline_access|uma_authorization)$/
+
+/** Çalışanın panelde tanımlanmış rolleri: token'daki izinler ve Keycloak'ın kendi rolleri hariç. */
 export function staffRoleNames(roles: string[]): string[] {
-  return roles.filter((role): role is StaffRole => role in staffRoles).map((role) => staffRoles[role])
+  return roles.filter((role) => !permissions.includes(role as StaffPermission) && !keycloakRoles.test(role))
 }
 
 const accountTypes: Record<string, string> = {

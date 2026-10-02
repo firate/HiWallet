@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { accountType, date, kycLevel, money } from '../format'
-import { useHasRole } from '../session'
+import { useHasPermission } from '../session'
 import type { AccountDetail } from '../types'
 
 /** Müşterinin hesabı: tipi, seviyesi ve cüzdanları. */
@@ -69,18 +69,18 @@ export function AccountPage() {
 }
 
 /**
- * İşyerinin platform fonlu promo kabulü. Pazarlama rolü; bundan sonraki ödemeleri
- * etkiliyor, verilmiş partiler olduğu gibi kalıyor.
+ * İşyerinin platform fonlu promo kabulü. Bundan sonraki ödemeleri etkiliyor, verilmiş
+ * partiler olduğu gibi kalıyor.
  */
 function AcceptsPromoToggle({ account }: { account: AccountDetail }) {
-  const marketing = useHasRole('marketing')
+  const allowed = useHasPermission('merchant.promo_acceptance')
   const queryClient = useQueryClient()
   const toggle = useMutation({
     mutationFn: () => api.setAcceptsPromo(account.accountId, !account.acceptsPromo),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts', account.accountId] }),
   })
 
-  if (!marketing) {
+  if (!allowed) {
     return null
   }
 

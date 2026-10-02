@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { campaignRule, idList, promoScope } from '../format'
-import { useHasRole } from '../session'
+import { useHasPermission } from '../session'
 import type { CampaignRequest, CampaignRule, PromoScope, RewardType } from '../types'
 
 /**
@@ -13,12 +13,12 @@ import type { CampaignRequest, CampaignRule, PromoScope, RewardType } from '../t
  * ödül ve tetikleyen işyerleri yalnızca işyerine ödemede.
  */
 export function NewCampaignPage() {
-  const marketing = useHasRole('marketing')
+  const allowed = useHasPermission('campaign.manage')
 
-  if (!marketing) {
+  if (!allowed) {
     return (
       <section className="card">
-        <p>Kampanya açmak pazarlama rolünün işi.</p>
+        <p>Kampanya açmak için kampanya yönetme izni gerekiyor.</p>
         <Link to="/kampanyalar">Kampanyalar</Link>
       </section>
     )

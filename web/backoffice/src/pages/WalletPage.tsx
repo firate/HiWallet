@@ -5,10 +5,10 @@ import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { date, fundType, idList, money, movementType, promoScope } from '../format'
 import { useIdempotencyKey } from '../idempotency'
-import { useHasRole } from '../session'
+import { useHasPermission } from '../session'
 import type { PromoGrant, PromoScope, Wallet } from '../types'
 
-/** Cüzdanın bakiyesi, hareketleri ve promo partileri; pazarlama buradan personel promo'su veriyor. */
+/** Cüzdanın bakiyesi, hareketleri ve promo partileri; personel promo'su da buradan veriliyor. */
 export function WalletPage() {
   const { walletId = '' } = useParams()
   const wallet = useQuery({ queryKey: ['wallets', walletId], queryFn: () => api.wallet(walletId) })
@@ -56,7 +56,7 @@ export function WalletPage() {
  * gönderilirse ikinci parti açılmıyor.
  */
 function StaffPromoForm({ wallet }: { wallet: Wallet }) {
-  const marketing = useHasRole('marketing')
+  const allowed = useHasPermission('promo.grant')
   const queryClient = useQueryClient()
   const [key, renewKey] = useIdempotencyKey()
   const [amount, setAmount] = useState('')
@@ -87,7 +87,7 @@ function StaffPromoForm({ wallet }: { wallet: Wallet }) {
     },
   })
 
-  if (!marketing) {
+  if (!allowed) {
     return null
   }
 

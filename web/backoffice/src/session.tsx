@@ -3,7 +3,7 @@ import { createContext, use, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { ApiError, api, loginUrl, SessionExpiredError } from './api'
 import { ErrorMessage } from './components/ErrorMessage'
-import type { SessionUser, StaffRole } from './types'
+import type { SessionUser, StaffPermission } from './types'
 
 export const sessionQueryKey = ['session'] as const
 
@@ -20,15 +20,15 @@ export function useSessionUser(): SessionUser {
 }
 
 /**
- * Düğmeyi göstermek için; yetkiyi iç servis kendisi kontrol ediyor. Rolü olmayan
+ * Düğmeyi göstermek için; yetkiyi iç servis kendisi kontrol ediyor. İzni olmayan
  * çalışan düğmeye ulaşsa da istek reddediliyor.
  */
-export function useHasRole(role: StaffRole): boolean {
-  return useSessionUser().roles.includes(role)
+export function useHasPermission(permission: StaffPermission): boolean {
+  return useSessionUser().roles.includes(permission)
 }
 
 /**
- * Oturum açıksa paneli, değilse girişi gösteriyor. BFF rolü olmayan çalışanın
+ * Oturum açıksa paneli, değilse girişi gösteriyor. BFF hiçbir izni olmayan çalışanın
  * kullanıcısını da vermiyor (403); panel ona yalnızca rolü olmadığını söylüyor.
  */
 export function SessionGate({ children }: { children: ReactNode }) {

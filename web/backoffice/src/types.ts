@@ -5,12 +5,22 @@ export interface SessionUser {
   subject: string
   name: string | null
   email: string | null
-  /** Token'daki roller; Keycloak'ın kendi varsayılan rolleri de gelebiliyor. */
+  /**
+   * Token'daki roller: panelde tanımlanmış roller, onların açılmış izinleri ve
+   * Keycloak'ın kendi varsayılan rolleri bir arada.
+   */
   roles: string[]
 }
 
-/** Çalışanın rolleri, iş grubuna göre. Hangi işe yettiklerini iç servis de kontrol ediyor. */
-export type StaffRole = 'support' | 'operations' | 'finance' | 'marketing'
+/** Çalışanın izinleri; kod yalnızca bunları tanıyor. Roller panelde bunlardan kuruluyor. */
+export type StaffPermission =
+  | 'customer.view'
+  | 'withdrawal.review'
+  | 'promo.grant'
+  | 'campaign.view'
+  | 'campaign.manage'
+  | 'merchant.promo_acceptance'
+  | 'staff.manage'
 
 export type KycLevel = 'Unknown' | 'Unverified' | 'Verified' | 'Contracted'
 

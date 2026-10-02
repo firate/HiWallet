@@ -14,7 +14,7 @@ describe('SessionGate', () => {
     expect(login.getAttribute('href')).toBe('/bff/login?returnUrl=%2Fcekimler')
   })
 
-  /** BFF rolü olmayan çalışanın kullanıcısını da vermiyor; panel bunu 403'ten anlıyor. */
+  /** BFF hiçbir izni olmayan çalışanın kullanıcısını da vermiyor; panel bunu 403'ten anlıyor. */
   it('rolü olmayan çalışana rolü olmadığını söylüyor ve çıkışı bırakıyor', async () => {
     fakeBff({ 'GET /bff/user': { status: 403 } })
 
@@ -25,7 +25,7 @@ describe('SessionGate', () => {
     expect(logout.closest('form')?.getAttribute('action')).toBe('/bff/logout')
   })
 
-  it('çalışanı rolleriyle gösteriyor, Keycloak’ın kendi rollerini göstermiyor', async () => {
+  it('çalışanı panelde tanımlı rolleriyle gösteriyor; izinleri ve Keycloak’ın rollerini göstermiyor', async () => {
     fakeBff({
       'GET /bff/user': {
         status: 200,
@@ -33,7 +33,14 @@ describe('SessionGate', () => {
           subject: 's1',
           name: 'Fırat Ergül',
           email: 'calisan@ornek.com',
-          roles: ['default-roles-hiwallet-staff', 'operations', 'offline_access', 'finance'],
+          roles: [
+            'default-roles-hiwallet-staff',
+            'Operasyon',
+            'customer.view',
+            'withdrawal.review',
+            'offline_access',
+            'Finans',
+          ],
         },
       },
     })
@@ -42,6 +49,6 @@ describe('SessionGate', () => {
 
     expect(await screen.findByText('Fırat Ergül')).toBeTruthy()
     expect(screen.getByText('Operasyon, Finans')).toBeTruthy()
-    expect(screen.queryByText(/offline_access/)).toBeNull()
+    expect(screen.queryByText(/offline_access|customer\.view/)).toBeNull()
   })
 })
