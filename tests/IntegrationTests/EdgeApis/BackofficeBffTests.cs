@@ -62,7 +62,7 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
     public async Task Destek_MusterininKaydiniGorur()
     {
         var ct = TestContext.Current.CancellationToken;
-        _client.SignedInAs(NewStaff(), StaffRoles.Support);
+        _client.SignedInAs(NewStaff(), TestStaff.Support);
 
         var account = await _client.GetAsync($"/v1/accounts/{_customer}", ct);
         account.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
@@ -98,7 +98,7 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         var started = await customer.SendAsync(request, ct);
         var withdrawalId = (await started.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("withdrawalId").GetGuid();
 
-        var response = await _client.SignedInAs(NewStaff(), StaffRoles.Support)
+        var response = await _client.SignedInAs(NewStaff(), TestStaff.Support)
             .GetAsync($"/v1/withdrawals/{withdrawalId}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -123,13 +123,13 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
     {
         var ct = TestContext.Current.CancellationToken;
         var staff = NewStaff();
-        _client.SignedInAs(staff, StaffRoles.Support, StaffRoles.Operations);
+        _client.SignedInAs(staff, StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview);
 
         var user = await _client.GetFromJsonAsync<JsonElement>("/bff/user", ct);
 
         user.GetProperty("subject").GetString().ShouldBe(staff);
         user.GetProperty("roles").EnumerateArray().Select(role => role.GetString())
-            .ShouldBe([StaffRoles.Support, StaffRoles.Operations], ignoreOrder: true);
+            .ShouldBe([StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview], ignoreOrder: true);
     }
 
     /// <summary>Pazarlama işyerinin promo kabulünü panelden işaretliyor.</summary>
@@ -144,7 +144,7 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
             merchant = await LedgerSeeder.CreateAccountAsync(db, AccountType.Business, ct);
         }
 
-        _client.SignedInAs(NewStaff(), StaffRoles.Marketing);
+        _client.SignedInAs(NewStaff(), TestStaff.Marketing);
 
         var response = await _client.PutAsJsonAsync($"/v1/accounts/{merchant}/accepts-promo", new { acceptsPromo = true }, ct);
 
@@ -161,7 +161,7 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
     public async Task Pazarlama_PersonelPromoVerir()
     {
         var ct = TestContext.Current.CancellationToken;
-        _client.SignedInAs(NewStaff(), StaffRoles.Marketing);
+        _client.SignedInAs(NewStaff(), TestStaff.Marketing);
         var key = Guid.NewGuid().ToString();
 
         HttpRequestMessage Grant() => new(HttpMethod.Post, $"/v1/wallets/{_wallet}/promos")
@@ -178,12 +178,12 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         (await second.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("replayed").GetBoolean().ShouldBeTrue();
     }
 
-    /// <summary>Rolün yetkisini wallet-api kontrol ediyor; BFF reddi aynen aktarıyor.</summary>
+    /// <summary>İznin yetkisini wallet-api kontrol ediyor; BFF reddi aynen aktarıyor.</summary>
     [Fact]
     public async Task Destek_PersonelPromoVeremez_403()
     {
         var ct = TestContext.Current.CancellationToken;
-        _client.SignedInAs(NewStaff(), StaffRoles.Support);
+        _client.SignedInAs(NewStaff(), TestStaff.Support);
 
         var request = new HttpRequestMessage(HttpMethod.Post, $"/v1/wallets/{_wallet}/promos")
         {
@@ -198,7 +198,7 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
     public async Task Pazarlama_KampanyaAcarVeBitirir()
     {
         var ct = TestContext.Current.CancellationToken;
-        _client.SignedInAs(NewStaff(), StaffRoles.Marketing);
+        _client.SignedInAs(NewStaff(), TestStaff.Marketing);
 
         var created = await _client.PostAsJsonAsync("/v1/promo-campaigns", new
         {
@@ -256,7 +256,7 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
                 new WithdrawalDebited { SagaId = withdrawalId, LedgerTransactionId = Guid.NewGuid(), TotalDebited = 15_005m }, ct);
         }
 
-        _client.SignedInAs(NewStaff(), StaffRoles.Operations);
+        _client.SignedInAs(NewStaff(), TestStaff.Operations);
 
         var queue = await _client.GetFromJsonAsync<JsonElement>("/v1/withdrawals?state=under_review&size=100", ct);
         queue.GetProperty("items").EnumerateArray().ShouldContain(w => w.GetProperty("withdrawalId").GetGuid() == withdrawalId);

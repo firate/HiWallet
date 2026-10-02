@@ -11,10 +11,10 @@ using Microsoft.IdentityModel.Tokens;
 namespace HiWallet.IntegrationTests.Authentication;
 
 /// <summary>
-/// Çalışanın token'ı çalışanların realm'inden geliyor ve iç servisler onu da doğruluyor.
-/// Çalışan bir rolüyle her müşterinin kaydını görüntüleyebiliyor; müşterinin para
-/// hareketi başlatan uçlarını kullanamıyor. Çalışanın yazma işleri kendi uçlarında ve
-/// rolüne bağlı.
+/// Çalışanın token'ı çalışanların Keycloak'ından geliyor ve iç servisler onu da doğruluyor.
+/// Çalışan <c>customer.view</c> izniyle her müşterinin kaydını görüntüleyebiliyor;
+/// müşterinin para hareketi başlatan uçlarını kullanamıyor. Çalışanın yazma işleri kendi
+/// uçlarında ve kendi iznine bağlı.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixture orchestratorDb) : IAsyncLifetime
@@ -53,15 +53,11 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
 
     private static string NewStaff() => $"calisan-{Guid.NewGuid():N}";
 
-    [Theory]
-    [InlineData(StaffRoles.Support)]
-    [InlineData(StaffRoles.Operations)]
-    [InlineData(StaffRoles.Finance)]
-    [InlineData(StaffRoles.Marketing)]
-    public async Task HerRol_MusterininKaydiniGoruntuler(string role)
+    [Fact]
+    public async Task GoruntulemeIzni_MusterininKaydiniGoruntuler()
     {
         var ct = TestContext.Current.CancellationToken;
-        _wallet.AsStaff(NewStaff(), role);
+        _wallet.AsStaff(NewStaff(), StaffPermissions.CustomerView);
 
         foreach (var path in new[]
                  {
@@ -77,9 +73,24 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
         }
     }
 
-    /// <summary>Rolü olmayan çalışan hiçbir şey görmüyor: realm'de kullanıcı olmak yetki değil.</summary>
+    /// <summary>
+    /// Görüntüleme izni olmayan çalışan müşteri kaydını görmüyor; başka izinleri olsa da.
+    /// Rolün adı değil içindeki izin sayılıyor.
+    /// </summary>
     [Fact]
-    public async Task RolsuzCalisan_403()
+    public async Task GoruntulemeIzniYok_403()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _wallet.AsStaff(NewStaff(), StaffPermissions.PromoGrant, StaffPermissions.CampaignManage)
+            .GetAsync($"/v1/wallets/{_walletId}", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>İzni olmayan çalışan hiçbir şey görmüyor: realm'de kullanıcı olmak yetki değil.</summary>
+    [Fact]
+    public async Task IzinsizCalisan_403()
     {
         var ct = TestContext.Current.CancellationToken;
 
@@ -89,7 +100,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
     }
 
     /// <summary>
-    /// Müşterinin transfer ucu çalışana kapalı: bir rolü olsa da müşterinin cüzdanından
+    /// Müşterinin transfer ucu çalışana kapalı: izni olsa da müşterinin cüzdanından
     /// para gönderemiyor ve ledger değişmiyor.
     /// </summary>
     [Fact]
@@ -110,7 +121,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
         };
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
-        var response = await _wallet.AsStaff(NewStaff(), StaffRoles.Operations).SendAsync(request, ct);
+        var response = await _wallet.AsStaff(NewStaff(), TestStaff.Operations).SendAsync(request, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
@@ -123,7 +134,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
     public async Task CalisanMusteriHesabiAcamaz_403()
     {
         var ct = TestContext.Current.CancellationToken;
-        _wallet.AsStaff(NewStaff(), StaffRoles.Support);
+        _wallet.AsStaff(NewStaff(), TestStaff.Support);
 
         (await _wallet.PostAsJsonAsync("/v1/accounts", new { type = "Person" }, ct)).StatusCode
             .ShouldBe(HttpStatusCode.Forbidden);
@@ -140,7 +151,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
             signingKey: new RsaSecurityKey(RSA.Create(2048)),
             audiences: [TestTokens.InternalAudience],
             issuer: TestTokens.StaffIssuer,
-            roles: [StaffRoles.Support]);
+            roles: TestStaff.Support);
         _wallet.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", forged);
 
         var response = await _wallet.GetAsync($"/v1/wallets/{_walletId}", ct);
@@ -156,7 +167,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
             NewStaff(),
             audiences: [TestTokens.InternalAudience],
             issuer: "https://idp.hiwallet.test/realms/baska",
-            roles: [StaffRoles.Support]);
+            roles: TestStaff.Support);
         _wallet.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _wallet.GetAsync($"/v1/wallets/{_walletId}", ct);
@@ -191,7 +202,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
         started.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var withdrawalId = (await started.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("withdrawalId").GetGuid();
 
-        _withdrawals.AsStaff(NewStaff(), StaffRoles.Support);
+        _withdrawals.AsStaff(NewStaff(), TestStaff.Support);
 
         (await _withdrawals.GetAsync($"/v1/withdrawals/{withdrawalId}", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _withdrawals.SendAsync(Start(), ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
