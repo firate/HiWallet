@@ -157,7 +157,10 @@ services:
       timeout: 3s
       retries: 30
 
-  # Kimlik sağlayıcı. Realm dosyası yalnızca realm YOKKEN içe aktarılıyor: var olan
+  # Müşterilerin kimlik sağlayıcısı: bireysel müşteri ve işyeri. Çalışanlarınki ayrı
+  # kurulum (hiwallet-staff-keycloak).
+  #
+  # Realm dosyası yalnızca realm YOKKEN içe aktarılıyor: var olan
   # realm'e yapılan değişiklik dosyadan gelmiyor, yönetim konsolundan ya da realm
   # silinip yeniden aktarılarak yapılıyor.
   #
@@ -166,10 +169,6 @@ services:
   # için parola akışı), merchant-demo istemcisi (örnek işyeri entegrasyonu) ve api-docs
   # istemcisi (Scalar'da müşteri girişi). Üç istemci de canlıda YOK; canlıda her
   # işyerinin entegrasyonu kendi istemcisini alıyor.
-  #
-  # Çalışanların realm'i ayrı dosyada (realm-hiwallet-staff.json): kayıt sayfası kapalı,
-  # kullanıcıyı yönetici açıyor; roller iş grubuna göre. Girişte OTP'yi keycloak-setup
-  # zorunlu kılıyor.
   #
   # Adı hiwallet-keycloak: ters proxy arkasında yayında kapı (hiwallet-gateway) hem bu
   # ağda hem proxy'nin ağında. O ağ başka projelerle ortak ve orada keycloak adlı başka
@@ -198,8 +197,7 @@ services:
       # Realm dosyasındaki ${MERCHANT_DEMO_CLIENT_SECRET} buradan dolduruluyor; secret
       # dosyaya yazılmıyor.
       MERCHANT_DEMO_CLIENT_SECRET: ${MERCHANT_DEMO_CLIENT_SECRET:?MERCHANT_DEMO_CLIENT_SECRET .env'de tanımlı değil}
-      # BFF'lerin gizli anahtarları; realm dosyaları buradan dolduruyor.
-      BACKOFFICE_CLIENT_SECRET: ${BACKOFFICE_CLIENT_SECRET:?BACKOFFICE_CLIENT_SECRET .env'de tanımlı değil}
+      # Bireysel web uygulamasının BFF'inin gizli anahtarı; realm dosyası buradan dolduruyor.
       PERSONAL_WEB_CLIENT_SECRET: ${PERSONAL_WEB_CLIENT_SECRET:?PERSONAL_WEB_CLIENT_SECRET .env'de tanımlı değil}
       # Kayıt servisinin istemcisi: kullanıcı açıyor ve wallet-api'yi kendi kimliğiyle çağırıyor.
       ONBOARDING_CLIENT_SECRET: ${ONBOARDING_CLIENT_SECRET:?ONBOARDING_CLIENT_SECRET .env'de tanımlı değil}
@@ -209,7 +207,6 @@ services:
       PROXY_DOMAIN: ${PROXY_DOMAIN:-localhost}
     volumes:
       - ./docker/keycloak/realm-hiwallet.json:/opt/keycloak/data/import/realm-hiwallet.json:ro
-      - ./docker/keycloak/realm-hiwallet-staff.json:/opt/keycloak/data/import/realm-hiwallet-staff.json:ro
       # Giriş sayfasının görünümü (realm'de loginTheme: hiwallet). Akış Keycloak'ın.
       - ./docker/keycloak/themes/hiwallet:/opt/keycloak/themes/hiwallet:ro
     ports:
@@ -222,19 +219,79 @@ services:
       retries: 30
       start_period: 30s
 
+  # Çalışanların Keycloak'ının veritabanı; müşterilerinkinden AYRI sunucu. Birinin
+  # veritabanına ulaşan ötekinin kimliklerine ulaşamıyor.
+  staff-keycloak-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${STAFF_KEYCLOAK_DB_PASSWORD:?STAFF_KEYCLOAK_DB_PASSWORD .env'de tanımlı değil}
+      POSTGRES_DB: keycloak
+    volumes:
+      - staff-keycloak-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U keycloak -d keycloak -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Çalışanların kimlik sağlayıcısı, müşterilerinkinden AYRI kurulum: kendi veritabanı,
+  # kendi yöneticisi. Müşteri Keycloak'ının yöneticisi çalışan açamıyor, bunun yöneticisi
+  # müşteriye dokunamıyor. Canlıda yalnızca iç ağdan erişiliyor; ters proxy arkasında kapı
+  # istemcinin adresine bakıyor (docker/gateway/Caddyfile).
+  #
+  # Tek realm, hiwallet-staff: kayıt sayfası kapalı, kullanıcıyı yönetici açıyor; roller
+  # iş grubuna göre. Girişte OTP'yi staff-keycloak-setup zorunlu kılıyor. Realm dosyası
+  # hiwallet-keycloak'taki gibi yalnızca realm YOKKEN içe aktarılıyor.
+  hiwallet-staff-keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    command: ["start", "--import-realm"]
+    depends_on:
+      staff-keycloak-postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://staff-keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${STAFF_KEYCLOAK_DB_PASSWORD:?STAFF_KEYCLOAK_DB_PASSWORD .env'de tanımlı değil}
+      KC_DB_POOL_MAX_SIZE: "10"
+      # Token'daki issuer; servisler anahtarları iç ağdan okuyor (hiwallet-keycloak'taki not).
+      KC_HOSTNAME: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${STAFF_KEYCLOAK_ADMIN_PASSWORD:?STAFF_KEYCLOAK_ADMIN_PASSWORD .env'de tanımlı değil}
+      # Backoffice BFF'inin gizli anahtarı; realm dosyası buradan dolduruyor.
+      BACKOFFICE_CLIENT_SECRET: ${BACKOFFICE_CLIENT_SECRET:?BACKOFFICE_CLIENT_SECRET .env'de tanımlı değil}
+      # Realm dosyasındaki ${PROXY_DOMAIN}: ters proxy arkasında BFF'in dönüş adresi.
+      PROXY_DOMAIN: ${PROXY_DOMAIN:-localhost}
+    volumes:
+      - ./docker/keycloak/realm-hiwallet-staff.json:/opt/keycloak/data/import/realm-hiwallet-staff.json:ro
+      - ./docker/keycloak/themes/hiwallet:/opt/keycloak/themes/hiwallet:ro
+    ports:
+      - "${STAFF_KEYCLOAK_HOST_PORT:-8107}:8080"
+    healthcheck:
+      # İmajda curl ve wget yok; bash'in /dev/tcp'si ile yönetim portu soruluyor.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
   # Çalışanların realm'inde OTP'yi zorunlu kılan tek seferlik iş
-  # (docker/keycloak/setup-staff-realm.sh). Keycloak sağlıklıyken, yani realm'ler içe
+  # (docker/keycloak/setup-staff-realm.sh). Keycloak sağlıklıyken, yani realm içe
   # aktarıldıktan sonra koşuyor; her açılışta aynı sonucu veriyor.
-  keycloak-setup:
+  staff-keycloak-setup:
     image: quay.io/keycloak/keycloak:26.7.4
     entrypoint: ["/bin/bash", "/opt/setup/setup-staff-realm.sh"]
     depends_on:
-      hiwallet-keycloak:
+      hiwallet-staff-keycloak:
         condition: service_healthy
     environment:
-      KEYCLOAK_URL: http://hiwallet-keycloak:8080
+      KEYCLOAK_URL: http://hiwallet-staff-keycloak:8080
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD .env'de tanımlı değil}
+      KEYCLOAK_ADMIN_PASSWORD: ${STAFF_KEYCLOAK_ADMIN_PASSWORD:?STAFF_KEYCLOAK_ADMIN_PASSWORD .env'de tanımlı değil}
     volumes:
       - ./docker/keycloak/setup-staff-realm.sh:/opt/setup/setup-staff-realm.sh:ro
     restart: "no"
@@ -459,9 +516,9 @@ services:
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
       Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: hiwallet-api
-      # Çalışanların realm'i: backoffice'ten gelen token.
-      Authentication__Staff__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet-staff
-      Authentication__Staff__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      # Çalışanların Keycloak'ı: backoffice'ten gelen token.
+      Authentication__Staff__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__Staff__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
       Authentication__RequireHttpsMetadata: "false"
       # Tanımlı değilse OTel exporter hiç eklenmiyor; collector'sız çalışmak sorun değil.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -659,10 +716,10 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
-      # Çalışanların realm'indeki istemci. Giriş sayfası tarayıcının gördüğü adreste,
+      # Çalışanların Keycloak'ındaki istemci. Giriş sayfası tarayıcının gördüğü adreste,
       # discovery ve token ucu iç ağdan.
-      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet-staff
-      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      Authentication__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
       Authentication__RequireHttpsMetadata: "false"
       Authentication__ClientSecret: ${BACKOFFICE_CLIENT_SECRET:?BACKOFFICE_CLIENT_SECRET .env'de tanımlı değil}
       Authentication__KeysDirectory: /app/keys
@@ -800,9 +857,9 @@ services:
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
       Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: hiwallet-api
-      # Çalışanların realm'i: backoffice'ten gelen token.
-      Authentication__Staff__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet-staff
-      Authentication__Staff__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      # Çalışanların Keycloak'ı: backoffice'ten gelen token.
+      Authentication__Staff__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__Staff__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
@@ -1008,6 +1065,7 @@ volumes:
   postgres-data:
   rabbitmq-data:
   keycloak-postgres-data:
+  staff-keycloak-postgres-data:
   onboarding-postgres-data:
   personal-web-bff-keys:
   backoffice-bff-keys:
