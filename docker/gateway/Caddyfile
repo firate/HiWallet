@@ -12,11 +12,26 @@
 		# Traefik'in X-Forwarded-* başlıkları korunuyor: servisler isteğin HTTPS
 		# olduğunu buradan görüyor.
 		trusted_proxies static private_ranges
+		# İstemcinin adresi X-Forwarded-For'un sağından, güvenilen proxy'ler atlanarak
+		# okunuyor. Soldaki değeri istemci kendisi yazabilir.
+		trusted_proxies_strict
 	}
+}
+
+# Çalışanın girişi ve paneli yalnızca STAFF_ALLOWED_RANGES'teki adreslerden; gerisine
+# 403. Canlıda bu iki yüzey iç ağda, ters proxy arkasında aynı sınırı kapı çiziyor.
+(staff_only) {
+	@outside not client_ip {$STAFF_ALLOWED_RANGES}
+	respond @outside 403
 }
 
 http://hiwallet-auth.{$PROXY_DOMAIN} {
 	reverse_proxy hiwallet-keycloak:8080
+}
+
+http://hiwallet-staff-auth.{$PROXY_DOMAIN} {
+	import staff_only
+	reverse_proxy hiwallet-staff-keycloak:8080
 }
 
 http://hiwallet-personal-mobile-api.{$PROXY_DOMAIN} {
@@ -36,6 +51,7 @@ http://hiwallet-business-web-bff.{$PROXY_DOMAIN} {
 }
 
 http://hiwallet-backoffice-bff.{$PROXY_DOMAIN} {
+	import staff_only
 	reverse_proxy backoffice-bff:8080
 }
 
