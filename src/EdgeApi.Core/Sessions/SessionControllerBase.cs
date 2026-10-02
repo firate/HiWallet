@@ -43,8 +43,12 @@ public abstract class SessionControllerBase : ControllerBase
     /// <summary>
     /// Cookie'yi siler ve Keycloak'taki oturumu da kapatır; aynı tarayıcıda yeniden
     /// girişte parola soruluyor. Form ile gönderiliyor, sayfa Keycloak'a gidip dönüyor.
+    ///
+    /// Oturumu olan herkese açık: BFF'in varsayılan politikası rol istese de (backoffice)
+    /// rolü olmayan kullanıcı başka bir kullanıcıyla girmek için çıkabilmeli.
     /// </summary>
     [HttpPost("logout")]
+    [Authorize]
     public IActionResult Logout()
     {
         return SignOut(
