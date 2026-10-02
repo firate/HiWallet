@@ -6,7 +6,7 @@ namespace HiWallet.WalletService.Application.Accounts;
 
 /// <summary>
 /// İşyerinin platform fonlu promo kabulü (decisions.md madde 37). Backoffice'ten,
-/// pazarlama rolüyle. Değişiklik bundan sonraki ödemeleri etkiliyor; verilmiş partiler
+/// <c>merchant.promo_acceptance</c> izniyle. Değişiklik bundan sonraki ödemeleri etkiliyor; verilmiş partiler
 /// ve geçmiş ödemeler olduğu gibi kalıyor.
 /// </summary>
 public sealed record SetAcceptsPromoCommand(Guid AccountId, bool AcceptsPromo);

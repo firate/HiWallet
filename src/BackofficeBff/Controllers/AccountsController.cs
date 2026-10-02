@@ -23,7 +23,7 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
         return await walletApi.GetAsync<AccountDetailResponse>($"v1/accounts/{accountId}", ct);
     }
 
-    /// <summary>İşyerinin platform fonlu promo kabulü. Pazarlama rolü; wallet-api kontrol ediyor.</summary>
+    /// <summary>İşyerinin platform fonlu promo kabulü. `merchant.promo_acceptance` izni; wallet-api kontrol ediyor.</summary>
     [HttpPut("{accountId:guid}/accepts-promo")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]

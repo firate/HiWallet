@@ -2,7 +2,7 @@ namespace HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 
 /// <summary>
 /// İnceleme eşiği, para birimi başına. Tutarı eşiğin ÜSTÜNDE olan çekim cüzdandan
-/// düşüldükten sonra bankaya gitmiyor, operasyon rolünden bir çalışanın kararını
+/// düşüldükten sonra bankaya gitmiyor, <c>withdrawal.review</c> izni olan bir çalışanın kararını
 /// bekliyor. Eşiği tanımlı olmayan para biriminde çekim incelemeye girmiyor.
 ///
 /// Bölüm eksikse uygulama açılmıyor: sessizce incelemesiz çalışmamalı.

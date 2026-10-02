@@ -30,10 +30,10 @@ builder.Services.AddHiWalletProblemDetails();
 
 builder.Services.AddBffSession(applicationName: ServiceName);
 
-// Realm'de kullanıcı olmak yetki değil: rolü olmayan çalışan panelde hiçbir şey
-// görmüyor. Rolün hangi işe yettiğini iç servis de kendisi kontrol ediyor.
+// Realm'de kullanıcı olmak yetki değil: hiçbir izni olmayan çalışan panelde hiçbir şey
+// görmüyor. İznin hangi işe yettiğini iç servis de kendisi kontrol ediyor.
 builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireRole(StaffRoles.All).Build());
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireRole(StaffPermissions.All).Build());
 
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();

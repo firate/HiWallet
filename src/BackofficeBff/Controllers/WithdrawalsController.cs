@@ -37,7 +37,7 @@ public sealed class WithdrawalsController(WithdrawalOrchestratorClient orchestra
             $"{path}{separator}state={Uri.EscapeDataString(state)}", ct);
     }
 
-    /// <summary>İncelemedeki çekimi serbest bırakır: banka komutu gidiyor. Operasyon rolü.</summary>
+    /// <summary>İncelemedeki çekimi serbest bırakır: banka komutu gidiyor. <c>withdrawal.review</c> izni.</summary>
     [HttpPost("{withdrawalId:guid}/release")]
     [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
@@ -49,7 +49,7 @@ public sealed class WithdrawalsController(WithdrawalOrchestratorClient orchestra
     }
 
     /// <summary>
-    /// İncelemedeki çekimi iptal eder: para cüzdana geri veriliyor. Operasyon rolü.
+    /// İncelemedeki çekimi iptal eder: para cüzdana geri veriliyor. <c>withdrawal.review</c> izni.
     /// <c>202</c>: ters kaydı wallet yazıyor.
     /// </summary>
     [HttpPost("{withdrawalId:guid}/cancel")]
