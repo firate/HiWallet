@@ -50,7 +50,8 @@ flowchart LR
         mail["<b>mailpit</b><br/>e-posta sağlayıcısı"]
     end
 
-    idp["<b>hiwallet-keycloak</b><br/>kimlik sağlayıcı"]
+    idp["<b>hiwallet-keycloak</b><br/>müşterilerin kimlik sağlayıcısı"]
+    sidp["<b>hiwallet-staff-keycloak</b><br/>çalışanların kimlik sağlayıcısı<br/>iç ağ"]
 
     mq[["RabbitMQ"]]
 
@@ -65,6 +66,7 @@ flowchart LR
     bclient -->|HTTPS| bapi
     bwclient -->|"HTTPS, cookie"| bwapi
     staff -->|"HTTPS, cookie"| boapi
+    boapi -->|"giriş"| sidp
     papi --> api
     papi --> orch
     pwapi --> api
@@ -201,23 +203,27 @@ kullanıcısı olduğunu kontrol ediyor; değilse kaynak yokmuş gibi `404`. Orc
 hesabın kullanıcılarını bilmiyor: çekimi isteyen kimliği saga'ya yazıyor, düşme
 komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğruluyor.
 
-Çalışanlar ayrı bir realm'de (`hiwallet-staff`): kayıt sayfası yok, kullanıcıyı yönetici
-açıyor ve girişte tek kullanımlık kod (TOTP) zorunlu. Giriş ve kodun kurulumu
-Keycloak'ın sayfasında, müşterininkiyle aynı HiWallet temasıyla. Çalışan backoffice
-panelinden giriyor; `backoffice-bff` oturumdaki çalışan token'ını iç servise iletiyor.
+Çalışanların kimlik sağlayıcısı müşterilerinkinden ayrı bir Keycloak kurulumu
+(`hiwallet-staff-keycloak`, realm'i `hiwallet-staff`): kendi veritabanı sunucusu, kendi
+yöneticisi. Müşterilerin Keycloak'ının yöneticisi çalışan açamıyor, çalışanlarınkinin
+yöneticisi müşteriye dokunamıyor. Çalışanın girişi ve paneli yalnızca iç ağdan
+erişiliyor. Kayıt sayfası yok, kullanıcıyı yönetici açıyor ve girişte tek kullanımlık kod
+(TOTP) zorunlu. Giriş ve kodun kurulumu Keycloak'ın sayfasında, müşterininkiyle aynı
+HiWallet temasıyla. Çalışan backoffice panelinden giriyor; `backoffice-bff` oturumdaki
+çalışan token'ını iç servise iletiyor.
 
 ```
 tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator
-                     rolü yoksa reddeder                 realm'e göre doğrular, rolü kontrol eder
+                     rolü yoksa reddeder                 issuer'a göre doğrular, rolü kontrol eder
 ```
 
-İç servisler iki realm'in token'ını da kabul ediyor; token'ın hangi realm'den geldiğini
+İç servisler iki Keycloak'ın token'ını da kabul ediyor; token'ın hangisinden geldiğini
 onu doğrulayan şema söylüyor, token'ın içeriği değil. Varsayılan politika çalışanı
 dışarıda bırakıyor: yeni bir uç kendiliğinden çalışana kapalı. Çalışanın rolleri iş
 grubuna göre (`support`, `operations`, `finance`, `marketing`); her rol müşteri kaydını
 görüntüleyebiliyor, üyelik aranmıyor. Müşterinin para hareketi başlatan uçları
 çalışana kapalı; çalışanın yazma işleri kendi uçlarında, rolüne bağlı ve ledger'a
-çalışanın aktörüyle düşüyor. Müşterinin ön API'leri çalışanların realm'ini tanımıyor.
+çalışanın aktörüyle düşüyor. Müşterinin ön API'leri çalışanların Keycloak'ını tanımıyor.
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.

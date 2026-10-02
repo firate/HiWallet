@@ -39,7 +39,8 @@ olduğu yere taşınmıyor.
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
-| `hiwallet-keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
+| `hiwallet-keycloak` | **public** — müşterilerin ve işyerlerinin kimlik sağlayıcısı (bizim kodumuz değil) | kendi Postgres sunucusu | — |
+| `hiwallet-staff-keycloak` | **iç ağ** — çalışanların kimlik sağlayıcısı, ayrı kurulum (bizim kodumuz değil) | kendi Postgres sunucusu | — |
 
 İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
@@ -49,7 +50,8 @@ yalnızca HttpOnly oturum cookie'si taşır. `personal-mobile-api`, `personal-we
 `business-api`'nin uçları yazıldı; `backoffice-bff`'in görüntüleme uçları var, işyeri
 BFF'i sağlık uçlarıyla ayakta.
 
-Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
+Token'ı Keycloak imzalıyor. Müşterilerin ve çalışanların Keycloak'ı ayrı kurulum: kendi
+veritabanı, kendi yöneticisi. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
 iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
 duruyor ve müşteri yalnızca kendi hesabına erişiyor.
 
@@ -133,7 +135,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
-| Çalışan kimliği: ayrı realm, iş grubuna göre roller, OTP zorunlu | evet — roller ve iç servislerin kontrolü testte; realm ve OTP kurulumu compose'da denenmedi |
+| Çalışan kimliği: ayrı Keycloak kurulumu, iş grubuna göre roller, OTP zorunlu | evet — roller ve iç servislerin kontrolü testte; ayrı kurulum ve OTP compose'da denenmedi |
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
@@ -188,7 +190,8 @@ curl http://localhost:8102/health/ready   # personal-web-bff
 curl http://localhost:8103/health/ready   # onboarding
 curl http://localhost:8104/health/ready   # sms-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8105/health/ready   # nvi-fake (BİZİM DEĞİL, canlıda yok)
-curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration   # keycloak
+curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration         # keycloak, müşteriler
+curl http://localhost:8107/realms/hiwallet-staff/.well-known/openid-configuration   # keycloak, çalışanlar
 ```
 
 `wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için

@@ -43,10 +43,12 @@ STRIPE_FAKE_WEBHOOK_SECRET=...  # uzun ve rastgele
 BANK_FAKE_WEBHOOK_SECRET=...
 BANK_CALLBACK_SECRET=...        # bankanın sonuç callback'ini imzaladığı secret
 
-KEYCLOAK_DB_PASSWORD=...        # Keycloak'ın kendi Postgres'i
-KEYCLOAK_ADMIN_PASSWORD=...     # yönetim konsolunun ilk kullanıcısı (admin)
+KEYCLOAK_DB_PASSWORD=...        # müşterilerin Keycloak'ının Postgres'i
+KEYCLOAK_ADMIN_PASSWORD=...     # müşterilerin Keycloak'ının ilk yöneticisi (admin)
 MERCHANT_DEMO_CLIENT_SECRET=... # örnek işyeri entegrasyonunun gizli anahtarı
 PERSONAL_WEB_CLIENT_SECRET=...  # bireysel web uygulamasının BFF'inin gizli anahtarı
+STAFF_KEYCLOAK_DB_PASSWORD=...  # çalışanların Keycloak'ının Postgres'i
+STAFF_KEYCLOAK_ADMIN_PASSWORD=... # çalışanların Keycloak'ının ilk yöneticisi; öbüründen farklı
 BACKOFFICE_CLIENT_SECRET=...    # backoffice panelinin BFF'inin gizli anahtarı
 ONBOARDING_CLIENT_SECRET=...    # kayıt servisinin istemcisi: kullanıcı açıyor, wallet'ı çağırıyor
 ONBOARDING_OWNER_PASSWORD=...   # onboarding'in Postgres'i: şemanın sahibi
@@ -55,6 +57,8 @@ ONBOARDING_APP_PASSWORD=...     # onboarding'in Postgres'i: uygulamanın rolü
 
 `KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
 servisler başka bir issuer'ı kabul etmiyor ve yanlış yazılırsa her token `401` alır.
+Çalışanların Keycloak'ı ayrı kurulum; onun adresi `STAFF_KEYCLOAK_PUBLIC_URL`
+(varsayılanı `http://localhost:8107`).
 
 **Ters proxy arkasında yayın.** Stack başka bir makinede koşuyorsa API'si olan
 servisler ve Keycloak o makinedeki Traefik'in arkasından HTTPS ile açılıyor
@@ -63,17 +67,26 @@ servisler ve Keycloak o makinedeki Traefik'in arkasından HTTPS ile açılıyor
 ```
 COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
 KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.<PROXY_DOMAIN>
+STAFF_KEYCLOAK_PUBLIC_URL=https://hiwallet-staff-auth.<PROXY_DOMAIN>
 PROXY_DOMAIN=...          # alan adı; sertifikası Traefik'te
 PROXY_NETWORK=...         # Traefik'in Docker ağı
 PROXY_ENTRYPOINT=...      # Traefik'in HTTPS entrypoint'i
 PROXY_CERT_RESOLVER=...   # Traefik'in sertifika çözücüsü
+STAFF_ALLOWED_RANGES=...  # çalışanın girişine ve paneline izin verilen aralıklar, boşlukla
 ```
 
 `COMPOSE_FILE` ile her `docker compose` komutu ek dosyayı da okuyor. Adres
 `https://hiwallet-<servis>.<PROXY_DOMAIN>` (`hiwallet-wallet-api`,
-`hiwallet-personal-mobile-api`, `hiwallet-stripe-fake`, ...); Keycloak
-`https://hiwallet-auth.<PROXY_DOMAIN>`. Webhook'lar dışarıda: onları sahteler iç ağdan
-çağırıyor.
+`hiwallet-personal-mobile-api`, `hiwallet-stripe-fake`, ...); müşterilerin Keycloak'ı
+`https://hiwallet-auth.<PROXY_DOMAIN>`, çalışanlarınki
+`https://hiwallet-staff-auth.<PROXY_DOMAIN>`. Webhook'lar dışarıda: onları sahteler iç
+ağdan çağırıyor.
+
+Çalışanların Keycloak'ı ve `backoffice-bff` yalnızca `STAFF_ALLOWED_RANGES`'teki
+adreslerden açılıyor, gerisi `403`. Kapı istemcinin adresini Traefik'in
+`X-Forwarded-For`'undan okuyor; Traefik'in gördüğü adres istemcinin gerçek adresi
+olmalı. Kendi adresinden açılıyor mu ve aralığın dışından `403` alıyor mu, ikisini de
+dene.
 
 Traefik `hiwallet-*` adlarını `hiwallet-gateway`'e veriyor, kapı adı servise eşliyor
 (`docker/gateway/Caddyfile`). Traefik'in ağına yalnızca kapı bağlanıyor: o ağ başka
@@ -96,6 +109,7 @@ for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET \
          KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET \
          PERSONAL_WEB_CLIENT_SECRET BACKOFFICE_CLIENT_SECRET \
+         STAFF_KEYCLOAK_DB_PASSWORD STAFF_KEYCLOAK_ADMIN_PASSWORD \
          ONBOARDING_CLIENT_SECRET ONBOARDING_OWNER_PASSWORD ONBOARDING_APP_PASSWORD; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
@@ -348,15 +362,18 @@ yalnızca HTTPS'te ve `localhost`'ta yazıyor.
 
 #### Çalışan girişi
 
-Çalışanlar `hiwallet-staff` realm'inde; kayıt sayfası yok. `keycloak-setup` işi bitti mi:
+Çalışanların Keycloak'ı ayrı kurulum (`hiwallet-staff-keycloak`), tek realm'i
+`hiwallet-staff`; kayıt sayfası yok. Yönetim konsolu `http://localhost:8107/admin`
+(ters proxy arkasında `https://hiwallet-staff-auth.<PROXY_DOMAIN>/admin`), kullanıcı
+`admin`, parola `STAFF_KEYCLOAK_ADMIN_PASSWORD`. `staff-keycloak-setup` işi bitti mi:
 
 ```bash
-docker compose logs keycloak-setup | tail -1
+docker compose logs staff-keycloak-setup | tail -1
 ```
 
 Beklenen: `hiwallet-staff: girişte OTP zorunlu.`
 
-Yönetim konsolunda `hiwallet-staff` realm'i, Users, Add user; e-posta, ad ve soyadı
+Bu konsolda `hiwallet-staff` realm'i, Users, Add user; e-posta, ad ve soyadı
 doldur, Credentials'ta parola ver. Role mapping'de bir rol ata: `support`,
 `operations`, `finance` ya da `marketing`. Rolsüz çalışan panelde hiçbir şey görmüyor.
 
