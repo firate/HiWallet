@@ -300,6 +300,25 @@ public sealed class BackofficeBffSessionTests
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    /// <summary>
+    /// Rolü olmayan çalışan çıkış yapabiliyor: panel ona rolü olmadığını söylüyor ve başka
+    /// bir kullanıcıyla girmesi için oturumu kapatabilmeli.
+    /// </summary>
+    [Fact]
+    public async Task RolsuzCalisan_CikisYapabilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var factory = new BackofficeBffFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false })
+            .SignedInAs("rolsuz-calisan");
+
+        var response = await client.PostAsync("/bff/logout", content: null, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        response.Headers.Location.ShouldNotBeNull().GetLeftPart(UriPartial.Path)
+            .ShouldBe($"{TestTokens.StaffIssuer}/protocol/openid-connect/logout");
+    }
+
     /// <summary>Panelin sayfası kimliksiz geliyor: kök adres de panelin kendi yolları da.</summary>
     [Fact]
     public async Task PanelinSayfasi_KimliksizGelir()
