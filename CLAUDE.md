@@ -154,10 +154,13 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Varsayılan politika kimlik ister ve ÇALIŞANI DIŞARIDA BIRAKIR: yeni bir uç
   kendiliğinden çalışana kapalı açılır. Kimliksiz açık kalan uç (sağlık, API dokümanı)
   `AllowAnonymous` ile, çalışanın geçebildiği uç kendi politikasıyla bunu söyler.
-- Çalışanların realm'i ayrı (`hiwallet-staff`); kayıt sayfası kapalı, girişte OTP
-  zorunlu. İç servisler iki realm'in token'ını da kabul eder; hangi realm'den geldiğini
-  token'ın içeriği değil onu doğrulayan şema söyler. Müşterinin ön API'leri çalışan
-  token'ını kabul ETMEZ.
+- Çalışanların Keycloak'ı AYRI KURULUM (`hiwallet-staff-keycloak`, realm'i
+  `hiwallet-staff`): kendi veritabanı sunucusu, kendi yöneticisi. Müşterilerinki
+  (`hiwallet-keycloak`: bireysel ve işyeri) ile aynı process'te ya da veritabanında
+  DURMAZ; bir kurulumun yöneticisi ötekinin kimliklerine dokunamaz. Çalışanın girişi ve
+  paneli yalnızca iç ağdan. Kayıt sayfası kapalı, girişte OTP zorunlu. İç servisler iki
+  Keycloak'ın token'ını da kabul eder; hangisinden geldiğini token'ın içeriği değil onu
+  doğrulayan şema söyler. Müşterinin ön API'leri çalışan token'ını kabul ETMEZ.
 - Çalışanın rolleri iş grubuna göre: `support`, `operations`, `finance`, `marketing`.
   Her rol müşteri kaydını görüntüler; yazma işi rolün kendi ucunda. Müşterinin para
   hareketi başlatan uçları çalışana KAPALI: çalışan müşteri yerine işlem başlatmaz,
