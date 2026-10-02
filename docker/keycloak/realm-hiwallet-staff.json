@@ -16,32 +16,18 @@
     "en"
   ],
   "defaultLocale": "tr",
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "personel@hiwallet.test",
+    "fromDisplayName": "HiWallet Backoffice"
+  },
   "bruteForceProtected": true,
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
-  "roles": {
-    "realm": [
-      {
-        "name": "support",
-        "description": "Müşteri kaydını görüntüler"
-      },
-      {
-        "name": "operations",
-        "description": "Ters kayıt ve çekim iptali"
-      },
-      {
-        "name": "finance",
-        "description": "Koruma hesabının fonlanması"
-      },
-      {
-        "name": "marketing",
-        "description": "Kampanya, personel promo'su, işyerinin promo kabulü"
-      }
-    ]
-  },
   "clients": [
     {
       "clientId": "backoffice",
@@ -57,7 +43,10 @@
       "redirectUris": [
         "http://localhost:8099/signin-oidc",
         "http://localhost:5174/signin-oidc",
-        "https://hiwallet-backoffice-bff.${PROXY_DOMAIN}/signin-oidc"
+        "https://hiwallet-backoffice-bff.${PROXY_DOMAIN}/signin-oidc",
+        "http://localhost:8099/",
+        "http://localhost:5174/",
+        "https://hiwallet-backoffice-bff.${PROXY_DOMAIN}/"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
@@ -90,6 +79,35 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "staff-admin",
+      "name": "Personel yönetimi",
+      "description": "Çalışanları, panelin rollerini ve rollerin izinlerini yönetir.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${STAFF_ADMIN_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-staff-admin",
+      "enabled": true,
+      "serviceAccountClientId": "staff-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "manage-realm",
+          "view-realm"
+        ]
+      }
     }
   ]
 }
