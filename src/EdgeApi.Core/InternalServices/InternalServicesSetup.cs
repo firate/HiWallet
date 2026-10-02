@@ -23,6 +23,9 @@ public static class InternalServicesSetup
     public static IHttpClientBuilder AddOnboardingClient(this IServiceCollection services) =>
         services.AddInternalService<OnboardingClient>("Onboarding");
 
+    public static IHttpClientBuilder AddStaffAdminClient(this IServiceCollection services) =>
+        services.AddInternalService<StaffAdminClient>("StaffAdmin");
+
     /// <summary>
     /// Pipeline <c>bank-adapter</c>'ınkiyle aynı sırada: toplam zaman aşımı, yeniden
     /// deneme, devre kesici, deneme zaman aşımı.

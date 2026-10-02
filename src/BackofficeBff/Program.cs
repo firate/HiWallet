@@ -37,6 +37,7 @@ builder.Services.AddAuthorizationBuilder()
 
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
+builder.Services.AddStaffAdminClient();
 
 // Çalışan başına kova. Panel müşteri uygulamasından daha sık istek atıyor (arama,
 // liste); çekim kovası burada kullanılmıyor.
