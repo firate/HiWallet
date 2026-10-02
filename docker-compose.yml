@@ -262,8 +262,10 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${STAFF_KEYCLOAK_ADMIN_PASSWORD:?STAFF_KEYCLOAK_ADMIN_PASSWORD .env'de tanımlı değil}
-      # Backoffice BFF'inin gizli anahtarı; realm dosyası buradan dolduruyor.
+      # Backoffice BFF'inin ve personel yönetiminin gizli anahtarları; realm dosyası
+      # buradan dolduruyor.
       BACKOFFICE_CLIENT_SECRET: ${BACKOFFICE_CLIENT_SECRET:?BACKOFFICE_CLIENT_SECRET .env'de tanımlı değil}
+      STAFF_ADMIN_CLIENT_SECRET: ${STAFF_ADMIN_CLIENT_SECRET:?STAFF_ADMIN_CLIENT_SECRET .env'de tanımlı değil}
       # Realm dosyasındaki ${PROXY_DOMAIN}: ters proxy arkasında BFF'in dönüş adresi.
       PROXY_DOMAIN: ${PROXY_DOMAIN:-localhost}
     volumes:
@@ -295,6 +297,80 @@ services:
     volumes:
       - ./docker/keycloak/setup-staff-realm.sh:/opt/setup/setup-staff-realm.sh:ro
     restart: "no"
+
+  # Personel yönetimi: çalışanlar, panelin rolleri ve rollerin izinleri. İÇ SERVİS: tek
+  # çağıranı backoffice-bff. Çalışanların Keycloak'ına kendi istemcisinin servis
+  # hesabıyla gidiyor; kim kime ne verdi kendi Postgres sunucusuna yazıyor. Müşterinin
+  # token'ını tanımıyor.
+  staff-admin-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: staff_admin_owner
+      POSTGRES_PASSWORD: ${STAFF_ADMIN_OWNER_PASSWORD:?STAFF_ADMIN_OWNER_PASSWORD .env'de tanımlı değil}
+      POSTGRES_DB: hiwallet_staff_admin
+      STAFF_ADMIN_APP_PASSWORD: ${STAFF_ADMIN_APP_PASSWORD:?STAFF_ADMIN_APP_PASSWORD .env'de tanımlı değil}
+    volumes:
+      - staff-admin-postgres-data:/var/lib/postgresql/data
+      - ./docker/staff-admin/postgres-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U staff_admin_owner -d hiwallet_staff_admin -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Şemayı sahibi olarak uygulayan tek seferlik iş; uygulama staff_admin_app ile bağlanıyor.
+  staff-admin-migrator:
+    build:
+      context: .
+      dockerfile: src/StaffAdmin/Dockerfile
+      target: migrator
+    depends_on:
+      staff-admin-postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=staff-admin-postgres;Port=5432;Database=hiwallet_staff_admin;Username=staff_admin_owner;Password=${STAFF_ADMIN_OWNER_PASSWORD}
+    restart: "no"
+
+  staff-admin:
+    build:
+      context: .
+      dockerfile: src/StaffAdmin/Dockerfile
+      target: final
+    depends_on:
+      staff-admin-migrator:
+        condition: service_completed_successfully
+      # Keycloak BEKLENMİYOR: açılış kurulumu ona ulaşana kadar yeniden deniyor.
+      hiwallet-staff-keycloak:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__StaffAdmin: Host=staff-admin-postgres;Port=5432;Database=hiwallet_staff_admin;Username=staff_admin_app;Password=${STAFF_ADMIN_APP_PASSWORD};Application Name=hiwallet-staff-admin;Maximum Pool Size=8
+      Keycloak__BaseUrl: http://hiwallet-staff-keycloak:8080
+      Keycloak__ClientSecret: ${STAFF_ADMIN_CLIENT_SECRET:?STAFF_ADMIN_CLIENT_SECRET .env'de tanımlı değil}
+      # Davetteki bağlantı parola ve OTP kurulunca panele dönüyor; panelin tarayıcıdaki adresi.
+      Keycloak__Invitation__RedirectUri: ${BACKOFFICE_PUBLIC_URL:-http://localhost:8099}/
+      # Kimsede personel yönetimi yoksa bu adrese ilk yönetici daveti gidiyor. Boşsa yalnızca
+      # izinler ve yönetici rolü kuruluyor.
+      StaffAdmin__Bootstrap__AdminEmail: ${STAFF_BOOTSTRAP_ADMIN_EMAIL:-}
+      # Yalnızca çalışanın token'ı; backoffice-bff iletiyor, burada yeniden doğrulanıyor.
+      Authentication__Staff__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__Staff__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      Authentication__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-staff-admin
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${STAFF_ADMIN_HOST_PORT:-8108}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
 
   # Müşteri kaydı ve kimlik doğrulaması. İÇ SERVİS: ön API'ler (personal-web-bff,
   # personal-mobile-api) çağırıyor. Kişisel veri (e-posta, telefon, TCKN, onaylar)
@@ -712,10 +788,13 @@ services:
         condition: service_started
       withdrawal-orchestrator:
         condition: service_started
+      staff-admin:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
+      InternalServices__StaffAdmin__BaseUrl: http://staff-admin:8080
       # Çalışanların Keycloak'ındaki istemci. Giriş sayfası tarayıcının gördüğü adreste,
       # discovery ve token ucu iç ağdan.
       Authentication__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
@@ -1066,6 +1145,7 @@ volumes:
   rabbitmq-data:
   keycloak-postgres-data:
   staff-keycloak-postgres-data:
+  staff-admin-postgres-data:
   onboarding-postgres-data:
   personal-web-bff-keys:
   backoffice-bff-keys:
