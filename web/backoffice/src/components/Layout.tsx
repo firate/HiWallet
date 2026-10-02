@@ -1,9 +1,10 @@
 import { Link, NavLink, Outlet } from 'react-router'
 import { staffRoleNames } from '../format'
-import { useSessionUser } from '../session'
+import { useHasPermission, useSessionUser } from '../session'
 
 export function Layout() {
   const user = useSessionUser()
+  const managesStaff = useHasPermission('staff.manage')
 
   return (
     <>
@@ -14,6 +15,7 @@ export function Layout() {
           </Link>
           <NavLink to="/cekimler">Çekimler</NavLink>
           <NavLink to="/kampanyalar">Kampanyalar</NavLink>
+          {managesStaff && <NavLink to="/personel">Personel</NavLink>}
         </div>
         <div className="user">
           <span>{user.name ?? user.email ?? user.subject}</span>

@@ -111,6 +111,31 @@ export function promoScope(value: string): string {
   return promoScopes[value] ?? value
 }
 
+const auditActions: Record<string, string> = {
+  role_created: 'Rol açıldı',
+  role_updated: 'Rol değişti',
+  role_deleted: 'Rol silindi',
+  staff_invited: 'Çalışan davet edildi',
+  staff_roles_changed: 'Rolleri değişti',
+  staff_disabled: 'Kapatıldı',
+  staff_enabled: 'Açıldı',
+  invitation_sent: 'Davet yeniden gönderildi',
+}
+
+export function auditAction(value: string): string {
+  return auditActions[value] ?? value
+}
+
+export function staffStatus(staff: { enabled: boolean; invitationPending: boolean }): string {
+  if (!staff.enabled) return 'Kapalı'
+  return staff.invitationPending ? 'Davet bekliyor' : 'Etkin'
+}
+
+export function personName(staff: { firstName: string | null; lastName: string | null; email: string }): string {
+  const name = [staff.firstName, staff.lastName].filter(Boolean).join(' ')
+  return name || staff.email
+}
+
 /** Satır başına bir hesap kimliği; boş satırlar atlanıyor. */
 export function idList(text: string): string[] {
   return text

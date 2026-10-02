@@ -180,6 +180,82 @@ export interface CampaignsPage {
   nextCursor: string | null
 }
 
+export interface Permission {
+  name: StaffPermission
+  description: string
+}
+
+/** Panelin rolü: izin seti. */
+export interface Role {
+  roleId: string
+  name: string
+  description: string | null
+  permissions: StaffPermission[]
+}
+
+export interface RolesPage {
+  items: Role[]
+  first: number
+  size: number
+  nextFirst: number | null
+}
+
+export interface StaffSummary {
+  staffId: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  enabled: boolean
+  /** Çalışan parolasını ya da OTP'sini henüz kurmadı. */
+  invitationPending: boolean
+  createdAt: string
+}
+
+export interface RoleDetail extends Role {
+  members: StaffSummary[]
+}
+
+export interface StaffPage {
+  items: StaffSummary[]
+  first: number
+  size: number
+  nextFirst: number | null
+}
+
+export interface StaffDetail extends StaffSummary {
+  roles: { roleId: string; name: string }[]
+}
+
+export interface RoleRequest {
+  description: string | null
+  permissions: StaffPermission[]
+}
+
+export interface InviteRequest {
+  email: string
+  firstName: string | null
+  lastName: string | null
+  roleIds: string[]
+}
+
+export interface AuditEvent {
+  eventId: string
+  occurredAt: string
+  actorSubject: string
+  actorName: string | null
+  action: string
+  targetType: 'role' | 'staff'
+  targetId: string
+  targetLabel: string
+  details: Record<string, unknown>
+}
+
+export interface AuditEventsPage {
+  items: AuditEvent[]
+  size: number
+  nextCursor: string | null
+}
+
 /**
  * RFC 7807. Doğrulama hatalarında alan başına mesajlar `errors`'ta; iş kuralı
  * reddinde makinenin okuyacağı ad `rule`'da.
