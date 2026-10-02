@@ -128,14 +128,14 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
 | Bireysel web uygulaması: kayıt, doğrulama, giriş, cüzdan, hareketler, transfer, çekim | evet |
 | BFF oturumu: şifreli cookie, token yenileme, X-CSRF | evet |
-| `backoffice-bff`: çalışanın oturumu, görüntüleme uçları | evet — testte; compose'da denenmedi |
+| Backoffice paneli: müşteri kaydı, çekim incelemesi, personel promo'su, kampanyalar | evet — testte; panel compose'da denenmedi |
 | İşyeri BFF'inin uçları | hayır — sağlık uçlarıyla ayakta |
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
-| Çalışan kimliği: ayrı Keycloak kurulumu, iş grubuna göre roller, OTP zorunlu | evet — roller ve iç servislerin kontrolü testte; ayrı kurulum ve OTP compose'da denenmedi |
+| Çalışan kimliği: ayrı Keycloak kurulumu, iş grubuna göre roller, OTP zorunlu | evet — giriş, OTP ve gruptan gelen roller compose'da denendi |
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
@@ -155,8 +155,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-595 test: 183 unit (DB'siz), 412 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamasının 14 testi ayrı (Vitest).
+596 test: 183 unit (DB'siz), 413 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 14, panelin 13.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -208,6 +208,13 @@ Arayüzü geliştirirken Vite'ın sunucusu, arkada compose'daki BFF:
 
 ```bash
 cd web/personal && npm install && npm run dev   # http://localhost:5173
+```
+
+Backoffice paneli <http://localhost:8099>'da; giriş çalışanların Keycloak'ından, OTP ile.
+Geliştirirken:
+
+```bash
+cd web/backoffice && npm install && npm run dev   # http://localhost:5174
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
@@ -409,6 +416,7 @@ sapmamış. Testin iddiası "her transfer başarılı olur" değil — çakışa
 ```bash
 dotnet test
 cd web/personal && npm test
+cd web/backoffice && npm test
 ```
 
 Integration testler bir Postgres sunucusu ister; bağlantı

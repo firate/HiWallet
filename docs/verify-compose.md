@@ -374,15 +374,18 @@ docker compose logs staff-keycloak-setup | tail -1
 Beklenen: `hiwallet-staff: girişte OTP zorunlu.`
 
 Bu konsolda `hiwallet-staff` realm'i, Users, Add user; e-posta, ad ve soyadı
-doldur, Credentials'ta parola ver. Role mapping'de bir rol ata: `support`,
-`operations`, `finance` ya da `marketing`. Rolsüz çalışan panelde hiçbir şey görmüyor.
+doldur, Credentials'ta parola ver. Rol ata: `support`, `operations`, `finance` ya da
+`marketing`; doğrudan Role mapping'den ya da rolleri verilmiş bir gruba ekleyerek.
+Rolsüz çalışan panelde yalnızca rolünün olmadığını ve çıkışı görüyor.
 
 `http://localhost:8099/bff/login` (ters proxy arkasında
 `https://hiwallet-backoffice-bff.<PROXY_DOMAIN>/bff/login`) aç. İlk girişte Keycloak bir
 doğrulayıcı uygulamayla OTP kurduruyor; sonraki her girişte kodu soruyor. Girişten sonra
-`/bff/user` kullanıcıyı rolleriyle dönüyor. Panelin arayüzü henüz yok; görüntüleme
-uçlarını tarayıcının geliştirici araçlarından `X-CSRF: 1` başlığıyla çağır, örneğin
-`/v1/accounts/<hesap>`.
+panel açılıyor; üstte adın ve rollerin. Kayda kimliğiyle gidiliyor: ana sayfada hesap,
+cüzdan, çekim ya da kampanya kimliğini yaz. Çekimler sayfası inceleme kuyruğuyla açılıyor;
+serbest bırakma ve iptal operasyon rolünde. Personel promo'su cüzdan sayfasında,
+kampanyalar kendi sayfasında; ikisi de pazarlama rolünde. Rolü olmayan iş için düğme
+görünmüyor; iç servis de reddediyor.
 
 #### İşyeri entegrasyonu
 

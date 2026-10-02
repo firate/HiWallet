@@ -188,9 +188,10 @@ BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 ├── ...                        -- aynı dosyalar
 └── Controllers/               -- Accounts, Wallets, Transfers, Promos, Withdrawals
 
-BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların realm'i
+BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların Keycloak'ı
 ├── ...                        -- aynı dosyalar
-└── Controllers/               -- Accounts, Wallets, Withdrawals, PromoCampaigns, Session (/bff)
+├── Controllers/               -- Accounts, Wallets, Withdrawals, PromoCampaigns, Session (/bff)
+└── Dockerfile                 -- web/backoffice'i derleyip wwwroot'a koyuyor
 
 BusinessWebBff/                -- public; işyeri panelinin BFF'i (Controllers/ henüz yok)
 ```
@@ -230,21 +231,26 @@ EdgeApi.Core/
 
 ```
 web/
-└── personal/                  -- bireysel müşteri; BFF'i personal-web-bff
-    ├── package.json           -- sürümler tam, package-lock.json ile
-    ├── vite.config.ts         -- geliştirmede API ve oturum yollarını BFF'e iletiyor
-    ├── index.html
+├── personal/                  -- bireysel müşteri; BFF'i personal-web-bff
+│   ├── package.json           -- sürümler tam, package-lock.json ile
+│   ├── vite.config.ts         -- geliştirmede API ve oturum yollarını BFF'e iletiyor
+│   ├── index.html
+│   └── src/
+│       ├── api.ts             -- BFF'e istekler: X-CSRF, Idempotency-Key, ProblemDetails
+│       ├── session.tsx        -- oturum yoksa giriş; kayıt (/kayit) oturumun dışında
+│       ├── pages/             -- sayfa başına bir bileşen, testi yanında
+│       ├── components/
+│       └── test/              -- sahte BFF ve render yardımcısı
+└── backoffice/                -- çalışanın paneli; BFF'i backoffice-bff, aynı düzen
     └── src/
-        ├── api.ts             -- BFF'e istekler: X-CSRF, Idempotency-Key, ProblemDetails
-        ├── session.tsx        -- oturum yoksa giriş; kayıt (/kayit) oturumun dışında
-        ├── pages/             -- sayfa başına bir bileşen, testi yanında
-        ├── components/
-        └── test/              -- sahte BFF ve render yardımcısı
+        ├── session.tsx        -- oturum yoksa giriş, rolü yoksa (403) yalnızca çıkış
+        └── pages/             -- hesap, cüzdan, çekim incelemesi, kampanyalar
 ```
 
 React, TypeScript ve Vite; router React Router, veri TanStack Query, test Vitest ve
 Testing Library. Uygulama token görmüyor: oturum BFF'te, uygulama yalnızca BFF'in
-`/v1` ve `/bff` yollarını çağırıyor.
+`/v1` ve `/bff` yollarını çağırıyor. Panel düğmeleri çalışanın rolüne göre gösteriyor;
+yetkiyi iç servis kendisi kontrol ediyor.
 
 Yalnızca ön API'ler referans veriyor; iç servisler bu kodu taşımıyor. Veritabanı ve
 broker bağımlılığı yok.

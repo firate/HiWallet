@@ -165,8 +165,8 @@ cüzdan, hareketler, promo partileri, transfer ve çekim. Hesap ön API'den aç�
 açıyor. Web uygulamasının sayfalarını da `personal-web-bff`
 sunuyor (`web/personal`). `business-api`'nin uçları: hesap, cüzdan, hareketler, transfer
 (`B2P`, `B2B`), müşteriye promo ve çekim. `backoffice-bff`'in uçları: müşteri kaydını
-görüntüleme (her rol), işyerinin promo kabulü, personel promo'su ve kampanyalar
-(pazarlama).
+görüntüleme (her rol), çekim incelemesi (operasyon), işyerinin promo kabulü, personel
+promo'su ve kampanyalar (pazarlama). Panelin sayfalarını da o sunuyor (`web/backoffice`).
 `business-web-bff` sağlık uçlarıyla ayakta.
 
 ### Kimlik
