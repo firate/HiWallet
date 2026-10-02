@@ -103,8 +103,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   "Önce SELECT sonra INSERT" YOK.
 
 **Deployable'lar**
-- **`wallet-api`, `withdrawal-orchestrator` ve `onboarding` İÇ servis;** istemci onlara
-  doğrudan bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
+- **`wallet-api`, `withdrawal-orchestrator`, `onboarding` ve `staff-admin` İÇ servis;**
+  istemci onlara doğrudan bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
 - Dışarıya açılan her yüzey bir **ön API**. Ön API ihtiyaç doğdukça açılır, kendi
   istemcisine hizmet eder ve ya public ya da yalnızca iç ağdan erişilir:
   `personal-mobile-api`, `personal-web-bff`, `business-api` ve `business-web-bff` public,
@@ -161,10 +161,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   paneli yalnızca iç ağdan. Kayıt sayfası kapalı, girişte OTP zorunlu. İç servisler iki
   Keycloak'ın token'ını da kabul eder; hangisinden geldiğini token'ın içeriği değil onu
   doğrulayan şema söyler. Müşterinin ön API'leri çalışan token'ını kabul ETMEZ.
-- Çalışanın rolleri iş grubuna göre: `support`, `operations`, `finance`, `marketing`.
-  Her rol müşteri kaydını görüntüler; yazma işi rolün kendi ucunda. Müşterinin para
-  hareketi başlatan uçları çalışana KAPALI: çalışan müşteri yerine işlem başlatmaz,
-  kendi ucundan ve kendi aktörüyle yapar.
+- Çalışanın yetkisi İZİNLE kontrol edilir (`StaffPermissions`), rol adıyla DEĞİL. Her
+  uç kendi iznini ister; müşteri kaydını görüntülemek de bir izin (`customer.view`).
+  Müşterinin para hareketi başlatan uçları çalışana KAPALI: çalışan müşteri yerine
+  işlem başlatmaz, kendi ucundan ve kendi aktörüyle yapar.
 - İşyerinin sistem entegrasyonu Keycloak'ta kendi istemcisi (client credentials);
   istemcinin servis hesabı işyeri hesabının kullanıcısı. İşyeri hesabı ön API'den
   AÇILMAZ: kayıt ve entegrasyonun hesaba bağlanması backoffice'in işi.
@@ -177,6 +177,27 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Müşteri çekiminde isteyen kimlik (`sub`) saga'ya yazılır ve düşme komutunun
   aktöründe wallet'a gider; wallet ledger'a yazmadan önce üyeliği doğrular.
   Orchestrator hesabın kullanıcılarını bilmez.
+
+**Personel yönetimi**
+- İzinler KODDA ve sabit; yeni bir yetki türü yeni bir izin ve kod değişikliği demek.
+  Roller panelde tanımlanır: rol bir izin seti, Keycloak'ta izinleri içeren bileşik rol;
+  token'a izinler açılmış olarak yazılır. Çalışan yetkiyi YALNIZCA rolden alır, ona
+  doğrudan izin verilmez. Grup YOK: rolün kendisi aynı işi yapanları topluyor.
+- Personeli, rolleri ve izinleri `staff-admin` yönetir; çalışanların Keycloak'ına kendi
+  istemcisinin servis hesabıyla gider. Keycloak'ın konsolu personel işi için
+  KULLANILMAZ, yalnızca platform kurulumu için.
+- `staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanır (müşteri token'ı
+  `401`) ve her ucu `staff.manage` ister. Kodun izinlerini, yönetici rolünü ve ilk
+  yöneticiyi açılışta kendisi kurar; kimsede `staff.manage` yoksa ayardaki adrese davet
+  gönderir.
+- Çalışan kendine yetki VEREMEZ: kendi rollerini değiştiremez, sahip olduğu rolün
+  izinlerini değiştiremez ve silemez, kendini kapatamaz.
+- Yeni çalışan davetle gelir; parolasını ve OTP'sini davetteki bağlantıdan kendisi kurar.
+  Panel parolayı HİÇ görmez.
+- Her değişiklik işi yapan çalışanla kayda yazılır (`staff_audit_events`); kayıt
+  değişmez ve silinmez (REVOKE). Keycloak'ın kendi kaydı servis hesabını görür,
+  çalışanı değil. Kayıt değişiklik Keycloak'a uygulandıktan SONRA yazılır; yazılamazsa
+  değişiklik kritik seviyede log'a düşer.
 
 **Kayıt ve doğrulama**
 - Kayıt `onboarding`'de: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap.
@@ -258,7 +279,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `string currency`. Komisyon ve limit wallet'ın bilgisi, komutta taşınmaz.
 - `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.
 - Tutarı inceleme eşiğinin ÜSTÜNDEKİ çekim düşüldükten sonra bankaya GİTMEZ
-  (`under_review`): operasyon rolünden bir çalışan serbest bırakır ya da iptal eder.
+  (`under_review`): `withdrawal.review` izni olan bir çalışan serbest bırakır ya da iptal eder.
   Kararı veren saga'ya yazılır; iptalde ters kaydın aktörü o çalışan. İptal banka
   reddinden AYRI bir durumda biter (`cancelled`, `failed` değil). Eşik bölümü
   (`Withdrawals:Review`) eksikse orchestrator AÇILMAZ.
