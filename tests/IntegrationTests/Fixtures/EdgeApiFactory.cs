@@ -30,7 +30,8 @@ public abstract class EdgeApiFactory<TEntryPoint>(
     HttpMessageHandler? walletApi,
     HttpMessageHandler? withdrawalOrchestrator,
     int? rateLimitBurst,
-    HttpMessageHandler? onboarding = null)
+    HttpMessageHandler? onboarding = null,
+    HttpMessageHandler? staffAdmin = null)
     : WebApplicationFactory<TEntryPoint>
     where TEntryPoint : class
 {
@@ -48,6 +49,7 @@ public abstract class EdgeApiFactory<TEntryPoint>(
                 ["InternalServices:WalletApi:BaseUrl"] = "http://wallet-api",
                 ["InternalServices:WithdrawalOrchestrator:BaseUrl"] = "http://withdrawal-orchestrator",
                 ["InternalServices:Onboarding:BaseUrl"] = "http://onboarding",
+                ["InternalServices:StaffAdmin:BaseUrl"] = "http://staff-admin",
                 ["RateLimiting:Registration:BurstSize"] = burst,
                 ["RateLimiting:Registration:SustainedPerMinute"] = sustained,
                 ["RateLimiting:Client:BurstSize"] = burst,
@@ -75,6 +77,9 @@ public abstract class EdgeApiFactory<TEntryPoint>(
 
             services.AddHttpClient(nameof(OnboardingClient))
                 .ConfigurePrimaryHttpMessageHandler(() => onboarding ?? new UnreachableHandler());
+
+            services.AddHttpClient(nameof(StaffAdminClient))
+                .ConfigurePrimaryHttpMessageHandler(() => staffAdmin ?? new UnreachableHandler());
         });
     }
 }
