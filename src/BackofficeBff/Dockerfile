@@ -2,7 +2,21 @@
 # Directory.Build.props ve Directory.Packages.props lazım (merkezi versiyonlama).
 #   docker build -f src/BackofficeBff/Dockerfile .
 #
+# Panel (web/backoffice) ayrı aşamada derleniyor ve BFF'in wwwroot'una kopyalanıyor:
+# sayfalar ve API aynı adresten, cookie tek kökende.
+#
 # WalletService.Core KOPYALANMIYOR: bu host ona referans vermiyor.
+
+FROM node:24-alpine AS web
+WORKDIR /web
+
+# Önce yalnızca paket listesi: kaynak değişse de npm ci katmanı cache'ten gelsin.
+COPY web/backoffice/package.json web/backoffice/package-lock.json ./
+RUN npm ci --no-fund --no-audit
+
+COPY web/backoffice/index.html web/backoffice/tsconfig.json web/backoffice/vite.config.ts ./
+COPY web/backoffice/src ./src
+RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
@@ -30,6 +44,7 @@ RUN mkdir -p /app/keys && chown app:app /app/keys
 USER app
 
 COPY --from=build /app/publish .
+COPY --from=web /web/dist ./wwwroot
 
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
