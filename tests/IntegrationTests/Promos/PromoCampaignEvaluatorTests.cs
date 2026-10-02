@@ -306,9 +306,25 @@ public sealed class PromoCampaignEvaluatorTests(PostgresFixture postgres)
             .AddEntry(customer, new Money(-10m, SystemAccounts.DefaultCurrency), FundType.Cash)
             .AddEntry(SystemAccounts.ClearingStripeTry, new Money(10m, SystemAccounts.DefaultCurrency), FundType.Cash);
 
+        // Projeksiyon da güncelleniyor: veritabanı koleksiyonla paylaşılıyor, TransferTests
+        // ve SchemaTests bakiyeyi entry toplamıyla karşılaştırıyor. Burada bırakılan sapma
+        // onları bu sınıfın önce koşup koşmamasına bağlıyordu.
         await using (var db = postgres.CreateContext())
         {
             db.LedgerTransactions.Add(broken);
+
+            foreach (var (id, delta) in new[] { (customer, -10m), (SystemAccounts.ClearingStripeTry, 10m) }
+                         .OrderBy(x => x.Item1))
+            {
+                var balance = await db.LedgerBalances.FindAsync([id, FundType.Cash], ct)
+                              ?? throw new InvalidOperationException($"Bakiye satırı yok: {id}");
+
+                balance.Apply(
+                    new Money(delta, SystemAccounts.DefaultCurrency),
+                    canGoNegative: id == SystemAccounts.ClearingStripeTry,
+                    _t0.AddHours(1));
+            }
+
             await db.SaveChangesAsync(ct);
         }
 
