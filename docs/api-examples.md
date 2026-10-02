@@ -401,7 +401,7 @@ kalanı süre sonu işi kapatana kadar bakiyede görünür.
 
 ### Kampanya, personel promo'su, işyerinin promo kabulü (çalışan)
 
-Üçü de pazarlama rolünün işi ve çalışanın token'ını istiyor (`decisions.md` madde 37).
+Üçü de çalışanın token'ını ve kendi iznini istiyor: `merchant.promo_acceptance`, `promo.grant`, `campaign.manage`; görüntülemek `campaign.view` (`decisions.md` madde 37).
 Çalışan token'ı tarayıcıda girişle alıyor, girişte OTP zorunlu; bu uçlar
 `backoffice-bff` üzerinden aynı yollarla çağrılıyor. Müşterinin token'ıyla `403`.
 
@@ -552,11 +552,11 @@ bekliyor (clearing boşalıp `nostro`'ya yazılıyor) ve saniyeler sürüyor.
 Telafi yolunda: `debited` → `compensating` → `failed`. Reddedilmişse `rejected`.
 
 Tutarı inceleme eşiğinin üstündeki çekim (TRY için 10.000) `debited` → `under_review`'da
-bir çalışanın kararını bekliyor. Kuyruk ve karar çalışanın uçları; operasyon rolü:
+bir çalışanın kararını bekliyor. Kuyruk ve karar çalışanın uçları; kuyruk `customer.view`, karar `withdrawal.review` izniyle:
 
 | uç | ne yapıyor |
 | --- | --- |
-| `GET /v1/withdrawals?state=under_review` | inceleme kuyruğu, en eski önce; her çalışan görüyor |
+| `GET /v1/withdrawals?state=under_review` | inceleme kuyruğu, en eski önce |
 | `POST /v1/withdrawals/{id}/release` | serbest bırakır, banka komutu gider; `200`, incelemede değilse `422` |
 | `POST /v1/withdrawals/{id}/cancel` `{"reason": "..."}` | iptal eder, para cüzdana döner; `202`, çekim `cancelling` → `cancelled` |
 

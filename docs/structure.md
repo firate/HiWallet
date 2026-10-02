@@ -81,6 +81,8 @@ src/
 ├── BankIntegration.Core/
 ├── BankAdapter/
 ├── BankWebhook/
+├── Onboarding/             -- host; kayıt ve kimlik doğrulaması
+├── StaffAdmin/             -- host; personel yönetimi
 └── Shared/
     ├── Shared.Contracts/
     └── Shared.Infrastructure/
@@ -243,8 +245,9 @@ web/
 │       └── test/              -- sahte BFF ve render yardımcısı
 └── backoffice/                -- çalışanın paneli; BFF'i backoffice-bff, aynı düzen
     └── src/
-        ├── session.tsx        -- oturum yoksa giriş, rolü yoksa (403) yalnızca çıkış
-        └── pages/             -- hesap, cüzdan, çekim incelemesi, kampanyalar
+        ├── session.tsx        -- oturum yoksa giriş, izni yoksa (403) yalnızca çıkış
+        └── pages/             -- hesap, cüzdan, çekim incelemesi, kampanyalar;
+                                  staff/ altında çalışanlar, roller, kayıtlar
 ```
 
 React, TypeScript ve Vite; router React Router, veri TanStack Query, test Vitest ve
@@ -358,6 +361,17 @@ Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulamas
 │   ├── Messaging/             -- SMTP e-posta, SMS sağlayıcısı
 │   └── PopulationRegistry/    -- nüfus kaydı
 ├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla)
+└── Setup/
+
+StaffAdmin/                    -- BİZİM; iç ağ, personel yönetimi
+├── Domain/                    -- StaffAuditEvent (değişmeyen kayıt), StaffRoleRules
+├── Application/               -- RoleService, StaffService, StaffAudit, açılış kurulumu
+│                                 (StaffAdminBootstrap); kimlik sağlayıcının arayüzü
+│                                 (Abstractions/IStaffDirectory)
+├── Infrastructure/
+│   ├── Persistence/           -- StaffAdminDbContext, migration'lar; kendi Postgres sunucusu
+│   └── Keycloak/              -- çalışanların Keycloak'ının yönetim API'si, servisin token'ı
+├── Api/                       -- Permissions, Roles, Staff, AuditEvents; hepsi staff.manage
 └── Setup/
 
 fakes/Sms.Fake/                -- SMS SAĞLAYICISI; canlıda YOK, mesajlar bellekte

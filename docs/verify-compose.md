@@ -50,6 +50,10 @@ PERSONAL_WEB_CLIENT_SECRET=...  # bireysel web uygulamasının BFF'inin gizli an
 STAFF_KEYCLOAK_DB_PASSWORD=...  # çalışanların Keycloak'ının Postgres'i
 STAFF_KEYCLOAK_ADMIN_PASSWORD=... # çalışanların Keycloak'ının ilk yöneticisi; öbüründen farklı
 BACKOFFICE_CLIENT_SECRET=...    # backoffice panelinin BFF'inin gizli anahtarı
+STAFF_ADMIN_CLIENT_SECRET=...   # personel yönetiminin istemcisi: çalışanları ve rolleri yönetiyor
+STAFF_ADMIN_OWNER_PASSWORD=...  # personel yönetiminin Postgres'i: şemanın sahibi
+STAFF_ADMIN_APP_PASSWORD=...    # personel yönetiminin Postgres'i: uygulamanın rolü
+STAFF_BOOTSTRAP_ADMIN_EMAIL=... # ilk yönetici; kimsede personel yönetimi yoksa ona davet gidiyor
 ONBOARDING_CLIENT_SECRET=...    # kayıt servisinin istemcisi: kullanıcı açıyor, wallet'ı çağırıyor
 ONBOARDING_OWNER_PASSWORD=...   # onboarding'in Postgres'i: şemanın sahibi
 ONBOARDING_APP_PASSWORD=...     # onboarding'in Postgres'i: uygulamanın rolü
@@ -110,6 +114,7 @@ for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET \
          PERSONAL_WEB_CLIENT_SECRET BACKOFFICE_CLIENT_SECRET \
          STAFF_KEYCLOAK_DB_PASSWORD STAFF_KEYCLOAK_ADMIN_PASSWORD \
+         STAFF_ADMIN_CLIENT_SECRET STAFF_ADMIN_OWNER_PASSWORD STAFF_ADMIN_APP_PASSWORD \
          ONBOARDING_CLIENT_SECRET ONBOARDING_OWNER_PASSWORD ONBOARDING_APP_PASSWORD; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
@@ -158,10 +163,9 @@ beklediği için hiç başlamaz.
 docker compose down -v --remove-orphans && docker compose up --build -d
 ```
 
-Beklenen sıra: `postgres` sağlıklı olur → dört migrator (`migrator`,
-`topup-migrator`, `withdrawal-migrator`, `bank-migrator`)
-şemaları uygulayıp `exit 0` ile biter → on iki uygulama başlar (onu bizim,
-ikisi sahte kurum). `rabbitmq` paralel
+Beklenen sıra: Postgres sunucuları sağlıklı olur → altı migrator (`migrator`,
+`topup-migrator`, `withdrawal-migrator`, `bank-migrator`, `onboarding-migrator`,
+`staff-admin-migrator`) şemaları uygulayıp `exit 0` ile biter → uygulamalar başlar. `rabbitmq` paralel
 kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
 
 Tek istisna `bank-adapter`: `bank-fake`'in sağlıklı olmasını bekliyor. Gerçek
@@ -373,19 +377,36 @@ docker compose logs staff-keycloak-setup | tail -1
 
 Beklenen: `hiwallet-staff: girişte OTP zorunlu.`
 
-Bu konsolda `hiwallet-staff` realm'i, Users, Add user; e-posta, ad ve soyadı
-doldur, Credentials'ta parola ver. Rol ata: `support`, `operations`, `finance` ya da
-`marketing`; doğrudan Role mapping'den ya da rolleri verilmiş bir gruba ekleyerek.
-Rolsüz çalışan panelde yalnızca rolünün olmadığını ve çıkışı görüyor.
+Konsol yalnızca platform kurulumu için; çalışan, rol ve izin işleri panelden.
+`staff-admin` açılışta kodun izinlerini realm'e yazıyor ve "Personel yöneticisi" rolünü
+açıyor. Kimsede personel yönetimi yoksa `STAFF_BOOTSTRAP_ADMIN_EMAIL` adresine davet
+gönderiyor:
 
-`http://localhost:8099/bff/login` (ters proxy arkasında
-`https://hiwallet-backoffice-bff.<PROXY_DOMAIN>/bff/login`) aç. İlk girişte Keycloak bir
-doğrulayıcı uygulamayla OTP kurduruyor; sonraki her girişte kodu soruyor. Girişten sonra
-panel açılıyor; üstte adın ve rollerin. Kayda kimliğiyle gidiliyor: ana sayfada hesap,
-cüzdan, çekim ya da kampanya kimliğini yaz. Çekimler sayfası inceleme kuyruğuyla açılıyor;
-serbest bırakma ve iptal operasyon rolünde. Personel promo'su cüzdan sayfasında,
-kampanyalar kendi sayfasında; ikisi de pazarlama rolünde. Rolü olmayan iş için düğme
-görünmüyor; iç servis de reddediyor.
+```bash
+docker compose logs staff-admin | grep -i "ilk yönetici"
+```
+
+Davet e-postası Mailpit'te (`http://localhost:8106`; ters proxy arkasında
+`https://hiwallet-mailpit.<PROXY_DOMAIN>`). Bağlantıdan parolanı ve doğrulayıcı
+uygulamayla OTP'ni kur; bağlantı panele dönüyor. Sonraki her girişte kod soruluyor.
+
+`http://localhost:8099` (ters proxy arkasında `https://hiwallet-backoffice-bff.<PROXY_DOMAIN>`)
+aç ve giriş yap; üstte adın ve rollerin. **Personel** menüsünde:
+
+1. **Roller → Yeni rol:** ad ver ve izinleri seç (örneğin "Operasyon":
+   müşteri kaydını görüntüleme ve çekim incelemesi).
+2. **Çalışanlar → Çalışan davet et:** e-posta ve rolleri gir. Davet Mailpit'e düşüyor;
+   çalışan parolasını ve OTP'sini kendisi kuruyor.
+3. **Kayıtlar:** kim, ne zaman, kime ne verdi.
+
+Kendi hesabında rol değiştirme ve kapatma yok; sahip olduğun rolü de değiştiremezsin.
+Bunları başka bir yönetici yapıyor.
+
+Panelin geri kalanı: kayda kimliğiyle gidiliyor; ana sayfada hesap, cüzdan, çekim ya da
+kampanya kimliğini yaz. Çekimler sayfası inceleme kuyruğuyla açılıyor; serbest bırakma ve
+iptal `withdrawal.review` izniyle. Personel promo'su cüzdan sayfasında, kampanyalar kendi
+sayfasında. İzni olmayan iş için düğme görünmüyor; iç servis de reddediyor. Hiçbir izni
+olmayan çalışan yalnızca rolünün olmadığını ve çıkışı görüyor.
 
 #### İşyeri entegrasyonu
 
@@ -785,7 +806,7 @@ geri gelsin.
 | konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
 | settlement ve fatura endpoint'leri (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
-| **on iki uygulamalı stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
+| **bütün stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
 | **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
 | **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |
