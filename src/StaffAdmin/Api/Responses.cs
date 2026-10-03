@@ -17,7 +17,7 @@ public sealed record RoleDetailResponse(
     IReadOnlyList<string> Permissions,
     IReadOnlyList<StaffSummaryResponse> Members);
 
-/// <param name="InvitationPending">Çalışan parolasını ya da OTP'sini henüz kurmadı.</param>
+/// <param name="InvitationPending">Çalışan davetini tamamlayıp henüz giriş yapmadı.</param>
 public sealed record StaffSummaryResponse(
     Guid StaffId,
     string Email,
@@ -62,3 +62,9 @@ public sealed record AuditEventResponse(
 
 /// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
 public sealed record AuditEventsResponse(IReadOnlyList<AuditEventResponse> Items, int Size, Guid? NextCursor);
+
+/// <summary>Çalışanın kendisi: şu anki rolleri ve izinleri.</summary>
+/// <param name="Subject">Token'daki kimlik.</param>
+/// <param name="Roles">Rollerin adları. Kapatılmış ya da panelden açılmamış çalışanda boş.</param>
+/// <param name="Permissions">Rollerden gelen izinler, kodun sırasıyla.</param>
+public sealed record MeResponse(string Subject, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);

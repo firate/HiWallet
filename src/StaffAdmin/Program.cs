@@ -6,10 +6,10 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.StaffAdmin.Setup;
 
-// İç servis: personel yönetimi. Çalışanları, panelin rollerini ve rollerin izinlerini
-// çalışanların Keycloak'ında yönetiyor; kim kime ne verdi kendi veritabanına yazıyor.
-// Tek çağıranı backoffice-bff. Müşterinin token'ını tanımıyor; çalışan da yalnızca
-// personel yönetimi izniyle giriyor.
+// İç servis: personel yönetimi. Çalışanlar, panelin rolleri, atamalar ve kim kime ne
+// verdi kendi veritabanında; çalışanların Keycloak'ında yalnızca kullanıcıyı açıyor, davet
+// ediyor ve kapatıyor. Çağıranlar backoffice-bff (panel) ile wallet-api ve orchestrator
+// (çalışanın her isteğinde izni soruyorlar, v1/me). Müşterinin token'ını tanımıyor.
 const string ServiceName = "hiwallet-staff-admin";
 
 var builder = WebApplication.CreateBuilder(args);

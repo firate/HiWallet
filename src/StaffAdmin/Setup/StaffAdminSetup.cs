@@ -1,3 +1,4 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Persistence;
 using HiWallet.StaffAdmin.Application;
@@ -28,9 +29,11 @@ public static class StaffAdminSetup
                 npgsql => npgsql.CommandTimeout(DbTimeouts.CommandSeconds)));
 
         services.AddSingleton(TimeProvider.System);
-        services.AddScoped<StaffAudit>();
+        services.AddSingleton<StaffAudit>();
         services.AddScoped<RoleService>();
         services.AddScoped<StaffService>();
+        services.AddScoped<StaffAccess>();
+        services.AddScoped<IStaffPermissions, DatabaseStaffPermissions>();
         services.AddHostedService<StaffAdminBootstrap>();
 
         // Fail fast: eksik ayar ilk istekte değil başlangıçta patlasın.
@@ -47,8 +50,7 @@ public static class StaffAdminSetup
 
         services.AddOptions<StaffAdminOptions>()
             .BindConfiguration(StaffAdminOptions.SectionName)
-            .Validate(o => StaffRoleRules.IsWellFormed(o.Bootstrap.AdminRoleName)
-                           && !StaffRoleRules.IsReserved(o.Bootstrap.AdminRoleName),
+            .Validate(o => StaffRoleRules.IsWellFormed(o.Bootstrap.AdminRoleName),
                 $"{StaffAdminOptions.SectionName}:Bootstrap:AdminRoleName geçerli bir rol adı olmalı.")
             .ValidateOnStart();
 
