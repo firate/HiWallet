@@ -53,4 +53,22 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
             routeValues: new { walletId = response.WalletId },
             value: response);
     }
+
+    /// <summary>
+    /// Bu para biriminin varsayılan cüzdanını değiştirir: hesap numarasına gelen para
+    /// bundan sonra oraya.
+    /// </summary>
+    [HttpPut("{accountId:guid}/default-wallets/{currency}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetDefaultWallet(
+        Guid accountId, string currency, [FromBody] SetDefaultWalletRequest request, CancellationToken ct)
+    {
+        await walletApi.PutAsync(
+            $"v1/accounts/{accountId}/default-wallets/{Uri.EscapeDataString(currency)}", request, ct);
+
+        return NoContent();
+    }
 }
