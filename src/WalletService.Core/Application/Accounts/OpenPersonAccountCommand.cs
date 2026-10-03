@@ -16,6 +16,7 @@ public sealed record OpenPersonAccountCommand(string Holder);
 /// <param name="Replayed">Hesap bu komuttan önce açılmıştı.</param>
 public sealed record OpenPersonAccountResult(
     Guid AccountId,
+    AccountNumber Number,
     KycLevel KycLevel,
     Guid WalletId,
     DateTimeOffset CreatedAt,
