@@ -7,13 +7,16 @@ import { money } from '../format'
 import { useIdempotencyKey } from '../idempotency'
 import type { TransferResponse, TransferType } from '../types'
 
-/** Başka bir cüzdana para gönderme ya da işyerine ödeme. */
+/**
+ * Bir kişiye para gönderme ya da işyerine ödeme. Alıcı hesap numarasıyla; para
+ * alıcının bu para birimindeki varsayılan cüzdanına düşüyor.
+ */
 export function TransferPage() {
   const { walletId = '' } = useParams()
   const queryClient = useQueryClient()
   const wallet = useQuery({ queryKey: ['wallets', walletId], queryFn: () => api.wallet(walletId) })
 
-  const [toWalletId, setToWalletId] = useState('')
+  const [toAccountNumber, setToAccountNumber] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<TransferType>('P2P')
   const [idempotencyKey, renewIdempotencyKey] = useIdempotencyKey()
@@ -22,12 +25,12 @@ export function TransferPage() {
   const transfer = useMutation({
     mutationFn: (currency: string) =>
       api.transfer(
-        { fromWalletId: walletId, toWalletId: toWalletId.trim(), amount: Number(amount), currency, type },
+        { fromWalletId: walletId, toAccountNumber: toAccountNumber.trim(), amount: Number(amount), currency, type },
         idempotencyKey,
       ),
     onSuccess: async (response) => {
       setDone(response)
-      setToWalletId('')
+      setToAccountNumber('')
       setAmount('')
       renewIdempotencyKey()
       await queryClient.invalidateQueries({ queryKey: ['wallets', walletId] })
@@ -71,8 +74,15 @@ export function TransferPage() {
             </select>
           </label>
           <label>
-            Alıcının cüzdan numarası
-            <input value={toWalletId} onChange={(event) => setToWalletId(event.target.value)} required />
+            Alıcının hesap numarası
+            <input
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="123 456 7890"
+              value={toAccountNumber}
+              onChange={(event) => setToAccountNumber(event.target.value)}
+              required
+            />
           </label>
           <label>
             Tutar ({currency})

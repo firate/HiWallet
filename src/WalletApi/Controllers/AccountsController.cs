@@ -2,7 +2,10 @@ using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi.Requests;
 using HiWallet.WalletApi.Responses;
 using HiWallet.WalletApi.Setup;
+using HiWallet.WalletApi.Validators;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletService.Domain.Accounts;
+using HiWallet.WalletService.Domain.Errors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
@@ -65,8 +68,73 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
     }
 
     /// <summary>
+    /// Hesap numarasıyla kayıt: panelde arama ve müşteriyle konuşma. Görüntüleme kuralı
+    /// kimlikle açılanın aynısı. Başkasının numarası da <c>404</c>: numaranın bir hesaba
+    /// ait olduğu ve o hesabın kimliği dışarı verilmiyor.
+    /// </summary>
+    /// <param name="number">On hane; gruplama boşlukları kabul ediliyor. Kontrol hanesi tutmazsa <c>400</c>.</param>
+    [HttpGet("by-number/{number}")]
+    [Authorize(Policy = HiWalletPolicies.CustomerOrStaff)]
+    [ProducesResponseType<AccountDetailResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AccountDetailResponse>> GetByNumber(string number, CancellationToken ct)
+    {
+        if (!AccountNumber.TryFrom(number, out var parsed))
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [nameof(number)] = ["Hesap numarası geçersiz: on hane ve son hanesi kontrol hanesi."]
+            }));
+        }
+
+        var accountId = await bus.InvokeAsync<Guid>(new FindAccountByNumberQuery(parsed), ct);
+
+        try
+        {
+            await access.EnsureViewableAccountAsync(User, accountId, ct);
+        }
+        catch (AccountNotFoundException)
+        {
+            throw new AccountNumberNotFoundException(parsed);
+        }
+
+        var view = await bus.InvokeAsync<AccountView>(new GetAccountQuery(accountId), ct);
+
+        return Ok(AccountDetailResponse.From(view));
+    }
+
+    /// <summary>
+    /// Bu para biriminin varsayılan cüzdanını değiştirir: hesap numarasına gelen para
+    /// bundan sonra oraya. Müşterinin tercihi; çalışan değiştirmiyor.
+    /// </summary>
+    /// <param name="currency">ISO 4217 kodu; cüzdanın para birimi bu olmalı.</param>
+    [HttpPut("{accountId:guid}/default-wallets/{currency}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetDefaultWallet(
+        Guid accountId, string currency, [FromBody] SetDefaultWalletRequest request, CancellationToken ct)
+    {
+        if (!CurrencyRules.IsValid(currency))
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [nameof(currency)] = ["Para birimi 3 büyük harften oluşan ISO 4217 kodu olmalı."]
+            }));
+        }
+
+        await access.EnsureAccountAsync(User.Subject(), accountId, ct);
+        await bus.InvokeAsync(new SetDefaultWalletCommand(accountId, currency, request.WalletId), ct);
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Hesaba cüzdan açar. Bakiye satırı aynı transaction'da açılır — cüzdan var ama
-    /// bakiye satırı yok diye bir ara durum oluşmaz.
+    /// bakiye satırı yok diye bir ara durum oluşmaz. Hesabın bu para birimindeki ilk
+    /// cüzdanı varsayılan oluyor.
     /// </summary>
     [HttpPost("{accountId:guid}/wallets")]
     [ProducesResponseType<WalletResponse>(StatusCodes.Status201Created)]

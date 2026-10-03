@@ -76,6 +76,22 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         (await _client.GetAsync($"/v1/wallets/{_wallet}/promos", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>Çalışan müşteriyi hesap numarasıyla buluyor; kimliği yapıştırmıyor.</summary>
+    [Fact]
+    public async Task Destek_HesabiNumarasiylaBulur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), TestStaff.Support);
+        var number = (await _client.GetFromJsonAsync<JsonElement>($"/v1/accounts/{_customer}", ct))
+            .GetProperty("accountNumber").GetString()!;
+
+        var found = await _client.GetAsync($"/v1/accounts/by-number/{number}", ct);
+
+        found.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        (await found.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accountId").GetGuid().ShouldBe(_customer);
+        (await _client.GetAsync("/v1/accounts/by-number/1234567890", ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Destek_MusterininCekiminiGorur()
     {

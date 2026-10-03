@@ -49,6 +49,11 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("kyc_level");
 
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("number");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("text")
@@ -62,11 +67,17 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_accounts_person_holder")
                         .HasFilter("holder IS NOT NULL");
 
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_accounts_number");
+
                     b.ToTable("accounts", null, t =>
                         {
                             t.HasCheckConstraint("ck_accounts_holder", "type = 'person' OR holder IS NULL");
 
                             t.HasCheckConstraint("ck_accounts_kyc_level", "(type = 'person' AND kyc_level IN ('unknown','unverified','verified','contracted')) OR (type = 'business' AND kyc_level IS NULL)");
+
+                            t.HasCheckConstraint("ck_accounts_number", "number ~ '^[1-9][0-9]{9}$'");
 
                             t.HasCheckConstraint("ck_accounts_type", "type IN ('person','business')");
                         });
@@ -95,6 +106,29 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_account_members_account");
 
                     b.ToTable("account_members", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Accounts.DefaultWallet", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<string>("Currency")
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("wallet_id");
+
+                    b.HasKey("AccountId", "Currency")
+                        .HasName("pk_default_wallets");
+
+                    b.HasIndex("WalletId", "Currency")
+                        .HasDatabaseName("ix_default_wallets_wallet");
+
+                    b.ToTable("default_wallets", (string)null);
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>
@@ -1178,6 +1212,24 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_account_members_account");
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Accounts.DefaultWallet", b =>
+                {
+                    b.HasOne("HiWallet.WalletService.Domain.Accounts.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_default_wallets_account");
+
+                    b.HasOne("HiWallet.WalletService.Domain.Ledger.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("WalletId", "Currency")
+                        .HasPrincipalKey("Id", "Currency")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_default_wallets_wallet");
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Balances.LedgerBalance", b =>

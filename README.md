@@ -134,6 +134,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
+| Hesap numarası: on hane, Luhn kontrol hanesi; gelen para varsayılan cüzdana | evet — testte; panelde numarayla arama, uygulamada numaraya gönderim |
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
 | Çalışan kimliği: ayrı Keycloak kurulumu, izinle yetki, OTP zorunlu | evet — giriş ve OTP compose'da denendi; izin modeli testte |
@@ -158,8 +159,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-640 test: 199 unit (DB'siz), 441 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 14, panelin 22.
+675 test: 216 unit (DB'siz), 459 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 16, panelin 25.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →

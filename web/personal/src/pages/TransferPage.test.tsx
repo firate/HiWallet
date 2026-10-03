@@ -26,7 +26,7 @@ function renderTransfer() {
 }
 
 async function send(user: ReturnType<typeof userEvent.setup>, amount: string) {
-  await user.type(screen.getByLabelText('Alıcının cüzdan numarası'), 'w2')
+  await user.type(screen.getByLabelText('Alıcının hesap numarası'), '123 456 7897')
   await user.type(screen.getByLabelText('Tutar (TRY)'), amount)
   await user.click(screen.getByRole('button', { name: 'Gönder' }))
 }
@@ -55,6 +55,13 @@ describe('TransferPage', () => {
 
     await send(user, '10')
     await screen.findAllByText('Gönderildi.')
+
+    expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({
+      fromWalletId: 'w1',
+      toAccountNumber: '123 456 7897',
+      amount: 25,
+      currency: 'TRY',
+    })
 
     const keys = calls.filter((call) => call.method === 'POST').map((call) => call.headers['Idempotency-Key'])
     expect(keys).toHaveLength(3)

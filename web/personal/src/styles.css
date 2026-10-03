@@ -123,13 +123,28 @@ code {
   margin: 0 0 1rem;
 }
 
+.wallets li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
 .wallets a {
   display: flex;
   justify-content: space-between;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border);
   text-decoration: none;
   color: var(--text);
+}
+
+/* Varsayılan cüzdan işareti ve seçimi, cüzdanın satırında altta. */
+.wallets li > .small,
+.wallets li > button {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.account-number {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
 }
 
 .buckets {

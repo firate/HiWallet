@@ -13,6 +13,7 @@ public sealed record GetAccountQuery(Guid AccountId);
 /// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
 public sealed record AccountView(
     Guid AccountId,
+    AccountNumber Number,
     AccountType Type,
     KycLevel? KycLevel,
     bool AcceptsPromo,
@@ -29,12 +30,14 @@ public sealed record AccountView(
 /// Kova kırılımı. Sıfır bakiyeli kovalar da dönüyor: müşteriye hangi kovaların
 /// var olduğunu göstermek, olmayan bir kovanın sessizce kaybolmasından iyi.
 /// </param>
+/// <param name="IsDefault">Para biriminin varsayılan cüzdanı: hesap numarasına gelen para buraya.</param>
 public sealed record AccountWalletView(
     Guid WalletId,
     string Name,
     string Currency,
     decimal Balance,
     decimal Withdrawable,
-    IReadOnlyList<WalletBalanceView> Balances);
+    IReadOnlyList<WalletBalanceView> Balances,
+    bool IsDefault);
 
 public sealed record WalletBalanceView(string FundType, decimal Balance);

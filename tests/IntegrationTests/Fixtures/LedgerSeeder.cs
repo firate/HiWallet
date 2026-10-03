@@ -23,8 +23,8 @@ public static class LedgerSeeder
     {
         var id = Guid.NewGuid();
         var account = type is AccountType.Person
-            ? Account.OpenPerson(id, TestTokens.SubjectOf(id), SeedTime)
-            : Account.OpenBusiness(id, SeedTime);
+            ? Account.OpenPerson(id, AccountNumber.New(), TestTokens.SubjectOf(id), SeedTime)
+            : Account.OpenBusiness(id, AccountNumber.New(), SeedTime);
 
         if (type is AccountType.Person)
         {
@@ -40,6 +40,10 @@ public static class LedgerSeeder
         return account.Id;
     }
 
+    /// <summary>
+    /// Hesabın bu para birimindeki ilk cüzdanı varsayılan oluyor; OpenWalletHandler
+    /// canlıda da öyle yapıyor.
+    /// </summary>
     public static async Task<Guid> CreateWalletAsync(
         WalletDbContext db, Guid accountId, string name, CancellationToken ct)
     {
@@ -54,6 +58,11 @@ public static class LedgerSeeder
         {
             db.LedgerBalances.Add(LedgerBalance.OpenFor(
                 wallet.Id, SystemAccounts.DefaultCurrency, fundType, SeedTime));
+        }
+
+        if (!await db.DefaultWallets.AnyAsync(d => d.AccountId == accountId && d.Currency == wallet.Currency, ct))
+        {
+            db.DefaultWallets.Add(DefaultWallet.Of(wallet));
         }
 
         await db.SaveChangesAsync(ct);

@@ -51,7 +51,21 @@ public sealed class OpenWalletHandler(
             db.LedgerBalances.Add(LedgerBalance.OpenFor(wallet.Id, currency, fundType, now));
         }
 
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
+
+        // Hesabın bu para birimindeki ilk cüzdanıysa varsayılan oluyor. "Önce bak sonra
+        // yaz" eşzamanlı iki açılışı birlikte varsayılan yapmaya kalkardı; anahtar
+        // (hesap, para birimi) ilkini tutuyor (CLAUDE.md "Idempotency").
+        await db.Database.ExecuteSqlAsync(
+            $"""
+             INSERT INTO default_wallets (account_id, currency, wallet_id)
+             VALUES ({wallet.AccountId}, {currency.Code}, {wallet.Id})
+             ON CONFLICT (account_id, currency) DO NOTHING
+             """,
+            ct);
+
+        await transaction.CommitAsync(ct);
 
         return new OpenWalletResult(
             wallet.Id, wallet.AccountId!.Value, wallet.Name!, wallet.Currency.Code, 0m, wallet.CreatedAt);

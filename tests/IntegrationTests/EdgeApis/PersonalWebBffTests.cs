@@ -101,6 +101,45 @@ public sealed class PersonalWebBffTests(PostgresFixture postgres, OrchestratorFi
     }
 
     /// <summary>
+    /// Müşteri arkadaşının hesap numarasını yazıyor; para arkadaşının varsayılan cüzdanına
+    /// düşüyor. Arkadaş varsayılanı değiştirince sonraki para yenisine gidiyor.
+    /// </summary>
+    [Fact]
+    public async Task HesapNumarasinaTransfer_VarsayilanCuzdana()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        Guid friend, friendMain, friendSavings;
+        string friendNumber;
+        await using (var db = postgres.CreateContext())
+        {
+            friend = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+            friendMain = await LedgerSeeder.CreateWalletAsync(db, friend, "Ana", ct);
+            friendSavings = await LedgerSeeder.CreateWalletAsync(db, friend, "Birikim", ct);
+        }
+
+        using var friendClient = _factory.CreateClient().SignedInAsOwnerOf(friend).WithCsrfHeader();
+        var detail = await ReadAsync(await friendClient.GetAsync($"/v1/accounts/{friend}", ct), ct);
+        friendNumber = detail.GetProperty("accountNumber").GetString()!;
+        detail.GetProperty("wallets").EnumerateArray()
+            .Single(w => w.GetProperty("walletId").GetGuid() == friendMain)
+            .GetProperty("isDefault").GetBoolean().ShouldBeTrue();
+
+        var body = new { fromWalletId = _wallet, toAccountNumber = friendNumber, amount = 12m, currency = "TRY", type = "P2P" };
+        (await _client.SendAsync(Post("/v1/transfers", body, Guid.NewGuid().ToString()), ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _walletApi.Errors));
+
+        (await friendClient.PutAsJsonAsync($"/v1/accounts/{friend}/default-wallets/TRY", new { walletId = friendSavings }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await _client.SendAsync(Post("/v1/transfers", body, Guid.NewGuid().ToString()), ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        await using var check = postgres.CreateContext();
+        (await LedgerSeeder.BalanceAsync(check, friendMain, ct)).ShouldBe(12m);
+        (await LedgerSeeder.BalanceAsync(check, friendSavings, ct)).ShouldBe(12m);
+    }
+
+    /// <summary>
     /// Bakiye YOK: bıraktığı komutu aynı şemada broker'la koşan zincir testinin relay'i
     /// yayınlayabiliyor, bakiyesiz cüzdanda düşme reddediliyor ve ledger'a hiçbir şey
     /// yazılmıyor.

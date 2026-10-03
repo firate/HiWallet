@@ -16,4 +16,4 @@ namespace HiWallet.WalletService.Application.Accounts;
 /// </param>
 public sealed record OpenAccountCommand(AccountType Type, string Subject);
 
-public sealed record OpenAccountResult(Guid AccountId, AccountType Type, DateTimeOffset CreatedAt);
+public sealed record OpenAccountResult(Guid AccountId, AccountNumber Number, AccountType Type, DateTimeOffset CreatedAt);

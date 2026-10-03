@@ -95,6 +95,8 @@ export const api = {
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
   openWallet: (accountId: string, name: string, currency: string) =>
     send<Wallet>('POST', `/v1/accounts/${accountId}/wallets`, { body: { name, currency } }),
+  setDefaultWallet: (accountId: string, currency: string, walletId: string) =>
+    send<void>('PUT', `/v1/accounts/${accountId}/default-wallets/${currency}`, { body: { walletId } }),
 
   wallet: (walletId: string) => send<Wallet>('GET', `/v1/wallets/${walletId}`),
   movements: (walletId: string, after?: number | null) =>

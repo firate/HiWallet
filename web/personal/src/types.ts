@@ -12,6 +12,8 @@ export type KycLevel = 'Unknown' | 'Unverified' | 'Verified' | 'Contracted'
 
 export interface Account {
   accountId: string
+  /** On hane; para bu numarayla gönderiliyor. */
+  accountNumber: string
   type: 'Person' | 'Business'
   kycLevel: KycLevel | null
   createdAt: string
@@ -37,10 +39,15 @@ export interface AccountWallet {
   balances: Balance[]
 }
 
+/** Hesabın cüzdanı; varsayılan olan hesap numarasına gelen parayı alıyor. */
+export interface AccountDetailWallet extends AccountWallet {
+  isDefault: boolean
+}
+
 export interface AccountDetail extends Account {
   /** Platform fonlu promo bu işyerinde geçiyor mu; bireysel hesapta hep false. */
   acceptsPromo: boolean
-  wallets: AccountWallet[]
+  wallets: AccountDetailWallet[]
 }
 
 export interface Wallet extends AccountWallet {
@@ -84,9 +91,10 @@ export interface PromosPage {
 
 export type TransferType = 'P2P' | 'Payment'
 
+/** Alıcı hesap numarasıyla; para alıcının bu para birimindeki varsayılan cüzdanına düşüyor. */
 export interface TransferRequest {
   fromWalletId: string
-  toWalletId: string
+  toAccountNumber: string
   amount: number
   currency: string
   type: TransferType

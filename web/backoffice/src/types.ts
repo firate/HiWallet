@@ -44,15 +44,22 @@ export interface AccountWallet {
   balances: Balance[]
 }
 
+/** Hesabın cüzdanı; varsayılan olan hesap numarasına gelen parayı alıyor. */
+export interface AccountDetailWallet extends AccountWallet {
+  isDefault: boolean
+}
+
 export interface AccountDetail {
   accountId: string
+  /** On hane; müşteri ve çalışan hesabı bununla tanıyor. */
+  accountNumber: string
   type: 'Person' | 'Business'
   /** Bireysel hesabın doğrulama seviyesi; işyeri hesabında null. */
   kycLevel: KycLevel | null
   /** Platform fonlu promo bu işyerinde geçiyor mu; bireysel hesapta hep false. */
   acceptsPromo: boolean
   createdAt: string
-  wallets: AccountWallet[]
+  wallets: AccountDetailWallet[]
 }
 
 export interface Wallet extends AccountWallet {

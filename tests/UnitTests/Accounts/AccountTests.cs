@@ -10,7 +10,7 @@ public sealed class AccountTests
     [Fact]
     public void Bireysel_KimliginHesabiOlarakUnknownSeviyedeAcilir()
     {
-        var account = Account.OpenPerson(Guid.NewGuid(), "kimlik-1", Now);
+        var account = Account.OpenPerson(Guid.NewGuid(), AccountNumber.New(), "kimlik-1", Now);
 
         account.Type.ShouldBe(AccountType.Person);
         account.Holder.ShouldBe("kimlik-1");
@@ -20,13 +20,13 @@ public sealed class AccountTests
     [Fact]
     public void Bireysel_KimliksizAcilmaz()
     {
-        Should.Throw<ArgumentException>(() => Account.OpenPerson(Guid.NewGuid(), " ", Now));
+        Should.Throw<ArgumentException>(() => Account.OpenPerson(Guid.NewGuid(), AccountNumber.New(), " ", Now));
     }
 
     [Fact]
     public void Isyeri_SeviyesizVeSahipsizAcilir()
     {
-        var account = Account.OpenBusiness(Guid.NewGuid(), Now);
+        var account = Account.OpenBusiness(Guid.NewGuid(), AccountNumber.New(), Now);
 
         account.Type.ShouldBe(AccountType.Business);
         account.Holder.ShouldBeNull();
@@ -36,7 +36,7 @@ public sealed class AccountTests
     [Fact]
     public void Bireysel_SeviyesiYukselir()
     {
-        var account = Account.OpenPerson(Guid.NewGuid(), "kimlik-2", Now);
+        var account = Account.OpenPerson(Guid.NewGuid(), AccountNumber.New(), "kimlik-2", Now);
 
         account.RaiseKycLevel(KycLevel.Unverified).ShouldBeTrue();
 
@@ -50,7 +50,7 @@ public sealed class AccountTests
     [Fact]
     public void DahaDusukSeviye_Degistirmez()
     {
-        var account = Account.OpenPerson(Guid.NewGuid(), "kimlik-3", Now);
+        var account = Account.OpenPerson(Guid.NewGuid(), AccountNumber.New(), "kimlik-3", Now);
         account.RaiseKycLevel(KycLevel.Verified);
 
         account.RaiseKycLevel(KycLevel.Unverified).ShouldBeFalse();
@@ -62,7 +62,7 @@ public sealed class AccountTests
     [Fact]
     public void Isyeri_SeviyeAlamaz()
     {
-        var account = Account.OpenBusiness(Guid.NewGuid(), Now);
+        var account = Account.OpenBusiness(Guid.NewGuid(), AccountNumber.New(), Now);
 
         Should.Throw<KycLevelNotApplicableException>(() => account.RaiseKycLevel(KycLevel.Contracted));
         account.KycLevel.ShouldBeNull();

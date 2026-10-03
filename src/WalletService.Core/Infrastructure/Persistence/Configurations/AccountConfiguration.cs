@@ -22,11 +22,26 @@ internal sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
 
             // İşyeri hesabının tek bir sahibi yok, kullanıcıları account_members'ta.
             t.HasCheckConstraint("ck_accounts_holder", "type = 'person' OR holder IS NULL");
+
+            // Biçim: on hane, ilk hane sıfır değil. Kontrol hanesi uygulamada
+            // (AccountNumber); SQL'e ikinci bir kopyası yazılmıyor.
+            t.HasCheckConstraint("ck_accounts_number", "number ~ '^[1-9][0-9]{9}$'");
         });
 
         builder.HasKey(a => a.Id).HasName("pk_accounts");
 
         builder.Property(a => a.Id).HasColumnName("id");
+
+        builder.Property(a => a.Number)
+            .HasColumnName("number")
+            .HasConversion(ValueConverters.AccountNumber)
+            .HasColumnType("text")
+            .IsRequired();
+
+        // Numara tekil. Açılış çakışmada yeni numarayla yeniden deniyor.
+        builder.HasIndex(a => a.Number)
+            .HasDatabaseName("ux_accounts_number")
+            .IsUnique();
 
         builder.Property(a => a.Type)
             .HasColumnName("type")

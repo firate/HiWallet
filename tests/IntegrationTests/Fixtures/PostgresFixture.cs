@@ -68,17 +68,24 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        await using (var admin = new NpgsqlConnection(_adminConnectionString))
-        {
-            await admin.OpenAsync();
-            await using var cmd = admin.CreateCommand();
-            cmd.CommandText = $"CREATE SCHEMA \"{Schema}\";";
-            await cmd.ExecuteNonQueryAsync();
-        }
+        await CreateSchemaAsync();
 
         // Şema migration'dan geliyor, elle DDL yok — tek kaynak migration.
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
+    }
+
+    /// <summary>
+    /// Boş schema; migration uygulanmıyor. Migration'ın eski veriyi nasıl taşıdığını
+    /// sınayan test önceki bir migration'a kadar kendisi ilerliyor.
+    /// </summary>
+    public async Task CreateSchemaAsync()
+    {
+        await using var admin = new NpgsqlConnection(_adminConnectionString);
+        await admin.OpenAsync();
+        await using var cmd = admin.CreateCommand();
+        cmd.CommandText = $"CREATE SCHEMA \"{Schema}\";";
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public async ValueTask DisposeAsync()

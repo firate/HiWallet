@@ -8,6 +8,11 @@ export function date(value: string): string {
   return dateFormat.format(new Date(value))
 }
 
+/** Hesap numarası okunsun diye üçlü gruplar halinde: 123 456 7890. */
+export function accountNumber(value: string): string {
+  return `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`
+}
+
 const accountTypes: Record<string, string> = {
   Person: 'Bireysel',
   Business: 'İşyeri',

@@ -16,8 +16,24 @@ public sealed class OpenPersonAccountHandler(
 
     public async Task<OpenPersonAccountResult> HandleAsync(OpenPersonAccountCommand command, CancellationToken ct)
     {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await OpenAsync(command, ct);
+            }
+            catch (Exception exception) when (
+                AccountNumberCollision.Is(exception) && attempt < AccountNumberCollision.MaxAttempts)
+            {
+                // Numara başka bir hesabınkiyle çakıştı; transaction geri alındı, yeni numarayla baştan.
+            }
+        }
+    }
+
+    private async Task<OpenPersonAccountResult> OpenAsync(OpenPersonAccountCommand command, CancellationToken ct)
+    {
         var now = clock.UtcNow;
-        var account = Account.OpenPerson(Guid.NewGuid(), command.Holder, now);
+        var account = Account.OpenPerson(Guid.NewGuid(), AccountNumber.New(), command.Holder, now);
         var currency = SystemAccounts.DefaultCurrency;
 
         await using var db = await contextFactory.CreateDbContextAsync(ct);
@@ -28,8 +44,8 @@ public sealed class OpenPersonAccountHandler(
         // ValueConverters'taki eşlemenin ve ck_accounts_kyc_level'ın aynısı.
         var inserted = await db.Database.ExecuteSqlAsync(
             $"""
-             INSERT INTO accounts (id, type, holder, kyc_level, accepts_promo, created_at)
-             VALUES ({account.Id}, 'person', {command.Holder}, 'unknown', false, {now})
+             INSERT INTO accounts (id, number, type, holder, kyc_level, accepts_promo, created_at)
+             VALUES ({account.Id}, {account.Number.Value}, 'person', {command.Holder}, 'unknown', false, {now})
              ON CONFLICT (holder) WHERE holder IS NOT NULL DO NOTHING
              """,
             ct);
@@ -54,10 +70,14 @@ public sealed class OpenPersonAccountHandler(
             db.LedgerBalances.Add(LedgerBalance.OpenFor(wallet.Id, currency, fundType, now));
         }
 
+        // İlk cüzdan para biriminin varsayılanı: hesap numarasına gelen para buraya.
+        db.DefaultWallets.Add(DefaultWallet.Of(wallet));
+
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return new OpenPersonAccountResult(account.Id, KycLevel.Unknown, wallet.Id, now, Replayed: false);
+        return new OpenPersonAccountResult(
+            account.Id, account.Number, KycLevel.Unknown, wallet.Id, now, Replayed: false);
     }
 
     private async Task<OpenPersonAccountResult> ExistingAsync(string holder, CancellationToken ct)
@@ -70,6 +90,7 @@ public sealed class OpenPersonAccountHandler(
             .Select(a => new
             {
                 a.Id,
+                a.Number,
                 a.KycLevel,
                 a.CreatedAt,
                 // Açılışla gelen cüzdan: hesabın ilk cüzdanı.
@@ -82,6 +103,6 @@ public sealed class OpenPersonAccountHandler(
             .SingleAsync(ct);
 
         return new OpenPersonAccountResult(
-            existing.Id, existing.KycLevel!.Value, existing.WalletId, existing.CreatedAt, Replayed: true);
+            existing.Id, existing.Number, existing.KycLevel!.Value, existing.WalletId, existing.CreatedAt, Replayed: true);
     }
 }

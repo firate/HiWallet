@@ -23,6 +23,20 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
         return await walletApi.GetAsync<AccountDetailResponse>($"v1/accounts/{accountId}", ct);
     }
 
+    /// <summary>
+    /// Hesap numarasıyla kayıt: çalışan müşteriyi numarasıyla buluyor. Kontrol hanesi
+    /// tutmayan numara <c>400</c>, olmayan <c>404</c>; ikisini de wallet-api veriyor.
+    /// </summary>
+    [HttpGet("by-number/{number}")]
+    [ProducesResponseType<AccountDetailResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<AccountDetailResponse> GetByNumber(string number, CancellationToken ct)
+    {
+        return await walletApi.GetAsync<AccountDetailResponse>(
+            $"v1/accounts/by-number/{Uri.EscapeDataString(number)}", ct);
+    }
+
     /// <summary>İşyerinin platform fonlu promo kabulü. `merchant.promo_acceptance` izni; wallet-api kontrol ediyor.</summary>
     [HttpPut("{accountId:guid}/accepts-promo")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

@@ -1,5 +1,6 @@
 using FluentValidation;
 using HiWallet.WalletApi.Requests;
+using HiWallet.WalletService.Domain.Accounts;
 
 namespace HiWallet.WalletApi.Validators;
 
@@ -16,9 +17,20 @@ public sealed class CreateTransferRequestValidator : AbstractValidator<CreateTra
         RuleFor(r => r.FromWalletId)
             .NotEmpty().WithMessage("Gönderen cüzdan kimliği zorunlu.");
 
+        RuleFor(r => r)
+            .Must(r => r.ToWalletId is null != (r.ToAccountNumber is null))
+            .WithName("ToWalletId")
+            .WithMessage("Alıcı ya cüzdan kimliğiyle ya hesap numarasıyla verilir, ikisi birden değil.");
+
         RuleFor(r => r.ToWalletId)
-            .NotEmpty().WithMessage("Alan cüzdan kimliği zorunlu.")
-            .NotEqual(r => r.FromWalletId).WithMessage("Gönderen ve alan cüzdan aynı olamaz.");
+            .NotEmpty().WithMessage("Alan cüzdan kimliği boş olamaz.")
+            .NotEqual(r => r.FromWalletId).WithMessage("Gönderen ve alan cüzdan aynı olamaz.")
+            .When(r => r.ToWalletId is not null);
+
+        RuleFor(r => r.ToAccountNumber)
+            .Must(number => AccountNumber.TryFrom(number, out _))
+            .WithMessage("Hesap numarası geçersiz: on hane ve son hanesi kontrol hanesi.")
+            .When(r => r.ToAccountNumber is not null);
 
         RuleFor(r => r.Amount)
             .GreaterThan(0m).WithMessage("Tutar pozitif olmalı.");

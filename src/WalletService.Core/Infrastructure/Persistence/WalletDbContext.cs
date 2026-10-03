@@ -17,6 +17,9 @@ public sealed class WalletDbContext : DbContext
     /// <summary>Hangi kimliğin hangi hesap üzerinde işlem yapabildiği.</summary>
     public DbSet<AccountMember> AccountMembers => Set<AccountMember>();
 
+    /// <summary>Hesabın para birimi başına varsayılan cüzdanı: hesap numarasına gelen para buraya.</summary>
+    public DbSet<DefaultWallet> DefaultWallets => Set<DefaultWallet>();
+
     public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
 
     public DbSet<LedgerTransaction> LedgerTransactions => Set<LedgerTransaction>();

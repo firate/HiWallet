@@ -14,7 +14,7 @@ describe('api', () => {
 
   it('para hareketinde anahtarı ve gövdeyi gönderiyor', async () => {
     const calls = fakeBff({ 'POST /v1/transfers': { status: 201, body: { transactionId: 't1', replayed: false } } })
-    const request = { fromWalletId: 'w1', toWalletId: 'w2', amount: 10, currency: 'TRY', type: 'P2P' as const }
+    const request = { fromWalletId: 'w1', toAccountNumber: '1234567897', amount: 10, currency: 'TRY', type: 'P2P' as const }
 
     await api.transfer(request, 'anahtar-1')
 
@@ -35,7 +35,7 @@ describe('api', () => {
     })
 
     const error = await api
-      .transfer({ fromWalletId: 'w1', toWalletId: 'w2', amount: 10, currency: 'TRY', type: 'P2P' }, 'k')
+      .transfer({ fromWalletId: 'w1', toAccountNumber: '1234567897', amount: 10, currency: 'TRY', type: 'P2P' }, 'k')
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(ApiError)
