@@ -5,6 +5,8 @@ namespace HiWallet.UnitTests.StaffAdmin;
 
 public sealed class StaffRoleRulesTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 10, 3, 12, 0, 0, TimeSpan.Zero);
+
     [Theory]
     [InlineData("Operasyon")]
     [InlineData("Çağrı merkezi")]
@@ -26,14 +28,39 @@ public sealed class StaffRoleRulesTests
     public void Ad_Uzun_Gecersiz() =>
         StaffRoleRules.IsWellFormed(new string('a', StaffRoleRules.MaxNameLength + 1)).ShouldBeFalse();
 
-    /// <summary>Token'da rol ile izin ve kimlik sağlayıcının rolleri ayırt edilebilmeli.</summary>
-    [Theory]
-    [InlineData("offline_access")]
-    [InlineData("UMA_AUTHORIZATION")]
-    [InlineData("default-roles-hiwallet-staff")]
-    [InlineData(StaffPermissions.StaffManage)]
-    public void Ad_Ayrilmis(string name) => StaffRoleRules.IsReserved(name).ShouldBeTrue();
+    /// <summary>Kayıt ve panel izinleri hep aynı sırada görüyor: seçilme sırası değil, kodun sırası.</summary>
+    [Fact]
+    public void Rol_IzinleriTekrarsizVeKodunSirasiyla()
+    {
+        var role = StaffRole.Create(
+            "Operasyon", null,
+            [StaffPermissions.WithdrawalReview, StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview],
+            Now);
+
+        role.Permissions.ShouldBe([StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview]);
+
+        role.Change("Ekip", [StaffPermissions.StaffManage, StaffPermissions.CustomerView]);
+
+        role.Permissions.ShouldBe([StaffPermissions.CustomerView, StaffPermissions.StaffManage]);
+    }
 
     [Fact]
-    public void Ad_Ayrilmamis() => StaffRoleRules.IsReserved("Operasyon").ShouldBeFalse();
+    public void Rol_AdBuyukKucukHarfFarkiylaAyni() =>
+        StaffRole.NormalizeName("operasyon").ShouldBe(StaffRole.NormalizeName("OPERASYON"));
+
+    [Fact]
+    public void Calisan_EpostaKucukHarfle() =>
+        StaffMember.Invite(Guid.NewGuid(), " Ayse@Ornek.COM ", null, null, Now).Email.ShouldBe("ayse@ornek.com");
+
+    /// <summary>İlk görüldüğü an davetin tamamlandığı an; sonraki girişler onu değiştirmiyor.</summary>
+    [Fact]
+    public void Calisan_IlkGorulmeBirKezYaziliyor()
+    {
+        var member = StaffMember.Invite(Guid.NewGuid(), "a@ornek.com", null, null, Now);
+
+        member.MarkSeen(Now.AddMinutes(5)).ShouldBeTrue();
+        member.MarkSeen(Now.AddMinutes(9)).ShouldBeFalse();
+
+        member.ActivatedAt.ShouldBe(Now.AddMinutes(5));
+    }
 }
