@@ -20,16 +20,17 @@ describe('SessionGate', () => {
       'GET /bff/user': { status: 200, body: { subject: 's1', name: 'Ayşe Yılmaz', email: null } },
       'GET /v1/accounts?size=100': {
         status: 200,
-        body: { items: [{ accountId: 'a1', type: 'Person', kycLevel: 'Unverified', createdAt: '2026-09-28T10:00:00Z' }], size: 100, nextCursor: null },
+        body: { items: [{ accountId: 'a1', accountNumber: '1234567897', type: 'Person', kycLevel: 'Unverified', createdAt: '2026-09-28T10:00:00Z' }], size: 100, nextCursor: null },
       },
       'GET /v1/accounts/a1': {
         status: 200,
         body: {
           accountId: 'a1',
+          accountNumber: '1234567897',
           type: 'Person',
           kycLevel: 'Unverified',
           createdAt: '2026-09-28T10:00:00Z',
-          wallets: [{ walletId: 'w1', name: 'Ana', currency: 'TRY', balance: 0, withdrawable: 0, balances: [] }],
+          wallets: [{ walletId: 'w1', name: 'Ana', currency: 'TRY', balance: 0, withdrawable: 0, balances: [], isDefault: true }],
         },
       },
     })
@@ -47,11 +48,11 @@ describe('SessionGate', () => {
       'GET /bff/user': { status: 200, body: { subject: 's1', name: null, email: 'ayse@ornek.com' } },
       'GET /v1/accounts?size=100': {
         status: 200,
-        body: { items: [{ accountId: 'a1', type: 'Person', kycLevel: 'Unknown', createdAt: '2026-09-28T10:00:00Z' }], size: 100, nextCursor: null },
+        body: { items: [{ accountId: 'a1', accountNumber: '1234567897', type: 'Person', kycLevel: 'Unknown', createdAt: '2026-09-28T10:00:00Z' }], size: 100, nextCursor: null },
       },
       'GET /v1/accounts/a1': {
         status: 200,
-        body: { accountId: 'a1', type: 'Person', kycLevel: 'Unknown', createdAt: '2026-09-28T10:00:00Z', wallets: [] },
+        body: { accountId: 'a1', accountNumber: '1234567897', type: 'Person', kycLevel: 'Unknown', createdAt: '2026-09-28T10:00:00Z', wallets: [] },
       },
     })
 

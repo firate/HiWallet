@@ -3,8 +3,8 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { kycLevel, money } from '../format'
-import type { KycLevel } from '../types'
+import { accountNumber, kycLevel, money } from '../format'
+import type { AccountDetailWallet, KycLevel } from '../types'
 
 const currencies = ['TRY', 'USD', 'EUR']
 
@@ -69,25 +69,73 @@ function AccountCard({ accountId, level }: { accountId: string; level: KycLevel 
     return <ErrorMessage error={account.error} />
   }
 
+  const { wallets } = account.data
+
   return (
     <section className="card">
+      <p>
+        Hesap numaran: <strong className="account-number">{accountNumber(account.data.accountNumber)}</strong>
+      </p>
+      <p className="muted small">Sana para gönderecek kişiye bu numarayı ver.</p>
       {level !== null && <LevelNotice level={level} />}
-      {account.data.wallets.length === 0 ? (
+      {wallets.length === 0 ? (
         <p className="muted">Bu hesapta henüz cüzdan yok.</p>
       ) : (
         <ul className="wallets">
-          {account.data.wallets.map((wallet) => (
+          {wallets.map((wallet) => (
             <li key={wallet.walletId}>
               <Link to={`/cuzdanlar/${wallet.walletId}`}>
                 <span className="name">{wallet.name}</span>
                 <span className="amount">{money(wallet.balance, wallet.currency)}</span>
               </Link>
+              <DefaultMark
+                accountId={accountId}
+                wallet={wallet}
+                choosable={wallets.filter((other) => other.currency === wallet.currency).length > 1}
+              />
             </li>
           ))}
         </ul>
       )}
       <OpenWalletForm accountId={accountId} />
     </section>
+  )
+}
+
+/**
+ * Hesap numarasına gelen para para biriminin varsayılan cüzdanına düşüyor. Aynı para
+ * biriminde birden fazla cüzdan varsa müşteri hangisi olacağını seçiyor.
+ */
+function DefaultMark({
+  accountId,
+  wallet,
+  choosable,
+}: {
+  accountId: string
+  wallet: AccountDetailWallet
+  choosable: boolean
+}) {
+  const queryClient = useQueryClient()
+  const makeDefault = useMutation({
+    mutationFn: () => api.setDefaultWallet(accountId, wallet.currency, wallet.walletId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts', accountId] }),
+  })
+
+  if (wallet.isDefault) {
+    return choosable ? <span className="muted small">Gelen para buraya</span> : null
+  }
+
+  if (!choosable) {
+    return null
+  }
+
+  return (
+    <>
+      <button type="button" className="link" disabled={makeDefault.isPending} onClick={() => makeDefault.mutate()}>
+        Gelen para buraya gelsin
+      </button>
+      {makeDefault.error && <ErrorMessage error={makeDefault.error} />}
+    </>
   )
 }
 
