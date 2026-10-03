@@ -163,6 +163,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   doğrulayan şema söyler. Müşterinin ön API'leri çalışan token'ını kabul ETMEZ.
 - Çalışanın yetkisi İZİNLE kontrol edilir (`StaffPermissions`), rol adıyla DEĞİL. Her
   uç kendi iznini ister; müşteri kaydını görüntülemek de bir izin (`customer.view`).
+  İzin token'da YOK: her istekte o anki haliyle okunur (bkz. "Personel yönetimi").
   Müşterinin para hareketi başlatan uçları çalışana KAPALI: çalışan müşteri yerine
   işlem başlatmaz, kendi ucundan ve kendi aktörüyle yapar.
 - İşyerinin sistem entegrasyonu Keycloak'ta kendi istemcisi (client credentials);
@@ -180,24 +181,27 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 
 **Personel yönetimi**
 - İzinler KODDA ve sabit; yeni bir yetki türü yeni bir izin ve kod değişikliği demek.
-  Roller panelde tanımlanır: rol bir izin seti, Keycloak'ta izinleri içeren bileşik rol;
-  token'a izinler açılmış olarak yazılır. Çalışan yetkiyi YALNIZCA rolden alır, ona
+  Roller panelde tanımlanır: rol bir izin seti. Çalışan yetkiyi YALNIZCA rolden alır, ona
   doğrudan izin verilmez. Grup YOK: rolün kendisi aynı işi yapanları topluyor.
-- Personeli, rolleri ve izinleri `staff-admin` yönetir; çalışanların Keycloak'ına kendi
-  istemcisinin servis hesabıyla gider. Keycloak'ın konsolu personel işi için
-  KULLANILMAZ, yalnızca platform kurulumu için.
+- Roller, çalışanlar ve atamalar `staff-admin`'in VERİTABANINDA. Keycloak'ta yalnızca
+  kullanıcı, parola, OTP ve oturum; rol ve izin Keycloak'ta TUTULMAZ, token izin TAŞIMAZ.
+  Keycloak'ın konsolu personel işi için KULLANILMAZ; konsolda açılan kullanıcının izni yok.
+- Çalışanın izni HER İSTEKTE o anki haliyle okunur, önbellek YOK: rolü alınan ya da
+  kapatılan çalışanın aynı token'la gelen bir sonraki isteği reddedilir. `wallet-api` ve
+  orchestrator `staff-admin`'in `GET /v1/me` ucuna çalışanın KENDİ token'ıyla sorar;
+  başkasının izni sorulamaz. Cevap alınamazsa çalışanın isteği `503`; izni doğrulanamayan
+  çalışan işlem YAPAMAZ. Kontrol politikanın handler'ında, uçlarda değil.
 - `staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanır (müşteri token'ı
-  `401`) ve her ucu `staff.manage` ister. Kodun izinlerini, yönetici rolünü ve ilk
+  `401`); `GET /v1/me` dışındaki her ucu `staff.manage` ister. Yönetici rolünü ve ilk
   yöneticiyi açılışta kendisi kurar; kimsede `staff.manage` yoksa ayardaki adrese davet
   gönderir.
 - Çalışan kendine yetki VEREMEZ: kendi rollerini değiştiremez, sahip olduğu rolün
   izinlerini değiştiremez ve silemez, kendini kapatamaz.
 - Yeni çalışan davetle gelir; parolasını ve OTP'sini davetteki bağlantıdan kendisi kurar.
-  Panel parolayı HİÇ görmez.
-- Her değişiklik işi yapan çalışanla kayda yazılır (`staff_audit_events`); kayıt
-  değişmez ve silinmez (REVOKE). Keycloak'ın kendi kaydı servis hesabını görür,
-  çalışanı değil. Kayıt değişiklik Keycloak'a uygulandıktan SONRA yazılır; yazılamazsa
-  değişiklik kritik seviyede log'a düşer.
+  Panel parolayı HİÇ görmez. Davette Keycloak'taki kullanıcı ve e-posta kayıttan ÖNCE,
+  kapatmada kayıt Keycloak'tan ÖNCE: yarım kalan iş izni olmayan tarafta kalır.
+- Her değişiklik işi yapan çalışanla, değişiklikle AYNI transaction'da kayda yazılır
+  (`staff_audit_events`); kayıt değişmez ve silinmez (REVOKE).
 
 **Kayıt ve doğrulama**
 - Kayıt `onboarding`'de: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap.
