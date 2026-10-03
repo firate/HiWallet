@@ -2,8 +2,10 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 
@@ -20,7 +22,9 @@ namespace HiWallet.Shared.Infrastructure.Authentication;
 /// (sağlık, API dokümanı) ve çalışanın geçebildiği uç bunu kendisi söylüyor.
 ///
 /// Çalışanın yetkisi İZİNLE kontrol ediliyor (<see cref="StaffPermissions"/>), rolle
-/// değil: roller panelde izinlerden kuruluyor ve token'a izinler açılmış olarak yazılıyor.
+/// değil. Token'da izin yok: izinler personel yönetiminin veritabanında ve her istekte
+/// oradan okunuyor (<see cref="IStaffPermissions"/>). Rolü alınan çalışanın bir sonraki
+/// isteği reddediliyor.
 /// </summary>
 public static class AuthenticationSetup
 {
@@ -39,15 +43,13 @@ public static class AuthenticationSetup
 
     public const string SubjectClaim = "sub";
 
-    /// <summary>
-    /// Çalışanın realm rolleri; Keycloak token'a düz bir dizi olarak yazıyor. Rollerin
-    /// içerdiği izinler de burada, açılmış olarak.
-    /// </summary>
-    public const string RolesClaim = "roles";
+    /// <summary>Çalışanın izinlerini soran istemcinin tek denemesinin sınırı.</summary>
+    private static readonly TimeSpan StaffPermissionsTimeout = TimeSpan.FromSeconds(5);
 
     /// <param name="acceptStaffTokens">
     /// Çalışanların realm'inin token'ı da kabul ediliyor. Yalnızca iç servisler: çalışan
     /// kendi ön API'sinden (backoffice) geliyor, müşterinin ön API'leri onu tanımıyor.
+    /// Çalışanın izinleri her istekte personel yönetimine soruluyor.
     /// </param>
     public static IServiceCollection AddHiWalletAuthentication(
         this IServiceCollection services, bool acceptStaffTokens = false)
@@ -63,9 +65,13 @@ public static class AuthenticationSetup
 
         if (acceptStaffTokens)
         {
-            settings.Validate(
-                settings => Uri.TryCreate(settings.Staff.Issuer, UriKind.Absolute, out _),
-                $"{TokenValidationSettings.SectionName}:Staff:Issuer boş ya da mutlak bir adres değil.");
+            settings
+                .Validate(
+                    settings => Uri.TryCreate(settings.Staff.Issuer, UriKind.Absolute, out _),
+                    $"{TokenValidationSettings.SectionName}:Staff:Issuer boş ya da mutlak bir adres değil.")
+                .Validate(
+                    settings => Uri.TryCreate(settings.Staff.StaffAdminUrl, UriKind.Absolute, out _),
+                    $"{TokenValidationSettings.SectionName}:Staff:StaffAdminUrl boş ya da mutlak bir adres değil. Çalışanın izinleri olmadan hiçbir çalışan isteği geçemez.");
         }
 
         // Fail fast: eksik ayar ilk istekte değil, başlangıçta patlasın.
@@ -80,6 +86,7 @@ public static class AuthenticationSetup
         if (acceptStaffTokens)
         {
             AddStaffBearer(services, authentication);
+            AddStaffAdminPermissions(services);
 
             // Token imzası doğrulanmadan önce yalnızca yönlendirme için okunuyor; kararı
             // seçilen şemanın doğrulaması veriyor. Çalışanın adresini taşıyan sahte bir
@@ -105,7 +112,8 @@ public static class AuthenticationSetup
     /// <summary>
     /// Yalnızca çalışanların Keycloak'ının token'ı. Müşterinin token'ını hiç tanımayan iç
     /// servis için (personel yönetimi): müşteriyle işi yok, müşteri token'ı 401 alıyor.
-    /// Varsayılan politika çalışan istiyor; uçlar ayrıca izin istiyor.
+    /// Varsayılan politika çalışan istiyor; uçlar ayrıca izin istiyor. İzinlerin kaynağını
+    /// (<see cref="IStaffPermissions"/>) servis kendisi kaydediyor.
     /// </summary>
     public static IServiceCollection AddHiWalletStaffAuthentication(this IServiceCollection services)
     {
@@ -135,26 +143,39 @@ public static class AuthenticationSetup
 
         ConfigureBearer(services, StaffScheme, settings => (settings.Staff.Issuer, settings.Staff.MetadataAddress));
         services.AddOptions<JwtBearerOptions>(StaffScheme).Configure(jwt =>
+            jwt.TokenValidationParameters.AuthenticationType = StaffIdentityType);
+    }
+
+    /// <summary>İzinler personel yönetiminden, çalışanın her isteğinde.</summary>
+    private static void AddStaffAdminPermissions(IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
+        services.AddHttpClient<IStaffPermissions, StaffAdminPermissions>((provider, http) =>
         {
-            jwt.TokenValidationParameters.AuthenticationType = StaffIdentityType;
-            jwt.TokenValidationParameters.RoleClaimType = RolesClaim;
+            var url = provider.GetRequiredService<IOptions<TokenValidationSettings>>().Value.Staff.StaffAdminUrl!;
+
+            http.BaseAddress = new Uri(url.TrimEnd('/') + "/");
+            http.Timeout = StaffPermissionsTimeout;
         });
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IExceptionHandler, StaffPermissionsExceptionHandler>());
     }
 
     private static void AddPolicies(IServiceCollection services, AuthorizationPolicy fallback)
     {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, StaffPermissionHandler>());
+
         var authorization = services.AddAuthorizationBuilder()
             .SetFallbackPolicy(fallback)
             .AddPolicy(HiWalletPolicies.CustomerOrStaff, policy => policy
                 .RequireAuthenticatedUser()
-                .RequireAssertion(context =>
-                    !context.User.IsEmployee() || context.User.IsInRole(StaffPermissions.CustomerView)));
+                .AddRequirements(new StaffPermissionRequirement(StaffPermissions.CustomerView, CustomersPass: true)));
 
         foreach (var permission in StaffPermissions.All)
         {
             authorization.AddPolicy(HiWalletPolicies.For(permission), policy => policy
                 .RequireAuthenticatedUser()
-                .RequireAssertion(context => context.User.IsEmployee() && context.User.IsInRole(permission)));
+                .AddRequirements(new StaffPermissionRequirement(permission)));
         }
     }
 
@@ -222,7 +243,8 @@ public static class AuthenticationSetup
 
 /// <summary>
 /// Çalışanın izinleri. Kod yalnızca bunları tanıyor; roller panelde bu izinlerden
-/// kuruluyor. Yeni bir yetki türü yeni bir izin ve kod değişikliği demek.
+/// kuruluyor ve personel yönetiminin veritabanında duruyor. Yeni bir yetki türü yeni bir
+/// izin ve kod değişikliği demek.
 /// </summary>
 public static class StaffPermissions
 {
@@ -273,7 +295,7 @@ public static class HiWalletPolicies
 
     private const string Prefix = "staff:";
 
-    /// <summary>Çalışanların Keycloak'ından ve bu izinle; müşterinin token'ı geçmiyor.</summary>
+    /// <summary>Çalışanların Keycloak'ından ve şu an bu izinle; müşterinin token'ı geçmiyor.</summary>
     public const string CustomerView = Prefix + StaffPermissions.CustomerView;
 
     public const string WithdrawalReview = Prefix + StaffPermissions.WithdrawalReview;
@@ -318,5 +340,12 @@ public sealed class TokenValidationSettings
         public string? Issuer { get; set; }
 
         public string? MetadataAddress { get; set; }
+
+        /// <summary>
+        /// Personel yönetiminin (<c>staff-admin</c>) adresi: çalışanın izinleri her istekte
+        /// buradan okunuyor. Yalnızca çalışan token'ını kabul eden iç servislerde; personel
+        /// yönetiminin kendisi izinleri kendi veritabanından okuyor.
+        /// </summary>
+        public string? StaffAdminUrl { get; set; }
     }
 }
