@@ -1,20 +1,22 @@
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.StaffAdmin.Application.Abstractions;
 using HiWallet.StaffAdmin.Domain;
+using HiWallet.StaffAdmin.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace HiWallet.StaffAdmin.Application;
 
 /// <summary>
-/// Açılışta, kimlik sağlayıcıya ulaşana kadar yeniden deneyerek:
+/// Açılışta, veritabanına ve kimlik sağlayıcıya ulaşana kadar yeniden deneyerek:
 /// <list type="number">
-/// <item>Kodun izinleri realm'de rol olarak açılıyor. Yeni bir izin kodla geliyor, panelde
-/// kendiliğinden seçilebiliyor.</item>
 /// <item>Yalnızca personel yönetimi iznini içeren yönetici rolü yoksa açılıyor.</item>
 /// <item>Hiçbir etkin çalışanda personel yönetimi yoksa ayardaki adrese davet gidiyor ve
-/// yönetici rolü veriliyor. Bütün yöneticiler kaybedilirse kurtarma yolu da bu.</item>
+/// yönetici rolü veriliyor. Bütün yöneticiler kaybedilirse kurtarma yolu da bu: servis
+/// yeniden başlatılıyor.</item>
 /// </list>
-/// Her açılışta aynı sonucu veriyor; var olana dokunmuyor.
+/// Her açılışta aynı sonucu veriyor; var olana dokunmuyor. Davet kayıttan ÖNCE gidiyor:
+/// kayıt yazılamazsa sonraki deneme her şeyi baştan yapıyor ve aynı kullanıcıyı buluyor.
 /// </summary>
 public sealed partial class StaffAdminBootstrap(
     IServiceScopeFactory scopes,
@@ -30,10 +32,7 @@ public sealed partial class StaffAdminBootstrap(
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
-                await RunAsync(
-                    scope.ServiceProvider.GetRequiredService<IStaffDirectory>(),
-                    scope.ServiceProvider.GetRequiredService<StaffAudit>(),
-                    stoppingToken);
+                await RunAsync(scope.ServiceProvider, stoppingToken);
                 return;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -45,67 +44,89 @@ public sealed partial class StaffAdminBootstrap(
         }
     }
 
-    private async Task RunAsync(IStaffDirectory directory, StaffAudit audit, CancellationToken ct)
+    private async Task RunAsync(IServiceProvider services, CancellationToken ct)
     {
-        foreach (var (permission, description) in StaffPermissions.Descriptions)
-        {
-            await directory.EnsurePermissionAsync(permission, description, ct);
-        }
-
         var settings = options.Value.Bootstrap;
-        var adminRole = (await directory.ListRolesAsync(ct))
-            .FirstOrDefault(r => r.Kind is DirectoryRoleKind.StaffRole && r.Name == settings.AdminRoleName);
+        var directory = services.GetRequiredService<IStaffDirectory>();
+        var audit = services.GetRequiredService<StaffAudit>();
+        var time = services.GetRequiredService<TimeProvider>();
+        await using var db = await services.GetRequiredService<IDbContextFactory<StaffAdminDbContext>>()
+            .CreateDbContextAsync(ct);
 
-        if (adminRole is null)
-        {
-            IReadOnlyList<string> permissions = [StaffPermissions.StaffManage];
-            var roleId = await directory.CreateRoleAsync(
-                settings.AdminRoleName, StaffPermissions.Descriptions[StaffPermissions.StaffManage], permissions, ct);
-            adminRole = new DirectoryRole(roleId, settings.AdminRoleName, null, DirectoryRoleKind.StaffRole, permissions);
+        var adminRole = await EnsureAdminRoleAsync(db, audit, time, settings.AdminRoleName, ct);
 
-            await audit.RecordAsync(
-                Actor.System, StaffAuditAction.RoleCreated, StaffAuditTarget.Role, roleId, adminRole.Name,
-                new { permissions }, ct);
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.AdminEmail) || await AnyEnabledManagerAsync(directory, ct))
+        if (string.IsNullOrWhiteSpace(settings.AdminEmail) || await AnyEnabledManagerAsync(db, ct))
         {
             return;
         }
 
-        var existing = await directory.FindUserByEmailAsync(settings.AdminEmail, ct);
-        var adminId = existing?.Id ?? await directory.CreateUserAsync(settings.AdminEmail, null, null, ct);
-
-        if (existing is { Enabled: false })
+        // Yönetici rolünün izni elle alınmışsa kurtarma onu geri veriyor; yoksa davet edilen
+        // yönetici de personeli yönetemezdi.
+        if (!adminRole.Permissions.Contains(StaffPermissions.StaffManage))
         {
-            await directory.SetEnabledAsync(adminId, true, ct);
+            var before = new { adminRole.Description, Permissions = adminRole.Permissions.ToList() };
+            adminRole.Change(adminRole.Description, [.. adminRole.Permissions, StaffPermissions.StaffManage]);
+
+            audit.Add(db, Actor.System, StaffAuditAction.RoleUpdated, StaffAuditTarget.Role, adminRole.Id, adminRole.Name,
+                new { before, after = new { adminRole.Description, adminRole.Permissions } });
         }
 
-        await directory.AssignRolesAsync(adminId, [adminRole], ct);
-        await directory.SendInvitationAsync(adminId, ct);
+        var email = StaffMember.NormalizeEmail(settings.AdminEmail);
+        var member = await db.Members.SingleOrDefaultAsync(m => m.Email == email, ct);
+        var staffId = member?.Id ?? await StaffService.EnsureDirectoryUserAsync(directory, email, null, null, ct);
 
-        await audit.RecordAsync(
-            Actor.System, StaffAuditAction.StaffInvited, StaffAuditTarget.Staff, adminId, settings.AdminEmail,
-            new { roles = new[] { adminRole.Name } }, ct);
+        if (member is { Enabled: false })
+        {
+            await directory.SetEnabledAsync(staffId, true, ct);
+            member.SetEnabled(true);
+        }
 
-        LogAdminInvited(settings.AdminEmail);
+        await directory.SendInvitationAsync(staffId, ct);
+
+        if (member is null)
+        {
+            db.Members.Add(StaffMember.Invite(staffId, email, null, null, time.GetUtcNow()));
+        }
+
+        if (!await db.RoleAssignments.AnyAsync(a => a.StaffId == staffId && a.RoleId == adminRole.Id, ct))
+        {
+            db.RoleAssignments.Add(StaffRoleAssignment.For(staffId, adminRole.Id));
+        }
+
+        audit.Add(db, Actor.System, StaffAuditAction.StaffInvited, StaffAuditTarget.Staff, staffId, email,
+            new { roles = new[] { adminRole.Name } });
+
+        await db.SaveChangesAsync(ct);
+
+        LogAdminInvited(email);
     }
 
-    private static async Task<bool> AnyEnabledManagerAsync(IStaffDirectory directory, CancellationToken ct)
+    private static async Task<StaffRole> EnsureAdminRoleAsync(
+        StaffAdminDbContext db, StaffAudit audit, TimeProvider time, string name, CancellationToken ct)
     {
-        var managerRoles = (await directory.ListRolesAsync(ct))
-            .Where(r => r.Kind is DirectoryRoleKind.StaffRole && r.Permissions.Contains(StaffPermissions.StaffManage));
+        var normalized = StaffRole.NormalizeName(name);
 
-        foreach (var role in managerRoles)
+        if (await db.Roles.SingleOrDefaultAsync(r => r.NormalizedName == normalized, ct) is { } existing)
         {
-            if ((await directory.RoleMembersAsync(role.Id, ct)).Any(u => u.Enabled))
-            {
-                return true;
-            }
+            return existing;
         }
 
-        return false;
+        IReadOnlyList<string> permissions = [StaffPermissions.StaffManage];
+        var role = StaffRole.Create(name, StaffPermissions.Descriptions[StaffPermissions.StaffManage], permissions, time.GetUtcNow());
+        db.Roles.Add(role);
+
+        audit.Add(db, Actor.System, StaffAuditAction.RoleCreated, StaffAuditTarget.Role, role.Id, role.Name,
+            new { role.Description, permissions = role.Permissions });
+
+        await db.SaveChangesAsync(ct);
+
+        return role;
     }
+
+    private static Task<bool> AnyEnabledManagerAsync(StaffAdminDbContext db, CancellationToken ct) =>
+        db.Members.AnyAsync(m => m.Enabled && db.RoleAssignments.Any(a =>
+            a.StaffId == m.Id
+            && db.Roles.Any(r => r.Id == a.RoleId && r.Permissions.Contains(StaffPermissions.StaffManage))), ct);
 
     [LoggerMessage(Level = LogLevel.Warning,
         Message = "Personel yönetiminin açılış kurulumu yapılamadı; {Delay} sonra yeniden denenecek.")]

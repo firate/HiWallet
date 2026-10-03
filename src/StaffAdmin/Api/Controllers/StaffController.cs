@@ -1,6 +1,6 @@
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.StaffAdmin.Application;
-using HiWallet.StaffAdmin.Application.Abstractions;
+using HiWallet.StaffAdmin.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,9 +20,9 @@ public sealed class StaffController(StaffService staff) : ControllerBase
         [FromQuery] int? first, [FromQuery] int? size, [FromQuery] string? search, CancellationToken ct)
     {
         var (skip, take) = (Paging.First(first), Paging.Size(size));
-        var page = await staff.ListAsync(skip, take, search, ct);
+        var (items, hasMore) = await staff.ListAsync(skip, take, search, ct);
 
-        return new StaffPageResponse([.. page.Items.Select(ToSummary)], skip, take, page.HasMore ? skip + take : null);
+        return new StaffPageResponse([.. items.Select(ToSummary)], skip, take, hasMore ? skip + take : null);
     }
 
     [HttpGet("{staffId:guid}")]
@@ -45,7 +45,7 @@ public sealed class StaffController(StaffService staff) : ControllerBase
         var detail = await staff.InviteAsync(
             User.ToActor(), request.Email.Trim(), request.FirstName?.Trim(), request.LastName?.Trim(), request.RoleIds, ct);
 
-        return CreatedAtAction(nameof(GetById), new { staffId = detail.User.Id }, ToDetail(detail));
+        return CreatedAtAction(nameof(GetById), new { staffId = detail.Member.Id }, ToDetail(detail));
     }
 
     /// <summary>Çalışanın rollerinin tamamı; listede olmayanlar alınıyor.</summary>
@@ -83,16 +83,17 @@ public sealed class StaffController(StaffService staff) : ControllerBase
         return Accepted();
     }
 
-    internal static StaffSummaryResponse ToSummary(DirectoryUser user) => new(
-        user.Id, user.Email, user.FirstName, user.LastName, user.Enabled, user.PendingActions.Count > 0, user.CreatedAt);
+    internal static StaffSummaryResponse ToSummary(StaffMember member) => new(
+        member.Id, member.Email, member.FirstName, member.LastName, member.Enabled, member.ActivatedAt is null,
+        member.CreatedAt);
 
     private static StaffDetailResponse ToDetail(StaffDetail detail) => new(
-        detail.User.Id,
-        detail.User.Email,
-        detail.User.FirstName,
-        detail.User.LastName,
-        detail.User.Enabled,
-        detail.User.PendingActions.Count > 0,
-        detail.User.CreatedAt,
+        detail.Member.Id,
+        detail.Member.Email,
+        detail.Member.FirstName,
+        detail.Member.LastName,
+        detail.Member.Enabled,
+        detail.Member.ActivatedAt is null,
+        detail.Member.CreatedAt,
         [.. detail.Roles.Select(r => new StaffRoleRef(r.Id, r.Name))]);
 }

@@ -1,6 +1,6 @@
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.StaffAdmin.Application;
-using HiWallet.StaffAdmin.Application.Abstractions;
+using HiWallet.StaffAdmin.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,20 +23,16 @@ public sealed class PermissionsController : ControllerBase
 [Authorize(Policy = HiWalletPolicies.StaffManage)]
 public sealed class RolesController(RoleService roles) : ControllerBase
 {
-    /// <summary>Panelin rolleri, ada göre. İzinler ve kimlik sağlayıcının kendi rolleri listede yok.</summary>
+    /// <summary>Panelin rolleri, ada göre.</summary>
     /// <param name="first">Atlanacak rol sayısı; önceki sayfanın <c>nextFirst</c> değeri.</param>
     /// <param name="size">Sayfa boyutu. Tavanın üstü tavana çekiliyor.</param>
     [HttpGet]
     public async Task<RolesResponse> List([FromQuery] int? first, [FromQuery] int? size, CancellationToken ct)
     {
-        var all = await roles.ListAsync(ct);
         var (skip, take) = (Paging.First(first), Paging.Size(size));
+        var (items, hasMore) = await roles.ListAsync(skip, take, ct);
 
-        return new RolesResponse(
-            [.. all.Skip(skip).Take(take).Select(ToResponse)],
-            skip,
-            take,
-            all.Count > skip + take ? skip + take : null);
+        return new RolesResponse([.. items.Select(ToResponse)], skip, take, hasMore ? skip + take : null);
     }
 
     [HttpGet("{roleId:guid}")]
@@ -82,6 +78,6 @@ public sealed class RolesController(RoleService roles) : ControllerBase
         return NoContent();
     }
 
-    private static RoleResponse ToResponse(DirectoryRole role) =>
+    private static RoleResponse ToResponse(StaffRole role) =>
         new(role.Id, role.Name, role.Description, role.Permissions);
 }

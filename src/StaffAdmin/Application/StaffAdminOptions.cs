@@ -17,7 +17,7 @@ public sealed class StaffAdminOptions
 
         /// <summary>
         /// Kimsede personel yönetimi yoksa bu adrese davet gidiyor ve rol veriliyor. Boşsa
-        /// kurulum yalnızca izinleri ve rolü açıyor.
+        /// kurulum yalnızca yönetici rolünü açıyor.
         /// </summary>
         public string? AdminEmail { get; set; }
     }

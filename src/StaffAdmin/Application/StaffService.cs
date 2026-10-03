@@ -1,63 +1,92 @@
 using HiWallet.StaffAdmin.Application.Abstractions;
 using HiWallet.StaffAdmin.Domain;
+using HiWallet.StaffAdmin.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.StaffAdmin.Application;
 
 /// <summary>
 /// Çalışanlar: davet, rol atama, kapatma. Çalışan yetkiyi yalnızca panelin rollerinden
-/// alıyor; izin ya da kimlik sağlayıcının rolü doğrudan verilmiyor. Çalışan kendi
-/// rollerini değiştiremiyor ve kendini kapatamıyor.
+/// alıyor. Çalışan kendi rollerini değiştiremiyor ve kendini kapatamıyor.
+///
+/// Kimlik sağlayıcıya giden adımla veritabanı arasında ortak transaction yok. Sıra, yarım
+/// kalan işin güvenli tarafta kalacağı şekilde: davette kullanıcı ve e-posta önce, kayıt
+/// sonra (kayıt yazılamazsa çalışanın izni yok, tekrar aynı kullanıcıyı buluyor);
+/// kapatmada kayıt önce (izin hemen gidiyor), kimlik sağlayıcı sonra.
 /// </summary>
-public sealed class StaffService(IStaffDirectory directory, StaffAudit audit)
+public sealed class StaffService(
+    IDbContextFactory<StaffAdminDbContext> contexts,
+    IStaffDirectory directory,
+    StaffAudit audit,
+    TimeProvider time)
 {
-    public Task<DirectoryUserPage> ListAsync(int first, int size, string? search, CancellationToken ct) =>
-        directory.ListUsersAsync(first, size, search, ct);
+    public async Task<(IReadOnlyList<StaffMember> Items, bool HasMore)> ListAsync(
+        int skip, int take, string? search, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var query = db.Members.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{EscapeLike(search.Trim())}%";
+            query = query.Where(m =>
+                EF.Functions.ILike(m.Email, pattern)
+                || (m.FirstName != null && EF.Functions.ILike(m.FirstName, pattern))
+                || (m.LastName != null && EF.Functions.ILike(m.LastName, pattern)));
+        }
+
+        var rows = await query.OrderBy(m => m.Email).Skip(skip).Take(take + 1).ToListAsync(ct);
+
+        return ([.. rows.Take(take)], rows.Count > take);
+    }
 
     public async Task<StaffDetail> GetAsync(Guid staffId, CancellationToken ct)
     {
-        var user = await RequireAsync(staffId, ct);
+        await using var db = await contexts.CreateDbContextAsync(ct);
 
-        return new StaffDetail(user, await StaffRolesOfAsync(staffId, ct));
+        return new StaffDetail(await RequireAsync(db, staffId, ct), await RolesOfAsync(db, staffId, ct));
     }
 
     /// <summary>
-    /// Kullanıcıyı açar, rollerini verir ve daveti gönderir. Parola ve OTP'yi çalışan
-    /// davetteki bağlantıdan kendisi kuruyor; panel parolayı hiç görmüyor.
+    /// Kullanıcıyı açar, daveti gönderir, çalışanı ve rollerini kaydeder. Parola ve OTP'yi
+    /// çalışan davetteki bağlantıdan kendisi kuruyor; panel parolayı hiç görmüyor.
+    ///
+    /// Kimlik sağlayıcıda aynı e-postada kullanıcı varsa (önceki deneme kaydı yazamadan
+    /// kaldıysa) o kullanıcı kullanılıyor.
     /// </summary>
     public async Task<StaffDetail> InviteAsync(
         Actor actor, string email, string? firstName, string? lastName, IReadOnlyCollection<Guid> roleIds,
         CancellationToken ct)
     {
-        var roles = await ResolveStaffRolesAsync(roleIds, ct);
+        email = StaffMember.NormalizeEmail(email);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var roles = await ResolveRolesAsync(db, roleIds, ct);
 
-        if (await directory.FindUserByEmailAsync(email, ct) is not null)
+        if (await db.Members.AnyAsync(m => m.Email == email, ct))
         {
             throw new StaffAdminConflictException(StaffAdminRules.StaffExists, "Bu e-postayla bir çalışan var.");
         }
 
-        Guid staffId;
+        var staffId = await EnsureDirectoryUserAsync(directory, email, firstName, lastName, ct);
+        await directory.SendInvitationAsync(staffId, ct);
+
+        var member = StaffMember.Invite(staffId, email, firstName, lastName, time.GetUtcNow());
+        db.Members.Add(member);
+        db.RoleAssignments.AddRange(roles.Select(r => StaffRoleAssignment.For(staffId, r.Id)));
+
+        audit.Add(db, actor, StaffAuditAction.StaffInvited, StaffAuditTarget.Staff, staffId, email,
+            new { roles = roles.Select(r => r.Name) });
 
         try
         {
-            staffId = await directory.CreateUserAsync(email, firstName, lastName, ct);
+            await db.SaveChangesAsync(ct);
         }
-        catch (DirectoryConflictException)
+        catch (DbUpdateException exception) when (UniqueViolation.Is(exception))
         {
             throw new StaffAdminConflictException(StaffAdminRules.StaffExists, "Bu e-postayla bir çalışan var.");
         }
 
-        if (roles.Count > 0)
-        {
-            await directory.AssignRolesAsync(staffId, roles, ct);
-        }
-
-        await directory.SendInvitationAsync(staffId, ct);
-
-        await audit.RecordAsync(
-            actor, StaffAuditAction.StaffInvited, StaffAuditTarget.Staff, staffId, email,
-            new { roles = roles.Select(r => r.Name) }, ct);
-
-        return await GetAsync(staffId, ct);
+        return new StaffDetail(member, roles);
     }
 
     /// <summary>Çalışanın rollerinin tamamı; listede olmayanlar alınıyor.</summary>
@@ -65,92 +94,123 @@ public sealed class StaffService(IStaffDirectory directory, StaffAudit audit)
         Actor actor, Guid staffId, IReadOnlyCollection<Guid> roleIds, CancellationToken ct)
     {
         EnsureNotSelf(actor, staffId);
-        var user = await RequireAsync(staffId, ct);
-        var desired = await ResolveStaffRolesAsync(roleIds, ct);
-        var current = await StaffRolesOfAsync(staffId, ct);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var member = await RequireAsync(db, staffId, ct);
+        var desired = await ResolveRolesAsync(db, roleIds, ct);
+        var current = await RolesOfAsync(db, staffId, ct);
 
         var added = desired.ExceptBy(current.Select(r => r.Id), r => r.Id).ToList();
         var removed = current.ExceptBy(desired.Select(r => r.Id), r => r.Id).ToList();
 
         if (added.Count == 0 && removed.Count == 0)
         {
-            return new StaffDetail(user, current);
+            return new StaffDetail(member, current);
         }
 
-        if (added.Count > 0)
-        {
-            await directory.AssignRolesAsync(staffId, added, ct);
-        }
+        var removedIds = removed.Select(r => r.Id).ToList();
 
-        if (removed.Count > 0)
-        {
-            await directory.UnassignRolesAsync(staffId, removed, ct);
-        }
+        db.RoleAssignments.AddRange(added.Select(r => StaffRoleAssignment.For(staffId, r.Id)));
+        db.RoleAssignments.RemoveRange(await db.RoleAssignments
+            .Where(a => a.StaffId == staffId && removedIds.Contains(a.RoleId))
+            .ToListAsync(ct));
 
-        await audit.RecordAsync(
-            actor, StaffAuditAction.StaffRolesChanged, StaffAuditTarget.Staff, staffId, user.Email,
-            new { before = current.Select(r => r.Name), after = desired.Select(r => r.Name) }, ct);
+        audit.Add(db, actor, StaffAuditAction.StaffRolesChanged, StaffAuditTarget.Staff, staffId, member.Email,
+            new { before = current.Select(r => r.Name), after = desired.Select(r => r.Name) });
 
-        return await GetAsync(staffId, ct);
+        await db.SaveChangesAsync(ct);
+
+        return new StaffDetail(member, desired);
     }
 
-    /// <summary>Kapatılan çalışanın açık oturumları da kapanıyor.</summary>
+    /// <summary>
+    /// Kapatılan çalışanın izni kayıt yazıldığı an gidiyor; kimlik sağlayıcıda girişi ve
+    /// açık oturumları da kapanıyor. Kimlik sağlayıcıya ulaşılamazsa istek hata dönüyor ve
+    /// tekrarı yalnızca o adımı yapıyor.
+    /// </summary>
     public async Task<StaffDetail> SetEnabledAsync(Actor actor, Guid staffId, bool enabled, CancellationToken ct)
     {
         EnsureNotSelf(actor, staffId);
-        var user = await RequireAsync(staffId, ct);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var member = await RequireAsync(db, staffId, ct);
 
-        if (user.Enabled != enabled)
+        if (member.Enabled != enabled)
         {
-            await directory.SetEnabledAsync(staffId, enabled, ct);
+            member.SetEnabled(enabled);
 
-            await audit.RecordAsync(
-                actor, enabled ? StaffAuditAction.StaffEnabled : StaffAuditAction.StaffDisabled,
-                StaffAuditTarget.Staff, staffId, user.Email, new { }, ct);
+            audit.Add(db, actor, enabled ? StaffAuditAction.StaffEnabled : StaffAuditAction.StaffDisabled,
+                StaffAuditTarget.Staff, staffId, member.Email, new { });
+
+            await db.SaveChangesAsync(ct);
         }
 
-        return await GetAsync(staffId, ct);
+        await directory.SetEnabledAsync(staffId, enabled, ct);
+
+        return new StaffDetail(member, await RolesOfAsync(db, staffId, ct));
     }
 
     public async Task ResendInvitationAsync(Actor actor, Guid staffId, CancellationToken ct)
     {
-        var user = await RequireAsync(staffId, ct);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var member = await RequireAsync(db, staffId, ct);
+
         await directory.SendInvitationAsync(staffId, ct);
 
-        await audit.RecordAsync(
-            actor, StaffAuditAction.InvitationSent, StaffAuditTarget.Staff, staffId, user.Email, new { }, ct);
+        audit.Add(db, actor, StaffAuditAction.InvitationSent, StaffAuditTarget.Staff, staffId, member.Email, new { });
+        await db.SaveChangesAsync(ct);
     }
 
-    private async Task<DirectoryUser> RequireAsync(Guid staffId, CancellationToken ct) =>
-        await directory.FindUserAsync(staffId, ct) ?? throw new StaffAdminNotFoundException("Çalışan bulunamadı.");
-
-    private async Task<IReadOnlyList<DirectoryRole>> ResolveStaffRolesAsync(
-        IReadOnlyCollection<Guid> roleIds, CancellationToken ct)
+    /// <summary>Kimlik sağlayıcıdaki kullanıcı: varsa o (kapalıysa açılıyor), yoksa yeni açılan.</summary>
+    internal static async Task<Guid> EnsureDirectoryUserAsync(
+        IStaffDirectory directory, string email, string? firstName, string? lastName, CancellationToken ct)
     {
-        var staffRoles = (await directory.ListRolesAsync(ct))
-            .Where(r => r.Kind is DirectoryRoleKind.StaffRole)
-            .ToDictionary(r => r.Id);
+        var existing = await directory.FindUserByEmailAsync(email, ct);
 
-        if (roleIds.Any(id => !staffRoles.ContainsKey(id)))
+        if (existing is null)
         {
-            throw new StaffAdminRuleException(
-                StaffAdminRules.UnknownRole, "Atanan rol panelin rollerinden değil ya da artık yok.");
+            try
+            {
+                return await directory.CreateUserAsync(email, firstName, lastName, ct);
+            }
+            catch (DirectoryConflictException)
+            {
+                // Arada başka bir istek açtı.
+                existing = await directory.FindUserByEmailAsync(email, ct)
+                           ?? throw new InvalidOperationException($"{email} kimlik sağlayıcıda var ama bulunamadı.");
+            }
         }
 
-        return [.. roleIds.Distinct().Select(id => staffRoles[id])];
+        if (!existing.Enabled)
+        {
+            await directory.SetEnabledAsync(existing.Id, true, ct);
+        }
+
+        return existing.Id;
     }
 
-    private async Task<IReadOnlyList<DirectoryRole>> StaffRolesOfAsync(Guid staffId, CancellationToken ct)
+    private static async Task<StaffMember> RequireAsync(StaffAdminDbContext db, Guid staffId, CancellationToken ct) =>
+        await db.Members.SingleOrDefaultAsync(m => m.Id == staffId, ct)
+        ?? throw new StaffAdminNotFoundException("Çalışan bulunamadı.");
+
+    private static async Task<IReadOnlyList<StaffRole>> ResolveRolesAsync(
+        StaffAdminDbContext db, IReadOnlyCollection<Guid> roleIds, CancellationToken ct)
     {
-        var assigned = await directory.UserRoleIdsAsync(staffId, ct);
+        var ids = roleIds.Distinct().ToList();
+        var roles = await db.Roles.AsNoTracking().Where(r => ids.Contains(r.Id)).ToListAsync(ct);
 
-        return
-        [
-            .. (await directory.ListRolesAsync(ct))
-                .Where(r => r.Kind is DirectoryRoleKind.StaffRole && assigned.Contains(r.Id))
-                .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
-        ];
+        if (roles.Count != ids.Count)
+        {
+            throw new StaffAdminRuleException(StaffAdminRules.UnknownRole, "Atanan rol yok ya da silinmiş.");
+        }
+
+        return [.. roles.OrderBy(r => r.NormalizedName, StringComparer.Ordinal)];
     }
+
+    private static async Task<IReadOnlyList<StaffRole>> RolesOfAsync(
+        StaffAdminDbContext db, Guid staffId, CancellationToken ct) =>
+        await db.Roles.AsNoTracking()
+            .Where(r => db.RoleAssignments.Any(a => a.StaffId == staffId && a.RoleId == r.Id))
+            .OrderBy(r => r.NormalizedName)
+            .ToListAsync(ct);
 
     private static void EnsureNotSelf(Actor actor, Guid staffId)
     {
@@ -160,7 +220,9 @@ public sealed class StaffService(IStaffDirectory directory, StaffAudit audit)
                 StaffAdminRules.OwnAccount, "Kendi rollerini değiştiremez ve kendini kapatamazsın; başka bir yönetici yapmalı.");
         }
     }
+
+    private static string EscapeLike(string value) =>
+        value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 }
 
-/// <param name="Roles">Panelin rolleri; izinler ve kimlik sağlayıcının rolleri hariç.</param>
-public sealed record StaffDetail(DirectoryUser User, IReadOnlyList<DirectoryRole> Roles);
+public sealed record StaffDetail(StaffMember Member, IReadOnlyList<StaffRole> Roles);

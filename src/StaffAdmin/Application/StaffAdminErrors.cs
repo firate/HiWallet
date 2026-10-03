@@ -24,12 +24,10 @@ public static class StaffAdminRules
     /// <summary>Çalışan sahip olduğu rolü değiştiremiyor ve silemiyor: kendine yetki vermiş olurdu.</summary>
     public const string OwnRole = "own_role";
 
-    public const string RoleNameReserved = "role_name_reserved";
-
     public const string RoleExists = "role_exists";
 
     public const string StaffExists = "staff_exists";
 
-    /// <summary>Atanan rol panelin rolü değil (izin ya da kimlik sağlayıcının rolü) veya yok.</summary>
+    /// <summary>Atanan rol yok ya da silinmiş.</summary>
     public const string UnknownRole = "unknown_role";
 }

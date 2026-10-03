@@ -4,7 +4,7 @@ using HiWallet.StaffAdmin.Domain;
 
 namespace HiWallet.StaffAdmin.Api;
 
-/// <param name="Name">Rolün adı; token'a ve panelin üstüne yazılıyor, sonradan değişmiyor.</param>
+/// <param name="Name">Rolün adı; panelin üstünde ve kayıtta görünüyor, sonradan değişmiyor.</param>
 /// <param name="Permissions">Rolün içerdiği izinler; en az bir tane.</param>
 public sealed record CreateRoleRequest(string Name, string? Description, IReadOnlyList<string> Permissions);
 
