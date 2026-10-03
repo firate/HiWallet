@@ -63,27 +63,13 @@
             "id.token.claim": "false",
             "introspection.token.claim": "true"
           }
-        },
-        {
-          "name": "realm-roles",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
-          "config": {
-            "claim.name": "roles",
-            "multivalued": "true",
-            "jsonType.label": "String",
-            "access.token.claim": "true",
-            "id.token.claim": "true",
-            "userinfo.token.claim": "false",
-            "introspection.token.claim": "true"
-          }
         }
       ]
     },
     {
       "clientId": "staff-admin",
       "name": "Personel yönetimi",
-      "description": "Çalışanları, panelin rollerini ve rollerin izinlerini yönetir.",
+      "description": "Çalışanların kullanıcılarını açar, davet eder ve kapatır. Roller ve izinler personel yönetiminin veritabanında.",
       "enabled": true,
       "publicClient": false,
       "clientAuthenticatorType": "client-secret",
@@ -103,9 +89,7 @@
         "realm-management": [
           "manage-users",
           "view-users",
-          "query-users",
-          "manage-realm",
-          "view-realm"
+          "query-users"
         ]
       }
     }
