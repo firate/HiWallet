@@ -2,13 +2,10 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
-import { fakeBff } from '../test/fakeBff'
+import { fakeBff, staffSession } from '../test/fakeBff'
 import { renderAt } from '../test/render'
-import type { StaffPermission, Withdrawal } from '../types'
+import type { Withdrawal } from '../types'
 
-function staff(...permissions: StaffPermission[]) {
-  return { status: 200, body: { subject: 's1', name: 'Çalışan', email: null, roles: permissions } }
-}
 
 function withdrawal(state: string): Withdrawal {
   return {
@@ -29,7 +26,7 @@ function withdrawal(state: string): Withdrawal {
 describe('WithdrawalPage', () => {
   it('inceleme izniyle çekim serbest bırakılıyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': staff('customer.view', 'withdrawal.review'),
+      ...staffSession(['customer.view', 'withdrawal.review']),
       'GET /v1/withdrawals/c1': { status: 200, body: withdrawal('under_review') },
       'POST /v1/withdrawals/c1/release': { status: 200, body: withdrawal('bank_transfer_pending') },
     })
@@ -45,7 +42,7 @@ describe('WithdrawalPage', () => {
 
   it('inceleme izniyle iptal sebebiyle gönderiliyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': staff('customer.view', 'withdrawal.review'),
+      ...staffSession(['customer.view', 'withdrawal.review']),
       'GET /v1/withdrawals/c1': { status: 200, body: withdrawal('under_review') },
       'POST /v1/withdrawals/c1/cancel': { status: 202, body: withdrawal('cancelling') },
     })
@@ -60,7 +57,7 @@ describe('WithdrawalPage', () => {
 
   it('çekim inceleme izni olmayan çalışan kararı göremiyor', async () => {
     fakeBff({
-      'GET /bff/user': staff('customer.view', 'campaign.view'),
+      ...staffSession(['customer.view', 'campaign.view']),
       'GET /v1/withdrawals/c1': { status: 200, body: withdrawal('under_review') },
     })
 
@@ -73,7 +70,7 @@ describe('WithdrawalPage', () => {
 
   it('incelemede olmayan çekimde karar yok', async () => {
     fakeBff({
-      'GET /bff/user': staff('customer.view', 'withdrawal.review'),
+      ...staffSession(['customer.view', 'withdrawal.review']),
       'GET /v1/withdrawals/c1': { status: 200, body: withdrawal('completed') },
     })
 

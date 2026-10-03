@@ -1,38 +1,58 @@
 import { useQuery } from '@tanstack/react-query'
 import { createContext, use, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
-import { ApiError, api, loginUrl, SessionExpiredError } from './api'
+import { api, loginUrl, SessionExpiredError } from './api'
 import { ErrorMessage } from './components/ErrorMessage'
-import type { SessionUser, StaffPermission } from './types'
+import type { SessionUser, StaffAccess, StaffPermission } from './types'
 
 export const sessionQueryKey = ['session'] as const
 
-const SessionContext = createContext<SessionUser | null>(null)
+/**
+ * Çalışanın şu anki izinleri. Pencereye dönünce ve bir istek 403 alınca yeniden
+ * soruluyor (queryClient): rolü alınan çalışanın menüsü de değişiyor.
+ */
+export const accessQueryKey = ['access'] as const
 
-export function useSessionUser(): SessionUser {
-  const user = use(SessionContext)
+interface Session {
+  user: SessionUser
+  access: StaffAccess
+}
 
-  if (user === null) {
-    throw new Error('useSessionUser SessionGate dışında kullanıldı.')
+const SessionContext = createContext<Session | null>(null)
+
+function useSession(): Session {
+  const session = use(SessionContext)
+
+  if (session === null) {
+    throw new Error('Oturum SessionGate dışında okundu.')
   }
 
-  return user
+  return session
+}
+
+export function useSessionUser(): SessionUser {
+  return useSession().user
+}
+
+export function useStaffAccess(): StaffAccess {
+  return useSession().access
 }
 
 /**
- * Düğmeyi göstermek için; yetkiyi iç servis kendisi kontrol ediyor. İzni olmayan
- * çalışan düğmeye ulaşsa da istek reddediliyor.
+ * Düğmeyi göstermek için; yetkiyi iç servis her istekte kendisi kontrol ediyor. İzni
+ * olmayan çalışan düğmeye ulaşsa da istek reddediliyor.
  */
 export function useHasPermission(permission: StaffPermission): boolean {
-  return useSessionUser().roles.includes(permission)
+  return useSession().access.permissions.includes(permission)
 }
 
 /**
- * Oturum açıksa paneli, değilse girişi gösteriyor. BFF hiçbir izni olmayan çalışanın
- * kullanıcısını da vermiyor (403); panel ona yalnızca rolü olmadığını söylüyor.
+ * Oturum açıksa paneli, değilse girişi gösteriyor. Hiçbir izni olmayan çalışana (rolü
+ * yok ya da kapatılmış) panel yalnızca rolü olmadığını söylüyor.
  */
 export function SessionGate({ children }: { children: ReactNode }) {
   const session = useQuery({ queryKey: sessionQueryKey, queryFn: api.user, retry: false })
+  const access = useQuery({ queryKey: accessQueryKey, queryFn: api.access, enabled: session.isSuccess })
 
   if (session.isPending) {
     return <p className="muted">Yükleniyor...</p>
@@ -42,15 +62,20 @@ export function SessionGate({ children }: { children: ReactNode }) {
     return <SignIn />
   }
 
-  if (session.error instanceof ApiError && session.error.status === 403) {
-    return <NoRole />
-  }
-
   if (session.error) {
     return <ErrorMessage error={session.error} />
   }
 
-  return <SessionContext value={session.data}>{children}</SessionContext>
+  // Yenileme hata alırsa panel son bilinen izinlerle kalıyor; iç servis yine reddediyor.
+  if (access.data === undefined) {
+    return access.error ? <ErrorMessage error={access.error} /> : <p className="muted">Yükleniyor...</p>
+  }
+
+  if (access.data.permissions.length === 0) {
+    return <NoRole />
+  }
+
+  return <SessionContext value={{ user: session.data, access: access.data }}>{children}</SessionContext>
 }
 
 function SignIn() {

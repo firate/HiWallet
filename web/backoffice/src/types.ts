@@ -1,15 +1,21 @@
 // BFF'in cevapları. Şekil EdgeApi.Core/Contracts'taki tiplerle aynı; alan adları
 // camelCase, tutarlar sayı.
 
+/** Oturumdaki kimlik. Yetki burada yok; o personel yönetiminden (StaffAccess). */
 export interface SessionUser {
   subject: string
   name: string | null
   email: string | null
-  /**
-   * Token'daki roller: panelde tanımlanmış roller, onların açılmış izinleri ve
-   * Keycloak'ın kendi varsayılan rolleri bir arada.
-   */
+}
+
+/**
+ * Çalışanın şu anki rolleri ve izinleri, personel yönetiminden. Token'da değil: rolü
+ * alınan çalışanın bir sonraki isteği reddediliyor ve panel bunu buradan yeniden okuyor.
+ */
+export interface StaffAccess {
+  subject: string
   roles: string[]
+  permissions: StaffPermission[]
 }
 
 /** Çalışanın izinleri; kod yalnızca bunları tanıyor. Roller panelde bunlardan kuruluyor. */

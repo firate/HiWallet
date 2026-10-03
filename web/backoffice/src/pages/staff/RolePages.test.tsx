@@ -2,10 +2,10 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../../App'
-import { fakeBff } from '../../test/fakeBff'
+import { fakeBff, staffSession } from '../../test/fakeBff'
 import { renderAt } from '../../test/render'
 
-const admin = { status: 200, body: { subject: 's1', name: 'Yönetici', email: null, roles: ['staff.manage'] } }
+const admin = staffSession(['staff.manage'], { name: 'Yönetici' })
 
 const permissions = {
   status: 200,
@@ -37,7 +37,7 @@ const operations = {
 describe('Roller', () => {
   it('izinleri seçerek rol açıyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': admin,
+      ...admin,
       'GET /v1/permissions': permissions,
       'POST /v1/roles': { status: 201, body: { roleId: 'r9', name: 'Destek', description: null, permissions: ['customer.view'] } },
       'GET /v1/roles/r9': {
@@ -61,7 +61,7 @@ describe('Roller', () => {
 
   it('rolün izinlerini değiştiriyor ve üyelerini gösteriyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': admin,
+      ...admin,
       'GET /v1/permissions': permissions,
       'GET /v1/roles/r1': [
         { status: 200, body: operations },
@@ -87,7 +87,7 @@ describe('Roller', () => {
 
   it('kayıtta kimin ne yaptığını gösteriyor', async () => {
     fakeBff({
-      'GET /bff/user': admin,
+      ...admin,
       'GET /v1/audit-events': {
         status: 200,
         body: {

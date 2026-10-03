@@ -2,12 +2,12 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../../App'
-import { fakeBff } from '../../test/fakeBff'
+import { fakeBff, staffSession } from '../../test/fakeBff'
 import { renderAt } from '../../test/render'
 import type { StaffDetail, StaffPermission } from '../../types'
 
 function signedIn(subject: string, ...permissions: StaffPermission[]) {
-  return { status: 200, body: { subject, name: 'Yönetici', email: null, roles: permissions } }
+  return staffSession(permissions, { subject, name: 'Yönetici' })
 }
 
 const roles = {
@@ -40,7 +40,7 @@ function staff(overrides: Partial<StaffDetail>): StaffDetail {
 describe('Personel', () => {
   it('yönetici çalışanı rolleriyle davet ediyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': signedIn('s1', 'staff.manage'),
+      ...signedIn('s1', 'staff.manage'),
       'GET /v1/roles?size=100': roles,
       'POST /v1/staff': { status: 201, body: staff({ invitationPending: true, roles: [{ roleId: 'r1', name: 'Operasyon' }] }) },
       'GET /v1/staff/s2': { status: 200, body: staff({ invitationPending: true, roles: [{ roleId: 'r1', name: 'Operasyon' }] }) },
@@ -64,7 +64,7 @@ describe('Personel', () => {
 
   it('çalışanın rollerini değiştiriyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': signedIn('s1', 'staff.manage'),
+      ...signedIn('s1', 'staff.manage'),
       'GET /v1/roles?size=100': roles,
       'GET /v1/staff/s2': { status: 200, body: staff({}) },
       'PUT /v1/staff/s2/roles': { status: 200, body: staff({ roles: [{ roleId: 'r2', name: 'Pazarlama' }] }) },
@@ -81,7 +81,7 @@ describe('Personel', () => {
   /** Kendine yetki veremez: kendi hesabında rol ve kapatma yok, yalnızca açıklama. */
   it('kendi hesabında rolleri değiştirmeyi ve kapatmayı göstermiyor', async () => {
     fakeBff({
-      'GET /bff/user': signedIn('s2', 'staff.manage'),
+      ...signedIn('s2', 'staff.manage'),
       'GET /v1/roles?size=100': roles,
       'GET /v1/staff/s2': { status: 200, body: staff({ roles: [{ roleId: 'r1', name: 'Operasyon' }] }) },
     })
@@ -95,7 +95,7 @@ describe('Personel', () => {
 
   it('çalışanı kapatıyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': signedIn('s1', 'staff.manage'),
+      ...signedIn('s1', 'staff.manage'),
       'GET /v1/roles?size=100': roles,
       'GET /v1/staff/s2': { status: 200, body: staff({}) },
       'POST /v1/staff/s2/disable': { status: 200, body: staff({ enabled: false }) },
@@ -109,7 +109,7 @@ describe('Personel', () => {
   })
 
   it('menüde personel yalnızca personel yönetimi izniyle', async () => {
-    fakeBff({ 'GET /bff/user': signedIn('s1', 'customer.view') })
+    fakeBff({ ...signedIn('s1', 'customer.view') })
 
     renderAt('/', <App />)
 

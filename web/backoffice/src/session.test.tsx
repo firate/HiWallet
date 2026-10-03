@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
-import { fakeBff } from './test/fakeBff'
+import { fakeBff, staffSession } from './test/fakeBff'
 import { renderAt } from './test/render'
 
 describe('SessionGate', () => {
@@ -14,9 +14,9 @@ describe('SessionGate', () => {
     expect(login.getAttribute('href')).toBe('/bff/login?returnUrl=%2Fcekimler')
   })
 
-  /** BFF hiçbir izni olmayan çalışanın kullanıcısını da vermiyor; panel bunu 403'ten anlıyor. */
-  it('rolü olmayan çalışana rolü olmadığını söylüyor ve çıkışı bırakıyor', async () => {
-    fakeBff({ 'GET /bff/user': { status: 403 } })
+  /** Rolü olmayan ya da kapatılmış çalışanın izni yok; panel ona yalnızca bunu söylüyor. */
+  it('izni olmayan çalışana rolü olmadığını söylüyor ve çıkışı bırakıyor', async () => {
+    fakeBff(staffSession([]))
 
     renderAt('/', <App />)
 
@@ -25,30 +25,27 @@ describe('SessionGate', () => {
     expect(logout.closest('form')?.getAttribute('action')).toBe('/bff/logout')
   })
 
-  it('çalışanı panelde tanımlı rolleriyle gösteriyor; izinleri ve Keycloak’ın rollerini göstermiyor', async () => {
-    fakeBff({
-      'GET /bff/user': {
-        status: 200,
-        body: {
-          subject: 's1',
-          name: 'Fırat Ergül',
-          email: 'calisan@ornek.com',
-          roles: [
-            'default-roles-hiwallet-staff',
-            'Operasyon',
-            'customer.view',
-            'withdrawal.review',
-            'offline_access',
-            'Finans',
-          ],
-        },
-      },
-    })
+  it('çalışanı rolleriyle gösteriyor', async () => {
+    fakeBff(staffSession(['customer.view', 'withdrawal.review'], { name: 'Fırat Ergül', roles: ['Finans', 'Operasyon'] }))
 
     renderAt('/', <App />)
 
     expect(await screen.findByText('Fırat Ergül')).toBeTruthy()
-    expect(screen.getByText('Operasyon, Finans')).toBeTruthy()
-    expect(screen.queryByText(/offline_access|customer\.view/)).toBeNull()
+    expect(screen.getByText('Finans, Operasyon')).toBeTruthy()
+  })
+
+  /** Rolü az önce alınan çalışanın isteği 403 alıyor; panel izinleri yeniden okuyup kapanıyor. */
+  it('bir istek 403 alınca izinleri yeniden okuyor', async () => {
+    const session = staffSession(['customer.view'])
+    const calls = fakeBff({
+      ...session,
+      'GET /v1/me': [session['GET /v1/me'], { status: 200, body: { subject: 's1', roles: [], permissions: [] } }],
+      'GET /v1/accounts/a1': { status: 403 },
+    })
+
+    renderAt('/hesaplar/a1', <App />)
+
+    expect(await screen.findByText(/rol atanmamış/)).toBeTruthy()
+    expect(calls.filter((call) => call.path === '/v1/me')).toHaveLength(2)
   })
 })
