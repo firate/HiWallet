@@ -1,8 +1,10 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletApi;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace HiWallet.IntegrationTests.Fixtures;
@@ -13,7 +15,12 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// ProblemDetails eşlemesi gerçekten çalışıyor mu görünür — handler'ı doğrudan
 /// çağıran testler bu katmanların hiçbirini kapsamıyor.
 /// </summary>
-public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationFactory<WalletApiApp>
+/// <param name="staffAdmin">
+/// Verilirse çalışanın izinleri gerçek istemciyle bu handler'a soruluyor (personel
+/// yönetimi ya da onun yerine duran bir cevap); verilmezse <see cref="TestStaffPermissions"/>.
+/// </param>
+public sealed class WalletApiFactory(PostgresFixture postgres, HttpMessageHandler? staffAdmin = null)
+    : WebApplicationFactory<WalletApiApp>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -31,7 +38,20 @@ public sealed class WalletApiFactory(PostgresFixture postgres) : WebApplicationF
             config.AddInMemoryCollection(TestTokens.Settings);
         });
 
-        builder.ConfigureTestServices(TestTokens.Trust);
+        builder.ConfigureTestServices(services =>
+        {
+            TestTokens.Trust(services);
+
+            if (staffAdmin is null)
+            {
+                TestStaffPermissions.Use(services);
+            }
+            else
+            {
+                services.AddHttpClient<IStaffPermissions, StaffAdminPermissions>()
+                    .ConfigurePrimaryHttpMessageHandler(() => staffAdmin);
+            }
+        });
 
         // Sunucu tarafındaki istisnalar ProblemDetails'in arkasında kayboluyor;
         // test başarısız olduğunda sebebini görebilmek için yakalanıyor.

@@ -46,6 +46,10 @@ public sealed class WithdrawalOrchestratorApiFactory(
             config.AddInMemoryCollection(TestTokens.Settings);
         });
 
-        builder.ConfigureTestServices(TestTokens.Trust);
+        builder.ConfigureTestServices(services =>
+        {
+            TestTokens.Trust(services);
+            TestStaffPermissions.Use(services);
+        });
     }
 }

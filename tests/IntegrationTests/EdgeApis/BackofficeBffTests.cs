@@ -15,8 +15,8 @@ namespace HiWallet.IntegrationTests.EdgeApis;
 
 /// <summary>
 /// backoffice-bff: çalışanın paneli, arkasında gerçek wallet-api ve orchestrator ile.
-/// Oturum çalışanların realm'inden; iç servise giden token çalışanın ve rollerini
-/// taşıyor. Görüntüleme yetkisini iç servis de kontrol ediyor.
+/// Oturum çalışanların realm'inden; iç servise giden token çalışanın. İzni iç servis
+/// her istekte o anki haliyle kontrol ediyor.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFixture orchestratorDb)
@@ -105,31 +105,31 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
     }
 
     /// <summary>
-    /// Rolü olmayan çalışan panelde hiçbir şey görmüyor: BFF iç servise gitmeden
-    /// reddediyor. Kullanıcı bilgisi de kapalı; arayüz yetkisizliği buradan anlıyor.
+    /// İzni olmayan çalışanın oturumu var ama işi yok: reddi iç servis veriyor, BFF aynen
+    /// aktarıyor. Kullanıcı bilgisi açık; panel izinleri ayrıca soruyor.
     /// </summary>
     [Fact]
-    public async Task RolsuzCalisan_403()
+    public async Task IzinsizCalisan_IcServis403()
     {
         var ct = TestContext.Current.CancellationToken;
         _client.SignedInAs(NewStaff());
 
         (await _client.GetAsync($"/v1/wallets/{_wallet}", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await _client.GetAsync("/bff/user", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await _client.GetAsync("/bff/user", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>Oturumdaki kimlik; yetki burada yok, token'da da yok.</summary>
     [Fact]
-    public async Task Kullanici_RolleriyleDoner()
+    public async Task Kullanici_KimligiyleDoner()
     {
         var ct = TestContext.Current.CancellationToken;
         var staff = NewStaff();
-        _client.SignedInAs(staff, StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview);
+        _client.SignedInAs(staff, StaffPermissions.CustomerView);
 
         var user = await _client.GetFromJsonAsync<JsonElement>("/bff/user", ct);
 
         user.GetProperty("subject").GetString().ShouldBe(staff);
-        user.GetProperty("roles").EnumerateArray().Select(role => role.GetString())
-            .ShouldBe([StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview], ignoreOrder: true);
+        user.TryGetProperty("roles", out _).ShouldBeFalse();
     }
 
     /// <summary>Pazarlama işyerinin promo kabulünü panelden işaretliyor.</summary>

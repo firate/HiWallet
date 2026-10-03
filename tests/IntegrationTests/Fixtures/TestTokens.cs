@@ -40,7 +40,10 @@ public static class TestTokens
         ["Authentication:Issuer"] = Issuer,
         ["Authentication:Audience"] = InternalAudience,
         // Yalnızca çalışan token'ını kabul eden servis okuyor.
-        ["Authentication:Staff:Issuer"] = StaffIssuer
+        ["Authentication:Staff:Issuer"] = StaffIssuer,
+        // İzin kaynağı testte TestStaffPermissions ya da gerçek personel yönetimi; adres
+        // yalnızca başlangıçtaki doğrulamayı geçmek için.
+        ["Authentication:Staff:StaffAdminUrl"] = "http://staff-admin.test"
     };
 
     /// <summary>
@@ -79,7 +82,6 @@ public static class TestTokens
         SecurityKey? signingKey = null,
         string[]? audiences = null,
         string issuer = Issuer,
-        string[]? roles = null,
         string? authorizedParty = null)
     {
         var now = DateTime.UtcNow;
@@ -88,11 +90,6 @@ public static class TestTokens
             ["sub"] = subject,
             ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience]
         };
-
-        if (roles is not null)
-        {
-            claims["roles"] = roles;
-        }
 
         if (authorizedParty is not null)
         {
@@ -130,13 +127,19 @@ public static class TestTokens
     public static HttpClient AsIntegrationOf(this HttpClient client, Guid accountId) =>
         client.AsIntegration(SubjectOf(accountId));
 
-    /// <summary>Çalışanın token'ı: çalışanların realm'inden, iç servisler için, rolleriyle.</summary>
-    public static string ForStaff(string subject, params string[] roles) =>
-        For(subject, audiences: [InternalAudience], issuer: StaffIssuer, roles: roles);
-
-    public static HttpClient AsStaff(this HttpClient client, string subject, params string[] roles)
+    /// <summary>
+    /// Çalışanın token'ı: çalışanların realm'inden, iç servisler için. Token izin taşımıyor;
+    /// izinler <see cref="TestStaffPermissions"/>'a yazılıyor.
+    /// </summary>
+    public static string ForStaff(string subject, params string[] permissions)
     {
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ForStaff(subject, roles));
+        TestStaffPermissions.Grant(subject, permissions);
+        return For(subject, audiences: [InternalAudience], issuer: StaffIssuer);
+    }
+
+    public static HttpClient AsStaff(this HttpClient client, string subject, params string[] permissions)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ForStaff(subject, permissions));
         return client;
     }
 

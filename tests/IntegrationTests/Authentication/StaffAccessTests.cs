@@ -150,8 +150,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
             NewStaff(),
             signingKey: new RsaSecurityKey(RSA.Create(2048)),
             audiences: [TestTokens.InternalAudience],
-            issuer: TestTokens.StaffIssuer,
-            roles: TestStaff.Support);
+            issuer: TestTokens.StaffIssuer);
         _wallet.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", forged);
 
         var response = await _wallet.GetAsync($"/v1/wallets/{_walletId}", ct);
@@ -166,8 +165,7 @@ public sealed class StaffAccessTests(PostgresFixture postgres, OrchestratorFixtu
         var token = TestTokens.For(
             NewStaff(),
             audiences: [TestTokens.InternalAudience],
-            issuer: "https://idp.hiwallet.test/realms/baska",
-            roles: TestStaff.Support);
+            issuer: "https://idp.hiwallet.test/realms/baska");
         _wallet.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _wallet.GetAsync($"/v1/wallets/{_walletId}", ct);

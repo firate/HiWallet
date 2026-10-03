@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using HiWallet.EdgeApi.Sessions;
-using HiWallet.Shared.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,14 +15,14 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// başlığı, token'ın iç servise iletilmesi) canlıdaki gibi koşuyor.
 ///
 /// Oturumdaki access token <see cref="TestTokens"/>'ın imzaladığı gerçek bir token; iç
-/// servisler onu yeniden doğruluyor. Çalışanın oturumunda token çalışanların realm'inden
-/// ve rolleri taşıyor.
+/// servisler onu yeniden doğruluyor. Çalışanın oturumunda token çalışanların realm'inden;
+/// izinleri <see cref="TestStaffPermissions"/>'ta.
 /// </summary>
 public static class TestSessions
 {
     public const string Scheme = "TestSession";
     public const string SubjectHeader = "X-Test-Subject";
-    public const string RolesHeader = "X-Test-Roles";
+    public const string PermissionsHeader = "X-Test-Permissions";
 
     /// <param name="staff">Oturum çalışanın: token çalışanların realm'inden.</param>
     public static void Use(IServiceCollection services, bool staff = false)
@@ -35,15 +34,16 @@ public static class TestSessions
             CookieAuthenticationDefaults.AuthenticationScheme, options => options.ForwardAuthenticate = Scheme);
     }
 
-    public static HttpClient SignedInAs(this HttpClient client, string subject, params string[] roles)
+    /// <param name="permissions">Çalışanın izinleri; müşteride boş.</param>
+    public static HttpClient SignedInAs(this HttpClient client, string subject, params string[] permissions)
     {
         client.DefaultRequestHeaders.Remove(SubjectHeader);
-        client.DefaultRequestHeaders.Remove(RolesHeader);
+        client.DefaultRequestHeaders.Remove(PermissionsHeader);
         client.DefaultRequestHeaders.Add(SubjectHeader, subject);
 
-        if (roles.Length > 0)
+        if (permissions.Length > 0)
         {
-            client.DefaultRequestHeaders.Add(RolesHeader, string.Join(',', roles));
+            client.DefaultRequestHeaders.Add(PermissionsHeader, string.Join(',', permissions));
         }
 
         return client;
@@ -75,19 +75,18 @@ public static class TestSessions
                 return Task.FromResult(AuthenticateResult.NoResult());
             }
 
-            var roles = Request.Headers[RolesHeader].ToString()
+            var permissions = Request.Headers[PermissionsHeader].ToString()
                 .Split(',', StringSplitOptions.RemoveEmptyEntries);
 
             var identity = new ClaimsIdentity(
                 [
                     new Claim("sub", subject),
                     new Claim("name", "Deneme Kullanıcı"),
-                    new Claim("email", "deneme@hiwallet.test"),
-                    .. roles.Select(role => new Claim(AuthenticationSetup.RolesClaim, role))
+                    new Claim("email", "deneme@hiwallet.test")
                 ],
                 Scheme.Name,
                 nameType: "name",
-                roleType: AuthenticationSetup.RolesClaim);
+                roleType: null);
 
             var properties = new AuthenticationProperties();
             properties.StoreTokens(
@@ -96,7 +95,7 @@ public static class TestSessions
                 {
                     Name = "access_token",
                     Value = Options.Staff
-                        ? TestTokens.ForStaff(subject, roles)
+                        ? TestTokens.ForStaff(subject, permissions)
                         : TestTokens.For(subject, audiences: [TestTokens.InternalAudience])
                 }
             ]);

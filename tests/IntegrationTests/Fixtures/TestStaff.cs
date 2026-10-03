@@ -3,8 +3,8 @@ using HiWallet.Shared.Infrastructure.Authentication;
 namespace HiWallet.IntegrationTests.Fixtures;
 
 /// <summary>
-/// Panelde kurulan tipik rollerin izinleri. Token'a rol değil izinler yazılıyor ve
-/// servisler yalnızca izne bakıyor; bu adlar testleri okumak için.
+/// Panelde kurulan tipik rollerin izinleri. Servisler yalnızca izne bakıyor; bu adlar
+/// testleri okumak için.
 /// </summary>
 public static class TestStaff
 {
