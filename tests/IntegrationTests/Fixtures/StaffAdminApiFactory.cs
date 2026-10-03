@@ -48,19 +48,23 @@ public sealed class StaffAdminApiFactory(StaffAdminFixture fixture, string? boot
         });
     }
 
-    /// <summary>Açılıştaki kurulum bitene kadar bekler: yönetici rolü veritabanında.</summary>
+    /// <summary>
+    /// Açılıştaki kurulum bitene kadar bekler: yönetici rolü ve (verildiyse) ilk yönetici
+    /// veritabanında. Davet kayıttan önce gittiği için davetin gitmesi yetmiyor.
+    /// </summary>
     public async Task<HttpClient> CreateReadyClientAsync(CancellationToken ct)
     {
         var client = CreateClient();
         var deadline = DateTime.UtcNow.AddSeconds(10);
         var adminRole = StaffRole.NormalizeName(AdminRoleName);
+        var adminEmail = bootstrapAdminEmail is null ? null : StaffMember.NormalizeEmail(bootstrapAdminEmail);
 
         while (true)
         {
             await using (var db = fixture.CreateContext())
             {
                 if (await db.Roles.AnyAsync(r => r.NormalizedName == adminRole, ct)
-                    && (bootstrapAdminEmail is null || !Directory.Invitations.IsEmpty))
+                    && (adminEmail is null || await db.Members.AnyAsync(m => m.Email == adminEmail, ct)))
                 {
                     return client;
                 }
