@@ -44,8 +44,8 @@ public abstract class SessionControllerBase : ControllerBase
     /// Cookie'yi siler ve Keycloak'taki oturumu da kapatır; aynı tarayıcıda yeniden
     /// girişte parola soruluyor. Form ile gönderiliyor, sayfa Keycloak'a gidip dönüyor.
     ///
-    /// Oturumu olan herkese açık: BFF'in varsayılan politikası rol istese de (backoffice)
-    /// rolü olmayan kullanıcı başka bir kullanıcıyla girmek için çıkabilmeli.
+    /// Oturumu olan herkese açık: hiçbir izni olmayan çalışan da başka bir kullanıcıyla
+    /// girmek için çıkabilmeli.
     /// </summary>
     [HttpPost("logout")]
     [Authorize]

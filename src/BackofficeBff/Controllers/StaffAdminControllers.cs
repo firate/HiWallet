@@ -8,8 +8,22 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace HiWallet.BackofficeBff.Controllers;
 
-// Personel yönetimi: staff-admin'e aynen iletiliyor. Personel yönetimi iznini ve "kendine
-// yetki veremez" kurallarını iç servis kontrol ediyor; BFF reddi yorumlamadan aktarıyor.
+// Personel yönetimi: staff-admin'e aynen iletiliyor. İzni ve "kendine yetki veremez"
+// kurallarını iç servis kontrol ediyor; BFF reddi yorumlamadan aktarıyor.
+
+/// <summary>
+/// Oturumdaki çalışanın şu anki rolleri ve izinleri. Panel menüyü ve düğmeleri buna göre
+/// gösteriyor; izni olmayan çalışana yalnızca rolünün olmadığını söylüyor. Personel
+/// yönetimi izni istemiyor: her çalışan kendi iznini görüyor.
+/// </summary>
+[ApiController]
+[Route("v1/me")]
+[EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
+public sealed class MeController(StaffAdminClient staffAdmin) : ControllerBase
+{
+    [HttpGet]
+    public Task<MeResponse> Get(CancellationToken ct) => staffAdmin.GetAsync<MeResponse>("v1/me", ct);
+}
 
 /// <summary>Kodun izinleri; rol tanımlarken bunlardan seçiliyor.</summary>
 [ApiController]
@@ -126,7 +140,7 @@ public sealed class AuditEventsController(StaffAdminClient staffAdmin) : Control
             InternalServiceClient.Paged("v1/audit-events", after?.ToString(), size), ct);
 }
 
-/// <summary>Kimlik sağlayıcı sıra numarasıyla sayfalıyor; parametreler olduğu gibi iletiliyor.</summary>
+/// <summary>Sayfalama sıra numarasıyla; parametreler olduğu gibi iletiliyor.</summary>
 internal static class StaffAdminPaging
 {
     public static string Query(string path, int? first, int? size, string? search)

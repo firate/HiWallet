@@ -5,8 +5,6 @@ export interface SessionUser {
   subject: string
   name: string | null
   email: string | null
-  /** Çalışanın rolleri; müşteride boş. */
-  roles: string[]
 }
 
 /** Bireysel hesabın doğrulama seviyesi; işyeri hesabında null. */

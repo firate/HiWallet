@@ -2,6 +2,11 @@ using System.Text.Json;
 
 namespace HiWallet.EdgeApi.Contracts;
 
+/// <summary>Çalışanın kendisi: şu anki rolleri ve izinleri.</summary>
+/// <param name="Roles">Rollerin adları. Kapatılmış ya da panelden açılmamış çalışanda boş.</param>
+/// <param name="Permissions">Rollerden gelen izinler, kodun sırasıyla.</param>
+public sealed record MeResponse(string Subject, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);
+
 public sealed record PermissionResponse(string Name, string Description);
 
 public sealed record RoleResponse(Guid RoleId, string Name, string? Description, IReadOnlyList<string> Permissions);
@@ -22,7 +27,7 @@ public sealed record CreateRoleRequest(string Name, string? Description, IReadOn
 
 public sealed record UpdateRoleRequest(string? Description, IReadOnlyList<string> Permissions);
 
-/// <param name="InvitationPending">Çalışan parolasını ya da OTP'sini henüz kurmadı.</param>
+/// <param name="InvitationPending">Çalışan davetini tamamlayıp henüz giriş yapmadı.</param>
 public sealed record StaffSummaryResponse(
     Guid StaffId,
     string Email,
