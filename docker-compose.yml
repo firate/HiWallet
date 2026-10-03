@@ -298,9 +298,10 @@ services:
       - ./docker/keycloak/setup-staff-realm.sh:/opt/setup/setup-staff-realm.sh:ro
     restart: "no"
 
-  # Personel yönetimi: çalışanlar, panelin rolleri ve rollerin izinleri. İÇ SERVİS: tek
-  # çağıranı backoffice-bff. Çalışanların Keycloak'ına kendi istemcisinin servis
-  # hesabıyla gidiyor; kim kime ne verdi kendi Postgres sunucusuna yazıyor. Müşterinin
+  # Personel yönetimi: çalışanlar, panelin rolleri, atamalar ve kim kime ne verdi kendi
+  # Postgres sunucusunda. İÇ SERVİS: panel backoffice-bff'ten, wallet-api ve orchestrator
+  # çalışanın her isteğinde iznini soruyor. Çalışanların Keycloak'ında kendi istemcisinin
+  # servis hesabıyla yalnızca kullanıcıyı açıyor, davet ediyor ve kapatıyor. Müşterinin
   # token'ını tanımıyor.
   staff-admin-postgres:
     image: postgres:17-alpine
