@@ -50,7 +50,7 @@ PERSONAL_WEB_CLIENT_SECRET=...  # bireysel web uygulamasının BFF'inin gizli an
 STAFF_KEYCLOAK_DB_PASSWORD=...  # çalışanların Keycloak'ının Postgres'i
 STAFF_KEYCLOAK_ADMIN_PASSWORD=... # çalışanların Keycloak'ının ilk yöneticisi; öbüründen farklı
 BACKOFFICE_CLIENT_SECRET=...    # backoffice panelinin BFF'inin gizli anahtarı
-STAFF_ADMIN_CLIENT_SECRET=...   # personel yönetiminin istemcisi: çalışanları ve rolleri yönetiyor
+STAFF_ADMIN_CLIENT_SECRET=...   # personel yönetiminin istemcisi: çalışanın kullanıcısını açıyor, davet ediyor, kapatıyor
 STAFF_ADMIN_OWNER_PASSWORD=...  # personel yönetiminin Postgres'i: şemanın sahibi
 STAFF_ADMIN_APP_PASSWORD=...    # personel yönetiminin Postgres'i: uygulamanın rolü
 STAFF_BOOTSTRAP_ADMIN_EMAIL=... # ilk yönetici; kimsede personel yönetimi yoksa ona davet gidiyor
@@ -377,10 +377,10 @@ docker compose logs staff-keycloak-setup | tail -1
 
 Beklenen: `hiwallet-staff: girişte OTP zorunlu.`
 
-Konsol yalnızca platform kurulumu için; çalışan, rol ve izin işleri panelden.
-`staff-admin` açılışta kodun izinlerini realm'e yazıyor ve "Personel yöneticisi" rolünü
-açıyor. Kimsede personel yönetimi yoksa `STAFF_BOOTSTRAP_ADMIN_EMAIL` adresine davet
-gönderiyor:
+Konsol yalnızca platform kurulumu için; çalışan, rol ve izin işleri panelden. Roller ve
+atamalar `staff-admin`'in veritabanında; konsolda açılan kullanıcının hiçbir izni yok.
+`staff-admin` açılışta "Personel yöneticisi" rolünü açıyor. Kimsede personel yönetimi
+yoksa `STAFF_BOOTSTRAP_ADMIN_EMAIL` adresine davet gönderiyor:
 
 ```bash
 docker compose logs staff-admin | grep -i "ilk yönetici"
@@ -401,6 +401,9 @@ aç ve giriş yap; üstte adın ve rollerin. **Personel** menüsünde:
 
 Kendi hesabında rol değiştirme ve kapatma yok; sahip olduğun rolü de değiştiremezsin.
 Bunları başka bir yönetici yapıyor.
+
+İzin her istekte okunuyor: ikinci çalışan panelde açıkken rolünü al. Bir sonraki işlemi
+`403` alıyor ve paneli "rol atanmamış" sayfasına dönüyor; yeniden giriş gerekmiyor.
 
 Panelin geri kalanı: kayda kimliğiyle gidiliyor; ana sayfada hesap, cüzdan, çekim ya da
 kampanya kimliğini yaz. Çekimler sayfası inceleme kuyruğuyla açılıyor; serbest bırakma ve

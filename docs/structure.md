@@ -364,14 +364,16 @@ Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulamas
 └── Setup/
 
 StaffAdmin/                    -- BİZİM; iç ağ, personel yönetimi
-├── Domain/                    -- StaffAuditEvent (değişmeyen kayıt), StaffRoleRules
-├── Application/               -- RoleService, StaffService, StaffAudit, açılış kurulumu
-│                                 (StaffAdminBootstrap); kimlik sağlayıcının arayüzü
-│                                 (Abstractions/IStaffDirectory)
+├── Domain/                    -- StaffMember, StaffRole, StaffRoleAssignment,
+│                                 StaffAuditEvent (değişmeyen kayıt), StaffRoleRules
+├── Application/               -- RoleService, StaffService, StaffAccess (çalışanın o anki
+│                                 izinleri), StaffAudit, açılış kurulumu (StaffAdminBootstrap);
+│                                 kimlik sağlayıcının arayüzü (Abstractions/IStaffDirectory)
 ├── Infrastructure/
 │   ├── Persistence/           -- StaffAdminDbContext, migration'lar; kendi Postgres sunucusu
-│   └── Keycloak/              -- çalışanların Keycloak'ının yönetim API'si, servisin token'ı
-├── Api/                       -- Permissions, Roles, Staff, AuditEvents; hepsi staff.manage
+│   └── Keycloak/              -- çalışanların Keycloak'ının yönetim API'si: kullanıcı, davet
+├── Api/                       -- Me (her çalışan, kendi izni); Permissions, Roles, Staff,
+│                                 AuditEvents (staff.manage)
 └── Setup/
 
 fakes/Sms.Fake/                -- SMS SAĞLAYICISI; canlıda YOK, mesajlar bellekte
@@ -447,7 +449,8 @@ Shared/
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
     ├── RateLimiting/          -- 429 gövdesi + Retry-After, token bucket ayarı
-    ├── Authentication/        -- token doğrulama; varsayılan politika kimlik istiyor
+    ├── Authentication/        -- token doğrulama; varsayılan politika kimlik istiyor;
+    │                             çalışanın izni her istekte personel yönetiminden
     └── HealthChecks/          -- /health/live ve /health/ready endpoint'leri
 ```
 

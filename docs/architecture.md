@@ -30,7 +30,7 @@ flowchart LR
         api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
         orch["<b>withdrawal-orchestrator</b><br/>çekim saga'sı"]
         onb["<b>onboarding</b><br/>kayıt, kimlik doğrulaması"]
-        sadm["<b>staff-admin</b><br/>personel, roller, izinler"]
+        sadm["<b>staff-admin</b><br/>personel, roller, atamalar"]
     end
 
     subgraph restricted["IP kısıtlı ingress"]
@@ -88,7 +88,9 @@ flowchart LR
     boapi --> api
     boapi --> orch
     boapi --> sadm
-    sadm -->|"çalışanı ve rolü yönet"| sidp
+    api -->|"çalışanın izni"| sadm
+    orch -->|"çalışanın izni"| sadm
+    sadm -->|"kullanıcı, davet"| sidp
     sadm --> sdb
     stripe -->|"webhook + HMAC"| hook
     bank -->|"webhook + HMAC"| hook
@@ -171,8 +173,8 @@ cüzdan, hareketler, promo partileri, transfer ve çekim. Hesap ön API'den aç�
 açıyor. Web uygulamasının sayfalarını da `personal-web-bff`
 sunuyor (`web/personal`). `business-api`'nin uçları: hesap, cüzdan, hareketler, transfer
 (`B2P`, `B2B`), müşteriye promo ve çekim. `backoffice-bff`'in uçları: müşteri kaydını
-görüntüleme (her rol), çekim incelemesi (operasyon), işyerinin promo kabulü, personel
-promo'su ve kampanyalar (pazarlama). Panelin sayfalarını da o sunuyor (`web/backoffice`).
+görüntüleme, çekim incelemesi, işyerinin promo kabulü, personel promo'su, kampanyalar ve
+personel yönetimi; her biri kendi izniyle. Panelin sayfalarını da o sunuyor (`web/backoffice`).
 `business-web-bff` sağlık uçlarıyla ayakta.
 
 ### Kimlik
@@ -235,24 +237,34 @@ işleri kendi uçlarında, kendi iznine bağlı ve ledger'a çalışanın aktör
 İzinler kodda ve sabit (`StaffPermissions`): müşteri kaydını görüntüleme, çekim incelemesi,
 personel promo'su, kampanyaları görüntüleme ve yönetme, işyerinin promo kabulü, personel
 yönetimi. Roller panelde tanımlanıyor; rol bir izin seti, çalışan bir ya da birden fazla
-rol alıyor. Keycloak'ta izin de rol de realm rolü: rol, izinleri içeren bileşik rol ve
-token'a izinler açılmış olarak yazılıyor. Servisler yalnızca izne bakıyor.
+rol alıyor. Roller, çalışanlar ve atamalar `staff-admin`'in veritabanında. Keycloak'ta
+yalnızca kullanıcı, parola, OTP ve oturum var; çalışanın token'ı kim olduğunu söylüyor,
+izin taşımıyor.
 
 ```
 panel ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ staff-admin ──servis hesabı──▶ hiwallet-staff-keycloak
-                                                         │                              kullanıcılar, roller, izinler
+                                                         │                              kullanıcı, parola, OTP
                                                          └──▶ staff-admin-postgres
-                                                              kim kime ne verdi
+                                                              çalışanlar, roller, atamalar, kayıt
+
+wallet-api, orchestrator ──GET /v1/me, çalışanın token'ıyla──▶ staff-admin
 ```
 
-`staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanıyor ve her ucu
-`staff.manage` istiyor. Çalışan kendine yetki veremiyor: kendi rollerini, sahip olduğu
-rolün izinlerini değiştiremiyor ve kendini kapatamıyor. Yeni çalışan davetle geliyor;
-parolasını ve OTP'sini davetteki bağlantıdan kendisi kuruyor. Her değişiklik işi yapan
-çalışanla kayda yazılıyor; Keycloak'ın kendi kaydı yalnızca servis hesabını görüyor.
-Açılışta servis kodun izinlerini ve yönetici rolünü kuruyor; kimsede personel yönetimi
-yoksa ayardaki adrese ilk yönetici daveti gönderiyor. Keycloak'ın konsoluna personel işi
-için girilmiyor.
+Çalışanın izni her istekte o anki haliyle okunuyor: `wallet-api` ve orchestrator çalışan
+izni isteyen her uçta `staff-admin`'in `GET /v1/me` ucuna soruyor, çalışanın kendi
+token'ıyla; `staff-admin` kendi uçlarında veritabanına bakıyor. Önbellek yok: rolü alınan
+ya da kapatılan çalışanın aynı token'la gelen bir sonraki isteği reddediliyor. `staff-admin`'e
+ulaşılamazsa çalışanın isteği `503` alıyor; müşterinin istekleri etkilenmiyor. Panel menüyü
+ve düğmeleri aynı uçtan okuyor ve bir istek `403` alınca yeniden soruyor.
+
+`staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanıyor; `GET /v1/me` dışındaki
+her ucu `staff.manage` istiyor. Çalışan kendine yetki veremiyor: kendi rollerini, sahip
+olduğu rolün izinlerini değiştiremiyor ve kendini kapatamıyor. Yeni çalışan davetle
+geliyor; parolasını ve OTP'sini davetteki bağlantıdan kendisi kuruyor, ilk girişiyle davet
+tamamlanmış sayılıyor. Her değişiklik işi yapan çalışanla, değişiklikle aynı transaction'da
+kayda yazılıyor. Açılışta servis yönetici rolünü kuruyor; kimsede personel yönetimi yoksa
+ayardaki adrese ilk yönetici daveti gönderiyor. Keycloak'ın konsoluna personel işi için
+girilmiyor; konsolda açılan kullanıcının hiçbir izni yok.
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.
