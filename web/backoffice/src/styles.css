@@ -341,3 +341,8 @@ label.check {
   gap: 0.5rem;
   align-items: flex-start;
 }
+
+.account-number {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}

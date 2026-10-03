@@ -104,6 +104,8 @@ export const api = {
   access: () => send<StaffAccess>('GET', '/v1/me'),
 
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
+  accountByNumber: (number: string) =>
+    send<AccountDetail>('GET', `/v1/accounts/by-number/${encodeURIComponent(number)}`),
   setAcceptsPromo: (accountId: string, acceptsPromo: boolean) =>
     send<void>('PUT', `/v1/accounts/${accountId}/accepts-promo`, { body: { acceptsPromo } }),
 

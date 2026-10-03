@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { accountType, date, kycLevel, money } from '../format'
+import { accountNumber, accountType, date, kycLevel, money } from '../format'
 import { useHasPermission } from '../session'
 import type { AccountDetail } from '../types'
 
@@ -26,7 +26,11 @@ export function AccountPage() {
       <section className="card">
         <h1>{accountType(type)} hesap</h1>
         <dl>
-          <dt>Hesap</dt>
+          <dt>Hesap numarası</dt>
+          <dd>
+            <strong className="account-number">{accountNumber(account.data.accountNumber)}</strong>
+          </dd>
+          <dt>Kimlik</dt>
           <dd>
             <code>{accountId}</code>
           </dd>
@@ -56,7 +60,10 @@ export function AccountPage() {
             {wallets.map((wallet) => (
               <li key={wallet.walletId}>
                 <Link to={`/cuzdanlar/${wallet.walletId}`}>
-                  <span>{wallet.name}</span>
+                  <span>
+                    {wallet.name}
+                    {wallet.isDefault && <span className="muted small"> varsayılan {wallet.currency}</span>}
+                  </span>
                   <span>{money(wallet.balance, wallet.currency)}</span>
                 </Link>
               </li>

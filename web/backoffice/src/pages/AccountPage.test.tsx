@@ -10,11 +10,12 @@ import type { AccountDetail } from '../types'
 function account(overrides: Partial<AccountDetail>): AccountDetail {
   return {
     accountId: 'a1',
+    accountNumber: '1234567897',
     type: 'Person',
     kycLevel: 'Unverified',
     acceptsPromo: false,
     createdAt: '2026-09-28T10:00:00Z',
-    wallets: [{ walletId: 'w1', name: 'Ana', currency: 'TRY', balance: 250, withdrawable: 250, balances: [] }],
+    wallets: [{ walletId: 'w1', name: 'Ana', currency: 'TRY', balance: 250, withdrawable: 250, balances: [], isDefault: true }],
     ...overrides,
   }
 }
@@ -26,6 +27,7 @@ describe('AccountPage', () => {
     renderAt('/hesaplar/a1', <App />)
 
     expect(await screen.findByText('Temel doğrulama')).toBeTruthy()
+    expect(screen.getByText('123 456 7897')).toBeTruthy()
     expect(screen.getByRole('link', { name: /Ana/ }).getAttribute('href')).toBe('/cuzdanlar/w1')
     expect(screen.queryByRole('button', { name: /promo/i })).toBeNull()
   })
