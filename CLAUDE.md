@@ -43,6 +43,18 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - `ledger_transactions.account_id` NOT NULL — iç işlemlerde de dolar (idempotency kapsamı).
   Nullable YAPILMAZ: unique index'te NULL'lar eşleşmez, fatura iki kez yazılır.
 
+**Hesap numarası ve varsayılan cüzdan**
+- Her hesabın insanın kullandığı on haneli numarası var (`accounts.number`): rastgele,
+  sıralı DEĞİL; son hane Luhn kontrol hanesi; bir kez verilir ve DEĞİŞMEZ. Kimlik (`id`)
+  içeride kalır; servisler, yabancı anahtarlar ve idempotency kapsamı numarayı KULLANMAZ.
+- Hesap numarasına gelen para alıcının o para birimindeki VARSAYILAN cüzdanına düşer
+  (`default_wallets`). Hesabın cüzdanı olan her para biriminde tam bir varsayılan var:
+  ilk cüzdan kendiliğinden varsayılan, değiştiren yalnızca müşteri. Alıcının o para
+  biriminde cüzdanı yoksa `422`; hesabında kendiliğinden cüzdan AÇILMAZ.
+- Numara sınırda (wallet-api'nin ucu) cüzdana çevrilir; transfer çekirdeği cüzdandan
+  cüzdana kalır. Kontrol hanesi tutmayan numara `400`, başkasının numarası `404`:
+  numaranın bir hesaba ait olduğu ve hesabın kimliği dışarı verilmez.
+
 **Sağlayıcı ücretleri**
 - `provider_fees` tablosu ledger DEĞİL. `expected_amount` ledger'a asla yazılmaz.
 - Ücret kolonları `ledger_transactions` veya `ledger_entries` üzerine EKLENMEZ.

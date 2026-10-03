@@ -55,6 +55,7 @@ doğrulamanın sonucu.
 ```sql
 CREATE TABLE accounts (
     id             uuid PRIMARY KEY,
+    number         text NOT NULL,  -- insanın kullandığı on haneli numara
     type           text NOT NULL CHECK (type IN ('person','business')),
     holder         text,        -- bireysel hesabın sahibi: kimlik sağlayıcıdaki sub
     kyc_level      text,        -- unknown | unverified | verified | contracted
@@ -63,11 +64,19 @@ CREATE TABLE accounts (
     CONSTRAINT ck_accounts_kyc_level CHECK (
         (type = 'person' AND kyc_level IN ('unknown','unverified','verified','contracted'))
         OR (type = 'business' AND kyc_level IS NULL)),
-    CONSTRAINT ck_accounts_holder CHECK (type = 'person' OR holder IS NULL)
+    CONSTRAINT ck_accounts_holder CHECK (type = 'person' OR holder IS NULL),
+    CONSTRAINT ck_accounts_number CHECK (number ~ '^[1-9][0-9]{9}$')
 );
 
 CREATE UNIQUE INDEX ux_accounts_person_holder ON accounts (holder) WHERE holder IS NOT NULL;
+CREATE UNIQUE INDEX ux_accounts_number ON accounts (number);
 ```
+
+`number` hesabın insanın okuduğu, yazdığı ve telefonda söylediği numarası: on hane, ilk
+hane sıfır değil, son hane Luhn kontrol hanesi. Açılışta rastgele üretiliyor, sıralı
+değil; çakışırsa açılış yeni numarayla yeniden deniyor. Bir kez veriliyor ve değişmiyor.
+`id` içeride kalıyor: servisler, yabancı anahtarlar ve idempotency kapsamı onu kullanıyor.
+Kontrol hanesi uygulamada doğrulanıyor (`AccountNumber`); CHECK yalnızca biçime bakıyor.
 
 Bireysel hesabı onboarding açıyor, kayıt tamamlanınca (`POST /v1/person-accounts`). Kimlik
 başına tek bireysel hesap: açılış `ux_accounts_person_holder`'a `ON CONFLICT DO NOTHING`
@@ -92,6 +101,32 @@ Kaynak tipi ayrımı bununla KARIŞTIRILMAZ: kovalar cüzdanın içinde durur
 (`ledger_balances.fund_type`), ikinci bir cüzdan satırı açmaz.
 Sonucu: günlük limitler cüzdan bazında değil **hesap bazında** uygulanır, yoksa müşteri
 ikinci cüzdan açarak limiti aşar.
+
+## default_wallets
+
+Hesabın para birimi başına varsayılan cüzdanı: hesap numarasına gelen para buraya düşüyor.
+
+```sql
+CREATE TABLE default_wallets (
+    account_id  uuid NOT NULL REFERENCES accounts(id),
+    currency    char(3) NOT NULL,
+    wallet_id   uuid NOT NULL,
+    PRIMARY KEY (account_id, currency),
+    FOREIGN KEY (wallet_id, currency) REFERENCES ledger_accounts (id, currency)
+);
+
+CREATE INDEX ix_default_wallets_wallet ON default_wallets (wallet_id, currency);
+```
+
+Hesabın bir para biriminde cüzdanı varsa tam bir varsayılanı var. Cüzdan açılışı aynı
+transaction'da `ON CONFLICT DO NOTHING` ile yazıyor: o para birimindeki ilk cüzdan
+varsayılan oluyor. Müşteri varsayılanı yalnızca kendi cüzdanları arasında ve aynı para
+biriminde değiştiriyor; değişiklik tek satırın güncellenmesi, arada varsayılansız an yok.
+Cüzdanda bir işaret olsaydı değişiklik iki satır demekti. Para birimi FK ile cüzdanınkine
+bağlı; hesabın eşleşmesini satırı cüzdandan kuran kod sağlıyor (`DefaultWallet.Of`).
+
+Alıcının o para biriminde cüzdanı yoksa hesap numarasına gönderim reddediliyor (`422`,
+`no_wallet_in_currency`); hesabında kendiliğinden cüzdan açılmıyor.
 
 ## account_members
 

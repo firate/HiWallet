@@ -32,7 +32,7 @@ henüz işlenmedi, `400` girdi bozuk, `404` kayıt yok, `409` eşzamanlılık ç
 ```bash
 curl -i -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"type":"Person"}'
+  -d '{"type":"Business"}'
 ```
 
 ```
@@ -42,10 +42,16 @@ Location: http://localhost:8091/v1/accounts/d5e9df14-cd62-4ad5-b628-08df56e06daa
 ```json
 {
   "accountId": "d5e9df14-cd62-4ad5-b628-08df56e06daa",
-  "type": "Person",
+  "accountNumber": "4817305925",
+  "type": "Business",
+  "kycLevel": null,
   "createdAt": "2026-09-06T12:41:03.117421+00:00"
 }
 ```
+
+`accountNumber` insanın kullandığı numara: on hane, son hanesi Luhn kontrol hanesi,
+rastgele ve değişmiyor. Bireysel hesabı kayıt açıyor (`POST /v1/person-accounts`); onun
+cevabında da numara var.
 
 `type`: `Person` | `Business`. Sayı değil isim gönderilir — sayı olsaydı enum'a yeni
 değer eklemek mevcut istemcilerin anlamını kaydırırdı.
@@ -245,6 +251,7 @@ curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN"
 ```json
 {
   "accountId": "d5e9df14-cd62-4ad5-b628-08df56e06daa",
+  "accountNumber": "4817305925",
   "type": "Person",
   "createdAt": "2026-09-06T12:41:03.117421+00:00",
   "wallets": [
@@ -258,7 +265,8 @@ curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN"
         { "fundType": "cash",  "balance": 198.0000 },
         { "fundType": "card",  "balance": 150.0000 },
         { "fundType": "promo", "balance":  50.0000 }
-      ]
+      ],
+      "isDefault": true
     },
     {
       "walletId": "7c1e0b22-...",
@@ -270,14 +278,40 @@ curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN"
         { "fundType": "cash",  "balance": 0.0000 },
         { "fundType": "card",  "balance": 0.0000 },
         { "fundType": "promo", "balance": 0.0000 }
-      ]
+      ],
+      "isDefault": false
     }
   ]
 }
 ```
 
 Kırılım liste görünümünde de var: "neden çekemiyorum" sorusunun cevabı tek cüzdana
-girmeden görünüyor.
+girmeden görünüyor. `isDefault`: hesap numarasına gelen TRY bu cüzdana düşüyor.
+
+### Hesabı numarasıyla bul
+
+```bash
+curl -s localhost:8091/v1/accounts/by-number/4817305925 -H "Authorization: Bearer $TOKEN"
+```
+
+Cevap kimlikle sorgulamanın aynısı. Gruplama boşlukları kabul ediliyor
+(`481%20730%205925`). Kontrol hanesi tutmayan numara `400`, olmayan numara ve
+başkasının hesabı `404`. Çalışan `customer.view` izniyle her hesabı buluyor.
+
+### Varsayılan cüzdanı değiştir
+
+```bash
+curl -i -X PUT localhost:8091/v1/accounts/$ACCOUNT/default-wallets/TRY \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$SAVINGS\"}"
+```
+```
+HTTP/1.1 204 No Content
+```
+
+Hesap numarasına gelen TRY bundan sonra bu cüzdana. Her para biriminde tam bir varsayılan
+var; hesabın o para birimindeki ilk cüzdanı kendiliğinden varsayılan. Başka bir hesabın
+cüzdanı `404`, başka para biriminin cüzdanı `422`. Müşterinin tercihi: çalışan `403`.
 
 ### Transfer
 
@@ -292,6 +326,18 @@ HTTP/1.1 201 Created
 ```json
 { "transactionId": "...", "replayed": false }
 ```
+
+Alıcı hesap numarasıyla da verilebiliyor; para alıcının o para birimindeki varsayılan
+cüzdanına düşüyor:
+
+```bash
+curl -i -X POST localhost:8091/v1/transfers -H "Authorization: Bearer $TOKEN" \
+  -H 'Idempotency-Key: transfer-2' -H 'Content-Type: application/json' \
+  -d "{\"fromWalletId\":\"$FROM\",\"toAccountNumber\":\"4817305925\",\"amount\":50,\"currency\":\"TRY\",\"type\":\"P2P\"}"
+```
+
+`toWalletId` ya da `toAccountNumber`, ikisi birden değil (`400`). Olmayan numara `404`;
+alıcının o para biriminde cüzdanı yoksa `422` ve `rule` `no_wallet_in_currency`.
 
 `type`: `P2P` | `Payment` | `P2B` | `B2P` | `B2B`. Komisyon istenen tutara **ek**
 olarak gönderenden düşülür: `Payment` %2 ise gönderen `-204`, alan `+200`,
