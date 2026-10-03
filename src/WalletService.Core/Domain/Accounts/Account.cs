@@ -24,7 +24,7 @@ public sealed class Account
         // EF Core materialization.
     }
 
-    private Account(Guid id, AccountType type, DateTimeOffset createdAt)
+    private Account(Guid id, AccountNumber number, AccountType type, DateTimeOffset createdAt)
     {
         if (id == Guid.Empty)
         {
@@ -32,11 +32,18 @@ public sealed class Account
         }
 
         Id = id;
+        Number = number;
         Type = type;
         CreatedAt = createdAt;
     }
 
     public Guid Id { get; private set; }
+
+    /// <summary>
+    /// İnsanın kullandığı numara: panelde arama, müşteriyle konuşma ve hesaba gelen para.
+    /// Açılışta veriliyor ve değişmiyor; kimlik (<see cref="Id"/>) içeride kalıyor.
+    /// </summary>
+    public AccountNumber Number { get; private set; }
 
     public AccountType Type { get; private set; }
 
@@ -80,22 +87,22 @@ public sealed class Account
     /// Kaydı tamamlanan kimliğin hesabı. <see cref="Accounts.KycLevel.Unknown"/>'da açılıyor:
     /// kimlik henüz doğrulanmadı, para hareketi yok.
     /// </summary>
-    public static Account OpenPerson(Guid id, string holder, DateTimeOffset createdAt)
+    public static Account OpenPerson(Guid id, AccountNumber number, string holder, DateTimeOffset createdAt)
     {
         if (string.IsNullOrWhiteSpace(holder))
         {
             throw new ArgumentException("Bireysel hesap bir kimliğe ait olmalı.", nameof(holder));
         }
 
-        return new Account(id, AccountType.Person, createdAt)
+        return new Account(id, number, AccountType.Person, createdAt)
         {
             Holder = holder,
             KycLevel = Accounts.KycLevel.Unknown
         };
     }
 
-    public static Account OpenBusiness(Guid id, DateTimeOffset createdAt) =>
-        new(id, AccountType.Business, createdAt);
+    public static Account OpenBusiness(Guid id, AccountNumber number, DateTimeOffset createdAt) =>
+        new(id, number, AccountType.Business, createdAt);
 
     /// <summary>
     /// Seviyeyi yükseltir. Yükselten yollar birbirinden habersiz (kayıt, bankadan gelen

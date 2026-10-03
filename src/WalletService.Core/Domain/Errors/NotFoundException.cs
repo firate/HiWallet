@@ -1,3 +1,5 @@
+using HiWallet.WalletService.Domain.Accounts;
+
 namespace HiWallet.WalletService.Domain.Errors;
 
 /// <summary>
@@ -23,6 +25,16 @@ public sealed class AccountNotFoundException(Guid accountId)
     : NotFoundException($"Hesap bulunamadı: {accountId}")
 {
     public Guid AccountId { get; } = accountId;
+}
+
+/// <summary>
+/// Bu numarada hesap yok. Mesajda numara var: çağıranın kendi yazdığı, kimseye ait olmayan
+/// bir değer.
+/// </summary>
+public sealed class AccountNumberNotFoundException(AccountNumber number)
+    : NotFoundException($"Hesap bulunamadı: {number}")
+{
+    public AccountNumber Number { get; } = number;
 }
 
 /// <summary>Promo kampanyası bulunamadı.</summary>

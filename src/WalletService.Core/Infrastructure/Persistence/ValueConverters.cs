@@ -25,6 +25,10 @@ internal static class ValueConverters
     public static readonly ValueConverter<Currency, string> Currency =
         new(c => c.Code, code => Domain.Ledger.Currency.From(code));
 
+    /// <summary><c>text</c> ↔ <see cref="AccountNumber"/>; okurken kontrol hanesi yeniden doğrulanıyor.</summary>
+    public static readonly ValueConverter<AccountNumber, string> AccountNumber =
+        new(n => n.Value, text => Domain.Accounts.AccountNumber.From(text));
+
     public static readonly ValueConverter<AccountType, string> AccountType =
         new(t => ToText(t), text => ToAccountType(text));
 
