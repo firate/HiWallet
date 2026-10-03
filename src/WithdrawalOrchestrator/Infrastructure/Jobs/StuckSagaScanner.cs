@@ -36,7 +36,7 @@ internal sealed class StuckSagaScanner(
     public async Task<StuckSagaReport> ScanAsync(CancellationToken ct)
     {
         var cutoff = timeProvider.GetUtcNow() - _options.Threshold;
-        var active = WithdrawalStates.Active.ToArray();
+        var active = WithdrawalStates.AwaitingSystem.ToArray();
 
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 

@@ -10,10 +10,12 @@ namespace HiWallet.WalletService.Application.Accounts;
 public sealed record GetAccountQuery(Guid AccountId);
 
 /// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
+/// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
 public sealed record AccountView(
     Guid AccountId,
     AccountType Type,
     KycLevel? KycLevel,
+    bool AcceptsPromo,
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletView> Wallets);
 

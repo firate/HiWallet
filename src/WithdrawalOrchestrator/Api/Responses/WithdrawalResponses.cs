@@ -26,6 +26,8 @@ public sealed record WithdrawalAcceptedResponse(Guid WithdrawalId, string State,
 /// </param>
 public sealed record WithdrawalResponse(
     Guid WithdrawalId,
+    Guid AccountId,
+    Guid WalletId,
     string State,
     decimal Amount,
     string Currency,
@@ -38,6 +40,8 @@ public sealed record WithdrawalResponse(
     public static WithdrawalResponse From(WithdrawalSaga saga) =>
         new(
             saga.Id,
+            saga.AccountId,
+            saga.WalletId,
             saga.State.ToText(),
             saga.Amount,
             saga.Currency,
@@ -48,4 +52,11 @@ public sealed record WithdrawalResponse(
             saga.FailureReason,
             saga.CreatedAt,
             saga.UpdatedAt);
+}
+
+/// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
+public sealed record WithdrawalsResponse(IReadOnlyList<WithdrawalResponse> Items, int Size, Guid? NextCursor)
+{
+    public static WithdrawalsResponse From(WithdrawalPage page) =>
+        new([.. page.Items.Select(WithdrawalResponse.From)], page.Size, page.NextCursor);
 }

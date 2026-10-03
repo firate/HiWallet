@@ -31,6 +31,16 @@ builder.Services.AddOrchestratorHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<StartWithdrawalHandler>();
 builder.Services.AddScoped<AdvanceSagaHandler>();
+builder.Services.AddScoped<ReviewWithdrawalHandler>();
+
+// İnceleme eşiği. Bölüm eksikse uygulama açılmıyor: sessizce incelemesiz çalışmamalı.
+builder.Services.AddOptions<WithdrawalReviewOptions>()
+    .BindConfiguration(WithdrawalReviewOptions.SectionName)
+    .Validate(options => options.Above.Count > 0,
+        $"{WithdrawalReviewOptions.SectionName}:Above boş; hangi çekimin incelemeye gireceği bilinmiyor.")
+    .Validate(options => options.Above.Values.All(threshold => threshold > 0m),
+        $"{WithdrawalReviewOptions.SectionName}:Above değerleri pozitif olmalı.")
+    .ValidateOnStart();
 builder.Services.AddScoped<WithdrawalQueries>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateWithdrawalRequestValidator>();
 
@@ -49,8 +59,9 @@ builder.Services.AddHiWalletJobLease(PersistenceSetup.ConnectionStringName);
 builder.Services.AddSingleton<StuckSagaScanner>();
 builder.Services.AddHostedService<StuckSagaScan>();
 
-// Token'ı ön API iletiyor, burada yeniden doğrulanıyor.
-builder.Services.AddHiWalletAuthentication();
+// Token'ı ön API iletiyor, burada yeniden doğrulanıyor. Çalışanların realm'inin
+// token'ı da kabul ediliyor; çalışan yalnızca izin veren uçtan geçiyor.
+builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
 builder.Services.AddControllers();
 builder.Services.AddHiWalletProblemDetails();
 builder.Services.AddHiWalletOpenApi(TokenFlows.AuthorizationCode | TokenFlows.ClientCredentials);

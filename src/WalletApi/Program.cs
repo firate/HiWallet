@@ -5,6 +5,7 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletService.Application.Promos;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Setup;
 using Wolverine;
@@ -44,10 +45,19 @@ builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
 
 // Token'ı ön API iletiyor, burada yeniden doğrulanıyor: ön API'ye körü körüne
-// güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde.
-builder.Services.AddHiWalletAuthentication();
+// güvenilmiyor. Sahiplik kontrolü de burada, ledger'ın sahibinde. Çalışanların
+// realm'inin token'ı da kabul ediliyor; çalışan yalnızca izin veren uçtan geçiyor.
+builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
 builder.Services.AddOnboardingAccess(builder.Configuration);
 builder.Services.AddSingleton<AccountAccess>();
+
+// Personel promo'sunun tek seferlik tavanı. Tanımlı olmayan para biriminde personel
+// promo'su verilmiyor.
+builder.Services.AddOptions<StaffPromoOptions>()
+    .BindConfiguration(StaffPromoOptions.SectionName)
+    .Validate(options => options.MaxAmount.Values.All(max => max > 0m),
+        $"{StaffPromoOptions.SectionName}:MaxAmount değerleri pozitif olmalı.")
+    .ValidateOnStart();
 
 builder.Services
     .AddControllers(options => options.Filters.AddService<ValidationFilter>())

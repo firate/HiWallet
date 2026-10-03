@@ -84,4 +84,42 @@ public sealed class PromoCampaignTests
         Should.Throw<ArgumentException>(() => Campaign(
             rewardType: PromoRewardType.Percentage, amount: null, rate: 0.05m, max: null));
     }
+
+    [Fact]
+    public void Bitirme_SimdiBitiyorVeBitireniYaziyor()
+    {
+        var campaign = Campaign();
+
+        campaign.End("calisan-1", T0.AddDays(3));
+
+        campaign.EndsAt.ShouldBe(T0.AddDays(3));
+        campaign.EndedBy.ShouldBe("calisan-1");
+        campaign.IsActiveAt(T0.AddDays(3)).ShouldBeFalse();
+        campaign.IsActiveAt(T0.AddDays(2)).ShouldBeTrue();
+    }
+
+    /// <summary>Başlamamış kampanya başlangıcında bitiyor: hiç çalışmıyor.</summary>
+    [Fact]
+    public void BaslamadanBitirme_HicCalismaz()
+    {
+        var campaign = Campaign();
+
+        campaign.End("calisan-1", T0.AddDays(-1));
+
+        campaign.EndsAt.ShouldBe(T0);
+        campaign.IsActiveAt(T0).ShouldBeFalse();
+    }
+
+    /// <summary>Bitmiş kampanya yeniden bitirilince bitişi ve bitireni değişmiyor.</summary>
+    [Fact]
+    public void BitmisKampanya_Degismez()
+    {
+        var campaign = Campaign();
+        campaign.End("calisan-1", T0.AddDays(3));
+
+        campaign.End("calisan-2", T0.AddDays(5));
+
+        campaign.EndsAt.ShouldBe(T0.AddDays(3));
+        campaign.EndedBy.ShouldBe("calisan-1");
+    }
 }

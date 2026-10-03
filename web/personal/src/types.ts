@@ -5,6 +5,8 @@ export interface SessionUser {
   subject: string
   name: string | null
   email: string | null
+  /** Çalışanın rolleri; müşteride boş. */
+  roles: string[]
 }
 
 /** Bireysel hesabın doğrulama seviyesi; işyeri hesabında null. */
@@ -38,6 +40,8 @@ export interface AccountWallet {
 }
 
 export interface AccountDetail extends Account {
+  /** Platform fonlu promo bu işyerinde geçiyor mu; bireysel hesapta hep false. */
+  acceptsPromo: boolean
   wallets: AccountWallet[]
 }
 
@@ -110,6 +114,8 @@ export interface WithdrawalAccepted {
 
 export interface Withdrawal {
   withdrawalId: string
+  accountId: string
+  walletId: string
   state: string
   amount: number
   currency: string

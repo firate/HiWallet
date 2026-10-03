@@ -63,6 +63,20 @@ public sealed class Account
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
+    /// Platform fonlu promo bu işyerinde geçsin mi (decisions.md madde 37). İşaret
+    /// promo kabulünü sözleşmesi olan işyerleriyle sınırlıyor; bireysel hesapta anlamı yok.
+    /// </summary>
+    public void SetAcceptsPromo(bool acceptsPromo)
+    {
+        if (Type is not AccountType.Business)
+        {
+            throw new AccountRuleException("Promo kabulü yalnızca işyeri hesabında işaretlenir.");
+        }
+
+        AcceptsPromo = acceptsPromo;
+    }
+
+    /// <summary>
     /// Kaydı tamamlanan kimliğin hesabı. <see cref="Accounts.KycLevel.Unknown"/>'da açılıyor:
     /// kimlik henüz doğrulanmadı, para hareketi yok.
     /// </summary>

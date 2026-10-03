@@ -62,6 +62,15 @@ public sealed class PromoCampaign
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>
+    /// Kampanyayı açan çalışanın <c>sub</c>'ı. Kampanyanın verdiği partilerin aktörü
+    /// <c>system</c>; kuralı kimin koyduğu burada. Backoffice öncesi SQL ile açılanlarda boş.
+    /// </summary>
+    public string? CreatedBy { get; private set; }
+
+    /// <summary>Kampanyayı bitiren çalışan. Bitiş tarihi açılışta verildiyse boş.</summary>
+    public string? EndedBy { get; private set; }
+
     public IReadOnlyList<PromoCampaignMerchant> Merchants => _merchants;
 
     /// <summary>Tetikleyen işyerleri: <see cref="PromoCampaignRule.PaymentToMerchant"/>'ta.</summary>
@@ -91,6 +100,22 @@ public sealed class PromoCampaign
 
     public bool IsActiveAt(DateTimeOffset at) => StartsAt <= at && (EndsAt is null || at < EndsAt);
 
+    /// <summary>
+    /// Kampanyayı şimdi bitiriyor: bundan sonraki ödemeler değerlendirilmiyor, verilmiş
+    /// partiler olduğu gibi kalıyor. Zaten bitmişse değişmiyor. Başlamamış kampanya
+    /// başlangıcında bitiyor, yani hiç çalışmıyor.
+    /// </summary>
+    public void End(string employeeSubject, DateTimeOffset now)
+    {
+        if (EndsAt <= now)
+        {
+            return;
+        }
+
+        EndsAt = now > StartsAt ? now : StartsAt;
+        EndedBy = employeeSubject;
+    }
+
     public static PromoCampaign Create(
         Guid id,
         string name,
@@ -110,7 +135,8 @@ public sealed class PromoCampaign
         DateTimeOffset? endsAt,
         IEnumerable<Guid> triggerMerchants,
         IEnumerable<Guid> scopeMerchants,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        string? createdBy = null)
     {
         var triggers = triggerMerchants.Distinct().ToArray();
         var scope = scopeMerchants.Distinct().ToArray();
@@ -155,7 +181,8 @@ public sealed class PromoCampaign
             TotalCapPerAccount = totalCapPerAccount,
             StartsAt = startsAt,
             EndsAt = endsAt,
-            CreatedAt = createdAt
+            CreatedAt = createdAt,
+            CreatedBy = createdBy
         };
 
         campaign._merchants.AddRange(

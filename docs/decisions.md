@@ -1266,11 +1266,14 @@ olurdu.
 taşıyor — `account_id` "parası kimin", bunlar "kim istedi" sorusunu cevaplıyor ve
 backoffice müşteri adına çekim açtığında ikisi ayrışıyor.
 
-**Bilinen eksik.** Saga, bankanın reddiyle operatörün iptalini AYIRT EDEMİYOR: ikisi
-de `Refunded` geçişine varıyor, aradaki fark yalnızca komutun taşıdığı aktörde
-kalıyor. Telafi aynı olsa da sebep aynı değil ve "bu ay kaç çekim banka tarafından
-reddedildi" ile "kaç çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli.
-Ayrı bir geçiş gerekiyor; backoffice endpoint'i yazılırken eklenecek.
+**Banka reddi ile çalışanın iptali ayrı.** Telafi ikisinde de aynı (üç bacaklı ters
+kayıt) ama sebep aynı değil: "bu ay kaç çekim banka tarafından reddedildi" ile "kaç
+çekim operatör tarafından iptal edildi" aynı sayıya düşmemeli. Banka reddi
+`compensating → failed`, çalışanın iptali `cancelling → cancelled` yolundan gidiyor ve
+iptalin ters kaydının aktörü iptal eden çalışan. İptal yalnızca incelemedeki çekimde
+mümkün: tutarı inceleme eşiğinin üstündeki çekim düşüldükten sonra bankaya gitmeden
+bir çalışanın kararını bekliyor. Serbest bırakma ledger'a yazmıyor; kararı veren
+saga'nın `reviewed_by` alanında.
 
 ---
 
@@ -1663,8 +1666,11 @@ Değerlendirilemeyen bir ödeme turu durdurmuyor: hata loglanıyor, ödeme işar
 her turda yeniden deneniyor; arkasındaki ödemeler değerlendirilmeye devam ediyor.
 Veritabanına ulaşılamıyorsa tur kesiliyor.
 
-**Yönetim.** Backoffice gelene kadar kampanyalar ve `accounts.accepts_promo` SQL ile
-yönetiliyor; betik `docs/api-examples.md`'de.
+**Yönetim.** Kampanyalar, `accounts.accepts_promo` ve personel promo'su backoffice'ten,
+pazarlama rolüyle yönetiliyor. Kampanyayı açan ve bitiren çalışan kampanyaya yazılıyor;
+kampanyanın verdiği partinin aktörü yine `system`. Personel promo'su para birimi başına
+tek seferlik bir tavanla sınırlı; daha büyük tutar kampanyayla, bütçe ve hesap
+tavanlarıyla veriliyor.
 
 **Kabul edilen sınırlamalar.**
 

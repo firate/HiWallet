@@ -39,16 +39,19 @@ olduğu yere taşınmıyor.
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
-| `hiwallet-keycloak` | **public** — kimlik sağlayıcı (bizim kodumuz değil) | kendi Postgres'i | — |
+| `hiwallet-keycloak` | **public** — müşterilerin ve işyerlerinin kimlik sağlayıcısı (bizim kodumuz değil) | kendi Postgres sunucusu | — |
+| `hiwallet-staff-keycloak` | **iç ağ** — çalışanların kimlik sağlayıcısı, ayrı kurulum (bizim kodumuz değil) | kendi Postgres sunucusu | — |
 
 İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
 API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token tarayıcıdaki koda verilmez, tarayıcı
 yalnızca HttpOnly oturum cookie'si taşır. `personal-mobile-api`, `personal-web-bff` ve
-`business-api`'nin uçları yazıldı; işyeri ve backoffice BFF'leri sağlık uçlarıyla ayakta.
+`business-api`'nin uçları yazıldı; `backoffice-bff`'in görüntüleme uçları var, işyeri
+BFF'i sağlık uçlarıyla ayakta.
 
-Token'ı Keycloak imzalıyor. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
+Token'ı Keycloak imzalıyor. Müşterilerin ve çalışanların Keycloak'ı ayrı kurulum: kendi
+veritabanı, kendi yöneticisi. Ön API token'ı doğruluyor ve iç servise aynen iletiyor;
 iç servis yeniden doğruluyor. Hangi kimliğin hangi hesabın kullanıcısı olduğu wallet'ta
 duruyor ve müşteri yalnızca kendi hesabına erişiyor.
 
@@ -123,17 +126,18 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
 | `business-api`'nin uçları: hesap, cüzdan, transfer, müşteriye promo, çekim | evet — işyerinin entegrasyonu client credentials ile |
-| Bireysel web uygulaması: kayıt, doğrulama, giriş, cüzdan, hareketler, transfer, çekim | evet — testte |
+| Bireysel web uygulaması: kayıt, doğrulama, giriş, cüzdan, hareketler, transfer, çekim | evet |
 | BFF oturumu: şifreli cookie, token yenileme, X-CSRF | evet |
-| İşyeri ve backoffice BFF'lerinin uçları | hayır — sağlık uçlarıyla ayakta |
+| Backoffice paneli: müşteri kaydı, çekim incelemesi, personel promo'su, kampanyalar | evet — testte; panel compose'da denenmedi |
+| İşyeri BFF'inin uçları | hayır — sağlık uçlarıyla ayakta |
 | Müşteri başına rate limit ön API'de | evet — anahtar token'daki kimlik; iç servislerde yok |
 | Kimlik doğrulama: Keycloak, token ön API'de ve iç serviste doğrulanıyor | evet — testte kendi imzaladığı token'la |
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
-| Çalışan kimliği | hayır |
-| Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet — testte; compose'da denenmedi |
-| Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet — testte; compose'da denenmedi |
+| Çalışan kimliği: ayrı Keycloak kurulumu, iş grubuna göre roller, OTP zorunlu | evet — giriş, OTP ve gruptan gelen roller compose'da denendi |
+| Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
+| Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
 | `Verified`: kendi banka hesabından ilk havale | hayır |
 | `Contracted`: backoffice'ten | hayır |
@@ -144,13 +148,15 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
-| Promo: personel tanımı, kampanya yönetimi, fonlama kaydı | hayır — backoffice ve çalışan kimliği bekliyor |
+| Promo: personel promo'su, kampanya yönetimi, işyerinin promo kabulü | evet — backoffice'ten, pazarlama rolüyle |
+| Çekim incelemesi: eşiğin üstü bekliyor, çalışan serbest bırakıyor ya da iptal ediyor | evet — iptal banka reddinden ayrı durumda |
+| Koruma hesabının fonlama kaydı | hayır |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-537 test: 174 unit (DB'siz), 363 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamasının 14 testi ayrı (Vitest).
+596 test: 183 unit (DB'siz), 413 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 14, panelin 13.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -184,7 +190,8 @@ curl http://localhost:8102/health/ready   # personal-web-bff
 curl http://localhost:8103/health/ready   # onboarding
 curl http://localhost:8104/health/ready   # sms-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8105/health/ready   # nvi-fake (BİZİM DEĞİL, canlıda yok)
-curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration   # keycloak
+curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration         # keycloak, müşteriler
+curl http://localhost:8107/realms/hiwallet-staff/.well-known/openid-configuration   # keycloak, çalışanlar
 ```
 
 `wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için
@@ -201,6 +208,13 @@ Arayüzü geliştirirken Vite'ın sunucusu, arkada compose'daki BFF:
 
 ```bash
 cd web/personal && npm install && npm run dev   # http://localhost:5173
+```
+
+Backoffice paneli <http://localhost:8099>'da; giriş çalışanların Keycloak'ından, OTP ile.
+Geliştirirken:
+
+```bash
+cd web/backoffice && npm install && npm run dev   # http://localhost:5174
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
@@ -402,6 +416,7 @@ sapmamış. Testin iddiası "her transfer başarılı olur" değil — çakışa
 ```bash
 dotnet test
 cd web/personal && npm test
+cd web/backoffice && npm test
 ```
 
 Integration testler bir Postgres sunucusu ister; bağlantı

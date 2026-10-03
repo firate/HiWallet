@@ -71,6 +71,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   `promo_breakage`'e, işyeri fonlu kalan işyerinin `cash` kovasına. `promo_expense`'e
   geri YAZILMAZ.
 - Kampanyada bütçe, hesap başına günlük tavan ve hesap başına toplam tavan ZORUNLU.
+- Personel promo'su platform fonlu, aktörü çalışan ve para birimi başına tek seferlik
+  tavanla sınırlı; tavanı tanımlı olmayan para biriminde VERİLMEZ.
 - Kampanya tabanına (eşik toplamı, yüzde ödül) promo payı ve komisyon GİRMEZ.
 - Kampanya değerlendirmesi id cursor'ıyla İLERLEMEZ: id sırası commit sırası değil.
   Değerlendirilen ödeme `promo_campaign_evaluations`'a işaretlenir.
@@ -149,8 +151,20 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   istemcisiyle. Access token dolmak üzereyken BFF yeniler; aynı refresh token için TEK
   istek: Keycloak refresh token'ı her kullanımda değiştiriyor ve eskisini kabul etmiyor,
   eşzamanlı iki yenileme oturumu kapatırdı.
-- Varsayılan politika kimlik ister. Kimliksiz açık kalan uç (sağlık, API dokümanı) bunu
-  `AllowAnonymous` ile kendisi söyler.
+- Varsayılan politika kimlik ister ve ÇALIŞANI DIŞARIDA BIRAKIR: yeni bir uç
+  kendiliğinden çalışana kapalı açılır. Kimliksiz açık kalan uç (sağlık, API dokümanı)
+  `AllowAnonymous` ile, çalışanın geçebildiği uç kendi politikasıyla bunu söyler.
+- Çalışanların Keycloak'ı AYRI KURULUM (`hiwallet-staff-keycloak`, realm'i
+  `hiwallet-staff`): kendi veritabanı sunucusu, kendi yöneticisi. Müşterilerinki
+  (`hiwallet-keycloak`: bireysel ve işyeri) ile aynı process'te ya da veritabanında
+  DURMAZ; bir kurulumun yöneticisi ötekinin kimliklerine dokunamaz. Çalışanın girişi ve
+  paneli yalnızca iç ağdan. Kayıt sayfası kapalı, girişte OTP zorunlu. İç servisler iki
+  Keycloak'ın token'ını da kabul eder; hangisinden geldiğini token'ın içeriği değil onu
+  doğrulayan şema söyler. Müşterinin ön API'leri çalışan token'ını kabul ETMEZ.
+- Çalışanın rolleri iş grubuna göre: `support`, `operations`, `finance`, `marketing`.
+  Her rol müşteri kaydını görüntüler; yazma işi rolün kendi ucunda. Müşterinin para
+  hareketi başlatan uçları çalışana KAPALI: çalışan müşteri yerine işlem başlatmaz,
+  kendi ucundan ve kendi aktörüyle yapar.
 - İşyerinin sistem entegrasyonu Keycloak'ta kendi istemcisi (client credentials);
   istemcinin servis hesabı işyeri hesabının kullanıcısı. İşyeri hesabı ön API'den
   AÇILMAZ: kayıt ve entegrasyonun hesaba bağlanması backoffice'in işi.
@@ -243,6 +257,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Orchestrator wallet'ın `Money`/`Currency` tiplerini KULLANMAZ; `decimal` +
   `string currency`. Komisyon ve limit wallet'ın bilgisi, komutta taşınmaz.
 - `RefundWithdrawal` tutar taşımaz: ters kayıt orijinalin aynası ve onu wallet yazdı.
+- Tutarı inceleme eşiğinin ÜSTÜNDEKİ çekim düşüldükten sonra bankaya GİTMEZ
+  (`under_review`): operasyon rolünden bir çalışan serbest bırakır ya da iptal eder.
+  Kararı veren saga'ya yazılır; iptalde ters kaydın aktörü o çalışan. İptal banka
+  reddinden AYRI bir durumda biter (`cancelled`, `failed` değil). Eşik bölümü
+  (`Withdrawals:Review`) eksikse orchestrator AÇILMAZ.
+- İncelemedeki saga takılmış SAYILMAZ: sistemi değil bir insanı bekliyor.
 - Ledger'a yazdıran komutlar AKTÖR taşır (`DebitForWithdrawal`, `RefundWithdrawal`).
   Taşımazsa çalışanın başlattığı bir telafi ledger'a `system` olarak düşer ve kimin
   karar verdiği kalıcı kayıtta kaybolur. Aktör sözleşmede düz string: `Actor` tipi

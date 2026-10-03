@@ -52,11 +52,12 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
 
     /// <summary>Hesap ve altındaki cüzdanlar, bakiyeleriyle.</summary>
     [HttpGet("{accountId:guid}")]
+    [Authorize(Policy = HiWalletPolicies.CustomerOrStaff)]
     [ProducesResponseType<AccountDetailResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AccountDetailResponse>> GetById(Guid accountId, CancellationToken ct)
     {
-        await access.EnsureAccountAsync(User.Subject(), accountId, ct);
+        await access.EnsureViewableAccountAsync(User, accountId, ct);
 
         var view = await bus.InvokeAsync<AccountView>(new GetAccountQuery(accountId), ct);
 
@@ -87,6 +88,23 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
             controllerName: "Wallets",
             routeValues: new { walletId = response.WalletId },
             value: response);
+    }
+
+    /// <summary>
+    /// İşyerinin platform fonlu promo kabulü (decisions.md madde 37). Pazarlama rolü.
+    /// Bundan sonraki ödemeleri etkiliyor; verilmiş partiler olduğu gibi kalıyor.
+    /// </summary>
+    [HttpPut("{accountId:guid}/accepts-promo")]
+    [Authorize(Policy = HiWalletPolicies.Marketing)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetAcceptsPromo(
+        Guid accountId, [FromBody] SetAcceptsPromoRequest request, CancellationToken ct)
+    {
+        await bus.InvokeAsync(new SetAcceptsPromoCommand(accountId, request.AcceptsPromo), ct);
+
+        return NoContent();
     }
 
     /// <summary>

@@ -50,7 +50,8 @@ flowchart LR
         mail["<b>mailpit</b><br/>e-posta sağlayıcısı"]
     end
 
-    idp["<b>hiwallet-keycloak</b><br/>kimlik sağlayıcı"]
+    idp["<b>hiwallet-keycloak</b><br/>müşterilerin kimlik sağlayıcısı"]
+    sidp["<b>hiwallet-staff-keycloak</b><br/>çalışanların kimlik sağlayıcısı<br/>iç ağ"]
 
     mq[["RabbitMQ"]]
 
@@ -65,6 +66,7 @@ flowchart LR
     bclient -->|HTTPS| bapi
     bwclient -->|"HTTPS, cookie"| bwapi
     staff -->|"HTTPS, cookie"| boapi
+    boapi -->|"giriş"| sidp
     papi --> api
     papi --> orch
     pwapi --> api
@@ -143,7 +145,7 @@ birinin IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok. Aralarınd
 | bireysel web uygulaması (tarayıcı) | `personal-web-bff` | public | `wallet-api`, `withdrawal-orchestrator`, `onboarding` |
 | işyerinin sistemi | `business-api` | public | `wallet-api`, `withdrawal-orchestrator` |
 | işyeri paneli (tarayıcı) | `business-web-bff` | public | `wallet-api`, `withdrawal-orchestrator` |
-| backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api` |
+| backoffice paneli (tarayıcı) | `backoffice-bff` | iç ağ | `wallet-api`, `withdrawal-orchestrator` |
 
 Ön API veritabanına ve broker'a bağlanmıyor; isteği iç servise iletiyor. İç servisin
 reddi (400, 404, 409, 422) istemciye aynen dönüyor; iç servise ulaşılamazsa istemci
@@ -162,8 +164,10 @@ panel `business-web-bff`'ye bağlanıyor.
 cüzdan, hareketler, promo partileri, transfer ve çekim. Hesap ön API'den açılmıyor, kayıt
 açıyor. Web uygulamasının sayfalarını da `personal-web-bff`
 sunuyor (`web/personal`). `business-api`'nin uçları: hesap, cüzdan, hareketler, transfer
-(`B2P`, `B2B`), müşteriye promo ve çekim. `business-web-bff` ve `backoffice-bff` sağlık
-uçlarıyla ayakta.
+(`B2P`, `B2B`), müşteriye promo ve çekim. `backoffice-bff`'in uçları: müşteri kaydını
+görüntüleme (her rol), çekim incelemesi (operasyon), işyerinin promo kabulü, personel
+promo'su ve kampanyalar (pazarlama). Panelin sayfalarını da o sunuyor (`web/backoffice`).
+`business-web-bff` sağlık uçlarıyla ayakta.
 
 ### Kimlik
 
@@ -198,6 +202,28 @@ entegrasyonu hesaba backoffice'ten bağlanacak. `wallet-api` her uçta çağıra
 kullanıcısı olduğunu kontrol ediyor; değilse kaynak yokmuş gibi `404`. Orchestrator
 hesabın kullanıcılarını bilmiyor: çekimi isteyen kimliği saga'ya yazıyor, düşme
 komutuyla wallet'a gönderiyor ve wallet ledger'a yazmadan önce üyeliği doğruluyor.
+
+Çalışanların kimlik sağlayıcısı müşterilerinkinden ayrı bir Keycloak kurulumu
+(`hiwallet-staff-keycloak`, realm'i `hiwallet-staff`): kendi veritabanı sunucusu, kendi
+yöneticisi. Müşterilerin Keycloak'ının yöneticisi çalışan açamıyor, çalışanlarınkinin
+yöneticisi müşteriye dokunamıyor. Çalışanın girişi ve paneli yalnızca iç ağdan
+erişiliyor. Kayıt sayfası yok, kullanıcıyı yönetici açıyor ve girişte tek kullanımlık kod
+(TOTP) zorunlu. Giriş ve kodun kurulumu Keycloak'ın sayfasında, müşterininkiyle aynı
+HiWallet temasıyla. Çalışan backoffice panelinden giriyor; `backoffice-bff` oturumdaki
+çalışan token'ını iç servise iletiyor.
+
+```
+tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator
+                     rolü yoksa reddeder                 issuer'a göre doğrular, rolü kontrol eder
+```
+
+İç servisler iki Keycloak'ın token'ını da kabul ediyor; token'ın hangisinden geldiğini
+onu doğrulayan şema söylüyor, token'ın içeriği değil. Varsayılan politika çalışanı
+dışarıda bırakıyor: yeni bir uç kendiliğinden çalışana kapalı. Çalışanın rolleri iş
+grubuna göre (`support`, `operations`, `finance`, `marketing`); her rol müşteri kaydını
+görüntüleyebiliyor, üyelik aranmıyor. Müşterinin para hareketi başlatan uçları
+çalışana kapalı; çalışanın yazma işleri kendi uçlarında, rolüne bağlı ve ledger'a
+çalışanın aktörüyle düşüyor. Müşterinin ön API'leri çalışanların Keycloak'ını tanımıyor.
 
 `wallet-api` ile orchestrator'ın ayrı durmasının sebebi madde 7: orchestrator'ın kendi
 veritabanı ve kendi sınırı var.
@@ -333,6 +359,12 @@ sequenceDiagram
 
 Durumlar: `initiated → debited → bank_transfer_pending → settling → completed`.
 Telafi yolu: `debited → compensating → failed`. `rejected` terminal.
+
+Tutarı inceleme eşiğinin üstündeki çekim (`Withdrawals:Review:Above`, TRY için 10.000)
+düşüldükten sonra bankaya gitmiyor: `debited → under_review`. Operasyon rolünden bir
+çalışan serbest bırakıyor (`under_review → bank_transfer_pending`, banka komutu o anda
+üretiliyor) ya da iptal ediyor (`under_review → cancelling → cancelled`; ters kaydın
+aktörü iptal eden çalışan). İncelemedeki saga takılmış saga taramasına girmiyor.
 
 **`StartBankTransfer`, kuyruktan geçen bir komut mesajı** (`Shared.Contracts`;
 alanları `CommandId`, `SagaId`, `Amount`, `Currency`, `DestinationIban`). Komutu

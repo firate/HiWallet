@@ -12,10 +12,12 @@ public sealed record AccountResponse(Guid AccountId, string Type, string? KycLev
 public sealed record AccountsResponse(IReadOnlyList<AccountResponse> Items, int Size, Guid? NextCursor);
 
 /// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
+/// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
 public sealed record AccountDetailResponse(
     Guid AccountId,
     string Type,
     string? KycLevel,
+    bool AcceptsPromo,
     DateTimeOffset CreatedAt,
     IReadOnlyList<AccountWalletResponse> Wallets);
 

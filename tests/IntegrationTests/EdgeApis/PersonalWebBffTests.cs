@@ -185,10 +185,10 @@ public sealed class PersonalWebBffSessionTests
 
         response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
         var location = response.Headers.Location.ShouldNotBeNull();
-        location.GetLeftPart(UriPartial.Path).ShouldBe(PersonalWebBffFactory.AuthorizationEndpoint);
+        location.GetLeftPart(UriPartial.Path).ShouldBe(factory.AuthorizationEndpoint);
 
         var query = HttpUtility.ParseQueryString(location.Query);
-        query["client_id"].ShouldBe(PersonalWebBffFactory.ClientId);
+        query["client_id"].ShouldBe(factory.ClientId);
         query["response_type"].ShouldBe("code");
         query["code_challenge_method"].ShouldBe("S256");
         query["redirect_uri"].ShouldBe("http://localhost/signin-oidc");

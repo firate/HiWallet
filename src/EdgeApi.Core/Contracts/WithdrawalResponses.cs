@@ -13,6 +13,8 @@ public sealed record WithdrawalAcceptedResponse(Guid WithdrawalId, string State,
 /// </param>
 public sealed record WithdrawalResponse(
     Guid WithdrawalId,
+    Guid AccountId,
+    Guid WalletId,
     string State,
     decimal Amount,
     string Currency,
@@ -21,3 +23,9 @@ public sealed record WithdrawalResponse(
     string? FailureReason,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
+
+/// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
+public sealed record WithdrawalsResponse(IReadOnlyList<WithdrawalResponse> Items, int Size, Guid? NextCursor);
+
+/// <param name="Reason">İptalin sebebi. Müşteriye çekimin durumunda gösteriliyor.</param>
+public sealed record CancelWithdrawalRequest(string Reason);

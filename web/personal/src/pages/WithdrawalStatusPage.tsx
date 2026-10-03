@@ -6,14 +6,24 @@ import { date, isFinalWithdrawalState, money, withdrawalState } from '../format'
 
 const pollInterval = 2000
 
+// İncelemedeki çekim bir çalışanın kararını bekliyor; saatler sürebilir.
+const reviewPollInterval = 30_000
+
 /** Çekimin durumu. Sonuç kesinleşene kadar birkaç saniyede bir soruluyor. */
 export function WithdrawalStatusPage() {
   const { withdrawalId = '' } = useParams()
   const withdrawal = useQuery({
     queryKey: ['withdrawals', withdrawalId],
     queryFn: () => api.withdrawal(withdrawalId),
-    refetchInterval: (query) =>
-      query.state.data && isFinalWithdrawalState(query.state.data.state) ? false : pollInterval,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state
+
+      if (state && isFinalWithdrawalState(state)) {
+        return false
+      }
+
+      return state === 'under_review' ? reviewPollInterval : pollInterval
+    },
   })
 
   if (withdrawal.isPending) {

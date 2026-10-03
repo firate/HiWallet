@@ -85,8 +85,17 @@ public sealed class WithdrawalSaga
     /// <summary>Settlement kaydının ledger işlemi. Muhasebe kapanana kadar NULL.</summary>
     public Guid? SettlementTransactionId { get; private set; }
 
-    /// <summary>Reddetme ya da banka hatasının sebebi. Müşteriye gösterilebilir.</summary>
+    /// <summary>Reddetme, banka hatası ya da iptalin sebebi. Müşteriye gösterilebilir.</summary>
     public string? FailureReason { get; private set; }
+
+    /// <summary>
+    /// İncelemede karar veren çalışanın <c>sub</c>'ı (serbest bıraktı ya da iptal etti).
+    /// Serbest bırakma ledger'a yazmıyor; kararı veren kalıcı olarak burada duruyor
+    /// (decisions.md madde 34). İptalde ters kaydın aktörü de o.
+    /// </summary>
+    public string? ReviewedBy { get; private set; }
+
+    public DateTimeOffset? ReviewedAt { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -170,10 +179,14 @@ public sealed class WithdrawalSaga
     {
         // Saga bu adımı geçmiş: tekrar gelen event geri sarmamalı.
         if (State is WithdrawalState.Debited
+            or WithdrawalState.UnderReview
             or WithdrawalState.BankTransferPending
+            or WithdrawalState.Settling
             or WithdrawalState.Completed
             or WithdrawalState.Compensating
-            or WithdrawalState.Failed)
+            or WithdrawalState.Failed
+            or WithdrawalState.Cancelling
+            or WithdrawalState.Cancelled)
         {
             return TransitionResult.Ignored;
         }
@@ -186,6 +199,58 @@ public sealed class WithdrawalSaga
 
         return Advance(WithdrawalState.Debited, now);
     }
+
+    /// <summary>
+    /// Tutar inceleme eşiğinin üstünde: düşülen çekim bankaya gitmeden bekliyor. Eşiği
+    /// çağıran biliyor; saga ayar okumuyor.
+    /// </summary>
+    public TransitionResult HoldForReview(DateTimeOffset now)
+    {
+        if (State is not WithdrawalState.Debited)
+        {
+            return State is WithdrawalState.Initiated or WithdrawalState.Rejected
+                ? TransitionResult.Conflict
+                : TransitionResult.Ignored;
+        }
+
+        return Advance(WithdrawalState.UnderReview, now);
+    }
+
+    /// <summary>
+    /// Çalışan incelemede serbest bıraktı: banka komutu gidiyor. Komutun kimliği
+    /// saga'ya aynı geçişte yazılıyor (<see cref="BankTransferStarted"/> ile aynı gerekçe).
+    /// </summary>
+    public TransitionResult Release(string reviewer, Guid bankCommandId, DateTimeOffset now)
+    {
+        // Karar bir kez veriliyor: iptal edilmiş çekim serbest bırakılamaz, serbest
+        // bırakılmış çekimde ikinci karar bir çelişki.
+        if (State is not WithdrawalState.UnderReview) return TransitionResult.Conflict;
+
+        ReviewedBy = reviewer;
+        ReviewedAt = now;
+        BankCommandId = bankCommandId;
+
+        return Advance(WithdrawalState.BankTransferPending, now);
+    }
+
+    /// <summary>
+    /// Çalışan incelemede iptal etti: para cüzdana geri veriliyor. Ters kaydın aktörü
+    /// iptal eden çalışan; müşteri iadeyi istemedi, banka da reddetmedi.
+    /// </summary>
+    public TransitionResult Cancel(string reviewer, string reason, DateTimeOffset now)
+    {
+        if (State is not WithdrawalState.UnderReview) return TransitionResult.Conflict;
+
+        ReviewedBy = reviewer;
+        ReviewedAt = now;
+        FailureReason = reason;
+
+        return Advance(WithdrawalState.Cancelling, now);
+    }
+
+    /// <summary>İptali yapan çalışan; ters kayıt komutunun aktörü.</summary>
+    public CommandActor ReviewerActor() =>
+        new() { Type = ActorTypes.Employee, Id = ReviewedBy ?? throw new InvalidOperationException("Çekim incelenmedi.") };
 
     public TransitionResult BankTransferStarted(Guid commandId, DateTimeOffset now)
     {
@@ -273,15 +338,26 @@ public sealed class WithdrawalSaga
     public CommandActor InitiatedBy() =>
         new() { Type = InitiatedByType, Id = InitiatedById, Subject = InitiatedBySubject };
 
+    /// <summary>
+    /// Ters kayıt yazıldı. Banka reddinin telafisi <see cref="WithdrawalState.Failed"/>'da,
+    /// çalışanın iptali <see cref="WithdrawalState.Cancelled"/>'da bitiyor.
+    /// </summary>
     public TransitionResult Refunded(Guid ledgerTransactionId, DateTimeOffset now)
     {
-        if (State is WithdrawalState.Failed) return TransitionResult.Ignored;
+        if (State is WithdrawalState.Failed or WithdrawalState.Cancelled) return TransitionResult.Ignored;
 
-        if (State is not WithdrawalState.Compensating) return TransitionResult.Conflict;
+        var next = State switch
+        {
+            WithdrawalState.Compensating => WithdrawalState.Failed,
+            WithdrawalState.Cancelling => WithdrawalState.Cancelled,
+            _ => (WithdrawalState?)null
+        };
+
+        if (next is null) return TransitionResult.Conflict;
 
         RefundTransactionId = ledgerTransactionId;
 
-        return Advance(WithdrawalState.Failed, now);
+        return Advance(next.Value, now);
     }
 
     /// <summary>

@@ -55,6 +55,9 @@ const withdrawalStates: Record<string, string> = {
   completed: 'Gönderildi',
   compensating: 'İade ediliyor',
   failed: 'Gönderilemedi, iade edildi',
+  under_review: 'İncelemede',
+  cancelling: 'İptal ediliyor',
+  cancelled: 'İptal edildi, iade edildi',
 }
 
 export function withdrawalState(value: string): string {
@@ -63,5 +66,5 @@ export function withdrawalState(value: string): string {
 
 /** Sonucu artık değişmeyen durumlar; izleme burada duruyor. */
 export function isFinalWithdrawalState(value: string): boolean {
-  return value === 'rejected' || value === 'completed' || value === 'failed'
+  return value === 'rejected' || value === 'completed' || value === 'failed' || value === 'cancelled'
 }

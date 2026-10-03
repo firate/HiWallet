@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using HiWallet.Shared.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -18,6 +19,9 @@ public static class TestTokens
 {
     public const string Issuer = "https://idp.hiwallet.test/realms/hiwallet";
 
+    /// <summary>Çalışanların realm'i: müşterininkinden ayrı bir kimlik sağlayıcı adresi.</summary>
+    public const string StaffIssuer = "https://idp.hiwallet.test/realms/hiwallet-staff";
+
     /// <summary>İç servislerin (wallet-api, orchestrator) kabul ettiği hedef kitle.</summary>
     public const string InternalAudience = "hiwallet-api";
 
@@ -34,15 +38,26 @@ public static class TestTokens
     public static IReadOnlyDictionary<string, string?> Settings { get; } = new Dictionary<string, string?>
     {
         ["Authentication:Issuer"] = Issuer,
-        ["Authentication:Audience"] = InternalAudience
+        ["Authentication:Audience"] = InternalAudience,
+        // Yalnızca çalışan token'ını kabul eden servis okuyor.
+        ["Authentication:Staff:Issuer"] = StaffIssuer
     };
 
-    /// <summary>Host'un doğrulayıcısı anahtarı kimlik sağlayıcıdan değil buradan alıyor.</summary>
+    /// <summary>
+    /// Host'un doğrulayıcısı anahtarı kimlik sağlayıcıdan değil buradan alıyor. İki realm
+    /// de aynı anahtarla imzalıyor; ayrımı issuer yapıyor.
+    /// </summary>
     public static void Trust(IServiceCollection services)
     {
-        services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+        Trust(services, JwtBearerDefaults.AuthenticationScheme, Issuer);
+        Trust(services, AuthenticationSetup.StaffScheme, StaffIssuer);
+    }
+
+    private static void Trust(IServiceCollection services, string scheme, string issuer)
+    {
+        services.PostConfigure<JwtBearerOptions>(scheme, options =>
         {
-            var configuration = new OpenIdConnectConfiguration { Issuer = Issuer };
+            var configuration = new OpenIdConnectConfiguration { Issuer = issuer };
             configuration.SigningKeys.Add(SigningKey);
 
             options.Configuration = configuration;
@@ -60,7 +75,12 @@ public static class TestTokens
     /// Token'ı alan istemci (<c>azp</c>). Servislerin kendi token'larında istemcinin adı.
     /// </param>
     public static string For(
-        string subject, SecurityKey? signingKey = null, string[]? audiences = null, string? authorizedParty = null)
+        string subject,
+        SecurityKey? signingKey = null,
+        string[]? audiences = null,
+        string issuer = Issuer,
+        string[]? roles = null,
+        string? authorizedParty = null)
     {
         var now = DateTime.UtcNow;
         var claims = new Dictionary<string, object>
@@ -69,6 +89,11 @@ public static class TestTokens
             ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience]
         };
 
+        if (roles is not null)
+        {
+            claims["roles"] = roles;
+        }
+
         if (authorizedParty is not null)
         {
             claims["azp"] = authorizedParty;
@@ -76,7 +101,7 @@ public static class TestTokens
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
-            Issuer = Issuer,
+            Issuer = issuer,
             Claims = claims,
             IssuedAt = now,
             NotBefore = now,
@@ -104,6 +129,16 @@ public static class TestTokens
 
     public static HttpClient AsIntegrationOf(this HttpClient client, Guid accountId) =>
         client.AsIntegration(SubjectOf(accountId));
+
+    /// <summary>Çalışanın token'ı: çalışanların realm'inden, iç servisler için, rolleriyle.</summary>
+    public static string ForStaff(string subject, params string[] roles) =>
+        For(subject, audiences: [InternalAudience], issuer: StaffIssuer, roles: roles);
+
+    public static HttpClient AsStaff(this HttpClient client, string subject, params string[] roles)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ForStaff(subject, roles));
+        return client;
+    }
 
     public const string OnboardingClientId = "onboarding";
 

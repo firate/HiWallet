@@ -624,6 +624,10 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasColumnType("char(3)")
@@ -632,6 +636,10 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("DailyCapPerAccount")
                         .HasColumnType("numeric(19,4)")
                         .HasColumnName("daily_cap_per_account");
+
+                    b.Property<string>("EndedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("ended_by");
 
                     b.Property<DateTimeOffset?>("EndsAt")
                         .HasColumnType("timestamp with time zone")
@@ -704,7 +712,7 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_promo_campaigns_percentage_rule", "rule = 'payment_to_merchant' OR reward_type = 'fixed'");
 
-                            t.HasCheckConstraint("ck_promo_campaigns_period", "ends_at IS NULL OR ends_at > starts_at");
+                            t.HasCheckConstraint("ck_promo_campaigns_period", "ends_at IS NULL OR ends_at >= starts_at");
 
                             t.HasCheckConstraint("ck_promo_campaigns_reward_type", "reward_type IN ('fixed','percentage')");
 

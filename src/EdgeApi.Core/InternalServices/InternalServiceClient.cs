@@ -28,11 +28,12 @@ public abstract class InternalServiceClient(HttpClient http)
     /// İstemciden geldiği gibi taşınıyor. Yoksa başlık eklenmiyor ve reddi iç servis
     /// veriyor: anahtarın zorunlu olduğu kural tek yerde duruyor.
     /// </param>
-    public async Task<T> PostAsync<T>(string path, object body, string? idempotencyKey, CancellationToken ct)
+    /// <param name="body">Gövdesiz komutta (bitir, iptal et) <c>null</c>.</param>
+    public async Task<T> PostAsync<T>(string path, object? body, string? idempotencyKey, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, path)
         {
-            Content = JsonContent.Create(body)
+            Content = body is null ? null : JsonContent.Create(body)
         };
 
         if (idempotencyKey is not null)
@@ -57,6 +58,14 @@ public abstract class InternalServiceClient(HttpClient http)
     /// Sayfalı sorgunun adresi. Verilmeyen parametre iletilmiyor: varsayılan sayfa boyutu
     /// ve tavan iç servisin bilgisi, ön API'de ikinci kopyası tutulmuyor.
     /// </summary>
+    /// <summary>Gövdesiz cevap bekleyen güncelleme (<c>204</c>).</summary>
+    public async Task PutAsync(string path, object body, CancellationToken ct)
+    {
+        using var response = await http.PutAsJsonAsync(path, body, ct);
+
+        await EnsureSuccessAsync(response, ct);
+    }
+
     public static string Paged(string path, string? after, int? size)
     {
         var query = new QueryBuilder();
@@ -76,6 +85,14 @@ public abstract class InternalServiceClient(HttpClient http)
 
     private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken ct)
     {
+        await EnsureSuccessAsync(response, ct);
+
+        return await response.Content.ReadFromJsonAsync<T>(ct)
+               ?? throw new InvalidOperationException("İç servis boş gövde döndü.");
+    }
+
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    {
         if (!response.IsSuccessStatusCode)
         {
             throw new InternalServiceException(
@@ -83,9 +100,6 @@ public abstract class InternalServiceClient(HttpClient http)
                 response.Content.Headers.ContentType?.ToString(),
                 await response.Content.ReadAsByteArrayAsync(ct));
         }
-
-        return await response.Content.ReadFromJsonAsync<T>(ct)
-               ?? throw new InvalidOperationException("İç servis boş gövde döndü.");
     }
 }
 

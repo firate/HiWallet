@@ -33,7 +33,22 @@ public enum WithdrawalState
     Compensating = 6,
 
     /// <summary>Telafi tamamlandı, müşterinin parası geri verildi — terminal.</summary>
-    Failed = 7
+    Failed = 7,
+
+    /// <summary>
+    /// Tutar inceleme eşiğinin üstünde: cüzdandan düşüldü, bankaya gitmeden bir çalışanın
+    /// kararını bekliyor. Sistemi değil insanı beklediği için takılmış sayılmıyor.
+    /// </summary>
+    UnderReview = 9,
+
+    /// <summary>Çalışan incelemede iptal etti; ters kayıt yazılıyor.</summary>
+    Cancelling = 10,
+
+    /// <summary>
+    /// İptal tamamlandı, para cüzdana geri verildi — terminal. Banka reddiyle biten
+    /// <see cref="Failed"/>'dan AYRI: sebep aynı değil (decisions.md madde 34).
+    /// </summary>
+    Cancelled = 11
 }
 
 public static class WithdrawalStates
@@ -46,11 +61,22 @@ public static class WithdrawalStates
     /// raporlamaya başlardı.
     /// </summary>
     public static bool IsTerminal(this WithdrawalState state) =>
-        state is WithdrawalState.Rejected or WithdrawalState.Completed or WithdrawalState.Failed;
+        state is WithdrawalState.Rejected
+            or WithdrawalState.Completed
+            or WithdrawalState.Failed
+            or WithdrawalState.Cancelled;
 
     /// <summary>Devam eden durumlar. Kısmi index filtresi bundan üretiliyor.</summary>
     public static IEnumerable<WithdrawalState> Active =>
         Enum.GetValues<WithdrawalState>().Where(state => !state.IsTerminal());
+
+    /// <summary>
+    /// Sistemin ilerletmesi gereken durumlar; takılmış saga taraması bunlara bakıyor.
+    /// İncelemedeki çekim bir çalışanın kararını bekliyor: saatlerce beklemesi bir
+    /// ayrışma değil.
+    /// </summary>
+    public static IEnumerable<WithdrawalState> AwaitingSystem =>
+        Active.Where(state => state is not WithdrawalState.UnderReview);
 
     /// <summary>
     /// Durumun dış dünyadaki adı. TEK yerde duruyor çünkü üç tüketicisi var:
@@ -73,6 +99,9 @@ public static class WithdrawalStates
             WithdrawalState.Settling => "settling",
             WithdrawalState.Compensating => "compensating",
             WithdrawalState.Failed => "failed",
+            WithdrawalState.UnderReview => "under_review",
+            WithdrawalState.Cancelling => "cancelling",
+            WithdrawalState.Cancelled => "cancelled",
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Eşlemesi yazılmamış saga durumu.")
         };
     }
@@ -89,6 +118,9 @@ public static class WithdrawalStates
             "settling" => WithdrawalState.Settling,
             "compensating" => WithdrawalState.Compensating,
             "failed" => WithdrawalState.Failed,
+            "under_review" => WithdrawalState.UnderReview,
+            "cancelling" => WithdrawalState.Cancelling,
+            "cancelled" => WithdrawalState.Cancelled,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen saga durumu.")
         };
     }

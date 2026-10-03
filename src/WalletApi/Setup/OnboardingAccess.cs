@@ -1,3 +1,4 @@
+using HiWallet.Shared.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Authorization;
 
 namespace HiWallet.WalletApi.Setup;
@@ -29,8 +30,13 @@ public static class OnboardingAccess
             throw new InvalidOperationException($"Zorunlu konfigürasyon eksik: {ClientIdKey}.");
         }
 
+        // İstemci müşterinin realm'inde. Çalışanların realm'inde aynı adla açılmış bir
+        // istemci onun yerine geçmiyor: realm'i token'ın içeriği değil onu doğrulayan
+        // şema söylüyor.
         services.AddAuthorizationBuilder()
-            .AddPolicy(Policy, policy => policy.RequireClaim("azp", clientId));
+            .AddPolicy(Policy, policy => policy
+                .RequireClaim("azp", clientId)
+                .RequireAssertion(context => !context.User.IsEmployee()));
 
         return services;
     }

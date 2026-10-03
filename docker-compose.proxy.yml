@@ -1,8 +1,9 @@
 # Ters proxy arkasında yayın: stack başka bir makinede koşuyor ve API'ler ile Keycloak
 # o makinedeki Traefik'in arkasından HTTPS ile açılıyor. Traefik TLS'i sonlandırıyor ve
 # hiwallet-* adlarını hiwallet-gateway'e veriyor; kapı adı servise eşliyor
-# (docker/gateway/Caddyfile). Adres hiwallet-<servis>.<PROXY_DOMAIN>, Keycloak
-# hiwallet-auth.<PROXY_DOMAIN>.
+# (docker/gateway/Caddyfile). Adres hiwallet-<servis>.<PROXY_DOMAIN>, müşterilerin
+# Keycloak'ı hiwallet-auth.<PROXY_DOMAIN>, çalışanlarınki hiwallet-staff-auth.<PROXY_DOMAIN>.
+# Çalışanın girişi ve paneli yalnızca STAFF_ALLOWED_RANGES'ten açılıyor.
 #
 # HTTPS iki yerde şart: Keycloak'ın yönetim konsolu özel ağ dışından gelen düz HTTP'yi
 # reddediyor, Scalar'daki giriş de tarayıcıda PKCE için güvenli sayfa istiyor.
@@ -10,7 +11,9 @@
 # .env'de:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
 #   KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.<PROXY_DOMAIN>
+#   STAFF_KEYCLOAK_PUBLIC_URL=https://hiwallet-staff-auth.<PROXY_DOMAIN>
 #   PROXY_DOMAIN, PROXY_NETWORK, PROXY_ENTRYPOINT, PROXY_CERT_RESOLVER
+#   STAFF_ALLOWED_RANGES   çalışan yüzeylerine izin verilen adres aralıkları, boşlukla
 # COMPOSE_FILE ile her docker compose komutu bu dosyayı da okuyor.
 
 # Kapının arkasındaki .NET servisleri isteğin HTTPS olduğunu X-Forwarded-Proto'dan
@@ -26,6 +29,7 @@ services:
       context: docker/gateway
     environment:
       PROXY_DOMAIN: ${PROXY_DOMAIN:?PROXY_DOMAIN .env'de tanımlı değil}
+      STAFF_ALLOWED_RANGES: ${STAFF_ALLOWED_RANGES:?STAFF_ALLOWED_RANGES .env'de tanımlı değil}
     # Proxy'nin ağına yalnızca kapı bağlanıyor; servisler kendi ağında kalıyor.
     networks:
       - default
@@ -48,6 +52,11 @@ services:
     # Başlıklara güvenen Keycloak'a doğrudan port açık kalırsa başlığı istemci de
     # yazabilir; erişim yalnızca kapıdan. Servisler iç ağdan (hiwallet-keycloak:8080)
     # bağlanıyor, porta ihtiyaçları yok.
+    ports: !reset []
+
+  hiwallet-staff-keycloak:
+    environment:
+      KC_PROXY_HEADERS: xforwarded
     ports: !reset []
 
   wallet-api: *behind-gateway

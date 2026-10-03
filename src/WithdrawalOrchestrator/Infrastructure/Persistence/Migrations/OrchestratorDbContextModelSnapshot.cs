@@ -94,6 +94,14 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("refund_transaction_id");
 
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("reviewed_by");
+
                     b.Property<Guid?>("SettlementTransactionId")
                         .HasColumnType("uuid")
                         .HasColumnName("settlement_transaction_id");
@@ -127,7 +135,7 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UpdatedAt")
                         .HasDatabaseName("ix_withdrawal_sagas_active")
-                        .HasFilter("state IN ('initiated', 'debited', 'bank_transfer_pending', 'compensating', 'settling')");
+                        .HasFilter("state IN ('initiated', 'debited', 'bank_transfer_pending', 'compensating', 'settling', 'under_review', 'cancelling')");
 
                     b.HasIndex("AccountId", "IdempotencyKey")
                         .IsUnique()
