@@ -61,6 +61,7 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
             UnsupportedCurrencyException => "unsupported_currency",
             PromoGrantRejectedException => "promo_grant_rejected",
             AccountRuleException => "account_rule",
+            NoWalletInCurrencyException => "no_wallet_in_currency",
             _ => "business_rule"
         };
 
@@ -130,14 +131,14 @@ internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDet
                 Status = StatusCodes.Status404NotFound,
                 Title = notFound switch
                 {
-                    AccountNotFoundException => "Hesap bulunamadı",
+                    AccountNotFoundException or AccountNumberNotFoundException => "Hesap bulunamadı",
                     PromoCampaignNotFoundException => "Kampanya bulunamadı",
                     _ => "Cüzdan bulunamadı"
                 },
                 Detail = notFound.Message,
                 Type = notFound switch
                 {
-                    AccountNotFoundException => "https://hiwallet.dev/problems/account-not-found",
+                    AccountNotFoundException or AccountNumberNotFoundException => "https://hiwallet.dev/problems/account-not-found",
                     PromoCampaignNotFoundException => "https://hiwallet.dev/problems/campaign-not-found",
                     _ => "https://hiwallet.dev/problems/wallet-not-found"
                 }

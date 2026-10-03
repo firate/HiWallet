@@ -38,6 +38,12 @@ public sealed class GetAccountHandler(IDbContextFactory<WalletDbContext> context
                 })
             .ToListAsync(ct);
 
+        var defaults = await db.DefaultWallets
+            .AsNoTracking()
+            .Where(d => d.AccountId == query.AccountId)
+            .Select(d => d.WalletId)
+            .ToListAsync(ct);
+
         var wallets = rows
             .GroupBy(row => new { row.Id, row.Name, row.Currency })
             .OrderBy(group => group.Key.Name)
@@ -51,10 +57,11 @@ public sealed class GetAccountHandler(IDbContextFactory<WalletDbContext> context
                     .Select(fundType => new WalletBalanceView(
                         fundType.ToText(),
                         group.Where(row => row.FundType == fundType).Sum(row => row.Balance)))
-                    .ToArray()))
+                    .ToArray(),
+                defaults.Contains(group.Key.Id)))
             .ToArray();
 
         return new AccountView(
-            account.Id, account.Type, account.KycLevel, account.AcceptsPromo, account.CreatedAt, wallets);
+            account.Id, account.Number, account.Type, account.KycLevel, account.AcceptsPromo, account.CreatedAt, wallets);
     }
 }

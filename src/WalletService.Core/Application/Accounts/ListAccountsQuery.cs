@@ -14,7 +14,8 @@ namespace HiWallet.WalletService.Application.Accounts;
 public sealed record ListAccountsQuery(string Subject, Guid? After, int Size);
 
 /// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
-public sealed record AccountSummary(Guid AccountId, AccountType Type, KycLevel? KycLevel, DateTimeOffset CreatedAt);
+public sealed record AccountSummary(
+    Guid AccountId, AccountNumber Number, AccountType Type, KycLevel? KycLevel, DateTimeOffset CreatedAt);
 
 /// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
 public sealed record AccountPage(IReadOnlyList<AccountSummary> Items, int Size, Guid? NextCursor)

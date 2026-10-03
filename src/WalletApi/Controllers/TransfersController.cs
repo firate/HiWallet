@@ -3,6 +3,7 @@ using HiWallet.WalletApi.Requests;
 using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletApi.Responses;
+using HiWallet.WalletService.Domain.Accounts;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 
@@ -14,6 +15,8 @@ public sealed class TransfersController(IMessageBus bus, AccountAccess access) :
 {
     /// <summary>
     /// Cüzdanlar arası transfer. Tek ACID transaction, saga yok (overview.md madde 4).
+    /// Alıcı cüzdanla ya da hesap numarasıyla; numara alıcının bu para birimindeki
+    /// varsayılan cüzdanına çevriliyor, çekirdek yine cüzdandan cüzdana.
     /// </summary>
     /// <param name="idempotencyKey">
     /// ZORUNLU (decisions.md madde 4). Aynı key ile ikinci request yeni transfer YAPMAZ,
@@ -47,9 +50,22 @@ public sealed class TransfersController(IMessageBus bus, AccountAccess access) :
         // Gönderen cüzdan çağıranın olmalı; alan cüzdan herkesin olabilir.
         await access.EnsureWalletAsync(User.Subject(), request.FromWalletId, ct);
 
+        var toWalletId = request.ToWalletId
+                         ?? await bus.InvokeAsync<Guid>(
+                             new ResolveRecipientWalletQuery(AccountNumber.From(request.ToAccountNumber), request.Currency), ct);
+
+        // Kendi numarasına, varsayılanı olan cüzdandan gönderen müşteri.
+        if (toWalletId == request.FromWalletId)
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [nameof(request.ToAccountNumber)] = ["Gönderen ve alan cüzdan aynı olamaz."]
+            }));
+        }
+
         // Wolverine yalnızca in-process mediator olarak (decisions.md madde 1).
         var result = await bus.InvokeAsync<TransferResult>(
-            request.ToCommand(idempotencyKey), ct);
+            request.ToCommand(idempotencyKey, toWalletId), ct);
 
         var response = TransferResponse.From(result);
 

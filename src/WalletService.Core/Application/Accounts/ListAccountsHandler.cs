@@ -39,7 +39,7 @@ public sealed class ListAccountsHandler(IDbContextFactory<WalletDbContext> conte
             .OrderByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id)
             .Take(size + 1)
-            .Select(a => new AccountSummary(a.Id, a.Type, a.KycLevel, a.CreatedAt))
+            .Select(a => new AccountSummary(a.Id, a.Number, a.Type, a.KycLevel, a.CreatedAt))
             .ToListAsync(ct);
 
         var hasMore = page.Count > size;
