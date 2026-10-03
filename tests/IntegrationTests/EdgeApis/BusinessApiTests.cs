@@ -242,8 +242,7 @@ public sealed class EdgeAudienceTests
             TestTokens.For(
                 "test-calisan",
                 audiences: [TestTokens.PersonalMobileAudience, TestTokens.InternalAudience],
-                issuer: TestTokens.StaffIssuer,
-                roles: ["support"]));
+                issuer: TestTokens.StaffIssuer));
 
         var response = await client.GetAsync("/v1/accounts", ct);
 

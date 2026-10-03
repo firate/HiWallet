@@ -2,13 +2,10 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
-import { fakeBff } from '../test/fakeBff'
+import { fakeBff, staffSession } from '../test/fakeBff'
 import { renderAt } from '../test/render'
-import type { AccountDetail, StaffRole } from '../types'
+import type { AccountDetail } from '../types'
 
-function staff(...roles: StaffRole[]) {
-  return { status: 200, body: { subject: 's1', name: 'Çalışan', email: null, roles } }
-}
 
 function account(overrides: Partial<AccountDetail>): AccountDetail {
   return {
@@ -24,7 +21,7 @@ function account(overrides: Partial<AccountDetail>): AccountDetail {
 
 describe('AccountPage', () => {
   it('bireysel hesabı seviyesi ve cüzdanlarıyla gösteriyor', async () => {
-    fakeBff({ 'GET /bff/user': staff('support'), 'GET /v1/accounts/a1': { status: 200, body: account({}) } })
+    fakeBff({ ...staffSession(['customer.view']), 'GET /v1/accounts/a1': { status: 200, body: account({}) } })
 
     renderAt('/hesaplar/a1', <App />)
 
@@ -33,9 +30,9 @@ describe('AccountPage', () => {
     expect(screen.queryByRole('button', { name: /promo/i })).toBeNull()
   })
 
-  it('pazarlama işyerinin promo kabulünü açıyor', async () => {
+  it('izinli çalışan işyerinin promo kabulünü açıyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': staff('marketing'),
+      ...staffSession(['customer.view', 'promo.grant', 'campaign.view', 'campaign.manage', 'merchant.promo_acceptance']),
       'GET /v1/accounts/a1': [
         { status: 200, body: account({ type: 'Business', kycLevel: null }) },
         { status: 200, body: account({ type: 'Business', kycLevel: null, acceptsPromo: true }) },

@@ -40,7 +40,7 @@ public sealed class PromoManagementTests(PostgresFixture postgres) : IAsyncLifet
     private HttpClient AsMarketing(out string staff)
     {
         staff = NewStaff();
-        return _client.AsStaff(staff, StaffRoles.Marketing);
+        return _client.AsStaff(staff, TestStaff.Marketing);
     }
 
     private async Task<(Guid Account, Guid Wallet)> CustomerAsync(CancellationToken ct)
@@ -98,15 +98,15 @@ public sealed class PromoManagementTests(PostgresFixture postgres) : IAsyncLifet
     }
 
     [Theory]
-    [InlineData(StaffRoles.Support)]
-    [InlineData(StaffRoles.Operations)]
-    [InlineData(StaffRoles.Finance)]
-    public async Task PromoKabulu_BaskaRol_403(string role)
+    [InlineData(StaffPermissions.CustomerView)]
+    [InlineData(StaffPermissions.PromoGrant)]
+    [InlineData(StaffPermissions.CampaignManage)]
+    public async Task PromoKabulu_IzinYok_403(string permission)
     {
         var ct = TestContext.Current.CancellationToken;
         var merchant = await MerchantAsync(ct);
 
-        var response = await _client.AsStaff(NewStaff(), role)
+        var response = await _client.AsStaff(NewStaff(), permission)
             .PutAsJsonAsync($"/v1/accounts/{merchant}/accepts-promo", new { acceptsPromo = true }, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -229,12 +229,12 @@ public sealed class PromoManagementTests(PostgresFixture postgres) : IAsyncLifet
     }
 
     [Fact]
-    public async Task PersonelPromo_OperasyonRolu_403()
+    public async Task PersonelPromo_IzinYok_403()
     {
         var ct = TestContext.Current.CancellationToken;
         var (_, wallet) = await CustomerAsync(ct);
 
-        var response = await _client.AsStaff(NewStaff(), StaffRoles.Operations).SendAsync(Post(
+        var response = await _client.AsStaff(NewStaff(), TestStaff.Operations).SendAsync(Post(
             $"/v1/wallets/{wallet}/promos",
             new { amount = 10m, currency = "TRY", scope = "all_businesses" },
             Guid.NewGuid().ToString()), ct);
@@ -276,7 +276,7 @@ public sealed class PromoManagementTests(PostgresFixture postgres) : IAsyncLifet
         detail.GetProperty("createdBy").GetString().ShouldBe(staff);
         detail.GetProperty("endsAt").ValueKind.ShouldBe(JsonValueKind.Null);
 
-        var list = await _client.AsStaff(NewStaff(), StaffRoles.Support)
+        var list = await _client.AsStaff(NewStaff(), TestStaff.Support)
             .GetFromJsonAsync<JsonElement>("/v1/promo-campaigns?size=100", ct);
         list.GetProperty("items").EnumerateArray().ShouldContain(c => c.GetProperty("campaignId").GetGuid() == id);
 
@@ -316,11 +316,11 @@ public sealed class PromoManagementTests(PostgresFixture postgres) : IAsyncLifet
     }
 
     [Fact]
-    public async Task Kampanya_DestekAcamaz_MusteriGoremez()
+    public async Task Kampanya_YonetimIzniYok_Acamaz_MusteriGoremez()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        (await _client.AsStaff(NewStaff(), StaffRoles.Support).PostAsJsonAsync("/v1/promo-campaigns", DailyCampaign("x"), ct))
+        (await _client.AsStaff(NewStaff(), TestStaff.Support).PostAsJsonAsync("/v1/promo-campaigns", DailyCampaign("x"), ct))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         (await _client.As($"test-{Guid.NewGuid():N}").GetAsync("/v1/promo-campaigns", ct))

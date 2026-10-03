@@ -1,12 +1,10 @@
 using HiWallet.EdgeApi.InternalServices;
 using HiWallet.EdgeApi.RateLimiting;
 using HiWallet.EdgeApi.Sessions;
-using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.Shared.Infrastructure.Errors;
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
-using Microsoft.AspNetCore.Authorization;
 
 // Ön API, iç ağ: backoffice panelinin BFF'i. Tek istemcisi tarayıcıdaki backoffice
 // paneli; giriş çalışanların realm'inden. Tarayıcı yalnızca oturum cookie'si taşıyor,
@@ -28,15 +26,13 @@ builder.AddHiWalletObservability(ServiceName);
 builder.Services.AddHealthChecks();
 builder.Services.AddHiWalletProblemDetails();
 
+// Varsayılan politika oturum istiyor; izin istemiyor. Çalışanın izinleri token'da değil,
+// personel yönetiminde: her isteğin iznini iç servis o anki haliyle kontrol ediyor.
 builder.Services.AddBffSession(applicationName: ServiceName);
-
-// Realm'de kullanıcı olmak yetki değil: rolü olmayan çalışan panelde hiçbir şey
-// görmüyor. Rolün hangi işe yettiğini iç servis de kendisi kontrol ediyor.
-builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireRole(StaffRoles.All).Build());
 
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
+builder.Services.AddStaffAdminClient();
 
 // Çalışan başına kova. Panel müşteri uygulamasından daha sık istek atıyor (arama,
 // liste); çekim kovası burada kullanılmıyor.

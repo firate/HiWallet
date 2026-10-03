@@ -2,13 +2,9 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
-import { fakeBff } from '../test/fakeBff'
+import { fakeBff, staffSession } from '../test/fakeBff'
 import { renderAt } from '../test/render'
-import type { StaffRole } from '../types'
 
-function staff(...roles: StaffRole[]) {
-  return { status: 200, body: { subject: 's1', name: 'Çalışan', email: null, roles } }
-}
 
 const wallet = {
   status: 200,
@@ -26,9 +22,9 @@ const wallet = {
 const empty = { status: 200, body: { items: [], size: 20, nextCursor: null } }
 
 describe('WalletPage', () => {
-  it('pazarlama personel promo’sunu tekrar edilebilir anahtarla veriyor', async () => {
+  it('personel promo’su tekrar edilebilir anahtarla veriliyor', async () => {
     const calls = fakeBff({
-      'GET /bff/user': staff('marketing'),
+      ...staffSession(['customer.view', 'promo.grant', 'campaign.view', 'campaign.manage', 'merchant.promo_acceptance']),
       'GET /v1/wallets/w1': wallet,
       'GET /v1/wallets/w1/movements': empty,
       'GET /v1/wallets/w1/promos': empty,
@@ -51,9 +47,9 @@ describe('WalletPage', () => {
     })
   })
 
-  it('pazarlama rolü olmayan çalışan promo veremiyor, cüzdanı görüyor', async () => {
+  it('promo izni olmayan çalışan promo veremiyor, cüzdanı görüyor', async () => {
     fakeBff({
-      'GET /bff/user': staff('support'),
+      ...staffSession(['customer.view']),
       'GET /v1/wallets/w1': wallet,
       'GET /v1/wallets/w1/movements': empty,
       'GET /v1/wallets/w1/promos': empty,

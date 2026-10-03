@@ -1,13 +1,23 @@
 import type {
   AccountDetail,
+  AuditEventsPage,
   Campaign,
   CampaignRequest,
   CampaignsPage,
+  InviteRequest,
   MovementsPage,
+  Permission,
   ProblemDetails,
   PromoGrant,
   PromosPage,
+  Role,
+  RoleDetail,
+  RoleRequest,
+  RolesPage,
   SessionUser,
+  StaffAccess,
+  StaffDetail,
+  StaffPage,
   StaffPromoRequest,
   Wallet,
   Withdrawal,
@@ -68,8 +78,9 @@ async function send<T>(method: string, path: string, options: SendOptions = {}):
     throw new ApiError(response.status, await readProblem(response))
   }
 
-  // 204: gövde yok (ör. işyerinin promo kabulü).
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
+  // Gövdesiz cevap: 204 (işyerinin promo kabulü, rol silme) ya da gövdesiz 202 (davet).
+  const text = await response.text()
+  return (text.length === 0 ? undefined : JSON.parse(text)) as T
 }
 
 async function readProblem(response: Response): Promise<ProblemDetails | null> {
@@ -90,6 +101,7 @@ function page(path: string, after: string | number | null | undefined): string {
 
 export const api = {
   user: () => send<SessionUser>('GET', '/bff/user'),
+  access: () => send<StaffAccess>('GET', '/v1/me'),
 
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
   setAcceptsPromo: (accountId: string, acceptsPromo: boolean) =>
@@ -109,6 +121,30 @@ export const api = {
   releaseWithdrawal: (withdrawalId: string) => send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/release`),
   cancelWithdrawal: (withdrawalId: string, reason: string) =>
     send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/cancel`, { body: { reason } }),
+
+  permissions: () => send<Permission[]>('GET', '/v1/permissions'),
+  roles: (first?: number | null) => send<RolesPage>('GET', first ? `/v1/roles?first=${first}&size=100` : '/v1/roles?size=100'),
+  role: (roleId: string) => send<RoleDetail>('GET', `/v1/roles/${roleId}`),
+  createRole: (name: string, request: RoleRequest) =>
+    send<Role>('POST', '/v1/roles', { body: { name, ...request } }),
+  updateRole: (roleId: string, request: RoleRequest) => send<Role>('PUT', `/v1/roles/${roleId}`, { body: request }),
+  deleteRole: (roleId: string) => send<void>('DELETE', `/v1/roles/${roleId}`),
+
+  staffList: (first: number | null, search: string) => {
+    const query = new URLSearchParams()
+    if (first) query.set('first', String(first))
+    if (search) query.set('search', search)
+    const text = query.toString()
+    return send<StaffPage>('GET', text ? `/v1/staff?${text}` : '/v1/staff')
+  },
+  staff: (staffId: string) => send<StaffDetail>('GET', `/v1/staff/${staffId}`),
+  inviteStaff: (request: InviteRequest) => send<StaffDetail>('POST', '/v1/staff', { body: request }),
+  setStaffRoles: (staffId: string, roleIds: string[]) =>
+    send<StaffDetail>('PUT', `/v1/staff/${staffId}/roles`, { body: { roleIds } }),
+  disableStaff: (staffId: string) => send<StaffDetail>('POST', `/v1/staff/${staffId}/disable`),
+  enableStaff: (staffId: string) => send<StaffDetail>('POST', `/v1/staff/${staffId}/enable`),
+  resendInvitation: (staffId: string) => send<void>('POST', `/v1/staff/${staffId}/invitation`),
+  auditEvents: (after?: string | null) => send<AuditEventsPage>('GET', page('/v1/audit-events', after)),
 
   campaigns: (after?: string | null) => send<CampaignsPage>('GET', page('/v1/promo-campaigns', after)),
   campaign: (campaignId: string) => send<Campaign>('GET', `/v1/promo-campaigns/${campaignId}`),

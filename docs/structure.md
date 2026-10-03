@@ -81,6 +81,8 @@ src/
 ├── BankIntegration.Core/
 ├── BankAdapter/
 ├── BankWebhook/
+├── Onboarding/             -- host; kayıt ve kimlik doğrulaması
+├── StaffAdmin/             -- host; personel yönetimi
 └── Shared/
     ├── Shared.Contracts/
     └── Shared.Infrastructure/
@@ -243,8 +245,9 @@ web/
 │       └── test/              -- sahte BFF ve render yardımcısı
 └── backoffice/                -- çalışanın paneli; BFF'i backoffice-bff, aynı düzen
     └── src/
-        ├── session.tsx        -- oturum yoksa giriş, rolü yoksa (403) yalnızca çıkış
-        └── pages/             -- hesap, cüzdan, çekim incelemesi, kampanyalar
+        ├── session.tsx        -- oturum yoksa giriş, izni yoksa (403) yalnızca çıkış
+        └── pages/             -- hesap, cüzdan, çekim incelemesi, kampanyalar;
+                                  staff/ altında çalışanlar, roller, kayıtlar
 ```
 
 React, TypeScript ve Vite; router React Router, veri TanStack Query, test Vitest ve
@@ -360,6 +363,19 @@ Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulamas
 ├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla)
 └── Setup/
 
+StaffAdmin/                    -- BİZİM; iç ağ, personel yönetimi
+├── Domain/                    -- StaffMember, StaffRole, StaffRoleAssignment,
+│                                 StaffAuditEvent (değişmeyen kayıt), StaffRoleRules
+├── Application/               -- RoleService, StaffService, StaffAccess (çalışanın o anki
+│                                 izinleri), StaffAudit, açılış kurulumu (StaffAdminBootstrap);
+│                                 kimlik sağlayıcının arayüzü (Abstractions/IStaffDirectory)
+├── Infrastructure/
+│   ├── Persistence/           -- StaffAdminDbContext, migration'lar; kendi Postgres sunucusu
+│   └── Keycloak/              -- çalışanların Keycloak'ının yönetim API'si: kullanıcı, davet
+├── Api/                       -- Me (her çalışan, kendi izni); Permissions, Roles, Staff,
+│                                 AuditEvents (staff.manage)
+└── Setup/
+
 fakes/Sms.Fake/                -- SMS SAĞLAYICISI; canlıda YOK, mesajlar bellekte
 fakes/Nvi.Fake/                -- NÜFUS KAYDI; canlıda YOK, senaryolar bellekte
 ```
@@ -433,7 +449,8 @@ Shared/
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
     ├── RateLimiting/          -- 429 gövdesi + Retry-After, token bucket ayarı
-    ├── Authentication/        -- token doğrulama; varsayılan politika kimlik istiyor
+    ├── Authentication/        -- token doğrulama; varsayılan politika kimlik istiyor;
+    │                             çalışanın izni her istekte personel yönetiminden
     └── HealthChecks/          -- /health/live ve /health/ready endpoint'leri
 ```
 

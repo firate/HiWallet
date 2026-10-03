@@ -89,7 +89,7 @@ public sealed class WalletsController(IMessageBus bus, AccountAccess access) : C
 
     /// <summary>
     /// Personel promo'su: çalışanın müşteriye platform fonlu promo vermesi (decisions.md
-    /// madde 37). Pazarlama rolü; tutar para birimi başına tek seferlik tavanla sınırlı.
+    /// madde 37). <c>promo.grant</c> izni; tutar para birimi başına tek seferlik tavanla sınırlı.
     /// Ledger'da aktör çalışan.
     /// </summary>
     /// <param name="idempotencyKey">
@@ -97,7 +97,7 @@ public sealed class WalletsController(IMessageBus bus, AccountAccess access) : C
     /// ikinci istek yeni parti açmaz, mevcut partiyi <c>replayed: true</c> ile döner.
     /// </param>
     [HttpPost("{walletId:guid}/promos")]
-    [Authorize(Policy = HiWalletPolicies.Marketing)]
+    [Authorize(Policy = HiWalletPolicies.PromoGrant)]
     [ProducesResponseType<PromoGrantResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

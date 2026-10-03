@@ -1,16 +1,32 @@
 // BFF'in cevapları. Şekil EdgeApi.Core/Contracts'taki tiplerle aynı; alan adları
 // camelCase, tutarlar sayı.
 
+/** Oturumdaki kimlik. Yetki burada yok; o personel yönetiminden (StaffAccess). */
 export interface SessionUser {
   subject: string
   name: string | null
   email: string | null
-  /** Token'daki roller; Keycloak'ın kendi varsayılan rolleri de gelebiliyor. */
-  roles: string[]
 }
 
-/** Çalışanın rolleri, iş grubuna göre. Hangi işe yettiklerini iç servis de kontrol ediyor. */
-export type StaffRole = 'support' | 'operations' | 'finance' | 'marketing'
+/**
+ * Çalışanın şu anki rolleri ve izinleri, personel yönetiminden. Token'da değil: rolü
+ * alınan çalışanın bir sonraki isteği reddediliyor ve panel bunu buradan yeniden okuyor.
+ */
+export interface StaffAccess {
+  subject: string
+  roles: string[]
+  permissions: StaffPermission[]
+}
+
+/** Çalışanın izinleri; kod yalnızca bunları tanıyor. Roller panelde bunlardan kuruluyor. */
+export type StaffPermission =
+  | 'customer.view'
+  | 'withdrawal.review'
+  | 'promo.grant'
+  | 'campaign.view'
+  | 'campaign.manage'
+  | 'merchant.promo_acceptance'
+  | 'staff.manage'
 
 export type KycLevel = 'Unknown' | 'Unverified' | 'Verified' | 'Contracted'
 
@@ -166,6 +182,82 @@ export interface Campaign {
 
 export interface CampaignsPage {
   items: Campaign[]
+  size: number
+  nextCursor: string | null
+}
+
+export interface Permission {
+  name: StaffPermission
+  description: string
+}
+
+/** Panelin rolü: izin seti. */
+export interface Role {
+  roleId: string
+  name: string
+  description: string | null
+  permissions: StaffPermission[]
+}
+
+export interface RolesPage {
+  items: Role[]
+  first: number
+  size: number
+  nextFirst: number | null
+}
+
+export interface StaffSummary {
+  staffId: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  enabled: boolean
+  /** Çalışan parolasını ya da OTP'sini henüz kurmadı. */
+  invitationPending: boolean
+  createdAt: string
+}
+
+export interface RoleDetail extends Role {
+  members: StaffSummary[]
+}
+
+export interface StaffPage {
+  items: StaffSummary[]
+  first: number
+  size: number
+  nextFirst: number | null
+}
+
+export interface StaffDetail extends StaffSummary {
+  roles: { roleId: string; name: string }[]
+}
+
+export interface RoleRequest {
+  description: string | null
+  permissions: StaffPermission[]
+}
+
+export interface InviteRequest {
+  email: string
+  firstName: string | null
+  lastName: string | null
+  roleIds: string[]
+}
+
+export interface AuditEvent {
+  eventId: string
+  occurredAt: string
+  actorSubject: string
+  actorName: string | null
+  action: string
+  targetType: 'role' | 'staff'
+  targetId: string
+  targetLabel: string
+  details: Record<string, unknown>
+}
+
+export interface AuditEventsPage {
+  items: AuditEvent[]
   size: number
   nextCursor: string | null
 }

@@ -1,9 +1,10 @@
 import { Link, NavLink, Outlet } from 'react-router'
-import { staffRoleNames } from '../format'
-import { useSessionUser } from '../session'
+import { useHasPermission, useSessionUser, useStaffAccess } from '../session'
 
 export function Layout() {
   const user = useSessionUser()
+  const access = useStaffAccess()
+  const managesStaff = useHasPermission('staff.manage')
 
   return (
     <>
@@ -14,10 +15,11 @@ export function Layout() {
           </Link>
           <NavLink to="/cekimler">Çekimler</NavLink>
           <NavLink to="/kampanyalar">Kampanyalar</NavLink>
+          {managesStaff && <NavLink to="/personel">Personel</NavLink>}
         </div>
         <div className="user">
           <span>{user.name ?? user.email ?? user.subject}</span>
-          <span className="muted small">{staffRoleNames(user.roles).join(', ')}</span>
+          <span className="muted small">{access.roles.join(', ')}</span>
           {/* Çıkış sayfa geçişi: BFF cookie'yi siliyor ve Keycloak'taki oturumu da kapatıyor. */}
           <form method="post" action="/bff/logout">
             <button type="submit" className="link">

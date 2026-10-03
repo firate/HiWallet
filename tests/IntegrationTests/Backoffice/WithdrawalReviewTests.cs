@@ -113,7 +113,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
         var sagaId = await DebitedAsync(15_000m, ct);
         var staff = NewStaff();
 
-        var response = await _client.AsStaff(staff, StaffRoles.Operations)
+        var response = await _client.AsStaff(staff, TestStaff.Operations)
             .PostAsync($"/v1/withdrawals/{sagaId}/release", null, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -136,7 +136,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
         var sagaId = await DebitedAsync(15_000m, ct);
         var staff = NewStaff();
 
-        var response = await _client.AsStaff(staff, StaffRoles.Operations)
+        var response = await _client.AsStaff(staff, TestStaff.Operations)
             .PostAsJsonAsync($"/v1/withdrawals/{sagaId}/cancel", new { reason = "Müşteri talebi" }, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
@@ -170,7 +170,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
         var ct = TestContext.Current.CancellationToken;
         var sagaId = await DebitedAsync(15_000m, ct);
 
-        var response = await _client.AsStaff(NewStaff(), StaffRoles.Operations)
+        var response = await _client.AsStaff(NewStaff(), TestStaff.Operations)
             .PostAsJsonAsync($"/v1/withdrawals/{sagaId}/cancel", new { reason = "" }, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -183,7 +183,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
         var ct = TestContext.Current.CancellationToken;
         var sagaId = await DebitedAsync(250m, ct);
 
-        var response = await _client.AsStaff(NewStaff(), StaffRoles.Operations)
+        var response = await _client.AsStaff(NewStaff(), TestStaff.Operations)
             .PostAsync($"/v1/withdrawals/{sagaId}/release", null, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
@@ -194,7 +194,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var response = await _client.AsStaff(NewStaff(), StaffRoles.Operations)
+        var response = await _client.AsStaff(NewStaff(), TestStaff.Operations)
             .PostAsync($"/v1/withdrawals/{Guid.NewGuid()}/release", null, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -206,7 +206,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
         var ct = TestContext.Current.CancellationToken;
         var sagaId = await DebitedAsync(15_000m, ct);
 
-        (await _client.AsStaff(NewStaff(), StaffRoles.Support).PostAsync($"/v1/withdrawals/{sagaId}/release", null, ct))
+        (await _client.AsStaff(NewStaff(), TestStaff.Support).PostAsync($"/v1/withdrawals/{sagaId}/release", null, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await _client.As($"test-{Guid.NewGuid():N}").PostAsync($"/v1/withdrawals/{sagaId}/release", null, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -221,7 +221,7 @@ public sealed class WithdrawalReviewTests(OrchestratorFixture fixture) : IAsyncL
         var ct = TestContext.Current.CancellationToken;
         var sagaId = await DebitedAsync(15_000m, ct);
 
-        var queue = await _client.AsStaff(NewStaff(), StaffRoles.Support)
+        var queue = await _client.AsStaff(NewStaff(), TestStaff.Support)
             .GetFromJsonAsync<JsonElement>("/v1/withdrawals?state=under_review&size=100", ct);
 
         var item = queue.GetProperty("items").EnumerateArray()

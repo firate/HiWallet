@@ -152,7 +152,8 @@ public sealed class PostgresCollection
         ICollectionFixture<InboxFixture>,
         ICollectionFixture<OrchestratorFixture>,
         ICollectionFixture<BankFixture>,
-        ICollectionFixture<OnboardingFixture>
+        ICollectionFixture<OnboardingFixture>,
+        ICollectionFixture<StaffAdminFixture>
 {
     public const string Name = "postgres";
 }

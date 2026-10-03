@@ -54,10 +54,6 @@ public abstract class InternalServiceClient(HttpClient http)
         return await ReadAsync<T>(response, ct);
     }
 
-    /// <summary>
-    /// Sayfalı sorgunun adresi. Verilmeyen parametre iletilmiyor: varsayılan sayfa boyutu
-    /// ve tavan iç servisin bilgisi, ön API'de ikinci kopyası tutulmuyor.
-    /// </summary>
     /// <summary>Gövdesiz cevap bekleyen güncelleme (<c>204</c>).</summary>
     public async Task PutAsync(string path, object body, CancellationToken ct)
     {
@@ -66,6 +62,26 @@ public abstract class InternalServiceClient(HttpClient http)
         await EnsureSuccessAsync(response, ct);
     }
 
+    /// <summary>Gövdesiz cevap bekleyen silme (<c>204</c>).</summary>
+    public async Task DeleteAsync(string path, CancellationToken ct)
+    {
+        using var response = await http.DeleteAsync(path, ct);
+
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>Gövdesiz cevap bekleyen komut (<c>202</c>, <c>204</c>).</summary>
+    public async Task PostAsync(string path, CancellationToken ct)
+    {
+        using var response = await http.PostAsync(path, content: null, ct);
+
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    /// <summary>
+    /// Sayfalı sorgunun adresi. Verilmeyen parametre iletilmiyor: varsayılan sayfa boyutu
+    /// ve tavan iç servisin bilgisi, ön API'de ikinci kopyası tutulmuyor.
+    /// </summary>
     public static string Paged(string path, string? after, int? size)
     {
         var query = new QueryBuilder();
@@ -111,3 +127,6 @@ public sealed class WithdrawalOrchestratorClient(HttpClient http) : InternalServ
 
 /// <summary>İç ağdaki <c>onboarding</c>: kayıt ve kimlik doğrulaması.</summary>
 public sealed class OnboardingClient(HttpClient http) : InternalServiceClient(http);
+
+/// <summary>İç ağdaki <c>staff-admin</c>: çalışanlar, panelin rolleri ve rollerin izinleri.</summary>
+public sealed class StaffAdminClient(HttpClient http) : InternalServiceClient(http);

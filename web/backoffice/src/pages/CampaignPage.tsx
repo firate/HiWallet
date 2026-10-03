@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { campaignRule, date, money, promoScope } from '../format'
-import { useHasRole } from '../session'
+import { useHasPermission } from '../session'
 import type { Campaign } from '../types'
 import { hasEnded } from './CampaignsPage'
 
@@ -112,9 +112,9 @@ function AccountLinks({ ids }: { ids: string[] }) {
   )
 }
 
-/** Kampanyayı şimdi bitirir; verilmiş partiler olduğu gibi kalıyor. Pazarlama rolü. */
+/** Kampanyayı şimdi bitirir; verilmiş partiler olduğu gibi kalıyor. */
 function EndCampaign({ campaign }: { campaign: Campaign }) {
-  const marketing = useHasRole('marketing')
+  const allowed = useHasPermission('campaign.manage')
   const queryClient = useQueryClient()
   const end = useMutation({
     mutationFn: () => api.endCampaign(campaign.campaignId),
@@ -124,7 +124,7 @@ function EndCampaign({ campaign }: { campaign: Campaign }) {
     },
   })
 
-  if (!marketing) {
+  if (!allowed) {
     return null
   }
 

@@ -23,7 +23,7 @@ olduğu yere taşınmıyor.
   reddederse **compensation** cüzdana parayı geri yazıyor: silmeyle değil, üç
   bacaklı ters kayıtla.
 
-## On iki uygulama: önde ön API'ler, içeride cüzdan
+## On üç uygulama: önde ön API'ler, içeride cüzdan
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
@@ -34,6 +34,7 @@ olduğu yere taşınmıyor.
 | `backoffice-bff` | **iç ağ** — ön API: backoffice panelinin BFF'i | — | — |
 | `wallet-api` | **iç ağ** — ön API'ler çağırıyor | `hiwallet_wallet` / `wallet_app` | — |
 | `onboarding` | **iç ağ** — kayıt ve kimlik doğrulaması | `hiwallet_onboarding` / `onboarding_app`, kendi Postgres sunucusu | — |
+| `staff-admin` | **iç ağ** — personel yönetimi: çalışanlar, roller, izinler | `hiwallet_staff_admin` / `staff_admin_app`, kendi Postgres sunucusu | — |
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
@@ -135,7 +136,9 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Sahiplik: müşteri yalnızca kullanıcısı olduğu hesaba erişiyor | evet — çekimde wallet düşmeden önce doğruluyor |
 | Keycloak'ın compose'dan ayağa kalkması | evet — işyerinin token'ıyla `business-api` üzerinden `wallet-api`'ye kadar |
 | Her ön API yalnızca kendisi için verilmiş token'ı kabul ediyor | evet — `aud` |
-| Çalışan kimliği: ayrı Keycloak kurulumu, iş grubuna göre roller, OTP zorunlu | evet — giriş, OTP ve gruptan gelen roller compose'da denendi |
+| Çalışan kimliği: ayrı Keycloak kurulumu, izinle yetki, OTP zorunlu | evet — giriş ve OTP compose'da denendi; izin modeli testte |
+| Personel yönetimi: izinler kodda; roller, çalışanlar ve kayıt panelden, personel yönetiminin veritabanında | evet — testte; compose'da denenmedi |
+| Çalışanın izni her istekte: rolü alınan çalışanın bir sonraki isteği reddediliyor | evet — testte |
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
@@ -148,15 +151,15 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
-| Promo: personel promo'su, kampanya yönetimi, işyerinin promo kabulü | evet — backoffice'ten, pazarlama rolüyle |
+| Promo: personel promo'su, kampanya yönetimi, işyerinin promo kabulü | evet — backoffice'ten, kendi izinleriyle |
 | Çekim incelemesi: eşiğin üstü bekliyor, çalışan serbest bırakıyor ya da iptal ediyor | evet — iptal banka reddinden ayrı durumda |
 | Koruma hesabının fonlama kaydı | hayır |
 | Mutabakat raporu (projeksiyon, yaşlanma, fatura) | evet |
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-596 test: 183 unit (DB'siz), 413 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 14, panelin 13.
+640 test: 199 unit (DB'siz), 441 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 14, panelin 22.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -190,6 +193,7 @@ curl http://localhost:8102/health/ready   # personal-web-bff
 curl http://localhost:8103/health/ready   # onboarding
 curl http://localhost:8104/health/ready   # sms-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8105/health/ready   # nvi-fake (BİZİM DEĞİL, canlıda yok)
+curl http://localhost:8108/health/ready   # staff-admin
 curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration         # keycloak, müşteriler
 curl http://localhost:8107/realms/hiwallet-staff/.well-known/openid-configuration   # keycloak, çalışanlar
 ```
@@ -230,6 +234,7 @@ API dokümanı, yalnızca Development'ta. Ters proxy arkasında aynı sayfa
 | `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | müşteri, işyeri |
 | `personal-mobile-api` | <http://localhost:8097/scalar/> | müşteri |
 | `onboarding` | <http://localhost:8103/scalar/> | müşteri |
+| `staff-admin` | <http://localhost:8108/scalar/> | — |
 | `business-api` | <http://localhost:8098/scalar/> | işyeri |
 | `backoffice-bff` | <http://localhost:8099/scalar/> | — |
 | `business-web-bff` | <http://localhost:8100/scalar/> | — |

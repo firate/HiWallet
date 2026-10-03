@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import type { StaffPermission } from '../types'
 
 export interface Call {
   method: string
@@ -49,4 +50,20 @@ export function fakeBff(routes: Record<string, Reply | Reply[]>): Call[] {
   )
 
   return calls
+}
+
+/**
+ * Oturumdaki çalışan: kimliği BFF'in oturumundan, rolleri ve izinleri personel
+ * yönetiminden (/v1/me). Panel izni token'dan değil buradan okuyor.
+ */
+export function staffSession(
+  permissions: StaffPermission[],
+  who: { subject?: string; name?: string; roles?: string[] } = {},
+): Record<string, Reply> {
+  const { subject = 's1', name = 'Çalışan', roles = [] } = who
+
+  return {
+    'GET /bff/user': { status: 200, body: { subject, name, email: null } },
+    'GET /v1/me': { status: 200, body: { subject, roles, permissions } },
+  }
 }

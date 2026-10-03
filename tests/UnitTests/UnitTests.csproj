@@ -17,6 +17,7 @@
         <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
         <ProjectReference Include="../../src/Onboarding/Onboarding.csproj"/>
+        <ProjectReference Include="../../src/StaffAdmin/StaffAdmin.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

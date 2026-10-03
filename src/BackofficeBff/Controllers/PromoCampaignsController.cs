@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace HiWallet.BackofficeBff.Controllers;
 
 /// <summary>
-/// Promo kampanyaları. Açmak ve bitirmek pazarlama rolünün, görüntülemek her
-/// çalışanın; rolü wallet-api kontrol ediyor.
+/// Promo kampanyaları. Açmak ve bitirmek <c>campaign.manage</c>, görüntülemek
+/// <c>campaign.view</c> izniyle; izni wallet-api kontrol ediyor.
 /// </summary>
 [ApiController]
 [Route("v1/promo-campaigns")]

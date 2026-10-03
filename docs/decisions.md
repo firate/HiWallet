@@ -1667,7 +1667,8 @@ her turda yeniden deneniyor; arkasındaki ödemeler değerlendirilmeye devam edi
 Veritabanına ulaşılamıyorsa tur kesiliyor.
 
 **Yönetim.** Kampanyalar, `accounts.accepts_promo` ve personel promo'su backoffice'ten,
-pazarlama rolüyle yönetiliyor. Kampanyayı açan ve bitiren çalışan kampanyaya yazılıyor;
+çalışanın kendi izniyle yönetiliyor (`campaign.manage`, `merchant.promo_acceptance`,
+`promo.grant`). Kampanyayı açan ve bitiren çalışan kampanyaya yazılıyor;
 kampanyanın verdiği partinin aktörü yine `system`. Personel promo'su para birimi başına
 tek seferlik bir tavanla sınırlı; daha büyük tutar kampanyayla, bütçe ve hesap
 tavanlarıyla veriliyor.

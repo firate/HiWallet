@@ -9,8 +9,8 @@ using Wolverine;
 namespace HiWallet.WalletApi.Controllers;
 
 /// <summary>
-/// Promo kampanyaları (decisions.md madde 37). Açmak ve bitirmek pazarlama rolünün,
-/// görüntülemek her çalışanın. Müşteriye kapalı.
+/// Promo kampanyaları (decisions.md madde 37). Açmak ve bitirmek <c>campaign.manage</c>,
+/// görüntülemek <c>campaign.view</c> izniyle. Müşteriye kapalı.
 /// </summary>
 [ApiController]
 [Route("v1/promo-campaigns")]
@@ -21,7 +21,7 @@ public sealed class PromoCampaignsController(IMessageBus bus) : ControllerBase
     /// hesap ya da promo gider hesabı olmayan para birimi <c>422</c>.
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = HiWalletPolicies.Marketing)]
+    [Authorize(Policy = HiWalletPolicies.CampaignManage)]
     [ProducesResponseType<PromoCampaignResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
@@ -37,7 +37,7 @@ public sealed class PromoCampaignsController(IMessageBus bus) : ControllerBase
     /// <param name="after">Önceki sayfanın <c>nextCursor</c> değeri. İlk sayfada verilmiyor.</param>
     /// <param name="size">Sayfa boyutu. Tavanın üstü tavana çekiliyor.</param>
     [HttpGet]
-    [Authorize(Policy = HiWalletPolicies.Staff)]
+    [Authorize(Policy = HiWalletPolicies.CampaignView)]
     [ProducesResponseType<PromoCampaignsResponse>(StatusCodes.Status200OK)]
     public async Task<PromoCampaignsResponse> List(
         CancellationToken ct,
@@ -50,7 +50,7 @@ public sealed class PromoCampaignsController(IMessageBus bus) : ControllerBase
     }
 
     [HttpGet("{campaignId:guid}")]
-    [Authorize(Policy = HiWalletPolicies.Staff)]
+    [Authorize(Policy = HiWalletPolicies.CampaignView)]
     [ProducesResponseType<PromoCampaignResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<PromoCampaignResponse> GetById(Guid campaignId, CancellationToken ct)
@@ -64,7 +64,7 @@ public sealed class PromoCampaignsController(IMessageBus bus) : ControllerBase
     /// partiler olduğu gibi kalıyor. Bitmiş kampanyada bir şey değişmiyor.
     /// </summary>
     [HttpPost("{campaignId:guid}/end")]
-    [Authorize(Policy = HiWalletPolicies.Marketing)]
+    [Authorize(Policy = HiWalletPolicies.CampaignManage)]
     [ProducesResponseType<PromoCampaignResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<PromoCampaignResponse> End(Guid campaignId, CancellationToken ct)

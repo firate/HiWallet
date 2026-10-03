@@ -91,11 +91,11 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
     }
 
     /// <summary>
-    /// İşyerinin platform fonlu promo kabulü (decisions.md madde 37). Pazarlama rolü.
+    /// İşyerinin platform fonlu promo kabulü (decisions.md madde 37). <c>merchant.promo_acceptance</c> izni.
     /// Bundan sonraki ödemeleri etkiliyor; verilmiş partiler olduğu gibi kalıyor.
     /// </summary>
     [HttpPut("{accountId:guid}/accepts-promo")]
-    [Authorize(Policy = HiWalletPolicies.Marketing)]
+    [Authorize(Policy = HiWalletPolicies.MerchantPromoAcceptance)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]

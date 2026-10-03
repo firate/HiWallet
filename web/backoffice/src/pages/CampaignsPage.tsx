@@ -3,12 +3,12 @@ import { Link } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { campaignRule, date, money } from '../format'
-import { useHasRole } from '../session'
+import { useHasPermission } from '../session'
 import type { Campaign } from '../types'
 
-/** Promo kampanyaları, yeniden eskiye. Açmak ve bitirmek pazarlama rolünün. */
+/** Promo kampanyaları, yeniden eskiye. Açmak ve bitirmek kampanya yönetme izniyle. */
 export function CampaignsPage() {
-  const marketing = useHasRole('marketing')
+  const canManage = useHasPermission('campaign.manage')
   const campaigns = useInfiniteQuery({
     queryKey: ['campaigns', 'list'],
     queryFn: ({ pageParam }) => api.campaigns(pageParam),
@@ -22,7 +22,7 @@ export function CampaignsPage() {
     <section className="card">
       <div className="heading">
         <h1>Kampanyalar</h1>
-        {marketing && (
+        {canManage && (
           <Link className="button" to="/kampanyalar/yeni">
             Yeni kampanya
           </Link>

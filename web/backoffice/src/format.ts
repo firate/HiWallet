@@ -1,5 +1,3 @@
-import type { StaffRole } from './types'
-
 const dateFormat = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })
 
 export function money(amount: number, currency: string): string {
@@ -8,18 +6,6 @@ export function money(amount: number, currency: string): string {
 
 export function date(value: string): string {
   return dateFormat.format(new Date(value))
-}
-
-const staffRoles: Record<StaffRole, string> = {
-  support: 'Destek',
-  operations: 'Operasyon',
-  finance: 'Finans',
-  marketing: 'Pazarlama',
-}
-
-/** Çalışanın rolleri; Keycloak'ın kendi varsayılan rolleri (offline_access gibi) gösterilmiyor. */
-export function staffRoleNames(roles: string[]): string[] {
-  return roles.filter((role): role is StaffRole => role in staffRoles).map((role) => staffRoles[role])
 }
 
 const accountTypes: Record<string, string> = {
@@ -104,6 +90,31 @@ const promoScopes: Record<string, string> = {
 
 export function promoScope(value: string): string {
   return promoScopes[value] ?? value
+}
+
+const auditActions: Record<string, string> = {
+  role_created: 'Rol açıldı',
+  role_updated: 'Rol değişti',
+  role_deleted: 'Rol silindi',
+  staff_invited: 'Çalışan davet edildi',
+  staff_roles_changed: 'Rolleri değişti',
+  staff_disabled: 'Kapatıldı',
+  staff_enabled: 'Açıldı',
+  invitation_sent: 'Davet yeniden gönderildi',
+}
+
+export function auditAction(value: string): string {
+  return auditActions[value] ?? value
+}
+
+export function staffStatus(staff: { enabled: boolean; invitationPending: boolean }): string {
+  if (!staff.enabled) return 'Kapalı'
+  return staff.invitationPending ? 'Davet bekliyor' : 'Etkin'
+}
+
+export function personName(staff: { firstName: string | null; lastName: string | null; email: string }): string {
+  const name = [staff.firstName, staff.lastName].filter(Boolean).join(' ')
+  return name || staff.email
 }
 
 /** Satır başına bir hesap kimliği; boş satırlar atlanıyor. */

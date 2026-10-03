@@ -99,7 +99,7 @@ public sealed class WithdrawalsController(
     /// <param name="after">Önceki sayfanın <c>nextCursor</c> değeri. İlk sayfada verilmiyor.</param>
     /// <param name="size">Sayfa boyutu. Tavanın üstü tavana çekiliyor.</param>
     [HttpGet]
-    [Authorize(Policy = HiWalletPolicies.Staff)]
+    [Authorize(Policy = HiWalletPolicies.CustomerView)]
     [ProducesResponseType<WithdrawalsResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<WithdrawalsResponse>> List(
@@ -124,11 +124,11 @@ public sealed class WithdrawalsController(
     }
 
     /// <summary>
-    /// İncelemedeki çekimi serbest bırakır: banka komutu gidiyor. Operasyon rolü; kararı
+    /// İncelemedeki çekimi serbest bırakır: banka komutu gidiyor. <c>withdrawal.review</c> izni; kararı
     /// veren çalışan saga'ya yazılıyor.
     /// </summary>
     [HttpPost("{withdrawalId:guid}/release")]
-    [Authorize(Policy = HiWalletPolicies.Operations)]
+    [Authorize(Policy = HiWalletPolicies.WithdrawalReview)]
     [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
@@ -139,11 +139,11 @@ public sealed class WithdrawalsController(
 
     /// <summary>
     /// İncelemedeki çekimi iptal eder: para cüzdana geri veriliyor ve çekim banka
-    /// reddinden ayrı bir durumda (<c>cancelled</c>) bitiyor. Operasyon rolü. <c>202</c>:
+    /// reddinden ayrı bir durumda (<c>cancelled</c>) bitiyor. <c>withdrawal.review</c> izni. <c>202</c>:
     /// ters kaydı wallet yazıyor, dönüldüğünde henüz yazılmadı.
     /// </summary>
     [HttpPost("{withdrawalId:guid}/cancel")]
-    [Authorize(Policy = HiWalletPolicies.Operations)]
+    [Authorize(Policy = HiWalletPolicies.WithdrawalReview)]
     [ProducesResponseType<WithdrawalResponse>(StatusCodes.Status202Accepted)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

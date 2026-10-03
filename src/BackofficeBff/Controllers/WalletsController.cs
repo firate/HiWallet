@@ -49,7 +49,7 @@ public sealed class WalletsController(WalletApiClient walletApi) : ControllerBas
     }
 
     /// <summary>
-    /// Personel promo'su: müşteriye platform fonlu promo. Pazarlama rolü, tek seferlik
+    /// Personel promo'su: müşteriye platform fonlu promo. <c>promo.grant</c> izni, tek seferlik
     /// tavanlı; wallet-api kontrol ediyor. Ledger'da aktör çalışan.
     /// </summary>
     /// <param name="idempotencyKey">ZORUNLU. Aynı anahtarla ikinci istek yeni parti açmaz.</param>
