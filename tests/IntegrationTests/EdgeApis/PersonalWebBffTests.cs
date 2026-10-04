@@ -100,6 +100,21 @@ public sealed class PersonalWebBffTests(PostgresFixture postgres, OrchestratorFi
         (await LedgerSeeder.BalanceAsync(check, friend, ct)).ShouldBe(30m);
     }
 
+    /// <summary>"Para yükle": toplama hesabının IBAN'ı ve açıklamaya yazılacak hesap numarası.</summary>
+    [Fact]
+    public async Task YuklemeBilgisi_HesapNumarasiylaGelir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var number = (await ReadAsync(await _client.GetAsync($"/v1/accounts/{_customer}", ct), ct))
+            .GetProperty("accountNumber").GetString();
+
+        var instructions = await ReadAsync(await _client.GetAsync($"/v1/accounts/{_customer}/deposit-instructions", ct), ct);
+
+        instructions.GetProperty("iban").GetString().ShouldNotBeNullOrWhiteSpace();
+        instructions.GetProperty("accountHolder").GetString().ShouldNotBeNullOrWhiteSpace();
+        instructions.GetProperty("reference").GetString().ShouldBe(number);
+    }
+
     /// <summary>
     /// Müşteri arkadaşının hesap numarasını yazıyor; para arkadaşının varsayılan cüzdanına
     /// düşüyor. Arkadaş varsayılanı değiştirince sonraki para yenisine gidiyor.

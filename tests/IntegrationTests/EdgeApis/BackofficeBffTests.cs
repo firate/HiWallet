@@ -92,6 +92,21 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         (await _client.GetAsync("/v1/accounts/by-number/1234567890", ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    /// <summary>Askıdaki havaleleri izni olan görüyor; destek göremiyor.</summary>
+    [Fact]
+    public async Task Finans_AskidakiHavaleleriGorur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), TestStaff.Finance);
+        using var support = _factory.CreateClient().WithCsrfHeader().SignedInAs(NewStaff(), TestStaff.Support);
+
+        var response = await _client.GetAsync("/v1/suspended-deposits?size=5", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
+        (await support.GetAsync("/v1/suspended-deposits", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
     [Fact]
     public async Task Destek_MusterininCekiminiGorur()
     {
