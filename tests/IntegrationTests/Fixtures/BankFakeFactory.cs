@@ -53,13 +53,7 @@ public sealed class BankFakeFactory(
                 // uzatmamalı. Sıfır verilemez — sıfır olsaydı sonuç kabul anında
                 // hazır olur ve "pending" durumu testlerde hiç gözlemlenemezdi.
                 ["BankFake:SettlementDelay"] =
-                    (settlementDelay ?? TimeSpan.FromMilliseconds(200)).ToString(),
-
-                // Para girişi tarafı bu testlerde kullanılmıyor, ama ayarı açılışta
-                // doğrulanıyor: verilmezse host hiç başlamaz. Giriş tarafını
-                // FakeProviderTests sınıyor.
-                ["Topup:WebhookUrl"] = "http://topup-webhook",
-                ["Topup:WebhookSecret"] = "kullanilmiyor"
+                    (settlementDelay ?? TimeSpan.FromMilliseconds(200)).ToString()
             };
 
             if (defaultOutcome is { } outcome)
