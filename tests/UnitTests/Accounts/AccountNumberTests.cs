@@ -109,4 +109,46 @@ public sealed class AccountNumberTests
             }
         }
     }
+
+    /// <summary>
+    /// Havale açıklaması serbest metin: numara bitişik ya da uygulamanın gösterdiği gibi
+    /// 3-3-4 gruplanmış yazılıyor, önünde arkasında başka sözcükler oluyor.
+    /// </summary>
+    [Theory]
+    [InlineData("4817305925")]
+    [InlineData("Hesap no: 481 730 5925 Ayşe")]
+    [InlineData("481-730-5925")]
+    [InlineData("HW4817305925")]
+    [InlineData("4817305925 1000 TL yükleme")]
+    [InlineData("yükleme\n4817305925")]
+    public void Metinde_NumaraBulunur(string text)
+    {
+        AccountNumber.FindIn(text).ShouldBe([AccountNumber.From("4817305925")]);
+    }
+
+    /// <summary>
+    /// Bulunmayanlar: kontrol hanesi tutmayan, daha uzun bir rakam dizisinin parçası
+    /// (TCKN, IBAN) ve dört haneli gruplar halindeki IBAN.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("kira")]
+    [InlineData("4817305924")]
+    [InlineData("14817305925")]
+    [InlineData("48173059251")]
+    [InlineData("TR33 0006 1005 1978 6457 8413 26")]
+    [InlineData("TR330006100519786457841326")]
+    public void Metinde_NumaraYok(string? text)
+    {
+        AccountNumber.FindIn(text).ShouldBeEmpty();
+    }
+
+    /// <summary>Aynı numara iki kez yazılmışsa tek; farklı iki numara ikisi de dönüyor, seçilmiyor.</summary>
+    [Fact]
+    public void Metinde_TekrarlarBirKezSayilir_FarkliNumaralarAyriDoner()
+    {
+        AccountNumber.FindIn("4817305925 / 481 730 5925").Count.ShouldBe(1);
+        AccountNumber.FindIn("4817305925 ve 1234567897").Count.ShouldBe(2);
+    }
 }
