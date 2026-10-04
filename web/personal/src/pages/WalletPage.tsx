@@ -1,5 +1,4 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
@@ -36,10 +35,6 @@ export function WalletPage() {
             </li>
           ))}
         </ul>
-        <p className="muted">
-          Cüzdan numarası (sana para gönderecek kişiye ver): <code>{walletId}</code>{' '}
-          <CopyButton text={walletId} />
-        </p>
         <div className="actions">
           <Link className="button" to={`/cuzdanlar/${walletId}/transfer`}>
             Para gönder
@@ -52,21 +47,6 @@ export function WalletPage() {
       <Movements walletId={walletId} />
       <Promos walletId={walletId} />
     </>
-  )
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-
-  async function copy() {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-  }
-
-  return (
-    <button type="button" className="link" onClick={copy}>
-      {copied ? 'Kopyalandı' : 'Kopyala'}
-    </button>
   )
 }
 
