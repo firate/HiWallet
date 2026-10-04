@@ -47,7 +47,13 @@ public sealed class WalletConsumerFactory(PostgresFixture postgres)
                 ["Providers:stripe-fake:Fee:Fixed"] = Invariant(TestProviders.StripeFixed),
                 ["Providers:bank-fake:FeeSettlement"] = nameof(FeeSettlement.Invoiced),
                 ["Providers:bank-fake:Fee:Rate"] = "0",
-                ["Providers:bank-fake:Fee:Fixed"] = Invariant(TestProviders.BankFixed)
+                ["Providers:bank-fake:Fee:Fixed"] = Invariant(TestProviders.BankFixed),
+
+                // Havalenin gönderenini onboarding'e soran istemci. Testte istek
+                // gitmiyor; ayarlar başlangıçta doğrulandığı için dolu.
+                ["Keycloak:BaseUrl"] = "http://keycloak.test",
+                ["Keycloak:ClientSecret"] = "test-gizli-anahtar",
+                ["InternalServices:Onboarding:BaseUrl"] = "http://onboarding.test"
             };
 
             BrokerSettings.ApplyFallbacks(overrides);

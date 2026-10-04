@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Onboarding.Domain;
+using HiWallet.WalletConsumer.Identity;
 
 namespace HiWallet.IntegrationTests.Onboarding;
 
@@ -116,5 +117,30 @@ public sealed class HolderCheckTests(PostgresFixture postgres, OnboardingFixture
 
         (await client.PostAsJsonAsync("/v1/holder-checks", new { holder = "x" }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// wallet-consumer'ın istemcisi onboarding'in sözleşmesini kendi tipleriyle yazıyor;
+    /// iki taraf ayrıştığında burası kırılıyor.
+    /// </summary>
+    [Fact]
+    public async Task WalletConsumerIstemcisi_AyniSozlesmeyiKonusur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var holder = await VerifiedCustomerAsync(ct);
+        var identity = new OnboardingHolderIdentity(WalletConsumer());
+
+        (await identity.IsHolderAsync(holder.Subject, holder.NationalId, ct)).ShouldBeTrue();
+        (await identity.IsHolderAsync(holder.Subject, NationalIdValue, ct)).ShouldBeFalse();
+    }
+
+    /// <summary>Cevap alınamazsa "hayır" UYDURULMUYOR: hata yukarı çıkıyor, havale kuyruğa dönüyor.</summary>
+    [Fact]
+    public async Task WalletConsumerIstemcisi_YetkisizseHataVerir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var identity = new OnboardingHolderIdentity(_factory.CreateClient().AsOnboarding());
+
+        await Should.ThrowAsync<HttpRequestException>(() => identity.IsHolderAsync("x", NationalIdValue, ct));
     }
 }
