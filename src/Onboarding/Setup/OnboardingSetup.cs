@@ -33,6 +33,7 @@ public static class OnboardingSetup
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<RegistrationService>();
         services.AddScoped<VerificationService>();
+        services.AddScoped<HolderCheckService>();
 
         // Fail fast: eksik ayar ilk kayıtta değil başlangıçta patlasın.
         services.AddOptions<DocumentOptions>()

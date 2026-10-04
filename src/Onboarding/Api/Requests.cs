@@ -20,6 +20,10 @@ public sealed record IdentityRequest(string FirstName, string LastName, string N
 /// <param name="PrivacyNoticeVersion">Müşteriye gösterilen KVKK aydınlatma metninin sürümü.</param>
 public sealed record BasicVerificationRequest(string TermsVersion, string PrivacyNoticeVersion);
 
+/// <param name="Holder">Hesabın sahibi: kimlik sağlayıcıdaki <c>sub</c>.</param>
+/// <param name="NationalId">Bankanın bildirdiği gönderen kimlik numarası, olduğu gibi.</param>
+public sealed record HolderCheckRequest(string Holder, string NationalId);
+
 public sealed class StartRegistrationRequestValidator : AbstractValidator<StartRegistrationRequest>
 {
     public StartRegistrationRequestValidator()
@@ -93,5 +97,18 @@ public sealed class BasicVerificationRequestValidator : AbstractValidator<BasicV
     {
         RuleFor(r => r.TermsVersion).NotEmpty();
         RuleFor(r => r.PrivacyNoticeVersion).NotEmpty();
+    }
+}
+
+/// <summary>
+/// Yalnızca varlık ve uzunluk: numaranın kurala uyup uymadığı sorunun kendisi, kurala
+/// uymayan numara "hayır" cevabı alıyor, 400 değil.
+/// </summary>
+public sealed class HolderCheckRequestValidator : AbstractValidator<HolderCheckRequest>
+{
+    public HolderCheckRequestValidator()
+    {
+        RuleFor(r => r.Holder).NotEmpty().MaximumLength(255);
+        RuleFor(r => r.NationalId).NotEmpty().MaximumLength(32);
     }
 }
