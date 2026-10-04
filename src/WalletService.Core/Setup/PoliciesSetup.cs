@@ -14,6 +14,7 @@ public static class PoliciesSetup
     private const string CommissionsSection = "Transfers:Commissions";
     private const string WithdrawalSection = "Withdrawals";
     private const string KycLimitsSection = "Kyc:MonthlyLimits";
+    private const string KycBalanceCapsSection = "Kyc:BalanceCaps";
 
     /// <summary>
     /// topup-webhook da aynı adı kullanıyor ama başka bir anahtar için
@@ -135,14 +136,20 @@ public static class PoliciesSetup
     }
 
     /// <summary>
-    /// Doğrulama seviyesine göre aylık limitler (<see cref="KycLimitPolicy"/>). Her
-    /// uygulama yalnızca kendi uyguladığı hareketleri istiyor: wallet-api transferleri ve
-    /// ödemeyi, wallet-consumer çekimi. Çekim tarifesiyle aynı gerekçe: bölüm tek yerde
-    /// durmalı, iki kopya ayrıştığında müşteri beklediğinden farklı limitle karşılaşırdı.
+    /// Doğrulama seviyesine göre aylık limitler ve bakiye tavanı (<see cref="KycLimitPolicy"/>).
+    /// Her uygulama yalnızca kendi uyguladığı hareketleri istiyor: wallet-api transferleri ve
+    /// ödemeyi, wallet-consumer çekimi ve havaleyi. Çekim tarifesiyle aynı gerekçe: bölüm tek
+    /// yerde durmalı, iki kopya ayrıştığında müşteri beklediğinden farklı limitle karşılaşırdı.
+    ///
+    /// İstisna hesaba gelen taraf: ayın toplam girişi (<see cref="KycMovement.IncomingTotal"/>)
+    /// ve bakiye tavanı hem gelen transferde hem havalede sayılıyor, ikisi de iki
+    /// uygulamada yazılı. Gelen bir hareket isteyen uygulamaya ikisi kendiliğinden zorunlu.
     ///
     /// Her seviye ve istenen her hareket yazılmış olmak zorunda; eksikse PATLIYOR.
     /// Politika eksik satırı kapalı sayıyor ama bir yazım hatası bir seviyeyi sessizce
-    /// kapatmamalı. Tanınmayan seviye ya da hareket adı da patlıyor.
+    /// kapatmamalı. Tanınmayan seviye ya da hareket adı da patlıyor. Kimliği tespit
+    /// edilmemiş seviyenin bakiye tavanı eksikse de patlıyor: tavansız kalması yasal
+    /// sınırın sessizce kalkması olurdu.
     /// </summary>
     public static IServiceCollection AddKycLimits(
         this IServiceCollection services, IConfiguration configuration, params KycMovement[] movements)
@@ -175,6 +182,13 @@ public static class PoliciesSetup
             limits[level] = perMovement;
         }
 
+        var incoming = movements.Contains(KycMovement.IncomingTransfer) || movements.Contains(KycMovement.Deposit);
+
+        if (incoming && !movements.Contains(KycMovement.IncomingTotal))
+        {
+            movements = [.. movements, KycMovement.IncomingTotal];
+        }
+
         var missing = Enum.GetValues<KycLevel>()
             .SelectMany(level => movements
                 .Where(movement => !limits.TryGetValue(level, out var perMovement) || !perMovement.ContainsKey(movement))
@@ -187,9 +201,45 @@ public static class PoliciesSetup
                 $"Zorunlu konfigürasyon eksik: {string.Join(", ", missing)}. Seviye limiti varsayılana bırakılmaz.");
         }
 
-        services.AddSingleton(new KycLimitPolicy(limits));
+        var balanceCaps = BindBalanceCaps(configuration);
+
+        if (incoming)
+        {
+            var uncapped = Enum.GetValues<KycLevel>()
+                .Where(level => !level.IsIdentified() && !balanceCaps.ContainsKey(level))
+                .Select(level => $"{KycBalanceCapsSection}:{level}")
+                .ToList();
+
+            if (uncapped.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Zorunlu konfigürasyon eksik: {string.Join(", ", uncapped)}. " +
+                    "Kimliği tespit edilmemiş seviyenin bakiye tavanı varsayılana bırakılmaz.");
+            }
+        }
+
+        services.AddSingleton(new KycLimitPolicy(limits, balanceCaps));
 
         return services;
+    }
+
+    private static Dictionary<KycLevel, decimal> BindBalanceCaps(IConfiguration configuration)
+    {
+        var caps = new Dictionary<KycLevel, decimal>();
+
+        foreach (var section in configuration.GetSection(KycBalanceCapsSection).GetChildren())
+        {
+            if (!Enum.TryParse<KycLevel>(section.Key, ignoreCase: false, out var level))
+            {
+                throw new InvalidOperationException(
+                    $"{KycBalanceCapsSection}:{section.Key} bilinmeyen bir seviye. " +
+                    $"Geçerli değerler: {string.Join(", ", Enum.GetNames<KycLevel>())}");
+            }
+
+            caps[level] = section.Get<decimal>();
+        }
+
+        return caps;
     }
 
     /// <summary>

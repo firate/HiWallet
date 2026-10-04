@@ -12,12 +12,27 @@ public enum KycLevel
     /// <summary>Kayıt bitti, kimlik doğrulanmadı. Geçici; para hareketi yok.</summary>
     Unknown = 10,
 
-    /// <summary>Telefon doğrulandı, kimlik bilgileri nüfus kaydıyla eşleşti.</summary>
+    /// <summary>
+    /// Telefon doğrulandı, kimlik bilgileri nüfus kaydıyla eşleşti. Bilgiler doğrulandı,
+    /// kişinin kendisi değil: kimliği tespit edilmemiş müşteri.
+    /// </summary>
     Unverified = 20,
 
-    /// <summary>Müşterinin kendi adına banka hesabından para girdi; banka kimliği doğrulamıştı.</summary>
+    /// <summary>
+    /// Uzaktan kimlik tespiti: kimlik kartının çipi, canlılık testi ve yüzün çipteki
+    /// fotoğrafla karşılaştırılması, insan müdahalesi olmadan.
+    /// </summary>
     Verified = 30,
 
-    /// <summary>Uzaktan kimlik tespiti ya da fiziksel sözleşme.</summary>
+    /// <summary>Kimliği bir çalışan doğruladı (görüntülü görüşme ya da yüz yüze) ve sözleşme kuruldu.</summary>
     Contracted = 40
+}
+
+public static class KycLevels
+{
+    /// <summary>
+    /// Kimliği yasal anlamda tespit edilmiş mi. Edilmemiş müşterinin aylık yüklemesi ve
+    /// bakiyesi yasal tavanın altında kalıyor (MASAK Genel Tebliği Sıra No 5, 2.2.11).
+    /// </summary>
+    public static bool IsIdentified(this KycLevel level) => level >= KycLevel.Verified;
 }

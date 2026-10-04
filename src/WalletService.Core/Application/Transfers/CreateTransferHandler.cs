@@ -1,4 +1,5 @@
 using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
@@ -125,6 +126,7 @@ public sealed class CreateTransferHandler(
         // Doğrulama seviyesinin aylık limitleri, yalnızca bireysel hesapta. Hesabın
         // kendi cüzdanları arasındaki aktarım başka birine gönderim değil, sayılmıyor.
         // Alıcının limiti de burada: aşan transfer hiç yazılmıyor, reddi gönderen görüyor.
+        // Alıcıda ayın yüklemeleri de sayılıyor ve bakiye tavanı da kontrol ediliyor.
         if (senderAccountId != receiverAccountId)
         {
             if (accounts[senderAccountId].KycLevel is { } senderLevel)
@@ -137,9 +139,10 @@ public sealed class CreateTransferHandler(
 
             if (accounts[receiverAccountId].KycLevel is { } receiverLevel)
             {
-                var received = await ReceivedThisMonthAsync(db, receiverAccountId, currency, ct);
+                var received = await IncomingUsage.ThisMonthAsync(db, receiverAccountId, currency, clock.UtcNow, ct);
+                var balance = await IncomingUsage.BalanceAsync(db, receiverAccountId, currency, ct);
 
-                kycLimits.EnsureIncoming(receiverLevel, KycMovement.IncomingTransfer, amount, received);
+                kycLimits.EnsureIncoming(receiverLevel, KycMovement.IncomingTransfer, amount, received, balance);
             }
         }
 
@@ -334,33 +337,6 @@ public sealed class CreateTransferHandler(
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
 
         return new Money(-debited, currency);
-    }
-
-    /// <summary>
-    /// Bu ay başka hesaplardan hesabın cüzdanlarına transferle gelen toplam. İşlemin
-    /// kapsamı gönderen cüzdan; kendi cüzdanından gelen aktarım o yüzden dışarıda.
-    /// </summary>
-    private async Task<Money> ReceivedThisMonthAsync(
-        WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct)
-    {
-        var since = StartOfMonth();
-
-        var walletIds = db.LedgerAccounts
-            .Where(a => a.AccountId == accountId)
-            .Select(a => a.Id);
-
-        var credited = await db.LedgerEntries
-            .Where(e => walletIds.Contains(e.LedgerAccountId)
-                        && e.Amount > 0m
-                        && e.Currency == currency
-                        && e.CreatedAt >= since
-                        && db.LedgerTransactions.Any(t => t.Id == e.TransactionId
-                                                          && (t.Type == LedgerTransactionType.P2P
-                                                              || t.Type == LedgerTransactionType.B2P)
-                                                          && !walletIds.Contains(t.LedgerAccountId)))
-            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
-
-        return new Money(credited, currency);
     }
 
     private DateTimeOffset StartOfMonth()
