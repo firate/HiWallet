@@ -5,6 +5,7 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Application.Promos;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Setup;
@@ -57,6 +58,13 @@ builder.Services.AddOptions<StaffPromoOptions>()
     .BindConfiguration(StaffPromoOptions.SectionName)
     .Validate(options => options.MaxAmount.Values.All(max => max > 0m),
         $"{StaffPromoOptions.SectionName}:MaxAmount değerleri pozitif olmalı.")
+    .ValidateOnStart();
+
+// Havalenin gönderileceği toplama hesabı; müşteriye "Para yükle"de gösteriliyor.
+builder.Services.AddOptions<DepositInstructionsOptions>()
+    .BindConfiguration(DepositInstructionsOptions.SectionName)
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Iban) && !string.IsNullOrWhiteSpace(options.AccountHolder),
+        $"{DepositInstructionsOptions.SectionName}: Iban ve AccountHolder zorunlu.")
     .ValidateOnStart();
 
 builder.Services

@@ -4,10 +4,12 @@ using HiWallet.WalletApi.Responses;
 using HiWallet.WalletApi.Setup;
 using HiWallet.WalletApi.Validators;
 using HiWallet.WalletService.Application.Accounts;
+using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Errors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Wolverine;
 
 namespace HiWallet.WalletApi.Controllers;
@@ -102,6 +104,34 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
         var view = await bus.InvokeAsync<AccountView>(new GetAccountQuery(accountId), ct);
 
         return Ok(AccountDetailResponse.From(view));
+    }
+
+    /// <summary>
+    /// Havaleyle yükleme bilgisi: toplama hesabının IBAN'ı, alıcı adı ve açıklamaya
+    /// yazılacak hesap numarası. Gelen para bu para birimindeki varsayılan cüzdana düşüyor;
+    /// yalnızca müşterinin kendi adına kayıtlı hesabından gelen havale kabul ediliyor.
+    /// İşyeri hesabına havale askıya düşüyor, o yüzden <c>422</c>. Müşterinin ucu; çalışan
+    /// müşterinin yerine para yüklemiyor.
+    /// </summary>
+    [HttpGet("{accountId:guid}/deposit-instructions")]
+    [ProducesResponseType<DepositInstructionsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<DepositInstructionsResponse>> GetDepositInstructions(
+        Guid accountId, [FromServices] IOptions<DepositInstructionsOptions> deposits, CancellationToken ct)
+    {
+        await access.EnsureAccountAsync(User.Subject(), accountId, ct);
+
+        var view = await bus.InvokeAsync<AccountView>(new GetAccountQuery(accountId), ct);
+
+        if (view.Type is not AccountType.Person)
+        {
+            throw new AccountRuleException("Havaleyle yükleme bireysel hesapta.");
+        }
+
+        var settings = deposits.Value;
+
+        return Ok(new DepositInstructionsResponse(settings.Iban, settings.AccountHolder, view.Number.Value, settings.Currency));
     }
 
     /// <summary>
