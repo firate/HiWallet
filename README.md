@@ -142,8 +142,12 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çalışanın izni her istekte: rolü alınan çalışanın bir sonraki isteği reddediliyor | evet — testte |
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
-| Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim; yükleme hayır |
-| `Verified`: kendi banka hesabından ilk havale | hayır |
+| Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale; kart yüklemesi sayılıyor ama kesilmiyor |
+| Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
+| Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |
+| Eşleşmeyen havale askıya, panelde liste | evet — testte |
+| Askıdaki havalenin kaynağa iadesi ya da bir cüzdana aktarılması | hayır |
+| `Verified`: uzaktan kimlik tespiti (kimlik kartının çipi, canlılık, yüz) | hayır |
 | `Contracted`: backoffice'ten | hayır |
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
@@ -159,8 +163,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-675 test: 216 unit (DB'siz), 459 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 16, panelin 25.
+736 test: 241 unit (DB'siz), 495 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 18, panelin 27.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
@@ -345,7 +349,15 @@ curl -X POST http://localhost:8096/v1/topups -H 'Content-Type: application/json'
 iki kez gönderiyor — bakiye **bir kez** artmalı. `OutOfOrder` aynı cüzdana N event'i
 ters sırada gönderiyor.
 
-Bankadan yükleme için aynı endpoint `8094`'te (`bank-fake`), `clearing/bank-fake`'e yazar.
+**Havale ile yükleme.** Sahte bankaya toplama hesabına havale geldiğini söyle. Cüzdana
+geçmesi için açıklamada müşterinin hesap numarası, `senderNationalId`'de onun doğrulamada
+verdiği kimlik numarası olmalı; yoksa para askıya düşer ve panelde "Askıdaki havaleler"de
+görünür:
+
+```bash
+curl -X POST http://localhost:8094/v1/incoming-transfers -H 'Content-Type: application/json' \
+  -d "{\"amount\":250,\"currency\":\"TRY\",\"description\":\"$ACCOUNT_NUMBER\",\"senderNationalId\":\"$TCKN\"}"
+```
 
 Elle göndermek istersen imza ham gövde baytları üzerinde HMAC-SHA256:
 

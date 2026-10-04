@@ -117,12 +117,15 @@ WalletService.Core/
 │   ├── Transfers/             -- TransferCommand + TransferHandler yan yana
 │   ├── Balances/              -- cüzdan sorgulama (bakiye projeksiyondan okunur)
 │   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
+│   ├── Deposits/              -- ProcessDepositHandler (havale: cüzdan ya da askı),
+│   │                             askıdaki havalelerin listesi
 │   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
 │   ├── Settlements/           -- ProcessSettlementHandler, ProcessInvoiceHandler
 │   ├── Promos/                -- işyerinin promo vermesi, cüzdanın parti listesi
-│   └── Abstractions/          -- IClock
+│   └── Abstractions/          -- IClock, IHolderIdentity
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
+│   ├── Deposits/              -- SuspendedDeposit, DepositHoldReason
 │   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
 │   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- LedgerBalance
@@ -266,13 +269,15 @@ WalletConsumer/
 ├── Program.cs                  -- controller yok, API dokümanı yok, rate limiter yok
 ├── Dockerfile
 ├── Topups/                     -- TopupConsumerService: top-up kuyruklarını dinler
+├── Deposits/                   -- DepositConsumer: havale kuyruğunu dinler
+├── Identity/                   -- servisin kendi token'ı, onboarding'e kimlik numarası sorusu
 ├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
 ├── WalletConsumerSetup.cs      -- DI + health check'ler
 └── WalletConsumerApp.cs        -- test giriş noktası işaretçisi
 ```
 
-İki kuyruk tek process'te: ikisi de ingress'siz ve ikisi de aynı ledger'a yazıyor,
-yani ayırmanın erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
+Kuyruklar tek process'te: hepsi ingress'siz ve aynı ledger'a yazıyor, yani ayırmanın
+erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
 
 `Sdk.Web` kullanıyor ama tek HTTP yüzeyi health check endpoint'i. Probe olmasaydı "process ayakta
 ama tüketici tıkanmış" durumu görünmezdi.
@@ -318,16 +323,17 @@ TopupWebhook/
 
 BankIntegration.Core/          -- şema ve migration'lar; İKİ host paylaşıyor
 ├── Domain/                    -- BankTransferStatus
-├── Persistence/               -- BankDbContext, bank_transfers, bank_callbacks
+├── Persistence/               -- BankDbContext, bank_transfers, bank_callbacks, bank_deposits
 └── Setup/                     -- BankPersistenceSetup
 
 BankAdapter/                   -- BİZİM; ingress YOK, bankayı kendisi arıyor
 ├── Application/               -- BankClient, StartBankTransferHandler,
-│                                 TransferCompleter, banka HTTP sözleşmesi
+│                                 TransferCompleter, DepositRecorder,
+│                                 BankNotificationHandler, banka HTTP sözleşmesi
 ├── Infrastructure/
-│   ├── Messaging/             -- BankCommandConsumer, ReplyRelay
+│   ├── Messaging/             -- BankCommandConsumer, ReplyRelay, DepositRelay
 │   ├── Callbacks/             -- CallbackRelay (inbox'ı işler)
-│   └── Jobs/                  -- ReconciliationScan
+│   └── Jobs/                  -- ReconciliationScan, DepositScan
 └── Setup/
 
 BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-202
@@ -336,14 +342,15 @@ BankWebhook/                   -- BİZİM; IP kısıtlı, tek işi doğrula-yaz-
 └── Setup/
 
 fakes/Bank.Fake/               -- BANKANIN YERİNDE; canlıda YOK, `src/` ALTINDA DEĞİL
-├── Api/Controllers/           -- TransfersController, ScenariosController
+├── Api/Controllers/           -- TransfersController, ScenariosController,
+│                                 IncomingTransfersController (gelen havale, hesap hareketleri)
 ├── Api/Requests/
 ├── Api/Responses/
 ├── Application/               -- AcceptTransferHandler, TransferQueries,
 │                                 ScenarioStore, TransferResolution
 ├── Infrastructure/
 │   ├── Storage/               -- BankFakeStore (bellekte; veritabanı YOK)
-│   └── Callbacks/             -- CallbackDispatcher (sonucu bize POST eder)
+│   └── Callbacks/             -- CallbackDispatcher (sonucu ve gelen havaleyi bize POST eder)
 └── Setup/
 
 fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı YOK

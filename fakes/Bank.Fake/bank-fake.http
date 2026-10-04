@@ -113,14 +113,27 @@ Idempotency-Key: {{$uuid}}
 # koşmak sayaçları sıfırlar.
 GET {{bankFake}}/v1/scenarios/deneme-gecici
 
-### B6. Havale ile para girişi
-# Bankanın PARA GİRİŞİ tarafı. stripe-fake ile aynı endpoint; fark ledger'da:
-# clearing/stripe-fake değil clearing/bank-fake hareket eder.
-# walletId için önce stripe-fake.http'de 1–2'yi ya da akislar.http'de 1–2'yi koş.
-POST {{bankFake}}/v1/topups
+### B6. Toplama hesabına havale
+# Gerçek bankada bu endpoint YOK: havaleyi müşteri kendi bankasından gönderir.
+# Banka parayı açıklamaya bakmadan kabul edip bank-webhook'a bildiriyor. Cüzdana
+# geçmesi için açıklamada müşterinin hesap numarası, senderNationalId'de onun
+# doğrulamada verdiği kimlik numarası olmalı; yoksa para askıya düşer.
+# "notify": false bildirimi göndermez; havaleyi hesap hareketi taraması bulur.
+POST {{bankFake}}/v1/incoming-transfers
 Content-Type: application/json
 
-{ "walletId": "{{walletId}}", "amount": 500, "currency": "TRY", "mode": "Normal" }
+{
+  "amount": 250,
+  "currency": "TRY",
+  "description": "{{accountNumber}}",
+  "senderName": "Ayşe Yılmaz",
+  "senderIban": "TR330006100519786457841326",
+  "senderNationalId": "10000000146"
+}
+
+### B6b. Hesap hareketleri
+# Hesap hareketi taramasının okuduğu endpoint.
+GET {{bankFake}}/v1/incoming-transfers?from=2026-01-01T00:00:00Z&to=2030-01-01T00:00:00Z
 
 ### B7. Health check
 GET {{bankFake}}/health/ready

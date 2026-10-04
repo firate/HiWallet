@@ -93,8 +93,8 @@ flowchart LR
     sadm -->|"kullanıcı, davet"| sidp
     sadm --> sdb
     stripe -->|"webhook + HMAC"| hook
-    bank -->|"webhook + HMAC"| hook
-    bank -->|"callback + HMAC"| bhook
+    bank -->|"sonuç ve havale + HMAC"| bhook
+    consumer -->|"gönderen sahip mi"| onb
 
     api --> wdb
     consumer --> wdb
@@ -117,8 +117,10 @@ flowchart LR
 **İstemci yalnızca kendi ön API'sine bağlanıyor**; `wallet-api`, orchestrator ve
 `onboarding` iç servis. Webhook'lar ve ingress'siz uygulamalar erişim seviyesine göre ayrılıyor
 (`decisions.md` madde 28): farklı erişim seviyesi ayrı process'lere dağılıyor, aynı
-erişim seviyesi tek process'te toplanıyor. `wallet-consumer` hem top-up event'lerini hem
-çekim komutlarını hem settlement'ı dinliyor; üçü de ingress'siz ve aynı ledger'a yazıyor.
+erişim seviyesi tek process'te toplanıyor. `wallet-consumer` top-up event'lerini,
+havaleleri, çekim komutlarını ve settlement'ı dinliyor; hepsi ingress'siz ve aynı ledger'a
+yazıyor. Havalenin göndereninin hesap sahibi olup olmadığını onboarding'e kendi token'ıyla
+soruyor; kimlik numarası wallet'ta tutulmuyor.
 
 Dikkat edilecek dört şey:
 
@@ -134,7 +136,8 @@ saga taraması (madde 33).
 
 **Bankayla iletişim HTTP.** Orchestrator `StartBankTransfer` komutunu RabbitMQ'ya
 yazıyor (komutun ayrıntısı bölüm 3'te). `bank-adapter` komutu kuyruktan okuyor ve
-bankayı HTTP ile arıyor. Banka sonucu `bank-webhook`'a HTTP callback ile bildiriyor.
+bankayı HTTP ile arıyor. Banka sonucu `bank-webhook`'a HTTP callback ile bildiriyor;
+hesabımıza gelen havaleyi de aynı uca bildiriyor.
 
 `bank-fake` ile `stripe-fake` canlıda yok; adaptörler oradaki adres ayarıyla kurumların
 kendi endpoint'lerine bakıyor ve kodda tek satır değişmiyor (madde 35).
@@ -288,27 +291,32 @@ onboarding'in kendi Postgres sunucusunda; wallet yalnızca sonucu, hesabın sevi
 biliyor. Bireysel hesabı ve seviyeyi yalnızca onboarding değiştirebiliyor: wallet-api'de
 bu uçlar token'ın `azp`'sinde onboarding'in istemcisini arıyor.
 
-| seviye | nasıl | ayda ne kadar |
+| seviye | ne doğrulandı | ayda ne kadar |
 | --- | --- | --- |
-| `Unknown` | kayıt tamamlandı | hiçbir hareket |
-| `Unverified` | telefon, kimlik, onaylar | gelen transfer ve işyerine ödeme; giden transfer ve çekim yok |
-| `Verified` | kendi banka hesabından ilk havale | hepsi, orta limit |
-| `Contracted` | uzaktan kimlik tespiti ya da fiziksel sözleşme | hepsi, en yüksek limit |
+| `Unknown` | hiçbir şey: kayıt tamamlandı | hiçbir hareket |
+| `Unverified` | bilgiler: telefon, nüfus kaydı, onaylar | yükleme, gelen transfer ve işyerine ödeme; giden transfer ve çekim yok |
+| `Verified` | kişi, otomatik: uzaktan kimlik tespiti (kimlik kartının çipi, canlılık, yüz) | hepsi, orta limit |
+| `Contracted` | kişi, bir çalışan tarafından: görüntülü görüşme ya da yüz yüze, sözleşme | hepsi, en yüksek limit |
 
-Tutarlar wallet-api'nin (transfer, ödeme) ve wallet-consumer'ın (çekim) ayarında. Seviye
-yalnızca yükseliyor. `Verified` ve `Contracted`'a geçiş henüz yok.
+`Unknown` ve `Unverified` kimliği tespit edilmemiş müşteri: ayın toplam girişi (yükleme ve
+gelen transfer birlikte) ve bakiye yasal tavanın altında (MASAK Genel Tebliği Sıra No 5,
+2.2.11; bugün 5.500 TL). `Verified` ve `Contracted`'ın tavanı yok, tutarları risk kararı.
+
+Tutarlar wallet-api'nin (transfer, ödeme) ve wallet-consumer'ın (çekim, yükleme) ayarında.
+Seviye yalnızca yükseliyor. `Verified` ve `Contracted`'a geçiş henüz yok. Kendi hesabından
+gelen havale seviye değiştirmiyor: kimlik tespiti değil.
 
 ---
 
 ## 2. Top-up: para dışarıdan giriyor
 
-**Akışı sağlayıcı başlatıyor.** Müşteri kartıyla ödeme yapıyor ya da banka
-hesabımıza havale gönderiyor; parayı alan kurum bunu bize webhook ile bildiriyor.
-İlk temas o webhook.
+**Akışı sağlayıcı başlatıyor.** Müşteri kartıyla ödeme yapıyor; parayı alan kurum bunu
+bize webhook ile bildiriyor. İlk temas o webhook. Banka hesabımıza gelen havale bu yoldan
+DEĞİL, bankanın kendi bildirimiyle geliyor (bkz. "Havale ile yükleme").
 
-Compose'da bu bildirimi sahte kurumlar üretiyor: `POST :8096/v1/topups` (stripe-fake)
-ya da `POST :8094/v1/topups` (bank-fake). İkisi de arkadan `topup-webhook`'a imzalı
-webhook gönderiyor — gerçek kurumun yapacağı çağrının aynısı.
+Compose'da bu bildirimi sahte kart sağlayıcısı üretiyor: `POST :8096/v1/topups`
+(stripe-fake). Arkadan `topup-webhook`'a imzalı webhook gönderiyor — gerçek kurumun
+yapacağı çağrının aynısı.
 
 ```mermaid
 sequenceDiagram
@@ -346,6 +354,48 @@ sıra garantisi bunu düzeltmez (madde 30).
 
 İki kademe idempotency var: inbox'ta `(provider, event_id)` UNIQUE, tüketicide
 `processed_events`. İkincisi ledger yazımıyla aynı transaction'da.
+
+### Havale ile yükleme
+
+**Akışı müşteri başlatıyor:** kendi bankasından bankadaki toplama hesabımıza havale ya da
+FAST gönderiyor, açıklamaya hesap numarasını yazıyor. IBAN'ı, alıcı adını ve numarayı
+uygulamanın "Havaleyle para yükle" sayfası veriyor
+(`GET /v1/accounts/{id}/deposit-instructions`). Bütün müşteriler aynı IBAN'a gönderiyor.
+
+Banka parayı açıklamaya bakmadan kabul ediyor ve bize bildiriyor; bildirim geldiğinde para
+zaten bankamızda. Compose'da havaleyi sahte banka tetikliyor:
+`POST :8094/v1/incoming-transfers`.
+
+```
+bank-fake ──bildirim──▶ bank-webhook ──▶ bank_callbacks ──▶ bank-adapter ──▶ bank_deposits
+                        (IP kısıtlı)      (inbox)           (yorumlayıcı)    (kayıt + outbox)
+                                                                │
+           hesap hareketleri ◀──── tarama (kaçırılan bildirim) ─┘
+                                                                │ DepositRelay
+                                                                ▼
+                                                     hiwallet.deposits ──▶ wallet-consumer
+                                                                                │
+                              açıklamadaki numara ──▶ hesap ──▶ onboarding'e TCKN sorusu
+                                                                                │
+                                             cüzdan +, nostro −   ya da   askı +, nostro −
+```
+
+- **Banka tarafı.** Banka iki tür bildirimi aynı uca gönderiyor; gövdedeki `type` transfer
+  sonucunu (`transfer.status`) gelen havaleden (`transfer.incoming`) ayırıyor. Havale
+  `bank_deposits`'e yazılıyor; wallet'a gidecek mesaj satırla birlikte saklanıyor ve
+  `DepositRelay` yayınlıyor. Kaçırılan bildirimi hesap hareketi taraması buluyor; tarama
+  kapatılamaz, bulduğu her havale bildirim hattında sorun olabileceğini söylüyor.
+- **Kişisel veri.** Gönderenin adı, IBAN'ı ve kimlik numarası `bank_deposits`'te kalıyor.
+  Wallet'a giden mesajda ad ve IBAN yok; kimlik numarası yalnızca onboarding'e sorulmak
+  için geçiyor, wallet onu yazmıyor.
+- **Karar wallet'ta.** Cüzdana yalnızca açıklamasında tek geçerli hesap numarası olan,
+  bireysel hesabın, gönderenin kimlik numarası hesap sahibininkiyle aynı ve seviye limitine
+  sığan havale geçiyor; para varsayılan cüzdana düşüyor. Geri kalanı askıya alınıyor ve
+  sebebi `suspended_deposits`'te. Askıdaki havaleleri panel listeliyor
+  (`deposit.view` izni); kaynağa iade ve elle aktarma sonraki adım.
+- **Sıra.** Havale kuyruğunda tek aktif tüketici var: aynı hesaba gelen iki havale
+  seviyenin aylık limitini ayrı ayrı yeterli görmesin. Onboarding cevap vermezse havale
+  kuyruğa dönüyor.
 
 ---
 
@@ -438,7 +488,7 @@ ilerlemeye devam ediyor.
 
 ## 4. Para nerede duruyor
 
-**Her işlemde bacakların toplamı sıfır.** Beş hesap rolü var: ikisi "iddia", üçü
+**Her işlemde bacakların toplamı sıfır.** Altı hesap rolü var: üçü "iddia", üçü
 "gerçekleşmiş".
 
 ```mermaid
@@ -446,6 +496,7 @@ flowchart LR
     subgraph claim["iddia — henüz banka hareketi yok"]
         wallet["<b>user_wallet</b><br/>müşteriye borcumuz"]
         clearing["<b>clearing</b><br/>sağlayıcıyla<br/>açık hesap"]
+        suspense["<b>suspense</b><br/>sahibi belirlenemeyen<br/>havale"]
     end
 
     subgraph real["gerçekleşmiş"]
@@ -461,7 +512,9 @@ Her işlem tipinin yazdığı bacaklar — **toplamı her satırda sıfır**:
 
 | işlem | bacaklar |
 | --- | --- |
-| `topup` | `wallet +100`, `clearing −100` |
+| `topup` (kart) | `wallet +100`, `clearing −100` |
+| `topup` (havale) | `wallet +100`, `nostro −100` |
+| `suspended_deposit` | `suspense +100`, `nostro −100` |
 | `p2p` | `gönderen −100`, `alan +100` |
 | `payment` | `gönderen −102`, `alan +100`, `revenue +2` |
 | `payment` (promo ile) | `gönderen promo −40`, `gönderen cash −62`, `alan cash +100`, `revenue +2` |
@@ -493,6 +546,7 @@ bir banka hesabı. Stripe parayı bizim banka hesabımıza yatırıyor.
 | --- | --- | --- | --- |
 | takılmış saga taraması | orchestrator | 5 dk | iki veritabanı arasında asılı kalan çekimi yakalıyor |
 | banka mutabakatı | bank-adapter | 4 saat | callback'i kaçırılmış transferi bankaya sorup kapatıyor |
+| hesap hareketi taraması | bank-adapter | 4 saat | bildirimi kaçırılmış havaleyi hesap hareketlerinden bulup kaydediyor |
 | mutabakat | wallet-consumer | 6 saat | projeksiyon sapması, gelmeyen settlement, geciken fatura |
 | işletme günlük özeti | wallet-consumer | 1 saat | hacim, işlem sayısı, kesilen komisyon |
 
