@@ -25,7 +25,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
         {
             t.HasCheckConstraint("ck_ledger_accounts_type",
                 "type IN ('user_wallet','clearing','revenue','nostro','provider_expense'," +
-                "'promo_expense','promo_breakage')");
+                "'promo_expense','promo_breakage','suspense')");
 
             // Kolon başına bir kural: "bu kolon TAM OLARAK şu tipte dolu".
             // İhlalde Postgres constraint adını söylüyor, hangi kuralın bozulduğu belli oluyor.
@@ -36,7 +36,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             t.HasCheckConstraint("ck_ledger_accounts_name_blank",
                 "name IS NULL OR btrim(name) <> ''");
             t.HasCheckConstraint("ck_ledger_accounts_provider",
-                "(type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)");
+                "(type IN ('clearing','nostro','provider_expense','suspense')) = (provider IS NOT NULL)");
             t.HasCheckConstraint("ck_ledger_accounts_provider_blank",
                 "provider IS NULL OR btrim(provider) <> ''");
         });

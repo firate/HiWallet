@@ -21,7 +21,10 @@ public enum LedgerTransactionType
     /// <summary>Ödeme. Komisyon kesilen tip.</summary>
     Payment = 5,
 
-    /// <summary>Dışarıdan para girişi. Cüzdan +, clearing −.</summary>
+    /// <summary>
+    /// Dışarıdan para girişi. Cüzdan +; kartta sağlayıcının clearing'i −, havalede
+    /// bankanın nostro'su −.
+    /// </summary>
     Topup = 6,
 
     /// <summary>Dışarıya para çıkışı. Cüzdan −, clearing +.</summary>
@@ -40,7 +43,13 @@ public enum LedgerTransactionType
     PromoGrant = 11,
 
     /// <summary>Süresi dolan promo partisinin kalanının kapatılması (decisions.md madde 37).</summary>
-    PromoExpiry = 12
+    PromoExpiry = 12,
+
+    /// <summary>
+    /// Cüzdana geçirilemeyen havale. Askı +, nostro −: para bankamızda, sahibine
+    /// borcumuz askıda. Cüzdana geçen havale <see cref="Topup"/>.
+    /// </summary>
+    SuspendedDeposit = 13
 }
 
 /// <summary>
@@ -66,6 +75,7 @@ public static class LedgerTransactionTypes
             LedgerTransactionType.ProviderInvoice => "provider_invoice",
             LedgerTransactionType.PromoGrant => "promo_grant",
             LedgerTransactionType.PromoExpiry => "promo_expiry",
+            LedgerTransactionType.SuspendedDeposit => "suspended_deposit",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış işlem tipi.")
         };
     }
@@ -86,6 +96,7 @@ public static class LedgerTransactionTypes
             "provider_invoice" => LedgerTransactionType.ProviderInvoice,
             "promo_grant" => LedgerTransactionType.PromoGrant,
             "promo_expiry" => LedgerTransactionType.PromoExpiry,
+            "suspended_deposit" => LedgerTransactionType.SuspendedDeposit,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen işlem tipi.")
         };
     }

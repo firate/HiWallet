@@ -1,5 +1,6 @@
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Balances;
+using HiWallet.WalletService.Domain.Deposits;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Promos;
 using Microsoft.EntityFrameworkCore;
@@ -42,7 +43,13 @@ public sealed class WalletDbContext : DbContext
     /// <summary>Kampanyalara göre değerlendirilmiş ödemeler (decisions.md madde 37).</summary>
     internal DbSet<PromoCampaignEvaluation> PromoCampaignEvaluations => Set<PromoCampaignEvaluation>();
 
-    /// <summary>Top-up event'lerinin idempotency defteri (overview.md madde 5).</summary>
+    /// <summary>Cüzdana geçirilemeyen havaleler ve sebepleri. Parası askı hesabında.</summary>
+    public DbSet<SuspendedDeposit> SuspendedDeposits => Set<SuspendedDeposit>();
+
+    /// <summary>
+    /// Top-up event'lerinin ve havalelerin idempotency defteri (overview.md madde 5).
+    /// Havalede anahtar bankanın gelen işlem referansı.
+    /// </summary>
     internal DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
 
     /// <summary>Saga komutlarının idempotency defteri (decisions.md madde 32).</summary>
