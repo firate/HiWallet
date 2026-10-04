@@ -201,6 +201,9 @@ services:
       PERSONAL_WEB_CLIENT_SECRET: ${PERSONAL_WEB_CLIENT_SECRET:?PERSONAL_WEB_CLIENT_SECRET .env'de tanımlı değil}
       # Kayıt servisinin istemcisi: kullanıcı açıyor ve wallet-api'yi kendi kimliğiyle çağırıyor.
       ONBOARDING_CLIENT_SECRET: ${ONBOARDING_CLIENT_SECRET:?ONBOARDING_CLIENT_SECRET .env'de tanımlı değil}
+      # wallet-consumer'ın istemcisi: havalenin göndereninin hesap sahibi olup olmadığını
+      # onboarding'e soruyor.
+      WALLET_CONSUMER_CLIENT_SECRET: ${WALLET_CONSUMER_CLIENT_SECRET:?WALLET_CONSUMER_CLIENT_SECRET .env'de tanımlı değil}
       # Realm dosyasındaki ${PROXY_DOMAIN}: ters proxy arkasında yayında Scalar'ın
       # adresleri (docker-compose.proxy.yml). Proxy yoksa localhost; o adresler yerelde
       # hiçbir yere gitmiyor.
@@ -893,6 +896,11 @@ services:
       # kısaltılmazsa mutabakatı görmek için altı saat beklemek gerekirdi.
       Jobs__Reconciliation__Interval: ${JOBS_RECONCILIATION_INTERVAL:-06:00:00}
       Jobs__BusinessSummary__Interval: ${JOBS_BUSINESS_SUMMARY_INTERVAL:-01:00:00}
+      # Havalenin göndereni hesabın sahibi mi: onboarding'e kendi token'ıyla soruyor.
+      # Onboarding ya da Keycloak beklenmiyor; soru cevapsız kalırsa havale kuyruğa dönüyor.
+      InternalServices__Onboarding__BaseUrl: http://onboarding:8080
+      Keycloak__BaseUrl: http://hiwallet-keycloak:8080
+      Keycloak__ClientSecret: ${WALLET_CONSUMER_CLIENT_SECRET:?WALLET_CONSUMER_CLIENT_SECRET .env'de tanımlı değil}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-wallet-consumer
