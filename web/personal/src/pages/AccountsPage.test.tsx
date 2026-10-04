@@ -28,6 +28,7 @@ describe('AccountsPage', () => {
     renderAt('/', <AccountsPage />)
 
     expect(await screen.findByText('123 456 7897')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Havaleyle para yükle' }).getAttribute('href')).toBe('/hesaplar/a1/yukle')
     // Tek cüzdanda seçilecek bir şey yok.
     expect(screen.queryByRole('button', { name: 'Gelen para buraya gelsin' })).toBeNull()
   })
