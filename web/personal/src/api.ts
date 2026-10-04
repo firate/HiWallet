@@ -1,6 +1,7 @@
 import type {
   AccountDetail,
   AccountsPage,
+  DepositInstructions,
   IdentityRequest,
   MovementsPage,
   OnboardingStatus,
@@ -97,6 +98,8 @@ export const api = {
     send<Wallet>('POST', `/v1/accounts/${accountId}/wallets`, { body: { name, currency } }),
   setDefaultWallet: (accountId: string, currency: string, walletId: string) =>
     send<void>('PUT', `/v1/accounts/${accountId}/default-wallets/${currency}`, { body: { walletId } }),
+  depositInstructions: (accountId: string) =>
+    send<DepositInstructions>('GET', `/v1/accounts/${accountId}/deposit-instructions`),
 
   wallet: (walletId: string) => send<Wallet>('GET', `/v1/wallets/${walletId}`),
   movements: (walletId: string, after?: number | null) =>

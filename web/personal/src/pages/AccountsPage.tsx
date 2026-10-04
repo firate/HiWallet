@@ -78,6 +78,11 @@ function AccountCard({ accountId, level }: { accountId: string; level: KycLevel 
       </p>
       <p className="muted small">Sana para gönderecek kişiye bu numarayı ver.</p>
       {level !== null && <LevelNotice level={level} />}
+      {level !== null && level !== 'Unknown' && (
+        <p>
+          <Link to={`/hesaplar/${accountId}/yukle`}>Havaleyle para yükle</Link>
+        </p>
+      )}
       {wallets.length === 0 ? (
         <p className="muted">Bu hesapta henüz cüzdan yok.</p>
       ) : (
