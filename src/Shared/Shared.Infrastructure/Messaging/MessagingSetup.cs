@@ -37,6 +37,7 @@ public static class MessagingSetup
         services.AddSingleton<TopupTopology>();
         services.AddSingleton<WithdrawalTopology>();
         services.AddSingleton<SettlementTopology>();
+        services.AddSingleton<DepositTopology>();
 
         return services;
     }
