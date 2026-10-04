@@ -19,6 +19,7 @@ import type {
   StaffDetail,
   StaffPage,
   StaffPromoRequest,
+  SuspendedDepositsPage,
   Wallet,
   Withdrawal,
   WithdrawalsPage,
@@ -120,6 +121,8 @@ export const api = {
   withdrawals: (state: string, after?: string | null) =>
     send<WithdrawalsPage>('GET', page(`/v1/withdrawals?state=${encodeURIComponent(state)}`, after)),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+  suspendedDeposits: (after?: string | null) =>
+    send<SuspendedDepositsPage>('GET', page('/v1/suspended-deposits', after)),
   releaseWithdrawal: (withdrawalId: string) => send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/release`),
   cancelWithdrawal: (withdrawalId: string, reason: string) =>
     send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/cancel`, { body: { reason } }),

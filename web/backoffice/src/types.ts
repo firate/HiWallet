@@ -26,6 +26,7 @@ export type StaffPermission =
   | 'campaign.view'
   | 'campaign.manage'
   | 'merchant.promo_acceptance'
+  | 'deposit.view'
   | 'staff.manage'
 
 export type KycLevel = 'Unknown' | 'Unverified' | 'Verified' | 'Contracted'
@@ -133,6 +134,29 @@ export interface Withdrawal {
 
 export interface WithdrawalsPage {
   items: Withdrawal[]
+  size: number
+  nextCursor: string | null
+}
+
+/**
+ * Cüzdana geçirilemeyip askıya alınan havale. Gönderenin kişisel verisi wallet'ta yok;
+ * banka referansı, tutar, sebep ve açıklamadaki numaranın hesabı var.
+ */
+export interface SuspendedDeposit {
+  id: string
+  provider: string
+  bankReference: string
+  amount: number
+  currency: string
+  reason: string
+  accountId: string | null
+  accountNumber: string | null
+  receivedAt: string
+  createdAt: string
+}
+
+export interface SuspendedDepositsPage {
+  items: SuspendedDeposit[]
   size: number
   nextCursor: string | null
 }
