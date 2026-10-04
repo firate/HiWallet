@@ -42,8 +42,24 @@ internal sealed record TransferStatusResponse(
     DateTimeOffset AcceptedAt);
 
 /// <summary>
-/// Bankanın callback gövdesi. <c>bank-webhook</c> bunu ham olarak inbox'a yazıyor,
-/// relay burada çözüyor.
+/// Bankanın bildirim tipleri. Banka tek endpoint'e iki tür bildirim gönderiyor ve
+/// gövdedeki <c>type</c> hangisi olduğunu söylüyor.
+/// </summary>
+internal static class BankEventType
+{
+    /// <summary>
+    /// Bizim başlattığımız transferin sonucu. Tip alanı eklenmeden önce gelen bildirimler
+    /// de bu sayılıyor: o zaman bankanın tek bildirimi buydu.
+    /// </summary>
+    public const string TransferStatus = "transfer.status";
+
+    /// <summary>Hesabımıza gelen havale.</summary>
+    public const string IncomingTransfer = "transfer.incoming";
+}
+
+/// <summary>
+/// Bankanın transfer sonucu bildirimi. <c>bank-webhook</c> bunu ham olarak inbox'a
+/// yazıyor, relay burada çözüyor.
 /// </summary>
 internal sealed record CallbackNotification
 {
@@ -63,6 +79,49 @@ internal sealed record CallbackNotification
 
     public required DateTimeOffset OccurredAt { get; init; }
 }
+
+/// <summary>
+/// Hesabımıza havale geldi bildirimi. Banka parayı açıklamaya bakmadan kabul etmiş;
+/// gönderenin bilgileri bankanın bildirdiği gibi.
+/// </summary>
+internal sealed record IncomingTransferNotification
+{
+    public required string EventId { get; init; }
+
+    public required string BankReference { get; init; }
+
+    public required decimal Amount { get; init; }
+
+    public required string Currency { get; init; }
+
+    public string? Description { get; init; }
+
+    public string? SenderName { get; init; }
+
+    public string? SenderIban { get; init; }
+
+    /// <summary>Gönderenin kimlik numarası (TCKN/VKN). Yasa gönderenin bilgilerinin alıcı kuruma taşınmasını istiyor; bunlardan biri.</summary>
+    public string? SenderNationalId { get; init; }
+
+    /// <summary>Paranın hesabımıza girdiği an.</summary>
+    public required DateTimeOffset OccurredAt { get; init; }
+
+    public IncomingTransferItem ToItem() => new(
+        BankReference, Amount, Currency, Description, SenderName, SenderIban, SenderNationalId, OccurredAt);
+}
+
+/// <summary>Hesap hareketleri: bir zaman aralığında hesabımıza gelen havaleler. Taramanın okuduğu şey.</summary>
+internal sealed record IncomingTransfersResponse(IReadOnlyList<IncomingTransferItem> Items);
+
+internal sealed record IncomingTransferItem(
+    string BankReference,
+    decimal Amount,
+    string Currency,
+    string? Description,
+    string? SenderName,
+    string? SenderIban,
+    string? SenderNationalId,
+    DateTimeOffset ReceivedAt);
 
 /// <summary>
 /// Bankanın durum kelimeleri. Bizim <c>BankTransferStatus</c>'umuzla eşlemesi

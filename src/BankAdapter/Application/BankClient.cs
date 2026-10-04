@@ -134,6 +134,43 @@ internal sealed class BankClient(
     }
 
     /// <summary>
+    /// Hesabımıza bir zaman aralığında gelen havaleler: hesap hareketleri. Hesap
+    /// hareketi taramasının okuduğu şey; bildirimi kaçırılmış havaleyi bulmanın yolu.
+    /// </summary>
+    /// <exception cref="TransientBankException">Banka cevap vermedi; sonraki turda yeniden.</exception>
+    public async Task<IReadOnlyList<IncomingTransferItem>> GetIncomingTransfersAsync(
+        DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
+    {
+        HttpResponseMessage response;
+
+        try
+        {
+            response = await Client.GetAsync(
+                $"v1/incoming-transfers?from={Uri.EscapeDataString(from.ToString("O"))}" +
+                $"&to={Uri.EscapeDataString(to.ToString("O"))}",
+                ct);
+        }
+        catch (Exception exception) when (IsNoAnswer(exception, ct))
+        {
+            throw new TransientBankException("Bankaya ulaşılamadı.", exception);
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new TransientBankException(
+                    $"Hesap hareketleri {(int)response.StatusCode} döndü.", innerException: null);
+            }
+
+            var body = await response.Content.ReadFromJsonAsync<IncomingTransfersResponse>(JsonOptions, ct)
+                       ?? throw new TransientBankException("Hesap hareketleri boş döndü.", innerException: null);
+
+            return body.Items;
+        }
+    }
+
+    /// <summary>
     /// "Bankadan cevap alamadık" sayılan istisnalar. Resilience pipeline'ı
     /// denemeleri tükettiğinde kendi istisnasını atıyor; dışarıya çıkan tek şey
     /// <see cref="TransientBankException"/> olmalı, yoksa tüketici tanımadığı
