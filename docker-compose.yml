@@ -1004,6 +1004,12 @@ services:
       # Canlı varsayılanı 4 saat (appsettings.json).
       Bank__Reconciliation__Interval: ${BANK_RECONCILIATION_INTERVAL:-00:01:00}
       Bank__Reconciliation__StaleAfter: ${BANK_RECONCILIATION_STALE_AFTER:-00:00:30}
+      # Bankanın bizdeki kodu: wallet'taki nostro ve askı hesaplarının provider'ı.
+      Bank__Provider: bank-fake
+      # Hesap hareketi taraması da kapatılamaz. Compose'da kısa: bildirimi kapatıp
+      # (BANK_CALLBACK_ENABLED=false) taramanın havaleyi bulduğunu görebilmek için.
+      Bank__DepositReconciliation__Interval: ${BANK_DEPOSIT_RECONCILIATION_INTERVAL:-00:01:00}
+      Bank__DepositReconciliation__StaleAfter: ${BANK_DEPOSIT_RECONCILIATION_STALE_AFTER:-00:00:30}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-bank-adapter
@@ -1073,12 +1079,10 @@ services:
       dockerfile: fakes/Bank.Fake/Dockerfile
       target: final
     depends_on:
-      # İki yöne de webhook gönderiyor: sonuç callback'i bank-webhook'a, para
-      # girişi topup-webhook'a. Gerçek banka böyle beklemezdi; burada ilk
-      # gönderimlerin boşa gitmemesi için (stripe-fake ile aynı gerekçe).
+      # İki yöndeki bildirim de bank-webhook'a gidiyor: transfer sonucu ve gelen
+      # havale. Gerçek banka böyle beklemezdi; burada ilk gönderimlerin boşa
+      # gitmemesi için (stripe-fake ile aynı gerekçe).
       bank-webhook:
-        condition: service_healthy
-      topup-webhook:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
@@ -1094,11 +1098,6 @@ services:
       BankFake__Callback__Enabled: ${BANK_CALLBACK_ENABLED:-true}
       BankFake__Callback__Url: http://bank-webhook:8080/v1/webhooks/bank/bank-fake
       BankFake__Callback__Secret: ${BANK_CALLBACK_SECRET}
-      # PARA GİRİŞİ tarafı: müşteri havale/EFT ile yüklediğinde banka bize webhook
-      # atıyor. Aynı kurum iki yönde de çalışıyor — clearing/bank-fake iki yönde
-      # de hareket ediyor.
-      Topup__WebhookUrl: http://topup-webhook:8080
-      Topup__WebhookSecret: ${BANK_FAKE_WEBHOOK_SECRET}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-bank-fake
