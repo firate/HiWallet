@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace HiWallet.WalletService.Domain.Accounts;
 
@@ -13,7 +14,7 @@ namespace HiWallet.WalletService.Domain.Accounts;
 /// yer değiştirmesini (09 ile 90 hariç) sınırda yakalıyor; geçerli ama başka bir numara
 /// yazılmasını yakalamıyor.
 /// </summary>
-public readonly record struct AccountNumber
+public readonly partial record struct AccountNumber
 {
     public const int Length = 10;
 
@@ -70,6 +71,46 @@ public readonly record struct AccountNumber
         number = new AccountNumber(normalized);
         return true;
     }
+
+    /// <summary>
+    /// Serbest metindeki geçerli numaralar, tekrarsız ve metindeki sırasıyla: havale
+    /// açıklaması. Numara bitişik ya da uygulamanın gösterdiği gibi 3-3-4 gruplanmış
+    /// (boşluk ya da tireyle) aranıyor; önünde ya da arkasında rakam olan dizi daha uzun
+    /// bir sayının parçası (TCKN, IBAN) sayılıyor ve alınmıyor. Kontrol hanesi tutmayan
+    /// dizi numara değil.
+    ///
+    /// Birden fazla farklı numara çıkarsa hangisinin kastedildiği SEÇİLMİYOR: çağıran
+    /// hepsini görüp karar veriyor.
+    /// </summary>
+    public static IReadOnlyList<AccountNumber> FindIn(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        var found = new List<AccountNumber>();
+
+        foreach (Match match in Candidate().Matches(text))
+        {
+            var digits = match.Value.Replace(" ", string.Empty, StringComparison.Ordinal)
+                .Replace("-", string.Empty, StringComparison.Ordinal);
+
+            if (TryFrom(digits, out var number) && !found.Contains(number))
+            {
+                found.Add(number);
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// <c>[0-9]</c>, <c>\d</c> değil: <c>\d</c> başka yazı sistemlerinin rakamlarını da
+    /// eşliyor. Süre sınırı açıklama dış dünyadan geldiği için.
+    /// </summary>
+    [GeneratedRegex("(?<![0-9])[0-9]{3}[ -]?[0-9]{3}[ -]?[0-9]{4}(?![0-9])", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
+    private static partial Regex Candidate();
 
     /// <summary>Luhn: sağdan başlayarak her ikinci hane iki katı, toplam onun katına tamamlanıyor.</summary>
     private static char CheckDigit(string body)
