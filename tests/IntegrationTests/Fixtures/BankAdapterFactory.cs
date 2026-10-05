@@ -46,7 +46,8 @@ public sealed class BankAdapterFactory(
                 ["Bank:Reconciliation:Interval"] =
                     (reconciliationInterval ?? TimeSpan.FromMinutes(30)).ToString(),
                 ["Bank:Reconciliation:StaleAfter"] =
-                    (staleAfter ?? TimeSpan.FromMinutes(15)).ToString()
+                    (staleAfter ?? TimeSpan.FromMinutes(15)).ToString(),
+                ["Bank:Provider"] = TestBankSecrets.Bank
             };
 
             BrokerSettings.ApplyFallbacks(overrides);

@@ -129,3 +129,19 @@ export function idList(text: string): string[] {
     .map((id) => id.trim())
     .filter((id) => id.length > 0)
 }
+
+/** Havalenin askıya alınma sebebi. */
+const depositHoldReasons: Record<string, string> = {
+  no_account_number: 'Açıklamada hesap numarası yok',
+  ambiguous_account_number: 'Açıklamada birden fazla numara var',
+  unknown_account: 'Numaranın hesabı yok',
+  business_account: 'İşyeri hesabı',
+  no_wallet_in_currency: 'Bu para biriminde cüzdan yok',
+  unknown_sender: 'Bankanın bildiriminde gönderenin kimliği yok',
+  sender_not_holder: 'Gönderen hesabın sahibi değil',
+  limit_exceeded: 'Seviye limiti',
+}
+
+export function depositHoldReason(value: string): string {
+  return depositHoldReasons[value] ?? value
+}

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace HiWallet.Bank.Fake.Infrastructure.Callbacks;
 
 /// <summary>
-/// Sonucu belli olmuş transferler için bize callback gönderir.
+/// Sonucu belli olmuş transferler ve hesaba gelen havaleler için bize bildirim gönderir.
 ///
 /// <b>Bu sahte bankanın "asıl yol" tarafı.</b> Gerçek entegrasyonda sonuçların
 /// neredeyse tamamı buradan gelir; mutabakat taraması yalnızca buranın kaçırdığını
@@ -81,6 +81,12 @@ internal sealed class CallbackDispatcher(
 
     private async Task DispatchBatchAsync(CancellationToken ct)
     {
+        await DispatchTransfersAsync(ct);
+        await DispatchIncomingAsync(ct);
+    }
+
+    private async Task DispatchTransfersAsync(CancellationToken ct)
+    {
         var now = timeProvider.GetUtcNow();
 
         List<BankTransfer> due;
@@ -144,6 +150,72 @@ internal sealed class CallbackDispatcher(
         }
     }
 
+    /// <summary>
+    /// Hesaba gelen havalelerin bildirimi. Aynı vazgeçme davranışı: denemeler dolunca
+    /// havale yalnızca hesap hareketlerinde kalıyor ve onu bizim taramamız buluyor.
+    /// </summary>
+    private async Task DispatchIncomingAsync(CancellationToken ct)
+    {
+        List<IncomingTransfer> due;
+
+        lock (store.Gate)
+        {
+            due = store.IncomingTransfers
+                .Where(t => t.Notify
+                            && t.CallbackSentAt == null
+                            && t.CallbackAttempts < _callback.MaxAttempts)
+                .Take(BatchSize)
+                .ToList();
+        }
+
+        foreach (var transfer in due)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            string? error = null;
+
+            try
+            {
+                await SendBodyAsync(JsonSerializer.SerializeToUtf8Bytes(new IncomingTransferNotification
+                {
+                    EventId = $"evt-{transfer.BankReference}",
+                    BankReference = transfer.BankReference,
+                    Amount = transfer.Amount,
+                    Currency = transfer.Currency,
+                    Description = transfer.Description,
+                    SenderName = transfer.SenderName,
+                    SenderIban = transfer.SenderIban,
+                    SenderNationalId = transfer.SenderNationalId,
+                    OccurredAt = transfer.ReceivedAt
+                }, JsonOptions), ct);
+
+                logger.LogInformation("Gelen havale bildirildi. {BankReference}", transfer.BankReference);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                error = exception.Message;
+            }
+
+            lock (store.Gate)
+            {
+                transfer.CallbackAttempts++;
+                transfer.LastCallbackError = error;
+
+                if (error is null)
+                {
+                    transfer.CallbackSentAt = timeProvider.GetUtcNow();
+                }
+            }
+
+            if (error is not null)
+            {
+                logger.LogWarning(
+                    "Gelen havale bildirilemedi. {BankReference}, deneme {Attempt}/{Max}: {Error}",
+                    transfer.BankReference, transfer.CallbackAttempts, _callback.MaxAttempts, error);
+            }
+        }
+    }
+
     private async Task SendAsync(
         BankTransfer transfer, string status, DateTimeOffset now, CancellationToken ct)
     {
@@ -161,8 +233,11 @@ internal sealed class CallbackDispatcher(
             OccurredAt = now
         };
 
-        var body = JsonSerializer.SerializeToUtf8Bytes(notification, JsonOptions);
+        await SendBodyAsync(JsonSerializer.SerializeToUtf8Bytes(notification, JsonOptions), ct);
+    }
 
+    private async Task SendBodyAsync(byte[] body, CancellationToken ct)
+    {
         using var content = new ByteArrayContent(body);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 

@@ -110,6 +110,12 @@ public static class SystemActors
 {
     public static readonly Actor Topup = Actor.System(SystemFlows.Topup);
 
+    /// <summary>
+    /// Askıya alınan havale. Cüzdana geçen havalenin aktörü hesabın sahibi: onu müşteri
+    /// başlattı ve gönderenin o olduğunu kimlik numarası doğruladı.
+    /// </summary>
+    public static readonly Actor Deposit = Actor.System(SystemFlows.Deposit);
+
     public static readonly Actor Settlement = Actor.System(SystemFlows.Settlement);
 
     public static readonly Actor ProviderInvoice = Actor.System(SystemFlows.ProviderInvoice);

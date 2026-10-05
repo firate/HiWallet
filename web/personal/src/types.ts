@@ -50,6 +50,18 @@ export interface AccountDetail extends Account {
   wallets: AccountDetailWallet[]
 }
 
+/**
+ * Havaleyle yükleme: bu IBAN'a, alıcı adı bu, açıklamaya bu numara. Havale yalnızca
+ * müşterinin kendi adına kayıtlı hesabından kabul ediliyor.
+ */
+export interface DepositInstructions {
+  iban: string
+  accountHolder: string
+  /** Hesap numarası; açıklamaya yazılacak. */
+  reference: string
+  currency: string
+}
+
 export interface Wallet extends AccountWallet {
   accountId: string
 }

@@ -84,22 +84,6 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
         }, ct);
     }
 
-    private static string NewNationalId()
-    {
-        // Rastgele ilk dokuz hane, kontrol haneleri kurala göre: her test kendi numarasıyla.
-        var d = new int[11];
-        d[0] = Random.Shared.Next(1, 10);
-
-        for (var i = 1; i < 9; i++)
-        {
-            d[i] = Random.Shared.Next(0, 10);
-        }
-
-        d[9] = (((d[0] + d[2] + d[4] + d[6] + d[8]) * 7 - (d[1] + d[3] + d[5] + d[7])) % 10 + 10) % 10;
-        d[10] = d[..10].Sum() % 10;
-        return string.Concat(d);
-    }
-
     [Fact]
     public async Task TelefonKimlikVeOnay_HesapUnverifiedOlur()
     {
@@ -108,7 +92,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
         using var customer = Customer(subject);
 
         await VerifyPhoneAsync(customer, ct);
-        var identity = await PutIdentityAsync(customer, NewNationalId(), ct);
+        var identity = await PutIdentityAsync(customer, NationalIds.New(), ct);
         var accepted = await AcceptAsync(customer, ct);
 
         identity.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -133,7 +117,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
         var ct = TestContext.Current.CancellationToken;
         var (subject, _) = await RegisteredAsync(ct);
         using var customer = Customer(subject);
-        var nationalId = NewNationalId();
+        var nationalId = NationalIds.New();
         _factory.Registry.Mismatch(nationalId);
 
         await VerifyPhoneAsync(customer, ct);
@@ -151,7 +135,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
         var (subject, accountId) = await RegisteredAsync(ct);
         using var customer = Customer(subject);
 
-        (await PutIdentityAsync(customer, NewNationalId(), ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await PutIdentityAsync(customer, NationalIds.New(), ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var accepted = await AcceptAsync(customer, ct);
 
         accepted.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
@@ -165,7 +149,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
     public async Task KimlikNumarasiBaskaMusteride_409()
     {
         var ct = TestContext.Current.CancellationToken;
-        var nationalId = NewNationalId();
+        var nationalId = NationalIds.New();
         var (first, _) = await RegisteredAsync(ct);
         var (second, _) = await RegisteredAsync(ct);
         using var firstCustomer = Customer(first);
@@ -197,7 +181,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
         var (subject, _) = await RegisteredAsync(ct);
         using var customer = Customer(subject);
         await VerifyPhoneAsync(customer, ct);
-        await PutIdentityAsync(customer, NewNationalId(), ct);
+        await PutIdentityAsync(customer, NationalIds.New(), ct);
 
         var response = await customer.PostAsJsonAsync(
             "/v1/me/basic-verification", new { termsVersion = "2020-01", privacyNoticeVersion = "2020-01" }, ct);

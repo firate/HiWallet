@@ -1,18 +1,27 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WalletConsumer.Deposits;
+using HiWallet.WalletConsumer.Identity;
 using HiWallet.WalletConsumer.Settlements;
 using HiWallet.WalletConsumer.Topups;
 using HiWallet.WalletConsumer.Withdrawals;
+using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Application.Settlements;
 using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Application.Withdrawals;
 using HiWallet.WalletService.Setup;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace HiWallet.WalletConsumer;
 
 public static class WalletConsumerSetup
 {
+    private const string OnboardingUrlKey = "InternalServices:Onboarding:BaseUrl";
+
+    private const string KeycloakTokenClient = "keycloak-token";
+
     public static IServiceCollection AddWalletConsumer(
         this IServiceCollection services, IConfiguration configuration)
     {
@@ -31,6 +40,12 @@ public static class WalletConsumerSetup
         services.AddScoped<RefundWithdrawalHandler>();
         services.AddScoped<SettleWithdrawalHandler>();
         services.AddHostedService<WithdrawalCommandConsumer>();
+
+        // Havale: banka hesabımıza gelen para. Cüzdana mı askıya mı yazılacağına burada
+        // karar veriliyor; gönderenin hesap sahibi olduğu onboarding'e soruluyor.
+        services.AddScoped<ProcessDepositHandler>();
+        services.AddHostedService<DepositConsumer>();
+        services.AddHolderIdentity();
 
         // Zamanlanmış işler burada, ayrı bir wallet-jobs deployable'ında DEĞİL:
         // ölçüt erişim seviyesi (decisions.md madde 28) ve job'ların da ingress'i
@@ -58,6 +73,40 @@ public static class WalletConsumerSetup
     }
 
     /// <summary>
+    /// Onboarding'e kendi token'ıyla soran istemci. Zaman aşımı kısa: cevap gelmezse havale
+    /// kuyruğa geri dönüyor, uzun beklemek arkasındaki havaleleri de bekletirdi.
+    /// </summary>
+    private static void AddHolderIdentity(this IServiceCollection services)
+    {
+        services.AddOptions<KeycloakOptions>()
+            .BindConfiguration(KeycloakOptions.SectionName)
+            .Validate(k => Uri.TryCreate(k.BaseUrl, UriKind.Absolute, out _)
+                           && !string.IsNullOrWhiteSpace(k.Realm)
+                           && !string.IsNullOrWhiteSpace(k.ClientId)
+                           && !string.IsNullOrWhiteSpace(k.ClientSecret),
+                $"{KeycloakOptions.SectionName}: BaseUrl, Realm, ClientId ve ClientSecret zorunlu.")
+            .ValidateOnStart();
+
+        services.AddHttpClient(KeycloakTokenClient, (provider, http) =>
+            http.BaseAddress = WithSlash(provider.GetRequiredService<IOptions<KeycloakOptions>>().Value.BaseUrl));
+        services.AddSingleton(provider => new ServiceTokens(
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(KeycloakTokenClient),
+            provider.GetRequiredService<IOptions<KeycloakOptions>>(),
+            TimeProvider.System));
+        services.AddTransient<ServiceTokenHandler>();
+
+        services.AddHttpClient<IHolderIdentity, OnboardingHolderIdentity>((provider, http) =>
+            {
+                http.BaseAddress = WithSlash(provider.GetRequiredService<IConfiguration>()[OnboardingUrlKey]
+                                             ?? throw new InvalidOperationException($"Zorunlu konfigürasyon eksik: {OnboardingUrlKey}."));
+                http.Timeout = TimeSpan.FromSeconds(5);
+            })
+            .AddHttpMessageHandler<ServiceTokenHandler>();
+    }
+
+    private static Uri WithSlash(string url) => new(url.EndsWith('/') ? url : url + "/");
+
+    /// <summary>
     /// Fail fast (baseline.md madde 1). Host KURULDUKTAN sonra çalışır, kayıt
     /// anında değil — konfigürasyonun tüm kaynakları o noktada birleşmiş oluyor.
     /// Broker ayarları <c>AddHiWalletMessaging</c> içinde zaten
@@ -71,6 +120,11 @@ public static class WalletConsumerSetup
             throw new InvalidOperationException(
                 $"Zorunlu konfigürasyon eksik: ConnectionStrings:{PersistenceSetup.ConnectionStringName}. " +
                 "Local'de User Secrets, container'da .env üzerinden verilir.");
+        }
+
+        if (!Uri.TryCreate(app.Configuration[OnboardingUrlKey], UriKind.Absolute, out _))
+        {
+            throw new InvalidOperationException($"Zorunlu konfigürasyon eksik: {OnboardingUrlKey}.");
         }
 
         return app;

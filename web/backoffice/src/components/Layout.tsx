@@ -5,6 +5,7 @@ export function Layout() {
   const user = useSessionUser()
   const access = useStaffAccess()
   const managesStaff = useHasPermission('staff.manage')
+  const viewsDeposits = useHasPermission('deposit.view')
 
   return (
     <>
@@ -15,6 +16,7 @@ export function Layout() {
           </Link>
           <NavLink to="/cekimler">Çekimler</NavLink>
           <NavLink to="/kampanyalar">Kampanyalar</NavLink>
+          {viewsDeposits && <NavLink to="/havaleler">Askıdaki havaleler</NavLink>}
           {managesStaff && <NavLink to="/personel">Personel</NavLink>}
         </div>
         <div className="user">

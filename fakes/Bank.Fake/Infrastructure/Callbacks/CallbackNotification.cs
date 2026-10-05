@@ -1,11 +1,26 @@
 namespace HiWallet.Bank.Fake.Infrastructure.Callbacks;
 
 /// <summary>
+/// Bankanın bildirim tipleri. Banka bildirimlerini tek endpoint'e gönderiyor; gövdedeki
+/// <c>type</c> hangisi olduğunu söylüyor.
+/// </summary>
+public static class CallbackType
+{
+    /// <summary>Müşterinin (bizim) başlattığı transferin sonucu.</summary>
+    public const string TransferStatus = "transfer.status";
+
+    /// <summary>Müşterinin (bizim) hesabına gelen havale.</summary>
+    public const string IncomingTransfer = "transfer.incoming";
+}
+
+/// <summary>
 /// Bankanın bize gönderdiği sonuç bildirimi. BANKANIN sözleşmesi — bizim
 /// <c>Shared.Contracts</c>'ımızdan gelmiyor ve gelmemeli (decisions.md madde 35).
 /// </summary>
 public sealed record CallbackNotification
 {
+    public string Type { get; init; } = CallbackType.TransferStatus;
+
     /// <summary>
     /// Bankanın event kimliği. <b>Tekrar denemelerde AYNI kalmak zorunda</b> — bizim
     /// tarafımızdaki inbox <c>(provider, event_id)</c> ile deduplike ediyor. Her
@@ -31,5 +46,34 @@ public sealed record CallbackNotification
     /// <summary>Yalnızca <c>failed</c> durumunda dolu.</summary>
     public string? FailureReason { get; init; }
 
+    public required DateTimeOffset OccurredAt { get; init; }
+}
+
+/// <summary>
+/// Hesaba havale geldi bildirimi. Gönderenin bilgileri gönderen bankanın mesajla taşıdığı
+/// haliyle.
+/// </summary>
+public sealed record IncomingTransferNotification
+{
+    public string Type { get; init; } = CallbackType.IncomingTransfer;
+
+    /// <summary>Referanstan türetiliyor: tekrar denemelerde AYNI kalmak zorunda.</summary>
+    public required string EventId { get; init; }
+
+    public required string BankReference { get; init; }
+
+    public required decimal Amount { get; init; }
+
+    public required string Currency { get; init; }
+
+    public string? Description { get; init; }
+
+    public string? SenderName { get; init; }
+
+    public string? SenderIban { get; init; }
+
+    public string? SenderNationalId { get; init; }
+
+    /// <summary>Paranın hesaba girdiği an.</summary>
     public required DateTimeOffset OccurredAt { get; init; }
 }

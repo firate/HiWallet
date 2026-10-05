@@ -13,6 +13,11 @@ export function accountNumber(value: string): string {
   return `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`
 }
 
+/** IBAN dörtlü gruplar halinde, bankaların yazdığı gibi: TR28 0009 9000 .... */
+export function iban(value: string): string {
+  return value.replace(/(.{4})/g, '$1 ').trim()
+}
+
 const fundTypes: Record<string, string> = {
   cash: 'Nakit',
   card: 'Kart',

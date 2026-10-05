@@ -126,7 +126,39 @@ Cüzdanda bir işaret olsaydı değişiklik iki satır demekti. Para birimi FK i
 bağlı; hesabın eşleşmesini satırı cüzdandan kuran kod sağlıyor (`DefaultWallet.Of`).
 
 Alıcının o para biriminde cüzdanı yoksa hesap numarasına gönderim reddediliyor (`422`,
-`no_wallet_in_currency`); hesabında kendiliğinden cüzdan açılmıyor.
+`no_wallet_in_currency`); hesabında kendiliğinden cüzdan açılmıyor. Havalede reddetmek
+yok, para zaten bankamızda: o havale askıya düşüyor.
+
+## suspended_deposits
+
+Cüzdana geçirilemeyip askıya alınan havaleler. Ledger DEĞİL: parası `suspense` hesabında,
+bu tablo neden askıda olduğunu ve hangi banka hareketi olduğunu söylüyor. Askı hesabının
+bakiyesi bu satırların toplamı.
+
+```sql
+CREATE TABLE suspended_deposits (
+    ledger_transaction_id uuid PRIMARY KEY REFERENCES ledger_transactions(id),
+    provider        text NOT NULL,           -- parayı alan banka
+    bank_reference  text NOT NULL,           -- bankanın gelen işlem referansı
+    amount          numeric(19,4) NOT NULL CHECK (amount > 0),
+    currency        char(3) NOT NULL,
+    reason          text NOT NULL CHECK (reason IN
+                      ('no_account_number','ambiguous_account_number','unknown_account',
+                       'business_account','no_wallet_in_currency','unknown_sender',
+                       'sender_not_holder','limit_exceeded')),
+    account_id      uuid NULL REFERENCES accounts(id),  -- açıklamadaki numaranın hesabı, varsa
+    received_at     timestamptz NOT NULL,    -- paranın bankaya girdiği an
+    created_at      timestamptz NOT NULL
+);
+
+CREATE UNIQUE INDEX ux_suspended_deposits_reference ON suspended_deposits (provider, bank_reference);
+CREATE INDEX ix_suspended_deposits_created ON suspended_deposits (created_at);
+CREATE INDEX ix_suspended_deposits_account ON suspended_deposits (account_id) WHERE account_id IS NOT NULL;
+```
+
+Gönderenin adı, IBAN'ı ve kimlik numarası burada YOK: kişisel veri ledger'la aynı yerde
+durmuyor, banka entegrasyonunun `bank_deposits` tablosunda kalıyor. Kaynağa iade oradaki
+IBAN'a yapılacak.
 
 ## account_members
 
@@ -157,7 +189,7 @@ CREATE TABLE ledger_accounts (
     id          uuid PRIMARY KEY,
     type        text NOT NULL CHECK (type IN
                   ('user_wallet','clearing','revenue','nostro','provider_expense',
-                   'promo_expense','promo_breakage')),
+                   'promo_expense','promo_breakage','suspense')),
     account_id  uuid NULL REFERENCES accounts(id),  -- cüzdanda zorunlu, sistem hesabında NULL
     name        text NULL,          -- cüzdan adı ("Birikim"), sistem hesaplarında NULL
     provider    text NULL,          -- sistem hesaplarında sağlayıcı ayrımı, cüzdanda NULL
@@ -173,7 +205,7 @@ CREATE TABLE ledger_accounts (
     CONSTRAINT ck_ledger_accounts_name_blank
         CHECK (name IS NULL OR btrim(name) <> ''),
     CONSTRAINT ck_ledger_accounts_provider
-        CHECK ((type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)),
+        CHECK ((type IN ('clearing','nostro','provider_expense','suspense')) = (provider IS NOT NULL)),
     CONSTRAINT ck_ledger_accounts_provider_blank
         CHECK (provider IS NULL OR btrim(provider) <> ''),
 
@@ -220,6 +252,7 @@ person/business bilgisini `accounts`'a bakarak alır (PK araması).
 | `provider_expense` | NULL         | NULL   | sağlayıcı  | Evet               | Sağlayıcıya ödenen ücret (gider)      |
 | `promo_expense`    | NULL         | NULL   | NULL       | Evet               | Platform fonlu promo'nun gideri       |
 | `promo_breakage`   | NULL         | NULL   | NULL       | Evet               | Süresi dolan platform promo'su (gelir)|
+| `suspense`         | NULL         | NULL   | banka      | Hayır              | Cüzdana geçirilemeyen havale (askı)   |
 
 `revenue` ve `provider_expense` ayrı tutulur, netleştirilmez. Biri gelir biri gider;
 compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
@@ -228,10 +261,15 @@ compensation'da `revenue` ters kayıtla iade edilir, `provider_expense` edilmez
 `promo_expense` ile `promo_breakage` da netleştirilmez: süresi dolan platform promo'su
 gider hesabına geri yazılmıyor, ayrı bir gelir olarak görünüyor (`decisions.md` madde 37).
 
+`suspense` birine borcumuz olan ama sahibini belirleyemediğimiz parayı tutuyor: açıklamada
+hesap numarası olmayan, başkasının hesabından gelen ya da seviye limitini aşan havale. Para
+o bankanın nostro'sunda; borç askıda, kaynağa iade edilene ya da bir cüzdana geçirilene
+kadar. Cüzdan gibi negatife düşemez: eksi bakiye tuttuğumuzdan fazlasını dağıttık demek.
+
 Sistem hesapları seed migration ile oluşturulur: `revenue`, `promo_expense` ve
 `promo_breakage` currency başına bir tane,
-`clearing` / `nostro` / `provider_expense` ise **sağlayıcı × currency** başına bir tane.
-Birden fazla sağlayıcı varsa mutabakat ancak böyle ayrıştırılabilir.
+`clearing` / `nostro` / `provider_expense` / `suspense` ise **sağlayıcı × currency** başına
+bir tane. Birden fazla sağlayıcı varsa mutabakat ancak böyle ayrıştırılabilir.
 
 `ck_ledger_accounts_*` kısıtları, `LedgerAccount.Wallet()` / `LedgerAccount.System()`
 factory'lerinin DB tarafındaki eşidir — ikisi aynı kuralı söyler. Hesap yalnızca
@@ -249,6 +287,7 @@ sezgiye ters görünür — yükümlülük hesapları artıda, varlık hesaplar�
 | `user_wallet`      | yükümlülük    | `+` (müşteriye borç)  |
 | `revenue`          | gelir         | `+`                   |
 | `nostro`           | varlık        | `−` (bankada para var)|
+| `suspense`         | yükümlülük    | `+` (sahibi belirsiz borç) |
 | `provider_expense` | gider         | `−`                   |
 | `clearing`         | duruma göre   | top-up'ta `−` (alacak), withdrawal'da `+` (borç) |
 
@@ -262,7 +301,7 @@ CREATE TABLE ledger_transactions (
     id               uuid PRIMARY KEY,
     type             text NOT NULL,       -- p2p, p2b, b2p, b2b, payment, topup, withdrawal,
                                           -- refund, settlement, provider_invoice,
-                                          -- promo_grant, promo_expiry
+                                          -- promo_grant, promo_expiry, suspended_deposit
     ledger_account_id uuid NOT NULL REFERENCES ledger_accounts(id),  -- idempotency KAPSAMI
     actor_type       text NOT NULL,       -- customer, employee, system
     actor_id         text NOT NULL,       -- hesap kimliği / IdP sub'ı / akış adı
@@ -285,9 +324,12 @@ kalır ve hiçbir hata da vermezdi.
 
 | `actor_type` | `actor_id` | ne zaman |
 | --- | --- | --- |
-| `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi |
+| `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi, cüzdana geçen havale |
 | `employee` | kimlik sağlayıcıdaki `sub` | backoffice — kimlik doğrulama gelince |
-| `system` | akışın adı (`topup`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`, `promo-campaign`) | insan yok |
+| `system` | akışın adı (`topup`, `deposit`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`, `promo-campaign`) | insan yok |
+
+Cüzdana geçen havalenin aktörü hesap: havaleyi müşteri başlattı ve gönderenin o olduğunu
+kimlik numarası doğruladı. Askıya alınan havalenin göndereni belirsiz, aktörü `deposit`.
 
 Aktör cüzdanın değil **hesabın** kimliğini taşıyor: bir hesabın aynı para biriminde
 birden fazla cüzdanı olabiliyor (madde 20) ve cüzdan yazılsaydı aynı kişinin ikinci
@@ -300,7 +342,9 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 | `type`             | `ledger_account_id`                          | `idempotency_key`   |
 | ------------------ | ------------------------------------- | ------------------- |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i     |
-| `topup`            | alıcı `user_wallet`                   | `provider:event_id` |
+| `topup` (kart)     | alıcı `user_wallet`                   | `provider:event_id` |
+| `topup` (havale)   | alıcı `user_wallet`                   | `provider:bank_reference` |
+| `suspended_deposit` | bankanın `suspense`'i                | `provider:bank_reference` |
 | `withdrawal`       | çeken `user_wallet`                   | client'ın key'i     |
 | `refund`           | aynı `user_wallet`                    | saga id             |
 | `settlement`       | ilgili `clearing` (sağlayıcı bazında) | sağlayıcı batch ref |
@@ -633,6 +677,21 @@ Bütçe ve hesap tavanları `promo_grants.campaign_id` üzerinden toplanıyor; h
 günlük tavan partinin açıldığı UTC günü üzerinden.
 
 ## Settlement kayıtları
+
+### Havale (settlement YOK)
+
+Banka havaleyi bildirdiğinde para zaten hesabımızda: clearing'e uğramıyor, nostro doğrudan
+hareket ediyor.
+
+```
+cüzdana geçen havale           askıya alınan havale
+user_wallet  +100              suspense  +100
+nostro       -100              nostro    -100
+toplam          0              toplam       0
+```
+
+İki durumda da nostro aynı tutarla hareket ediyor: banka bakiyesiyle ledger her durumda
+tutuyor.
 
 ### Top-up (net settlement, sağlayıcı 2.9 kesip 97.1 gönderiyor)
 

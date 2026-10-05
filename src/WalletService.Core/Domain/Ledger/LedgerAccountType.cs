@@ -36,5 +36,12 @@ public enum LedgerAccountType
     /// Süresi dolan platform fonlu promo'nun kullanılmayan kalanı (gelir). Gider hesabına
     /// geri yazılmıyor, netleştirilmiyor (decisions.md madde 37).
     /// </summary>
-    PromoBreakage = 7
+    PromoBreakage = 7,
+
+    /// <summary>
+    /// Askı: bankaya gelmiş ama cüzdana geçirilemeyen para (sahibi belirlenemedi, limit,
+    /// başkasının hesabından gönderilmiş). Banka bazında; para o bankanın nostro'sunda
+    /// duruyor. Kaynağına iade edilene ya da bir cüzdana geçirilene kadar burada.
+    /// </summary>
+    Suspense = 8
 }

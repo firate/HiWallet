@@ -71,4 +71,17 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
 
         return NoContent();
     }
+
+    /// <summary>
+    /// Havaleyle yükleme bilgisi: toplama hesabının IBAN'ı, alıcı adı ve açıklamaya yazılacak
+    /// hesap numarası. Gelen para varsayılan cüzdana düşüyor.
+    /// </summary>
+    [HttpGet("{accountId:guid}/deposit-instructions")]
+    [ProducesResponseType<DepositInstructionsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<DepositInstructionsResponse> GetDepositInstructions(Guid accountId, CancellationToken ct)
+    {
+        return await walletApi.GetAsync<DepositInstructionsResponse>($"v1/accounts/{accountId}/deposit-instructions", ct);
+    }
 }

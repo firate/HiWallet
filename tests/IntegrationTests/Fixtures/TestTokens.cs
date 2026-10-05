@@ -145,6 +145,9 @@ public static class TestTokens
 
     public const string OnboardingClientId = "onboarding";
 
+    /// <summary>wallet-consumer'ın istemcisi: havalenin gönderenini onboarding'e soruyor.</summary>
+    public const string WalletConsumerClientId = "wallet-consumer";
+
     /// <summary>
     /// Onboarding servisinin kendi token'ı (client credentials): kimlik istemcinin servis
     /// hesabı, <c>azp</c> istemcinin adı.

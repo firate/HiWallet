@@ -18,6 +18,42 @@ public sealed class BankAdapterOptions
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     public ReconciliationOptions Reconciliation { get; init; } = new();
+
+    /// <summary>
+    /// Bankanın bizdeki kodu; wallet'taki <c>ledger_accounts.provider</c> ile AYNI değer.
+    /// Hesap hareketi taramasının bulduğu havale bu kodla yazılıyor. Bildirimle gelen
+    /// havalede kod inbox satırından, yani bankanın çağırdığı adresten geliyor.
+    /// </summary>
+    public string? Provider { get; init; }
+
+    public DepositReconciliationOptions DepositReconciliation { get; init; } = new();
+}
+
+/// <summary>
+/// Hesap hareketi taraması: bildirimi kaçırılmış havaleleri bankanın hesap hareketlerinden
+/// bulup kaydeder.
+///
+/// <b>KAPATILAMAZ, yalnızca aralığı ayarlanır</b> (decisions.md madde 35). Kapatılabilseydi
+/// kaçırılan bir bildirim müşterinin parasını bankada bırakırdı: para hesabımızda ama ne
+/// cüzdanda ne askıda, ledger bankadan ayrışmış.
+/// </summary>
+public sealed class DepositReconciliationOptions
+{
+    /// <summary>Tarama sıklığı. Bildirim asıl yol olduğu için SEYREK.</summary>
+    public TimeSpan Interval { get; init; } = TimeSpan.FromHours(4);
+
+    /// <summary>
+    /// Bir havalenin "bildirimi kaçırıldı" sayılması için geçmesi gereken süre. Daha
+    /// yeni havaleler taranmıyor: bildirimleri yolda olabilir. Callback çalışırken tarama
+    /// boş dönüyor; bulduğu her havale alarm sinyali.
+    /// </summary>
+    public TimeSpan StaleAfter { get; init; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Ne kadar geriye bakıldığı. Aralıktan uzun olmalı: taramanın koşmadığı bir
+    /// dönem (servis kapalıydı) bir sonraki turda yine kapsansın.
+    /// </summary>
+    public TimeSpan Lookback { get; init; } = TimeSpan.FromDays(3);
 }
 
 /// <summary>

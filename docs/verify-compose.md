@@ -57,6 +57,20 @@ STAFF_BOOTSTRAP_ADMIN_EMAIL=... # ilk yönetici; kimsede personel yönetimi yoks
 ONBOARDING_CLIENT_SECRET=...    # kayıt servisinin istemcisi: kullanıcı açıyor, wallet'ı çağırıyor
 ONBOARDING_OWNER_PASSWORD=...   # onboarding'in Postgres'i: şemanın sahibi
 ONBOARDING_APP_PASSWORD=...     # onboarding'in Postgres'i: uygulamanın rolü
+WALLET_CONSUMER_CLIENT_SECRET=... # wallet-consumer'ın istemcisi: havalenin göndereninin hesap sahibi olup olmadığını onboarding'e soruyor
+```
+
+`WALLET_CONSUMER_CLIENT_SECRET`'ten önce kurulmuş bir ortamda realm zaten var ve import
+yeni istemciyi eklemiyor (`Import skipped`). İstemci `kcadm.sh` ile eklenir:
+
+```bash
+docker compose exec hiwallet-keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master --user admin --password "$KEYCLOAK_ADMIN_PASSWORD"
+docker compose exec hiwallet-keycloak /opt/keycloak/bin/kcadm.sh create clients -r hiwallet \
+  -s clientId=wallet-consumer -s enabled=true -s publicClient=false \
+  -s serviceAccountsEnabled=true -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+  -s "secret=$WALLET_CONSUMER_CLIENT_SECRET" \
+  -s 'protocolMappers=[{"name":"hiwallet-api-audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.custom.audience":"hiwallet-api","access.token.claim":"true","id.token.claim":"false","introspection.token.claim":"true"}}]'
 ```
 
 `KEYCLOAK_PUBLIC_URL` istemcinin Keycloak'a ulaştığı adres. Token'daki issuer bu adres;
@@ -115,7 +129,8 @@ for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
          PERSONAL_WEB_CLIENT_SECRET BACKOFFICE_CLIENT_SECRET \
          STAFF_KEYCLOAK_DB_PASSWORD STAFF_KEYCLOAK_ADMIN_PASSWORD \
          STAFF_ADMIN_CLIENT_SECRET STAFF_ADMIN_OWNER_PASSWORD STAFF_ADMIN_APP_PASSWORD \
-         ONBOARDING_CLIENT_SECRET ONBOARDING_OWNER_PASSWORD ONBOARDING_APP_PASSWORD; do
+         ONBOARDING_CLIENT_SECRET ONBOARDING_OWNER_PASSWORD ONBOARDING_APP_PASSWORD \
+         WALLET_CONSUMER_CLIENT_SECRET; do
   grep -qE "^${v}=" .env || echo "eksik: $v"
 done
 ```
@@ -499,6 +514,38 @@ bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=Failure` yapıp
 
 Beklenen: `state` `failed`, ledger'da İKİ işlem — orijinal düşme ve üç bacaklı ters
 kayıt — ve cüzdan bakiyesi başladığı yerde. Komisyon da geri dönmüş olmalı.
+
+### Havale ile yükleme
+
+Kayıt ve temel doğrulamayı bireysel uygulamadan tamamlamış bir müşteri gerekiyor: havale
+yalnızca kimlik numarası hesap sahibininkiyle aynı olan gönderenden cüzdana geçiyor.
+Uygulamadaki "Havaleyle para yükle" sayfası hesap numarasını gösteriyor; `TCKN`
+doğrulamada verilen numara.
+
+```bash
+curl -s -X POST localhost:8094/v1/incoming-transfers -H 'Content-Type: application/json' \
+  -d "{\"amount\":250,\"currency\":\"TRY\",\"description\":\"$ACCOUNT_NUMBER\",\"senderNationalId\":\"$TCKN\"}"
+```
+
+Beklenen: birkaç saniye içinde müşterinin TL varsayılan cüzdanı 250 artıyor ve hareket
+listesinde "Para yükleme" görünüyor. Ledger'da `topup`, cüzdan `+250`, nostro `−250`:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT t.type, a.type AS hesap, e.amount FROM ledger_entries e
+     JOIN ledger_transactions t ON t.id = e.transaction_id
+     JOIN ledger_accounts a ON a.id = e.ledger_account_id
+    WHERE t.idempotency_key LIKE 'bank-fake:GLN%' ORDER BY t.created_at DESC LIMIT 4;"
+```
+
+**Askı.** Aynı isteği başka bir `senderNationalId` ile ya da açıklamasız gönder: para
+cüzdana geçmiyor, `suspended_deposit` olarak askıya yazılıyor ve panelde "Askıdaki
+havaleler"de görünüyor (`deposit.view` izni olan rolle).
+
+**Kaçırılan bildirim.** `"notify": false` ekle: havale yalnızca hesap hareketlerinde
+görünüyor. `bank-adapter`'ın taraması (compose'da dakikada bir, otuz saniyeden eski
+havaleler) onu bulup aynı yoldan wallet'a gönderiyor. `bank_deposits.discovered_via`
+`reconciliation` olmalı.
 
 ## 5. Kapat
 

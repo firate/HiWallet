@@ -62,6 +62,12 @@ public static class SystemAccounts
     /// <summary>Süresi dolan platform fonlu promo'nun kullanılmayan kalanı (gelir).</summary>
     public static readonly Guid PromoBreakageTry = new("a0000000-0000-4000-8000-000000000008");
 
+    /// <summary>
+    /// Bankaya gelmiş ama cüzdana geçirilemeyen havale. Banka bazında, nostro'yla aynı
+    /// bankanın: para o bankada duruyor.
+    /// </summary>
+    public static readonly Guid SuspenseBankTry = new("a0000000-0000-4000-8000-000000000009");
+
     /// <summary>Seed edilen tüm sistem hesapları — testler ve mutabakat bunu dolaşır.</summary>
     public static IReadOnlyList<(Guid Id, LedgerAccountType Type, string? Provider)> All { get; } =
     [
@@ -72,6 +78,7 @@ public static class SystemAccounts
         (ProviderExpenseStripeTry, LedgerAccountType.ProviderExpense, StripeFake),
         (ProviderExpenseBankTry, LedgerAccountType.ProviderExpense, BankFake),
         (PromoExpenseTry, LedgerAccountType.PromoExpense, null),
-        (PromoBreakageTry, LedgerAccountType.PromoBreakage, null)
+        (PromoBreakageTry, LedgerAccountType.PromoBreakage, null),
+        (SuspenseBankTry, LedgerAccountType.Suspense, BankFake)
     ];
 }

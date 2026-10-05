@@ -26,4 +26,8 @@
         <ProjectReference Include="..\WalletService.Core\WalletService.Core.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="HiWallet.IntegrationTests"/>
+    </ItemGroup>
+
 </Project>

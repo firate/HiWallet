@@ -38,3 +38,6 @@ public sealed record OnboardingStatusResponse(
         status.BasicVerificationCompleted,
         new DocumentsResponse(status.Documents.Terms, status.Documents.PrivacyNotice));
 }
+
+/// <param name="Matches">Kimlik numarası sahibin doğrulanmış numarası mı.</param>
+public sealed record HolderCheckResponse(bool Matches);

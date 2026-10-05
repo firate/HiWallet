@@ -147,6 +147,7 @@ internal static class ValueConverters
             Domain.Ledger.LedgerAccountType.ProviderExpense => "provider_expense",
             Domain.Ledger.LedgerAccountType.PromoExpense => "promo_expense",
             Domain.Ledger.LedgerAccountType.PromoBreakage => "promo_breakage",
+            Domain.Ledger.LedgerAccountType.Suspense => "suspense",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış ledger hesap tipi.")
         };
     }
@@ -162,6 +163,7 @@ internal static class ValueConverters
             "provider_expense" => Domain.Ledger.LedgerAccountType.ProviderExpense,
             "promo_expense" => Domain.Ledger.LedgerAccountType.PromoExpense,
             "promo_breakage" => Domain.Ledger.LedgerAccountType.PromoBreakage,
+            "suspense" => Domain.Ledger.LedgerAccountType.Suspense,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen ledger hesap tipi.")
         };
     }

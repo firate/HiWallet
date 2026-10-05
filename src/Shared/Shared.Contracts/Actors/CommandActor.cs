@@ -51,6 +51,9 @@ public static class SystemFlows
 {
     public const string Topup = "topup";
 
+    /// <summary>Sahibi belirlenemeyen havalenin askıya alınması.</summary>
+    public const string Deposit = "deposit";
+
     public const string Settlement = "settlement";
 
     public const string ProviderInvoice = "provider-invoice";

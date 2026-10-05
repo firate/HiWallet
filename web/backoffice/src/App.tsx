@@ -5,6 +5,7 @@ import { CampaignPage } from './pages/CampaignPage'
 import { CampaignsPage } from './pages/CampaignsPage'
 import { HomePage } from './pages/HomePage'
 import { NewCampaignPage } from './pages/NewCampaignPage'
+import { SuspendedDepositsPage } from './pages/SuspendedDepositsPage'
 import { AuditPage } from './pages/staff/AuditPage'
 import { InviteStaffPage } from './pages/staff/InviteStaffPage'
 import { NewRolePage, RolePage, RolesPage } from './pages/staff/RolePages'
@@ -26,6 +27,7 @@ export function App() {
           <Route path="cuzdanlar/:walletId" element={<WalletPage />} />
           <Route path="cekimler" element={<WithdrawalsPage />} />
           <Route path="cekimler/:withdrawalId" element={<WithdrawalPage />} />
+          <Route path="havaleler" element={<SuspendedDepositsPage />} />
           <Route path="kampanyalar" element={<CampaignsPage />} />
           <Route path="kampanyalar/yeni" element={<NewCampaignPage />} />
           <Route path="kampanyalar/:campaignId" element={<CampaignPage />} />

@@ -20,10 +20,14 @@ public sealed class BankDbContext(DbContextOptions<BankDbContext> options) : DbC
 
     public DbSet<BankCallback> Callbacks => Set<BankCallback>();
 
+    /// <summary>Banka hesabımıza gelen havaleler ve wallet'a gidecek mesajları.</summary>
+    public DbSet<BankDeposit> Deposits => Set<BankDeposit>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new BankTransferConfiguration());
         modelBuilder.ApplyConfiguration(new BankCallbackConfiguration());
+        modelBuilder.ApplyConfiguration(new BankDepositConfiguration());
     }
 }
 
@@ -109,5 +113,44 @@ internal sealed class BankCallbackConfiguration : IEntityTypeConfiguration<BankC
         builder.HasIndex(c => c.ReceivedAt)
             .HasDatabaseName("ix_bank_callbacks_unprocessed")
             .HasFilter("processed_at IS NULL");
+    }
+}
+
+internal sealed class BankDepositConfiguration : IEntityTypeConfiguration<BankDeposit>
+{
+    public void Configure(EntityTypeBuilder<BankDeposit> builder)
+    {
+        builder.ToTable("bank_deposits", t =>
+            t.HasCheckConstraint("ck_bank_deposits_via", "discovered_via IN ('callback','reconciliation')"));
+
+        builder.HasKey(d => d.Id).HasName("pk_bank_deposits");
+
+        builder.Property(d => d.Id).HasColumnName("id");
+        builder.Property(d => d.Provider).HasColumnName("provider").HasColumnType("text");
+        builder.Property(d => d.BankReference).HasColumnName("bank_reference").HasColumnType("text");
+        builder.Property(d => d.Amount).HasColumnName("amount").HasColumnType("numeric(19,4)");
+        builder.Property(d => d.Currency).HasColumnName("currency").HasColumnType("char(3)");
+        builder.Property(d => d.Description).HasColumnName("description").HasColumnType("text");
+        builder.Property(d => d.SenderName).HasColumnName("sender_name").HasColumnType("text");
+        builder.Property(d => d.SenderIban).HasColumnName("sender_iban").HasColumnType("text");
+        builder.Property(d => d.SenderNationalId).HasColumnName("sender_national_id").HasColumnType("text");
+        builder.Property(d => d.ReceivedAt).HasColumnName("received_at");
+        builder.Property(d => d.DiscoveredAt).HasColumnName("discovered_at");
+        builder.Property(d => d.DiscoveredVia).HasColumnName("discovered_via").HasColumnType("text");
+        builder.Property(d => d.Payload).HasColumnName("payload").HasColumnType("text");
+        builder.Property(d => d.PublishedAt).HasColumnName("published_at");
+        builder.Property(d => d.PublishAttempts).HasColumnName("publish_attempts").HasDefaultValue(0);
+        builder.Property(d => d.LastError).HasColumnName("last_error").HasColumnType("text");
+
+        // Aynı havale bildirimle de taramayla da gelebilir; ikincisi yazılmıyor. Banka
+        // başına tekillik: iki bankanın referansları çakışabilir.
+        builder.HasIndex(d => new { d.Provider, d.BankReference })
+            .HasDatabaseName("ux_bank_deposits_reference")
+            .IsUnique();
+
+        // Relay'in sıcak sorgusu: yayınlanmamış havaleler.
+        builder.HasIndex(d => d.DiscoveredAt)
+            .HasDatabaseName("ix_bank_deposits_unpublished")
+            .HasFilter("published_at IS NULL");
     }
 }

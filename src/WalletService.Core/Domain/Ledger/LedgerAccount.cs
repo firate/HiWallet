@@ -66,11 +66,12 @@ public sealed class LedgerAccount
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
-    /// Sistem hesapları negatife düşebilir, cüzdanlar düşemez.
+    /// Sistem hesapları negatife düşebilir, cüzdanlar ve askı düşemez: ikisi de birine
+    /// borcumuz olan parayı tutuyor ve eksi bakiye, tuttuğumuzdan fazlasını dağıttık demek.
     /// CHECK constraint DEĞİL, uygulama kuralı — clearing tasarımı gereği negatif durur
     /// (decisions.md madde 6).
     /// </summary>
-    public bool CanGoNegative => Type is not LedgerAccountType.UserWallet;
+    public bool CanGoNegative => Type is not (LedgerAccountType.UserWallet or LedgerAccountType.Suspense);
 
     public static LedgerAccount Wallet(
         Guid id,

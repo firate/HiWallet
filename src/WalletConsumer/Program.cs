@@ -31,9 +31,9 @@ builder.Services.AddHiWalletMessaging(builder.Configuration, ServiceName);
 // Bölüm eksikse startup'ta patlıyor (baseline.md madde 1).
 builder.Services.AddWithdrawalPolicy(builder.Configuration);
 
-// Seviyenin çekim limiti de yalnızca burada, aynı gerekçeyle; transfer ve ödeme
-// limitleri wallet-api'de.
-builder.Services.AddKycLimits(builder.Configuration, KycMovement.Withdrawal);
+// Seviyenin çekim ve yükleme limiti de yalnızca burada, aynı gerekçeyle: çekimi ve
+// havaleyi işleyen tek uygulama bu. Transfer ve ödeme limitleri wallet-api'de.
+builder.Services.AddKycLimits(builder.Configuration, KycMovement.Withdrawal, KycMovement.Deposit);
 
 // Sağlayıcı ücret tarifeleri, aynı gerekçeyle yalnızca burada: top-up'ı işleyen
 // tek uygulama bu ve provider_fees satırını o akış yazıyor (decisions.md madde 10).

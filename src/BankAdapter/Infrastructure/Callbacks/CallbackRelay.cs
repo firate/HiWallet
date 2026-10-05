@@ -1,4 +1,3 @@
-using System.Text.Json;
 using HiWallet.BankAdapter.Application;
 using HiWallet.BankIntegration.Persistence;
 using HiWallet.Shared.Infrastructure.Jobs;
@@ -7,14 +6,16 @@ using Microsoft.EntityFrameworkCore;
 namespace HiWallet.BankAdapter.Infrastructure.Callbacks;
 
 /// <summary>
-/// <c>bank_callbacks</c> inbox'ındaki işlenmemiş bildirimleri alıp transferleri
-/// kapatır. <b>Sonucun ASIL geldiği yol bu</b> (decisions.md madde 35).
+/// <c>bank_callbacks</c> inbox'ındaki işlenmemiş bildirimleri alıp işler: transferleri
+/// kapatır, gelen havaleleri kaydeder (<see cref="BankNotificationHandler"/>).
+/// <b>Sonucun ve havalenin ASIL geldiği yol bu</b> (decisions.md madde 35).
 ///
 /// <b>Neden burada, <c>bank-webhook</c>'un içinde değil.</b> İki sebep ve ikisi de
 /// <c>topup-webhook</c>'un şeklinden bilinçli sapmayı gerektiriyor:
 /// <list type="number">
-/// <item>Callback yolu ile mutabakat taraması AYNI kapanış koduna varmak zorunda
-/// (<see cref="TransferCompleter"/>) ve o kodun tek kopyası olmalı.</item>
+/// <item>Callback yolu ile mutabakat taraması AYNI koda varmak zorunda
+/// (<see cref="TransferCompleter"/>, <see cref="DepositRecorder"/>) ve o kodun tek
+/// kopyası olmalı.</item>
 /// <item>İşleme mantığındaki her değişiklik aksi halde bankanın çağırdığı endpoint'i
 /// yeniden başlatmayı gerektirirdi. Adaptör yeniden başlarken kayıp yok; callback
 /// alıcısı yeniden başlarken banka bağlantı hatası alıyor.</item>
@@ -27,7 +28,7 @@ namespace HiWallet.BankAdapter.Infrastructure.Callbacks;
 /// </summary>
 internal sealed class CallbackRelay(
     IDbContextFactory<BankDbContext> contextFactory,
-    TransferCompleter completer,
+    BankNotificationHandler notifications,
     JobLease lease,
     TimeProvider timeProvider,
     ILogger<CallbackRelay> logger) : BackgroundService
@@ -38,8 +39,6 @@ internal sealed class CallbackRelay(
 
     private static readonly TimeSpan IdleDelay = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan ErrorDelay = TimeSpan.FromSeconds(5);
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -100,7 +99,7 @@ internal sealed class CallbackRelay(
 
             try
             {
-                await ApplyAsync(callback, ct);
+                await notifications.ApplyAsync(callback.Provider, callback.RawPayload, ct);
 
                 callback.ProcessedAt = timeProvider.GetUtcNow();
                 callback.LastError = null;
@@ -124,40 +123,5 @@ internal sealed class CallbackRelay(
         await transaction.CommitAsync(ct);
 
         return processed;
-    }
-
-    private async Task ApplyAsync(BankCallback callback, CancellationToken ct)
-    {
-        var notification = JsonSerializer.Deserialize<CallbackNotification>(callback.RawPayload, JsonOptions)
-                           ?? throw new JsonException("Callback gövdesi boş.");
-
-        var status = BankClient.Map(notification.Status);
-
-        if (status is null)
-        {
-            // Bankanın tanımadığımız bir durum kelimesi. Tahmin ETMİYORUZ: yanlış
-            // tahmin ya müşterinin parasını gereksiz geri gönderir ya da hiç
-            // gitmemiş parayı gitmiş gösterir.
-            throw new InvalidOperationException(
-                $"Bankanın bilinmeyen durumu: '{notification.Status}'. Sözleşme değişmiş olabilir.");
-        }
-
-        if (status is BankIntegration.Domain.BankTransferStatus.Pending)
-        {
-            // Banka "hâlâ bekliyor" diye callback göndermiş. İşlenmiş sayılıyor —
-            // kapatacak bir şey yok ve satırı açık bırakmak alarmı kirletirdi.
-            logger.LogInformation(
-                "Bekliyor bildirimi, kapatılacak bir şey yok. {BankReference}", notification.BankReference);
-
-            return;
-        }
-
-        await completer.ResolveAsync(
-            notification.BankReference,
-            status.Value,
-            notification.Fee,
-            notification.FailureReason,
-            TransferCompleter.ViaCallback,
-            ct);
     }
 }

@@ -9,8 +9,9 @@ namespace HiWallet.IntegrationTests.Transfers;
 /// <summary>
 /// Doğrulama seviyesine göre aylık limitler (wallet-api'nin appsettings'indeki tarife):
 /// <c>Unknown</c>'da hiçbir hareket yok; <c>Unverified</c>'da gelen transfer ve ödeme
-/// 2.750'ye kadar, başka birine giden transfer kapalı. Hesabın kendi cüzdanları
-/// arasındaki aktarım başka birine gönderim değil, seviyeye takılmıyor.
+/// ayda 5.500'e kadar, bakiye de 5.500'ü geçemiyor, başka birine giden transfer kapalı.
+/// Hesabın kendi cüzdanları arasındaki aktarım başka birine gönderim değil, seviyeye
+/// takılmıyor.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class KycLimitTests(PostgresFixture postgres) : IAsyncLifetime
@@ -104,10 +105,10 @@ public sealed class KycLimitTests(PostgresFixture postgres) : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var unverified = await PersonAsync(KycLevel.Unverified, 0m, ct);
-        var sender = await PersonAsync(KycLevel.Contracted, 5_000m, ct);
+        var sender = await PersonAsync(KycLevel.Contracted, 10_000m, ct);
 
-        var first = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 2_000m, "P2P", ct);
-        var upToLimit = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 750m, "P2P", ct);
+        var first = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 3_000m, "P2P", ct);
+        var upToLimit = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 2_500m, "P2P", ct);
         var overLimit = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 0.01m, "P2P", ct);
 
         first.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _factory.Errors));
@@ -117,24 +118,43 @@ public sealed class KycLimitTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Ödeme limiti cüzdandan çıkan toplama uygulanıyor, komisyon dahil (%2): 1.000'lik
-    /// ödeme 1.020 düşüyor, ardından 1.700'lük ödeme 1.734 ile toplamı 2.754'e çıkarıyor.
+    /// Ödeme limiti cüzdandan çıkan toplama uygulanıyor, komisyon dahil (%2): 3.000'lik
+    /// ödeme 3.060 düşüyor, ardından 2.400'lük ödeme 2.448 ile toplamı 5.508'e çıkarıyor.
     /// </summary>
     [Fact]
     public async Task Unverified_AylikOdemeLimitiKadarOder()
     {
         var ct = TestContext.Current.CancellationToken;
-        var unverified = await PersonAsync(KycLevel.Unverified, 5_000m, ct);
+        var unverified = await PersonAsync(KycLevel.Unverified, 5_500m, ct);
         var shop = await MerchantWalletAsync(ct);
 
-        var first = await TransferAsync(unverified.Account, unverified.Wallet, shop, 1_000m, "Payment", ct);
-        var overLimit = await TransferAsync(unverified.Account, unverified.Wallet, shop, 1_700m, "Payment", ct);
-        var underLimit = await TransferAsync(unverified.Account, unverified.Wallet, shop, 1_690m, "Payment", ct);
+        var first = await TransferAsync(unverified.Account, unverified.Wallet, shop, 3_000m, "Payment", ct);
+        var overLimit = await TransferAsync(unverified.Account, unverified.Wallet, shop, 2_400m, "Payment", ct);
+        var underLimit = await TransferAsync(unverified.Account, unverified.Wallet, shop, 2_390m, "Payment", ct);
 
         first.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _factory.Errors));
         overLimit.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         (await RuleAsync(overLimit, ct)).ShouldBe("Kyc.Payment.Monthly");
         underLimit.StatusCode.ShouldBe(HttpStatusCode.Created);
+    }
+
+    /// <summary>
+    /// Bakiye tavanı ayın girişinden bağımsız: önceki aylarda gelmiş ve harcanmamış para
+    /// da sayılıyor. Hata alıcıyı söylemiyor, kuralın adını söylüyor.
+    /// </summary>
+    [Fact]
+    public async Task Unverified_BakiyeTavaniniAsanGelenReddedilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var unverified = await PersonAsync(KycLevel.Unverified, 5_000m, ct);
+        var sender = await PersonAsync(KycLevel.Contracted, 1_000m, ct);
+
+        var overCap = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 600m, "P2P", ct);
+        var upToCap = await TransferAsync(sender.Account, sender.Wallet, unverified.Wallet, 500m, "P2P", ct);
+
+        overCap.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await RuleAsync(overCap, ct)).ShouldBe("Kyc.Balance");
+        upToCap.StatusCode.ShouldBe(HttpStatusCode.Created, string.Join("\n", _factory.Errors));
     }
 
     [Fact]

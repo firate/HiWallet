@@ -1,7 +1,7 @@
 namespace HiWallet.Bank.Fake.Infrastructure.Storage;
 
 /// <summary>
-/// Sahte bankanın bütün hafızası: transferler ve senaryolar. <b>Bellekte, kalıcı
+/// Sahte bankanın bütün hafızası: transferler, senaryolar ve hesabımıza gelen havaleler. <b>Bellekte, kalıcı
 /// DEĞİL</b> (decisions.md madde 35). Süreç yeniden başlayınca her şey siliniyor ve
 /// bu bilinçli: sahte banka elle ve integration testlerle denemek için var,
 /// geçmişi saklaması gereken bir sistem değil.
@@ -31,6 +31,9 @@ public sealed class BankFakeStore
 
     /// <summary>Client reference → senaryo. Yalnızca <see cref="Gate"/> altında kullanılır.</summary>
     internal Dictionary<string, TransferScenario> Scenarios { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Hesabımıza gelen havaleler, geliş sırasıyla. Yalnızca <see cref="Gate"/> altında kullanılır.</summary>
+    internal List<IncomingTransfer> IncomingTransfers { get; } = [];
 
     /// <summary>İki dizine birlikte ekler. Yalnızca <see cref="Gate"/> altında çağrılır.</summary>
     internal void Add(BankTransfer transfer)

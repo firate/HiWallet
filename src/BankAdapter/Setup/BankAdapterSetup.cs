@@ -38,6 +38,16 @@ public static class BankAdapterSetup
             .Validate(
                 options => options.Reconciliation.BatchSize is > 0 and <= 1000,
                 $"{BankAdapterOptions.SectionName}:Reconciliation:BatchSize 1-1000 aralığında olmalı.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Provider),
+                $"{BankAdapterOptions.SectionName}:Provider boş. Taramanın bulduğu havale hangi bankaya yazılacak?")
+            .Validate(
+                options => options.DepositReconciliation.Interval > TimeSpan.Zero
+                           && options.DepositReconciliation.StaleAfter > TimeSpan.Zero
+                           && options.DepositReconciliation.Lookback > options.DepositReconciliation.Interval,
+                // Hesap hareketi taraması da KAPATILAMAZ.
+                $"{BankAdapterOptions.SectionName}:DepositReconciliation: Interval ve StaleAfter pozitif, " +
+                "Lookback Interval'dan uzun olmalı. Tarama kapatılamaz — kaçırılan bildirim parayı bankada bırakır.")
             // Fail fast: eksik ayar ilk transferde değil, başlangıçta patlasın.
             .ValidateOnStart();
 
@@ -50,6 +60,8 @@ public static class BankAdapterSetup
         // fabrikadan çağrı başına alıyor, dolayısıyla handler rotasyonunu kaçırmıyor.
         services.AddSingleton<BankClient>();
         services.AddSingleton<TransferCompleter>();
+        services.AddSingleton<DepositRecorder>();
+        services.AddSingleton<BankNotificationHandler>();
 
         // Scoped: komut tüketicisi her mesaj için kendi scope'unu açıyor.
         services.AddScoped<StartBankTransferHandler>();
@@ -58,6 +70,11 @@ public static class BankAdapterSetup
         services.AddHostedService<CallbackRelay>();
         services.AddHostedService<ReplyRelay>();
         services.AddHostedService<ReconciliationScan>();
+
+        // Gelen havale: bildirimle CallbackRelay'den, kaçırılanı tarama buluyor;
+        // ikisi de bank_deposits'e yazıyor, wallet'a relay taşıyor.
+        services.AddHostedService<DepositScan>();
+        services.AddHostedService<DepositRelay>();
 
         services.AddHealthChecks()
             .AddNpgSql(

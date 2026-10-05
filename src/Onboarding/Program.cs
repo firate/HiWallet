@@ -24,6 +24,7 @@ builder.Services.AddOnboardingValidation();
 
 // Token'ı ön API iletiyor, burada yeniden doğrulanıyor.
 builder.Services.AddHiWalletAuthentication();
+builder.Services.AddWalletConsumerAccess(builder.Configuration);
 
 builder.Services
     .AddControllers(options => options.Filters.AddService<ValidationFilter>())

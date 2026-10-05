@@ -140,8 +140,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Ingress'i olmayan ve webhook alan deployable'larda ölçüt ERİŞİM SEVİYESİ
   (`decisions.md` madde 28): `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz.
   Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı
-  process'e BÖLÜNMEZ — `wallet-consumer` hem top-up event'lerini hem çekim
-  komutlarını dinliyor, ikisi de ingress'siz ve aynı ledger'a yazıyor.
+  process'e BÖLÜNMEZ — `wallet-consumer` top-up event'lerini, havaleleri ve çekim
+  komutlarını dinliyor, hepsi ingress'siz ve aynı ledger'a yazıyor.
 - `wallet-api` ve `wallet-consumer` ortak kütüphane `WalletService.Core` üstünde.
   Ledger'a yazan kodun tek kopyası orada; ikinci bir kopya AÇILMAZ (madde 25).
 - **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
@@ -240,9 +240,17 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   Seviye yalnızca YÜKSELİR; yükselten yollar birbirinden habersiz, satır kilitlenerek
   yazılır. İşyeri hesabının seviyesi yok.
 - Seviye limitleri AYLIK ve hareket tipine göre (gelen transfer, giden transfer, ödeme,
-  çekim), günlük tarifenin ÜSTÜNE. Hesabın kendi cüzdanları arası sayılmaz. Alıcının
+  çekim, yükleme), günlük tarifenin ÜSTÜNE. Hesabın kendi cüzdanları arası sayılmaz. Alıcının
   limiti de kontrol edilir; hata alıcının hesabını söylemez. Tarifede olmayan satır
   KAPALI sayılır ve eksik tarifeyle uygulama AÇILMAZ.
+- Kimliği tespit edilmemiş seviyede (`Unknown`, `Unverified`) ayın toplam girişi ve bakiye
+  yasal tavanın altında (MASAK Genel Tebliği Sıra No 5, 2.2.11): yükleme ve gelen transfer
+  TEK aylık toplamı paylaşır (`IncomingTotal`), bakiye tavanı her gelen harekette kontrol
+  edilir. Tavanı eksik tespit edilmemiş seviyeyle uygulama AÇILMAZ.
+- `Verified` uzaktan kimlik tespiti (kimlik kartının çipi, canlılık, yüz karşılaştırması),
+  `Contracted` kimliği bir çalışanın doğruladığı ve sözleşmesi kurulmuş müşteri. İkisinin
+  tutarları risk kararı. Kendi hesabından gelen havale kimlik tespiti DEĞİL, seviye
+  değiştirmez.
 
 **Top-up hattı**
 - `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —
@@ -357,7 +365,31 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   Gerçek entegrasyonda o tipler bankanın dokümanından gelir; ortak tip "karşı taraf
   sözleşmeyi değiştirdi" hatasını imkânsız gösterirdi.
 - `Shared.Contracts` yalnızca BİZİM mesajlarımızı taşır: `StartBankTransfer`,
-  `BankTransferSucceeded`, `BankTransferFailed`.
+  `BankTransferSucceeded`, `BankTransferFailed`, `BankDepositReceived`.
+
+**Havale ile yükleme**
+- Toplama hesabı: bütün müşteriler aynı IBAN'a gönderir, açıklamadaki hesap numarası paranın
+  kime ait olduğunu söyler. Banka parayı açıklamaya bakmadan kabul eder; bildirim geldiğinde
+  para ZATEN bankamızda. Wallet havaleyi reddetmez, nereye yazacağına karar verir: cüzdan ya
+  da askı. Hiç yazmamak ledger'ı bankadan ayırır.
+- Cüzdana yalnızca şu havale geçer: açıklamada tek bir geçerli hesap numarası, hesap
+  bireysel, bu para biriminde varsayılan cüzdanı var, gönderenin kimlik numarası hesap
+  sahibininki ve seviyenin limiti yetiyor. Geri kalan her şey askıya (`suspense`, banka
+  bazında); sebep `suspended_deposits`'te. Askı cüzdan gibi negatife DÜŞEMEZ.
+- Kimlik numarası wallet'ta TUTULMAZ: onboarding'e evet/hayır sorulur
+  (`POST /v1/holder-checks`, yalnızca wallet-consumer'ın istemcisi, numara gövdede). Cevap
+  gelmezse havale kuyruğa döner; tahminle ne cüzdana ne askıya yazılır.
+- Gönderenin adı, IBAN'ı ve kimlik numarası banka entegrasyonunun veritabanında
+  (`bank_deposits`). Wallet'a giden mesajda ad ve IBAN YOK.
+- Ledger: cüzdana geçen havale `topup`, cüzdan +, nostro − (clearing'e UĞRAMAZ: havalenin
+  settlement'ı yok). Askıya alınan `suspended_deposit`, askı +, nostro −. Aktör cüzdana
+  geçende hesap (`customer`: havaleyi müşteri başlattı, kimlik numarası doğruladı), askıda
+  `system`.
+- Bildirim asıl yol, hesap hareketi taraması kontrol; tarama KAPATILAMAZ. Aynı havale iki
+  yoldan da gelir: `bank_deposits (provider, bank_reference)` UNIQUE, wallet'ta
+  `processed_events` ve ledger anahtarı `provider:bank_reference`.
+- Ledger'a hiç yazılamayan havale (bankanın o para biriminde sistem hesabı yok, tutar
+  bozuk) dead-letter ve ALARM: para bankamızda, ledger'da yok.
 
 **API**
 - `/v1` prefix. Liste endpoint'lerinde pagination, unbounded query YOK.

@@ -76,6 +76,97 @@ namespace HiWallet.BankIntegration.Persistence.Migrations
                     b.ToTable("bank_callbacks", (string)null);
                 });
 
+            modelBuilder.Entity("HiWallet.BankIntegration.Persistence.BankDeposit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("BankReference")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("bank_reference");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<DateTimeOffset>("DiscoveredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("discovered_at");
+
+                    b.Property<string>("DiscoveredVia")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("discovered_via");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<int>("PublishAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("publish_attempts");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("SenderIban")
+                        .HasColumnType("text")
+                        .HasColumnName("sender_iban");
+
+                    b.Property<string>("SenderName")
+                        .HasColumnType("text")
+                        .HasColumnName("sender_name");
+
+                    b.Property<string>("SenderNationalId")
+                        .HasColumnType("text")
+                        .HasColumnName("sender_national_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_bank_deposits");
+
+                    b.HasIndex("DiscoveredAt")
+                        .HasDatabaseName("ix_bank_deposits_unpublished")
+                        .HasFilter("published_at IS NULL");
+
+                    b.HasIndex("Provider", "BankReference")
+                        .IsUnique()
+                        .HasDatabaseName("ux_bank_deposits_reference");
+
+                    b.ToTable("bank_deposits", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_bank_deposits_via", "discovered_via IN ('callback','reconciliation')");
+                        });
+                });
+
             modelBuilder.Entity("HiWallet.BankIntegration.Persistence.BankTransfer", b =>
                 {
                     b.Property<Guid>("CommandId")

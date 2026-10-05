@@ -392,6 +392,97 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                             Currency = "TRY",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000009"),
+                            FundType = "cash",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000009"),
+                            FundType = "card",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        },
+                        new
+                        {
+                            LedgerAccountId = new Guid("a0000000-0000-4000-8000-000000000009"),
+                            FundType = "promo",
+                            Balance = 0m,
+                            Currency = "TRY",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Version = 0L
+                        });
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Deposits.SuspendedDeposit", b =>
+                {
+                    b.Property<Guid>("LedgerTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_transaction_id");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("BankReference")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("bank_reference");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.HasKey("LedgerTransactionId")
+                        .HasName("pk_suspended_deposits");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_suspended_deposits_account")
+                        .HasFilter("account_id IS NOT NULL");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_suspended_deposits_created");
+
+                    b.HasIndex("Provider", "BankReference")
+                        .IsUnique()
+                        .HasDatabaseName("ux_suspended_deposits_reference");
+
+                    b.ToTable("suspended_deposits", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_suspended_deposits_amount", "amount > 0");
+
+                            t.HasCheckConstraint("ck_suspended_deposits_reason", "reason IN ('no_account_number','ambiguous_account_number','unknown_account','business_account','no_wallet_in_currency','unknown_sender','sender_not_holder','limit_exceeded')");
                         });
                 });
 
@@ -458,11 +549,11 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_ledger_accounts_name_blank", "name IS NULL OR btrim(name) <> ''");
 
-                            t.HasCheckConstraint("ck_ledger_accounts_provider", "(type IN ('clearing','nostro','provider_expense')) = (provider IS NOT NULL)");
+                            t.HasCheckConstraint("ck_ledger_accounts_provider", "(type IN ('clearing','nostro','provider_expense','suspense')) = (provider IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_ledger_accounts_provider_blank", "provider IS NULL OR btrim(provider) <> ''");
 
-                            t.HasCheckConstraint("ck_ledger_accounts_type", "type IN ('user_wallet','clearing','revenue','nostro','provider_expense','promo_expense','promo_breakage')");
+                            t.HasCheckConstraint("ck_ledger_accounts_type", "type IN ('user_wallet','clearing','revenue','nostro','provider_expense','promo_expense','promo_breakage','suspense')");
                         });
 
                     b.HasData(
@@ -526,6 +617,14 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Currency = "TRY",
                             Type = "promo_breakage"
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000009"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Currency = "TRY",
+                            Provider = "bank-fake",
+                            Type = "suspense"
                         });
                 });
 
@@ -1241,6 +1340,22 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_ledger_balances_ledger_account");
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.Deposits.SuspendedDeposit", b =>
+                {
+                    b.HasOne("HiWallet.WalletService.Domain.Accounts.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_suspended_deposits_account");
+
+                    b.HasOne("HiWallet.WalletService.Domain.Ledger.LedgerTransaction", null)
+                        .WithOne()
+                        .HasForeignKey("HiWallet.WalletService.Domain.Deposits.SuspendedDeposit", "LedgerTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_suspended_deposits_transaction");
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Ledger.LedgerAccount", b =>

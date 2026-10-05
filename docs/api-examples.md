@@ -313,6 +313,58 @@ Hesap numarasına gelen TRY bundan sonra bu cüzdana. Her para biriminde tam bir
 var; hesabın o para birimindeki ilk cüzdanı kendiliğinden varsayılan. Başka bir hesabın
 cüzdanı `404`, başka para biriminin cüzdanı `422`. Müşterinin tercihi: çalışan `403`.
 
+### Havaleyle yükleme bilgisi
+
+```bash
+curl -s localhost:8091/v1/accounts/$ACCOUNT/deposit-instructions -H "Authorization: Bearer $TOKEN"
+```
+```json
+{
+  "iban": "TR280009900000000000123456",
+  "accountHolder": "Hive Elektronik Para A.Ş.",
+  "reference": "4817305925",
+  "currency": "TRY"
+}
+```
+
+Toplama hesabı: bütün müşteriler aynı IBAN'a gönderiyor, açıklamaya yazılan `reference`
+(hesap numarası) paranın kime ait olduğunu söylüyor. Gelen para varsayılan cüzdana düşüyor;
+yalnızca müşterinin kendi adına kayıtlı hesabından gelen havale cüzdana geçiyor. İşyeri
+hesabı `422`; başkasının hesabı `404`; çalışan `403`. IBAN ve alıcı adı `Deposits`
+ayarında.
+
+### Askıdaki havaleler (çalışan)
+
+```bash
+curl -s "localhost:8091/v1/suspended-deposits?size=20" -H "Authorization: Bearer $STAFF_TOKEN"
+```
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "provider": "bank-fake",
+      "bankReference": "GLN7C1E2A9F04B3D58E",
+      "amount": 250.0000,
+      "currency": "TRY",
+      "reason": "sender_not_holder",
+      "accountId": "…",
+      "accountNumber": "4817305925",
+      "receivedAt": "…",
+      "createdAt": "…"
+    }
+  ],
+  "size": 20,
+  "nextCursor": null
+}
+```
+
+Cüzdana geçirilemeyen havaleler, yeniden eskiye; `deposit.view` izni. `reason`:
+`no_account_number`, `ambiguous_account_number`, `unknown_account`, `business_account`,
+`no_wallet_in_currency`, `unknown_sender`, `sender_not_holder`, `limit_exceeded`.
+`accountId` açıklamadaki numaranın hesabı, bulunduysa. Gönderenin adı, IBAN'ı ve kimlik
+numarası wallet'ta olmadığı için burada da yok.
+
 ### Transfer
 
 ```bash
@@ -751,6 +803,57 @@ AÇMAZ: aynı `bankReference` ve `"replayed": true` döner.
 kalıcı hatadan farkı bu. Adaptör bunu yeniden deniyor, saga'ya hiçbir şey
 bildirilmiyor.
 
+### Gelen havale
+
+Toplama hesabımıza havale gelmesini tetikliyor. **Gerçek bankada bu endpoint YOK**:
+havaleyi müşteri kendi bankasından gönderir. Gönderenin bilgileri gönderen bankanın
+mesajla taşıdığı haliyle.
+
+```bash
+curl -i -X POST localhost:8094/v1/incoming-transfers \
+  -H 'Content-Type: application/json' \
+  -d '{"amount":250,"currency":"TRY","description":"481 730 5925","senderName":"Ayşe Yılmaz","senderIban":"TR330006100519786457841326","senderNationalId":"10000000146"}'
+```
+```
+HTTP/1.1 202 Accepted
+```
+```json
+{ "bankReference": "GLN7C1E2A9F04B3D58E" }
+```
+
+Banka havaleyi `bank-webhook`'a `"type": "transfer.incoming"` ile bildiriyor. `"notify":
+false` bildirimi göndermiyor: havale yalnızca hesap hareketlerinde görünüyor ve onu
+`bank-adapter`'ın taraması buluyor.
+
+Para cüzdana ancak açıklamadaki numaranın hesabının sahibi gönderdiyse geçiyor: compose'da
+denerken `senderNationalId` müşterinin doğrulamada verdiği kimlik numarası olmalı. Başka
+bir numarayla para askıya düşüyor.
+
+### Hesap hareketleri
+
+```bash
+curl -s "localhost:8094/v1/incoming-transfers?from=2026-10-01T00:00:00Z&to=2026-10-05T00:00:00Z"
+```
+```json
+{
+  "items": [
+    {
+      "bankReference": "GLN7C1E2A9F04B3D58E",
+      "amount": 250,
+      "currency": "TRY",
+      "description": "481 730 5925",
+      "senderName": "Ayşe Yılmaz",
+      "senderIban": "TR330006100519786457841326",
+      "senderNationalId": "10000000146",
+      "receivedAt": "..."
+    }
+  ]
+}
+```
+
+**Hesap hareketi taramasının okuduğu endpoint bu.** Bildirimi kaçırılan havaleyi
+bulmanın tek yolu.
+
 ---
 
 ## stripe-fake (BİZİM DEĞİL) — `:8096`
@@ -792,15 +895,17 @@ olurdu, tekrar değil.
 sırada gelen bir dizinin tamamının kabul edildiği; değeri consistent-hash routing'in
 hepsini aynı partition'a düşürmesinde.
 
-Aynı endpoint `bank-fake`'te de var (`:8094`) ve `clearing/bank-fake`'e yazıyor — aynı
-banka hem gelen havaleyi bildiriyor hem giden transferi kabul ediyor.
+Banka havalesi bu yoldan gelmiyor: banka hesabımıza gelen parayı kendi bildirimiyle
+`bank-webhook`'a bildiriyor (bkz. "bank-fake", "Gelen havale").
 
 ---
 
 ## bank-webhook — `:8095`
 
-Bankanın transfer sonucunu bildirdiği endpoint. **Bizim kodumuz**, canlıda da koşuyor;
-`bank-adapter`'dan ayrı bir deployable çünkü ingress'i var (`decisions.md` madde 28).
+Bankanın transfer sonucunu ve hesabımıza gelen havaleyi bildirdiği endpoint. **Bizim
+kodumuz**, canlıda da koşuyor; `bank-adapter`'dan ayrı bir deployable çünkü ingress'i var
+(`decisions.md` madde 28). Gövdedeki `type` ikisini ayırıyor: `transfer.status` ya da
+`transfer.incoming`; tipi olmayan bildirim transfer sonucu sayılıyor.
 
 Elle çağırman gerekmiyor — `bank-fake` çağırıyor. İmza `topup-webhook`'unkiyle aynı
 algoritma ama **ayrı bir sözleşme**: başlık adı `X-Bank-Signature` ve secret
