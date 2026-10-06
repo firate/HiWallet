@@ -1,5 +1,6 @@
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Balances;
+using HiWallet.WalletService.Domain.CardTopups;
 using HiWallet.WalletService.Domain.Deposits;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Promos;
@@ -45,6 +46,12 @@ public sealed class WalletDbContext : DbContext
 
     /// <summary>Cüzdana geçirilemeyen havaleler ve sebepleri. Parası askı hesabında.</summary>
     public DbSet<SuspendedDeposit> SuspendedDeposits => Set<SuspendedDeposit>();
+
+    /// <summary>Kartla yüklemelerin limitten ayırdığı paylar. Satır değişmiyor.</summary>
+    public DbSet<CardTopupHold> CardTopupHolds => Set<CardTopupHold>();
+
+    /// <summary>Kartla yüklemelerin kapanışları; kapanışı olmayan pay açık.</summary>
+    public DbSet<CardTopupHoldClosure> CardTopupHoldClosures => Set<CardTopupHoldClosure>();
 
     /// <summary>
     /// Top-up event'lerinin ve havalelerin idempotency defteri (overview.md madde 5).

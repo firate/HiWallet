@@ -1,9 +1,7 @@
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Contracts.Settlements;
-using HiWallet.Shared.Contracts.Topups;
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Application.Settlements;
-using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Infrastructure.Persistence;
@@ -30,12 +28,6 @@ public sealed class ProcessSettlementTests(PostgresFixture postgres)
         TestProviders.Policy,
         new SystemClock(),
         NullLogger<ProcessSettlementHandler>.Instance);
-
-    private ProcessTopupHandler TopupHandler() => new(
-        postgres.ContextFactory,
-        TestProviders.Policy,
-        new SystemClock(),
-        NullLogger<ProcessTopupHandler>.Instance);
 
     /// <summary>
     /// Net model: üç bacak. Clearing kapanıyor, gider yazılıyor, nostro artıyor.
@@ -95,7 +87,7 @@ public sealed class ProcessSettlementTests(PostgresFixture postgres)
     }
 
     /// <summary>
-    /// <b>Asıl kanıt.</b> Settlement, top-up'ta açılan ücret satırını kapatıyor:
+    /// <b>Asıl kanıt.</b> Settlement, kartla yüklemede açılan ücret satırını kapatıyor:
     /// gerçekleşen tutar doluyor ve satır settlement kaydına bağlanıyor. Bu
     /// olmadan fatura eşleştirmesi ve mutabakat (5.6, 5.7) dayanaksız kalır.
     /// </summary>
@@ -106,7 +98,7 @@ public sealed class ProcessSettlementTests(PostgresFixture postgres)
         var wallet = await NewWalletAsync(ct);
         var providerRef = $"pi_{Guid.NewGuid():N}";
 
-        var topup = await TopupHandler().HandleAsync(Topup(wallet, 100m, Stripe, providerRef), ct);
+        var topup = await CardTopupSeeder.PaidAsync(postgres, wallet, 100m, ct, providerRef);
 
         var settlement = await Handler().HandleAsync(
             Settlement(Stripe, gross: 100m, fee: 2.90m, net: 97.10m, refs: [providerRef]), ct);
@@ -114,7 +106,7 @@ public sealed class ProcessSettlementTests(PostgresFixture postgres)
         await using var db = postgres.CreateContext();
         var fee = await db.ProviderFees
             .AsNoTracking()
-            .SingleAsync(f => f.TransactionId == topup.LedgerTransactionId!.Value, ct);
+            .SingleAsync(f => f.TransactionId == topup, ct);
 
         fee.ActualAmount.ShouldBe(2.90m);
         fee.LedgerTransactionId.ShouldBe(settlement.LedgerTransactionId!.Value);
@@ -189,18 +181,6 @@ public sealed class ProcessSettlementTests(PostgresFixture postgres)
         NetAmount = net,
         ProviderRefs = refs ?? [$"pi_{Guid.NewGuid():N}"],
         SettledAt = DateTimeOffset.UtcNow
-    };
-
-    private static TopupReceived Topup(
-        Guid walletId, decimal amount, string provider, string providerRef) => new()
-    {
-        Provider = provider,
-        EventId = $"evt_{Guid.NewGuid():N}",
-        LedgerAccountId = walletId,
-        Amount = amount,
-        Currency = "TRY",
-        ProviderRef = providerRef,
-        OccurredAt = DateTimeOffset.UtcNow
     };
 
     private async Task<Guid> NewWalletAsync(CancellationToken ct)

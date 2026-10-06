@@ -57,6 +57,8 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
             TransferTypeMismatchException => "transfer_type_mismatch",
             LimitExceededException limit => limit.LimitName,
             IncomingLimitExceededException incoming => incoming.LimitName,
+            // Müşterinin kendi yüklemesi: hangi limitin dolduğu ayrıntısı mesajda.
+            CardTopupLimitExceededException => "card_topup_limit",
             KycLevelNotApplicableException => "kyc_level_not_applicable",
             UnsupportedCurrencyException => "unsupported_currency",
             PromoGrantRejectedException => "promo_grant_rejected",

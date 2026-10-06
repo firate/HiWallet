@@ -27,10 +27,11 @@ public sealed class TopupSecretRotationTests(InboxFixture inbox)
     private static object Payload(string eventId) => new
     {
         eventId,
-        walletId = Guid.NewGuid(),
+        type = "payment.succeeded",
+        paymentId = "pay_test",
+        reference = Guid.NewGuid(),
         amount = 100.00m,
         currency = "TRY",
-        reference = "pi_test",
         occurredAt = DateTimeOffset.Parse("2026-03-01T10:00:00+00:00")
     };
 

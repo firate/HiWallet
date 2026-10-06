@@ -33,6 +33,7 @@ builder.Services.AddHiWalletAuthentication();
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
 builder.Services.AddOnboardingClient();
+builder.Services.AddCardTopupClient();
 
 // Müşterinin kovası: anlık 20, dakikada 60. Çekim başlatma ayrı kovada, 10 ve 30.
 builder.Services.AddEdgeRateLimiting(

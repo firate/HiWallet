@@ -73,7 +73,8 @@ public static class LedgerSeeder
     /// Cüzdana para koyar: cüzdan <c>+X</c>, clearing <c>-X</c> — top-up akışının
     /// ledger karşılığı (overview.md madde 3). Dengeli olduğu için trigger'dan geçer.
     /// </summary>
-    public static async Task FundAsync(
+    /// <returns>Yazılan ledger işlemi.</returns>
+    public static async Task<Guid> FundAsync(
         WalletDbContext db, Guid walletId, decimal amount, CancellationToken ct,
         FundType fundType = FundType.Cash)
     {
@@ -100,6 +101,8 @@ public static class LedgerSeeder
         }
 
         await db.SaveChangesAsync(ct);
+
+        return tx.Id;
     }
 
     /// <summary>Cüzdanın bakiyesi: kovaların toplamı.</summary>

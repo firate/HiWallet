@@ -875,23 +875,33 @@ Satır satır:
 
 ---
 
-## 27. Top-up idempotency key'i sağlayıcıyı da taşır
+## 27. Yüklemenin idempotency key'i sağlayıcıyı da taşır
 
-**Karar.** `ledger_transactions.idempotency_key` top-up'ta `event_id` değil,
-`provider:event_id`.
+**Karar.** Yüklemenin `ledger_transactions.idempotency_key`'i paranın kendisini tanımlayan
+kimliği sağlayıcıyla birlikte taşır:
 
-**Gerekçe.** İki tekillik alanı var ve kapsamları farklı:
+| yükleme | anahtar |
+| --- | --- |
+| havale | `provider:bank_reference` |
+| kart | `provider:card_topup_id` |
 
-- mesaj tarafı: `(provider, event_id)` — `event_id` yalnızca sağlayıcı içinde tekil,
-- ledger tarafı: `(ledger_account_id, idempotency_key)` — sağlayıcıyı hiç tanımıyor.
+**Gerekçe: anahtar bildirimi değil parayı tanımlar.** Aynı para iki yoldan gelebiliyor:
+bildirimle ve taramayla (havalede hesap hareketi taraması, kartta açık yüklemelerin
+taraması). İki yolun bildirim kimliği farklı; anahtar bildirimin kimliği olsaydı aynı para
+iki kez yazılırdı. Havalede parayı bankanın referansı, kartta yüklemenin kimliği tanımlıyor:
+kart parası cüzdana yükleme başına bir kez, yükleme kapanınca giriyor.
 
-Yalnız `event_id` yazılsaydı, iki sağlayıcı aynı id'yi aynı cüzdan için ürettiğinde
-ikinci yükleme unique index'e takılır ve **müşterinin parası sessizce kaybolurdu**.
-Sağlayıcılar birbirinden habersiz id ürettiği için bu uzak bir ihtimal değil; `evt_1`
-gibi sayaç tabanlı id'lerde neredeyse kaçınılmaz.
+**Gerekçe: sağlayıcı öneki.** İki tekillik alanının kapsamı farklı:
 
-**Nasıl bulundu.** Kod önce yalnızca `event_id` yazıyordu ve tek sağlayıcıyla yazılmış
-her test geçiyordu. `FarkliSaglayicilar_AyniEventId_AyriAyriIslenir` bunu yakaladı.
+- sağlayıcı tarafı: bankanın referansı yalnızca o banka içinde tekil,
+- ledger tarafı: `(account_id, idempotency_key)` — sağlayıcıyı hiç tanımıyor.
+
+Önek olmasaydı iki banka aynı referansı aynı hesap için ürettiğinde ikinci havale unique
+index'e takılır ve **müşterinin parası sessizce kaybolurdu**. Sağlayıcılar birbirinden
+habersiz referans ürettiği için bu uzak bir ihtimal değil; sayaç tabanlı referanslarda
+neredeyse kaçınılmaz. Kartta yüklemenin kimliği zaten tekil (bizim ürettiğimiz bir GUID);
+önek orada okuyana paranın kaynağını söylüyor ve iki yükleme yolunun anahtarı aynı biçimde
+kalıyor.
 
 ---
 
@@ -932,9 +942,9 @@ bir iş parçacığı. Ayırınca ledger'a yazan kod dışarıdan erişilemeyen 
 
 **Ölçüt iki yöne de işliyor.** Farklı erişim seviyesi aynı process'te birleşmiyor; AYNI
 erişim seviyesi de gereksiz yere bölünmüyor. HTTP yüzeyi ön API'lerle ayrılıyor: her
-istemci grubunun kendi ön API'si var. `wallet-consumer` bugün iki kuyruk dinliyor —
-top-up event'leri ve withdrawal saga'sının komutları. İkisi de ingress'siz, ikisi de
-`hiwallet_wallet`'a aynı kütüphaneyle yazıyor; ayırmayı gerektiren hiçbir şey yok.
+istemci grubunun kendi ön API'si var. `wallet-consumer` üç kuyruk dinliyor — kartla
+yüklemelerin kapanışları, havaleler ve withdrawal saga'sının komutları. Hepsi ingress'siz,
+hepsi `hiwallet_wallet`'a aynı kütüphaneyle yazıyor; ayırmayı gerektiren hiçbir şey yok.
 Ayrı süreç açmanın gerekçeleri (bağımsız ölçekleme, biri çökerken diğerinin ayakta
 kalması) bu projede gerçek bir ihtiyaç değil ve gerekçesiz deployable taşınmıyor.
 
@@ -953,8 +963,8 @@ koy" alternatifinin elenme sebebi: o sınır altyapı şeklinde çizilmiş olurd
 sahipliği şeklinde değil.
 
 **Ne kazandırmıyor.** Tüketici verimi artmıyor — `x-single-active-consumer` yüzünden
-aktif tüketici sayısı `PartitionCount` ile sınırlı, instance sayısıyla değil. Postgres
-de izole olmuyor; ayrılan yalnızca .NET tarafındaki havuz.
+her kuyrukta tek aktif tüketici var, instance sayısı bunu değiştirmiyor. Postgres de
+izole olmuyor; ayrılan yalnızca .NET tarafındaki havuz.
 
 **Maliyet.** wallet-api ve wallet-consumer aynı şemayı paylaştığı için birlikte deploy
 edilmek zorundalar. Migration sahipliği değişmiyor (ayrı `migrator` job'ı, hiçbir
@@ -984,14 +994,16 @@ alanında.
 
 ## 30. Relay tek instance: sıra broker'a varmadan bozulmasın
 
-**Durum.** `overview.md` madde 8 "aynı cüzdanın mesajlarında sıra korunur" diyor.
-Broker tarafında bu doğru: consistent hash exchange aynı cüzdanı hep aynı kuyruğa
-düşürüyor ve `x-single-active-consumer` + `prefetch=1` o kuyruğu sırayla işletiyor.
+**Durum.** Sağlayıcının bildirimleri card-topup'a tek kuyruktan gidiyor
+(`hiwallet.card-payments`) ve `x-single-active-consumer` + `prefetch=1` o kuyruğu sırayla
+işletiyor. Aynı ödemenin iki bildirimi (önce vazgeçildi, sonra ödendi gibi bir çelişki)
+sağlayıcının gönderdiği sırayla işlenmeli: yüklemenin kaydı sağlayıcının gördüğünü izliyor
+ve çelişkinin alarmı doğru bildirime düşüyor.
 
 **Ama sıra broker'a VARMADAN önce bozulabiliyordu.** Relay inbox'tan
 `FOR UPDATE SKIP LOCKED` ile batch alıyor. İki instance ayrı batch'ler kilitliyor:
-A 1-50'yi, B 51-100'ü aldıysa ve A yavaşsa, B önce publish ediyor. Aynı cüzdanın
-iki event'i farklı batch'lere düşerse exchange'e ters sırada varıyorlar. Kuyruğun
+A 1-50'yi, B 51-100'ü aldıysa ve A yavaşsa, B önce publish ediyor. Aynı ödemenin
+iki bildirimi farklı batch'lere düşerse exchange'e ters sırada varıyorlar. Kuyruğun
 içindeki sıra garantisi, kuyruğa yanlış sırada gelen mesajı düzeltmiyor.
 
 **Karar.** Top-up relay'i `pg_try_advisory_lock` ile tek instance'a bağlanıyor
@@ -1001,12 +1013,11 @@ atlıyor ve bekliyor.
 **Neden bu seçenek.** Üç seçenek vardı:
 
 1. **Tek instance'a bağla.** Sıra gerçekten korunuyor. Verim tavanı tek relay'in
-   hızı; ölçeklenme partition sayısıyla değil, o tek süreçle sınırlı.
+   hızı.
 2. `x-single-active-consumer`'ı kaldır, sıra iddiasını da kaldır. Verim instance
-   sayısıyla ölçeklenir — top-up için yeterliydi (hepsi alacak kaydı, toplama
-   işlemi) ama çekim akışı aynı cüzdana sırası önemli mesajlar akıtıyor ve o iddiayı
-   geri istemek zor.
-3. Cüzdan bazında sıra numarası taşı, tüketici sırasızları tamponlasın. Doğru
+   sayısıyla ölçeklenir, ama çelişen bildirimlerin hangisinin önce işlendiği şansa
+   kalır.
+3. Ödeme bazında sıra numarası taşı, tüketici sırasızları tamponlasın. Doğru
    çözüm ama bu projenin ağırlığının üstünde: tampon, zaman aşımı ve boşluk tespiti
    gerektiriyor.
 
@@ -1014,10 +1025,11 @@ Birincisi seçildi çünkü **iddia ile gerçeği hizalıyor.** İkincisi doküm
 sıra sözünü geri almak demekti; üçüncüsü kapsam dışı. Bedeli açık ve ölçülebilir:
 relay yatay ölçeklenmiyor.
 
-**Bedelin sınırı.** Kilit yalnızca top-up relay'inde. Withdrawal outbox relay'i
+**Bedelin sınırı.** Kilit yalnızca topup-webhook'un relay'inde. Withdrawal outbox relay'i
 kilitlenmiyor ve gerek de yok: bir saga'nın aynı anda birden fazla bekleyen komutu
 olamıyor — her geçiş en fazla bir komut üretiyor ve bir sonraki ancak cevabı gelince
 yazılıyor. Orada sıra saga'nın kendisinden geliyor, batch'lerin hızından değil.
+card-topup'ın outbox relay'i de kilitlenmiyor: bir yüklemenin tek kapanışı var.
 
 **`SKIP LOCKED` KALIYOR.** Kilitle birlikte gereksizleşmiş gibi duruyor ama ikinci
 emniyet kemeri: kilit yalnızca "aynı anda tek relay" diyor, `SKIP LOCKED` ise kilit

@@ -76,7 +76,8 @@ src/
 ├── WalletService.Core/     -- kütüphane, host değil
 ├── WalletApi/              -- host
 ├── WalletConsumer/         -- host
-├── TopupWebhook/           -- host
+├── TopupWebhook/           -- host; kart sağlayıcısının bildirimi
+├── CardTopup/              -- host; kartla yüklemenin ömrü
 ├── WithdrawalOrchestrator/
 ├── BankIntegration.Core/
 ├── BankAdapter/
@@ -89,6 +90,19 @@ src/
 ```
 
 Her **host** kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
+
+Diskte `src/` düz; gruplama yalnızca `HiWallet.sln`'in klasörlerinde. Dockerfile'lar,
+compose ve proje referansları diskteki yolu kullanıyor, gruplama onlara dokunmuyor.
+
+| Solution klasörü | Projeler |
+|---|---|
+| `src/edge` | ön API'ler ve ortak kodları: `PersonalMobileApi`, `PersonalWebBff`, `BusinessApi`, `BusinessWebBff`, `BackofficeBff`, `EdgeApi.Core` |
+| `src/wallet` | ledger'ın sahibi: `WalletApi`, `WalletConsumer`, `WalletService.Core` |
+| `src/topup` | kartla yükleme: `CardTopup`, `TopupWebhook` |
+| `src/bank` | banka entegrasyonu: `BankAdapter`, `BankWebhook`, `BankIntegration.Core` |
+| `src/withdrawal` | çekim saga'sı: `WithdrawalOrchestrator` |
+| `src/identity` | kimlikler: `Onboarding` (müşteri kaydı), `StaffAdmin` (personel) |
+| `src/shared` | `Shared.Contracts`, `Shared.Infrastructure` |
 
 **Servis ≠ deployable.** Wallet sınırının iki host'u var — `WalletApi` (public HTTP)
 ve `WalletConsumer` (ingress'siz worker; hem top-up event'lerini hem çekim
@@ -268,8 +282,9 @@ WalletConsumer/
 ├── WalletConsumer.csproj
 ├── Program.cs                  -- controller yok, API dokümanı yok, rate limiter yok
 ├── Dockerfile
-├── Topups/                     -- TopupConsumerService: top-up kuyruklarını dinler
+├── CardTopups/                 -- CardTopupConsumer: kartla yüklemenin kapanışlarını dinler
 ├── Deposits/                   -- DepositConsumer: havale kuyruğunu dinler
+├── Settlements/                -- settlement ve fatura kuyruğu
 ├── Identity/                   -- servisin kendi token'ı, onboarding'e kimlik numarası sorusu
 ├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
 ├── WalletConsumerSetup.cs      -- DI + health check'ler
@@ -283,7 +298,7 @@ erişim seviyesi gerekçesi yok (`decisions.md` madde 28).
 ama tüketici tıkanmış" durumu görünmezdi.
 
 Kuyruk plumbing'i (kanal, ack/nack, dead-letter kararı) burada; ledger'a yazan
-`ProcessTopupHandler` Core'da. Ayrım kasıtlı — biri taşıma, öbürü iş kuralı.
+`ProcessCardTopupHandler` Core'da. Ayrım kasıtlı — biri taşıma, öbürü iş kuralı.
 
 **Bağımlılık yönü:** `Host → Application → Domain`, `Infrastructure → Application`.
 Domain hiçbir şeye referans vermez — EF Core attribute'u, `DbContext`, `HttpClient`,
@@ -310,6 +325,20 @@ WithdrawalOrchestrator/
 │   │                             withdrawal_outbox, kendi migration'ları
 │   ├── Messaging/             -- outbox relay, event tüketicisi
 │   └── Jobs/                  -- StuckSagaScanJob
+└── Setup/
+
+CardTopup/                     -- BİZİM; iç ağ, kartla yüklemenin ömrü
+├── Api/                       -- CardTopupsController, istek, doğrulama, cevaplar,
+│                                 wallet-api reddinin aynen aktarılması (Errors/)
+├── Application/               -- StartCardTopupHandler, ApplyCardPaymentHandler,
+│                                 CardTopupTransitions, OpenCardTopupScanner, CardTopupQueries
+├── Domain/                    -- CardTopup, CardTopupState (saf: geçiş kuralları)
+├── Infrastructure/
+│   ├── Persistence/           -- CardTopupDbContext, card_topups, card_topup_outbox,
+│   │                             kendi migration'ları
+│   ├── Upstream/              -- WalletHoldClient (müşterinin token'ıyla), CardPaymentClient
+│   ├── Messaging/             -- ödeme bildirimi tüketicisi, outbox relay
+│   └── Jobs/                  -- OpenCardTopupScan
 └── Setup/
 
 TopupWebhook/
@@ -354,7 +383,10 @@ fakes/Bank.Fake/               -- BANKANIN YERİNDE; canlıda YOK, `src/` ALTIND
 └── Setup/
 
 fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı YOK
-└── Api/Controllers/           -- TopupsController (Fakes.Core'dan türüyor)
+├── Api/Controllers/           -- PaymentsController (ödeme API'si), CheckoutController
+│                                 (ödeme sayfası)
+├── Payments/                  -- CardPayment, PaymentStore (bellekte)
+└── Webhooks/                  -- sonucun imzalı webhook'u, ayarlar
 
 Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulaması
 ├── Domain/                    -- Registration, PhoneVerification, Customer, Consent,
@@ -394,10 +426,9 @@ seviyesinde görünüyor: canlıda deploy edilen hiçbir şey `fakes/`'ten çık
 
 ```
 fakes/
-├── Fakes.Core/              -- ortak: top-up webhook'u gönderme ve teslim modları
 ├── Bank.Fake/               -- bankanın API'si: para girişi VE çıkışı
 │   └── bank-fake.http
-├── Stripe.Fake/             -- kart sağlayıcısı: yalnızca para girişi, veritabanı YOK
+├── Stripe.Fake/             -- kart sağlayıcısı: ödeme API'si ve sayfası, veritabanı YOK
 │   └── stripe-fake.http
 ├── Sms.Fake/                -- SMS sağlayıcısı: mesajı kutusunda tutuyor
 ├── Nvi.Fake/                -- nüfus kaydı: kimlik eşleşiyor mu
@@ -413,11 +444,8 @@ Adresler `http-client.env.json`'daki ortamdan geliyor; depoda yalnızca `local` 
 Stack başka bir makinede koşuyorsa ya da gizli bir değer gerekiyorsa
 `http-client.private.env.json` kullanılır — örneği yanında, kendisi `.gitignore`'da.
 
-`Fakes.Core` neden paylaşılıyor: `topup-webhook` bütün sağlayıcılar için tek bir
-gövde şekli kabul ediyor, yani sözleşmeyi BİZ dayatıyoruz — ayrışacak iki taraf yok.
-Bankanın HTTP sözleşmesinin bilerek paylaşılmamasıyla (madde 35) çelişmiyor: orada
-sözleşmeyi karşı taraf dayatıyor. Asıl kazanç teslim modlarında — "sırasız gönderim"
-iki sahtede ayrı yazılsa iki testin sonucu karşılaştırılamazdı.
+Sahtelerin HTTP sözleşmesi bizim tarafla PAYLAŞILMIYOR (madde 35): `Stripe.Fake`'in ödeme
+API'sinin tipleri orada, `card-topup`'ın gördüğü tipler `card-topup`'ta ayrı yazılı.
 
 **`src/` → `fakes/` referansı DERLEME HATASI.** `src/Directory.Build.targets`
 içindeki `HIW001` kontrolü engelliyor. Yorumda yazmak yetmezdi: bu proje aynı
@@ -429,8 +457,8 @@ yoksa uçtan uca trace kopar. Bu yüzden `Setup/` klasörü onlarda da var.
 
 `fakes/`'i yalnızca iki şey çağırır: `tests/` ve `docker-compose.yml`.
 
-`Stripe.Fake`'in `Setup/` klasörü yok: kuracağı tek şey `Fakes.Core`'un
-kendi kurulum metodu ve veritabanı hiç yok.
+`Stripe.Fake`'in `Setup/` klasörü yok: kurulumu `Program.cs`'e sığıyor ve veritabanı
+hiç yok.
 
 **`.Fake` son ekinin ölçütü** "test amaçlı mı" değil, **"başka bir kurumun yerine mi
 duruyor"** (`decisions.md` madde 35). `BankAdapter` da bugün yalnızca compose ve
@@ -446,12 +474,15 @@ IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok (madde 28). Ortak �
 
 ```
 Shared/
-├── Shared.Contracts/
-│   ├── Commands/              -- InitiateBankTransfer, RefundToWallet, ...
-│   ├── Events/                -- BankTransferSucceeded, TopupReceived, ...
-│   └── Envelope.cs            -- MessageId, CorrelationId, OccurredAt
+├── Shared.Contracts/          -- servisler arası mesajlar, akışa göre klasörlü
+│   ├── CardPayments/          -- CardPaymentUpdated (topup-webhook → card-topup)
+│   ├── CardTopups/            -- CardTopupClosed (card-topup → wallet)
+│   ├── Deposits/              -- BankDepositReceived
+│   ├── Settlements/           -- SettlementReceived, ProviderInvoiceReceived
+│   ├── Withdrawals/           -- çekim komutları ve event'leri
+│   └── Actors/                -- CommandActor: ledger'a yazdıran komutun aktörü
 └── Shared.Infrastructure/
-    ├── Messaging/             -- RabbitMQ bağlantısı, topup topolojisi, health check
+    ├── Messaging/             -- RabbitMQ bağlantısı, topolojiler, health check
     ├── Jobs/                  -- PeriodicTimer tabanı, pg_try_advisory_lock kirası
     ├── Observability/         -- OTel ortak yapılandırması
     ├── OpenApi/               -- OpenAPI dokümanı + Scalar, yalnızca Development'ta
@@ -544,7 +575,7 @@ istiyor, offline çalışmıyor.
 - Namespace = `HiWallet.` + dizin yolu: `src/WalletService/Application/Transfers/` →
   `HiWallet.WalletService.Application.Transfers`.
 - Command: `<Fiil><Nesne>Command` → `CreateTransferCommand`. Handler: `<Command adı>Handler`.
-- Event geçmiş zaman: `BankTransferSucceeded`, `TopupReceived`.
+- Event geçmiş zaman: `BankTransferSucceeded`, `CardTopupClosed`.
 - Tablo adları `snake_case` ve çoğul (`ledger_entries`), C# tarafı `PascalCase` tekil.
   Eşleme `Configurations/` altında açıkça yazılır, global convention'a bırakılmaz.
 - Test metodu: `Metot_Durum_BeklenenSonuc`.
@@ -567,7 +598,5 @@ Migration'lar elle düzenlenmez. Trigger ve `REVOKE` gibi ham SQL gereken yerler
 migration içinde `migrationBuilder.Sql(...)` ile eklenir — ayrı `.sql` dosyası
 tutulmaz, versiyonlama kopmasın.
 
-Dört veritabanının da tek bir `InitialSchema` migration'ı var. Proje henüz canlıya
-çıkmadığı için ara adımlar tutulmuyor; şemanın son hali tek dosyada okunuyor.
-Bu, ilk gerçek veri girene kadar geçerli — sonrasında her değişiklik kendi
-migration'ı olarak eklenir.
+Her şema değişikliği kendi migration'ı olarak ekleniyor: verisi silinmeyen kurulumlar
+migration'ları sırayla uyguluyor. Mevcut bir migration geri alınıp yeniden üretilmez.

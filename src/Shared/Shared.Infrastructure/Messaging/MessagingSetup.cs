@@ -34,10 +34,11 @@ public static class MessagingSetup
 
         services.AddSingleton<RabbitMqConnection>();
         services.AddSingleton<MessagePublisher>();
-        services.AddSingleton<TopupTopology>();
+        services.AddSingleton<CardPaymentTopology>();
         services.AddSingleton<WithdrawalTopology>();
         services.AddSingleton<SettlementTopology>();
         services.AddSingleton<DepositTopology>();
+        services.AddSingleton<CardTopupTopology>();
 
         return services;
     }

@@ -30,6 +30,7 @@ builder.Services.AddBffSession(applicationName: ServiceName);
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
 builder.Services.AddOnboardingClient();
+builder.Services.AddCardTopupClient();
 
 // Müşterinin kovası mobil uygulamanınkiyle aynı: aynı müşteri, aynı işlemler.
 builder.Services.AddEdgeRateLimiting(

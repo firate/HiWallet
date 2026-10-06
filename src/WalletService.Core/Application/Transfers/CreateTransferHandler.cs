@@ -139,6 +139,10 @@ public sealed class CreateTransferHandler(
 
             if (accounts[receiverAccountId].KycLevel is { } receiverLevel)
             {
+                // Alıcıya aynı anda gelen başka bir para (havale, kart yüklemesinin
+                // başlangıcı) aynı limiti boş görmesin.
+                await IncomingUsage.LockAsync(db, receiverAccountId, ct);
+
                 var received = await IncomingUsage.ThisMonthAsync(db, receiverAccountId, currency, clock.UtcNow, ct);
                 var balance = await IncomingUsage.BalanceAsync(db, receiverAccountId, currency, ct);
 

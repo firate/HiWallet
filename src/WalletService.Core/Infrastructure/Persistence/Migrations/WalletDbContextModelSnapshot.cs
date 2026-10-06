@@ -422,6 +422,83 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HiWallet.WalletService.Domain.CardTopups.CardTopupHold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("wallet_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_card_topup_holds");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_card_topup_holds_account");
+
+                    b.HasIndex("WalletId")
+                        .HasDatabaseName("ix_card_topup_holds_wallet");
+
+                    b.ToTable("card_topup_holds", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_card_topup_holds_amount", "amount > 0");
+                        });
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.CardTopups.CardTopupHoldClosure", b =>
+                {
+                    b.Property<Guid>("HoldId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hold_id");
+
+                    b.Property<DateTimeOffset>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("LedgerTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_transaction_id");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("outcome");
+
+                    b.HasKey("HoldId")
+                        .HasName("pk_card_topup_hold_closures");
+
+                    b.ToTable("card_topup_hold_closures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_card_topup_hold_closures_outcome", "outcome IN ('paid','failed')");
+
+                            t.HasCheckConstraint("ck_card_topup_hold_closures_transaction", "(outcome = 'paid') = (ledger_transaction_id IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("HiWallet.WalletService.Domain.Deposits.SuspendedDeposit", b =>
                 {
                     b.Property<Guid>("LedgerTransactionId")
@@ -1340,6 +1417,33 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_ledger_balances_ledger_account");
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.CardTopups.CardTopupHold", b =>
+                {
+                    b.HasOne("HiWallet.WalletService.Domain.Accounts.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_card_topup_holds_account");
+
+                    b.HasOne("HiWallet.WalletService.Domain.Ledger.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("WalletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_card_topup_holds_wallet");
+                });
+
+            modelBuilder.Entity("HiWallet.WalletService.Domain.CardTopups.CardTopupHoldClosure", b =>
+                {
+                    b.HasOne("HiWallet.WalletService.Domain.CardTopups.CardTopupHold", null)
+                        .WithOne()
+                        .HasForeignKey("HiWallet.WalletService.Domain.CardTopups.CardTopupHoldClosure", "HoldId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_card_topup_hold_closures_hold");
                 });
 
             modelBuilder.Entity("HiWallet.WalletService.Domain.Deposits.SuspendedDeposit", b =>

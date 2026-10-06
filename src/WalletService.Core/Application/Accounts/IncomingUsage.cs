@@ -1,3 +1,4 @@
+using HiWallet.WalletService.Domain.CardTopups;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
@@ -7,8 +8,14 @@ namespace HiWallet.WalletService.Application.Accounts;
 
 /// <summary>
 /// Seviye limitinin hesaba gelen tarafının okuması: ayın girişleri ve hesabın bakiyesi.
-/// Gelen transfer (wallet-api) ve havale (wallet-consumer) aynı sayımı kullanıyor; iki
-/// kopya olsaydı iki yol aynı hesap için farklı toplam görürdü.
+/// Gelen transfer (wallet-api), havale (wallet-consumer) ve kartla yüklemenin başlangıcı
+/// (wallet-api) aynı sayımı kullanıyor; iki kopya olsaydı yollar aynı hesap için farklı
+/// toplam görürdü.
+///
+/// <b>Açık kart yüklemeleri girmiş sayılıyor.</b> Kart limitte öncelikli: başlamış bir
+/// ödemenin payı (<see cref="CardTopupHold"/>) hem ayın yüklemelerine hem bakiyeye
+/// ekleniyor. Ödeme sürerken gelen para o payla birlikte limiti aşıyorsa reddediliyor;
+/// ödeme kapanınca pay düşüyor.
 ///
 /// Kapsam hesap, cüzdan değil: aksi halde ikinci cüzdan açılarak aşılırdı
 /// (decisions.md madde 20). Ay UTC'ye göre, günlük limitteki gün gibi.
@@ -16,9 +23,20 @@ namespace HiWallet.WalletService.Application.Accounts;
 internal static class IncomingUsage
 {
     /// <summary>
+    /// Hesaba gelen paranın limit kararlarını sıraya sokar: hesabın satırı transaction
+    /// bitene kadar kilitli. Limit kararı okuyup karar veriyor ve yazdığı şey çoğu zaman
+    /// bakiye satırı değil (kart payı, başka bir cüzdan); sıra olmasa aynı hesaba aynı
+    /// anda gelen iki para ikisi de limiti boş görürdü. Kilit yalnızca kararın süresince
+    /// ve yalnızca seviyesi olan hesapta; işyerine gelen ödemeler beklemiyor.
+    /// </summary>
+    public static Task LockAsync(WalletDbContext db, Guid accountId, CancellationToken ct) =>
+        db.Database.ExecuteSqlAsync($"SELECT 1 FROM accounts WHERE id = {accountId} FOR UPDATE", ct);
+
+    /// <summary>
     /// Bu ay hesabın cüzdanlarına yüklemeyle ve başka hesaplardan transferle gelen. Yükleme
-    /// her <see cref="LedgerTransactionType.Topup"/>: havale de kart da. Transferde işlemin
-    /// kapsamı gönderen cüzdan; kendi cüzdanından gelen aktarım o yüzden dışarıda.
+    /// her <see cref="LedgerTransactionType.Topup"/>: havale de kart da; açık kart payları
+    /// da yükleme sayılıyor. Transferde işlemin kapsamı gönderen cüzdan; kendi cüzdanından
+    /// gelen aktarım o yüzden dışarıda.
     /// </summary>
     public static async Task<IncomingThisMonth> ThisMonthAsync(
         WalletDbContext db, Guid accountId, Currency currency, DateTimeOffset now, CancellationToken ct)
@@ -47,10 +65,15 @@ internal static class IncomingUsage
                                                       && !walletIds.Contains(t.LedgerAccountId)))
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
 
-        return new IncomingThisMonth(new Money(deposits, currency), new Money(transfers, currency));
+        var held = await OpenHoldsAsync(db, accountId, currency, ct);
+
+        return new IncomingThisMonth(new Money(deposits + held, currency), new Money(transfers, currency));
     }
 
-    /// <summary>Hesabın bu para birimindeki bütün cüzdanlarının, bütün kovalarının toplamı.</summary>
+    /// <summary>
+    /// Hesabın bu para birimindeki bütün cüzdanlarının, bütün kovalarının toplamı; açık
+    /// kart payları eklenmiş.
+    /// </summary>
     public static async Task<Money> BalanceAsync(
         WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct)
     {
@@ -62,6 +85,17 @@ internal static class IncomingUsage
             .Where(b => walletIds.Contains(b.LedgerAccountId) && b.Currency == currency)
             .SumAsync(b => (decimal?)b.Balance, ct) ?? 0m;
 
-        return new Money(balance, currency);
+        var held = await OpenHoldsAsync(db, accountId, currency, ct);
+
+        return new Money(balance + held, currency);
     }
+
+    /// <summary>Hesabın kapanmamış kart yükleme paylarının toplamı.</summary>
+    private static async Task<decimal> OpenHoldsAsync(
+        WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct) =>
+        await db.CardTopupHolds
+            .Where(h => h.AccountId == accountId
+                        && h.Currency == currency
+                        && !db.CardTopupHoldClosures.Any(c => c.HoldId == h.Id))
+            .SumAsync(h => (decimal?)h.Amount, ct) ?? 0m;
 }

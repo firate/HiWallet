@@ -34,6 +34,7 @@ WALLET_OWNER_PASSWORD=...
 WALLET_APP_PASSWORD=...
 TOPUP_APP_PASSWORD=...
 WITHDRAWAL_APP_PASSWORD=...
+CARD_TOPUP_APP_PASSWORD=...
 BANK_APP_PASSWORD=...
 
 RabbitMq__Username=...          # compose'daki broker'ın ilk kullanıcısı olur
@@ -89,6 +90,7 @@ servisler ve Keycloak o makinedeki Traefik'in arkasından HTTPS ile açılıyor
 COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
 KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.<PROXY_DOMAIN>
 STAFF_KEYCLOAK_PUBLIC_URL=https://hiwallet-staff-auth.<PROXY_DOMAIN>
+STRIPE_FAKE_PUBLIC_URL=https://hiwallet-stripe-fake.<PROXY_DOMAIN>   # ödeme sayfasının adresi
 PROXY_DOMAIN=...          # alan adı; sertifikası Traefik'te
 PROXY_NETWORK=...         # Traefik'in Docker ağı
 PROXY_ENTRYPOINT=...      # Traefik'in HTTPS entrypoint'i
@@ -125,7 +127,7 @@ onun adını söylüyor; sırayla düzeltmek uzun sürer. Hepsini birden gör:
 
 ```bash
 for v in POSTGRES_PASSWORD WALLET_OWNER_PASSWORD WALLET_APP_PASSWORD \
-         TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD BANK_APP_PASSWORD \
+         TOPUP_APP_PASSWORD WITHDRAWAL_APP_PASSWORD CARD_TOPUP_APP_PASSWORD BANK_APP_PASSWORD \
          RabbitMq__Username RabbitMq__Password \
          STRIPE_FAKE_WEBHOOK_SECRET BANK_FAKE_WEBHOOK_SECRET BANK_CALLBACK_SECRET \
          KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD MERCHANT_DEMO_CLIENT_SECRET \
@@ -181,9 +183,10 @@ beklediği için hiç başlamaz.
 docker compose down -v --remove-orphans && docker compose up --build -d
 ```
 
-Beklenen sıra: Postgres sunucuları sağlıklı olur → altı migrator (`migrator`,
-`topup-migrator`, `withdrawal-migrator`, `bank-migrator`, `onboarding-migrator`,
-`staff-admin-migrator`) şemaları uygulayıp `exit 0` ile biter → uygulamalar başlar. `rabbitmq` paralel
+Beklenen sıra: Postgres sunucuları sağlıklı olur → yedi migrator (`migrator`,
+`topup-migrator`, `withdrawal-migrator`, `card-topup-migrator`, `bank-migrator`,
+`onboarding-migrator`, `staff-admin-migrator`) şemaları uygulayıp `exit 0` ile biter →
+uygulamalar başlar. `rabbitmq` paralel
 kalkar; hiçbiri onu BEKLEMEZ (broker olmadan da ayağa kalkmalılar).
 
 Tek istisna `bank-adapter`: `bank-fake`'in sağlıklı olmasını bekliyor. Gerçek
@@ -191,11 +194,11 @@ entegrasyonda böyle bir bağımlılık OLMAZ — banka bizim compose'umuzda de�
 Burada var çünkü sahte banka da bizim stack'imizde ve ilk transfer denemesinin
 boşa gitmemesi için.
 
-Dört uygulama veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
-`hiwallet_withdrawal`, `hiwallet_bank` — hepsi `postgres-init.sql`'den. Sahte
-servislerin veritabanı yok.
+Beş uygulama veritabanı kuruluyor: `hiwallet_wallet`, `hiwallet_topup`,
+`hiwallet_withdrawal`, `hiwallet_card_topup`, `hiwallet_bank` — hepsi
+`postgres-init.sql`'den. Sahte servislerin veritabanı yok.
 
-Beşinci bir veritabanı daha var ama AYRI dosyadan geliyor:
+Bir veritabanı daha var ama AYRI dosyadan geliyor:
 `postgres-init-tests.sql` yalnızca `hiwallet_schema_check`'i kuruyor ve init
 betiği o dosyayı ancak MOUNT EDİLMİŞSE koşuyor. Integration testler her koşuda
 orada kendi schema'sını açıyor (`ConnectionStrings__IntegrationTests`). Canlıya
@@ -223,17 +226,29 @@ En sinsi hali parola değişikliği: `.env`'de bir parolayı değiştirmek mevcu
 parolasını DEĞİŞTİRMEZ. Uygulama authentication hatası alır, sen de doğru parolayı
 yazdığına emin olursun. Ya `down -v` ya elle `ALTER ROLE`.
 
+**Verisi olan kurulumda yeni rol ve veritabanı.** `postgres-init.sql`'e eklenen rol ve
+veritabanı mevcut volume'da kendiliğinden açılmaz; verisi silinmemesi gereken bir kurulumda
+`down -v` yerine eklenen kısım elle koşulur. `hiwallet_card_topup` için, `<parola>`
+`.env`'deki `CARD_TOPUP_APP_PASSWORD` ile aynı:
+
+```bash
+docker compose exec postgres psql -U postgres -c "CREATE ROLE card_topup_app LOGIN PASSWORD '<parola>';" -c "CREATE DATABASE hiwallet_card_topup OWNER card_topup_app ENCODING 'UTF8';" -c "REVOKE CONNECT ON DATABASE hiwallet_card_topup FROM PUBLIC;"
+docker compose exec postgres psql -U postgres -d hiwallet_card_topup -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC;" -c "GRANT CREATE ON SCHEMA public TO card_topup_app;"
+```
+
+Sonra `docker compose up --build -d`: `card-topup-migrator` şemayı kurar.
+
 Yarım kalma tuzağı: init ortasında bir komut patlarsa (`ON_ERROR_STOP=1`) container
 ölür ama `initdb` çoktan koşmuştur — veri dizini artık boş değil. Sonraki `up` init'i
 ATLAR ve elinde ilk roller olan, sonrakiler olmayan bir cluster kalır. Hatalar alakasız
 görünür ("role withdrawal_app does not exist"). Tekrar denemek düzeltmez, `down -v`
-düzeltir. Beş rolün de kurulduğunu doğrula:
+düzeltir. Altı rolün de kurulduğunu doğrula:
 
 ```bash
 docker compose exec postgres psql -U postgres -c '\du'
 ```
 
-`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `bank_app`.
+`wallet_owner`, `wallet_app`, `topup_app`, `withdrawal_app`, `card_topup_app`, `bank_app`.
 
 ## 4. Doğrula
 
@@ -276,8 +291,8 @@ başlar ve compensation gereksizleşir (decisions.md madde 7).
 Tek yön yetmiyor; her rol yalnızca kendi veritabanını görmeli:
 
 ```bash
-for role in wallet_app topup_app withdrawal_app bank_app; do
-  for db in hiwallet_wallet hiwallet_topup hiwallet_withdrawal hiwallet_bank; do
+for role in wallet_app topup_app withdrawal_app card_topup_app bank_app; do
+  for db in hiwallet_wallet hiwallet_topup hiwallet_withdrawal hiwallet_card_topup hiwallet_bank; do
     if docker compose exec -T postgres psql -U "$role" -d "$db" -c 'SELECT 1' >/dev/null 2>&1
       then echo "BAĞLANDI  $role -> $db"
       else echo "reddedildi $role -> $db"
@@ -286,7 +301,7 @@ for role in wallet_app topup_app withdrawal_app bank_app; do
 done
 ```
 
-Beklenen tam olarak dört `BAĞLANDI`: her rol kendi veritabanına. On iki satır
+Beklenen tam olarak beş `BAĞLANDI`: her rol kendi veritabanına. Yirmi satır
 `reddedildi` olmalı. Fazladan bir `BAĞLANDI` varsa `postgres-init.sql`'deki
 `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` satırlarından biri eksik demektir —
 PostgreSQL `CONNECT`'i yeni veritabanlarında varsayılan olarak `PUBLIC`'e verir,
@@ -549,6 +564,46 @@ havaleler"de görünüyor (`deposit.view` izni olan rolle).
 görünüyor. `bank-adapter`'ın taraması (compose'da dakikada bir, otuz saniyeden eski
 havaleler) onu bulup aynı yoldan wallet'a gönderiyor. `bank_deposits.discovered_via`
 `reconciliation` olmalı.
+
+### Kartla yükleme
+
+Bireysel uygulamada kayıt olmuş bir müşterinin token'ı ve TL cüzdanı gerekiyor. Ön API'den
+başlat (web BFF'i dönüş adresini kendisi kuruyor; mobil ön API'de `returnUrl` gövdede):
+
+```bash
+curl -s -X POST localhost:8097/v1/card-topups -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$WALLET\",\"amount\":250,\"currency\":\"TRY\",\"returnUrl\":\"http://localhost:8102/kart-yukleme\"}"
+```
+
+Beklenen: `202`, `"state": "pending"` ve `paymentUrl`. Sayfayı tarayıcıda aç, "Öde" de.
+Birkaç saniye içinde yüklemenin durumu `paid`, cüzdan 250 artıyor; ledger'da `topup`,
+cüzdan `+250`, `stripe-fake` clearing'i `−250`, aktör `customer`:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT t.type, t.actor_type, a.type AS hesap, e.amount FROM ledger_entries e
+     JOIN ledger_transactions t ON t.id = e.transaction_id
+     JOIN ledger_accounts a ON a.id = e.ledger_account_id
+    WHERE t.idempotency_key LIKE 'stripe-fake:%' ORDER BY t.created_at DESC LIMIT 2;"
+```
+
+**Limit.** `Unverified` müşterinin aylık gelen para tavanının üstünde bir tutarla başlat:
+`422`, `"rule": "card_topup_limit"`; sahte sağlayıcıda ödeme açılmıyor.
+
+**Vazgeçilen ödeme.** Ödeme sayfasında "Vazgeç": durum `failed`, `failureReason`
+`canceled`; ledger'a hiçbir şey yazılmıyor ve pay kapanıyor:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT h.id, h.amount, c.outcome FROM card_topup_holds h
+     LEFT JOIN card_topup_hold_closures c ON c.hold_id = h.id ORDER BY h.created_at DESC LIMIT 3;"
+```
+
+**Süresi dolan ödeme.** Sayfayı açıp hiçbir şey yapma. Oturum (15 dakika) ve bir dakikalık
+pay bittikten sonra `card-topup`'ın taraması (dakikada bir) sağlayıcıya soruyor: durum
+`failed`, `failureReason` `expired`, payın kapanışı `failed`. Kapanışı olmayan pay
+kalmamalı.
 
 ## 5. Kapat
 
@@ -863,41 +918,38 @@ geri gelsin.
 | **asenkron banka hattı** (madde 35) | çekim başlat, saga'yı `bank_transfer_pending`'de gör, callback'le kapandığını izle |
 | **mutabakat taramasının iş yapması** | `BANK_CALLBACK_ENABLED=false` ile kaldır, taramanın transferi kapattığını gör |
 | **`bank_transfers.resolved_via` dağılımı** | callback açıkken hepsi `callback` olmalı; `reconciliation` görünüyorsa callback hattında sorun var |
-| **sahte sağlayıcıların top-up tetiklemesi** | `POST :8096/v1/topups` — `Duplicate` bakiyeyi bir kez artırmalı, `OutOfOrder` hepsini indirmeli |
+| **kartla yükleme** | yukarıdaki "Kartla yükleme": ödenen, vazgeçilen ve süresi dolan ödeme, limit reddi |
 
 Bu beşi bu sürümle geldi ve hiçbiri compose'da koşturulmadı. İlki yapısal; sonraki
 üçü madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol";
-sonuncusu sahte sağlayıcıları. Adımları `fakes/akislar.http` ve
+sonuncusu kartla yüklemeyi. Adımları `fakes/akislar.http` ve
 `fakes/Stripe.Fake/stripe-fake.http`'de hazır.
 
-### Top-up hattını doğrulama
+### Ödeme bildirimini elle göndermek
 
-Cüzdan kurulduktan sonra ("Hesap ve cüzdan kurma"), webhook'u imzalayıp gönder.
-Secret `.env`'den geliyor: `set -a; . ./.env; set +a`.
+Webhook'un imzasını ve tekrarını sahte sağlayıcının sayfası olmadan sınamak için. Önce
+"Kartla yükleme"deki gibi bir yükleme başlat ve `pending`'de bırak; `CARD_TOPUP` onun
+kimliği, `PAYMENT` sağlayıcıdaki ödemenin kimliği
+(`curl -s "localhost:8096/v1/payments?reference=$CARD_TOPUP" | jq -r .id`). Secret
+`.env`'den geliyor: `set -a; . ./.env; set +a`.
 
 ```bash
-BODY="{\"eventId\":\"evt_manuel_1\",\"walletId\":\"$WALLET\",\"amount\":100.00,\"currency\":\"TRY\",\"reference\":\"pi_1\",\"occurredAt\":\"2026-03-01T10:00:00+00:00\"}"
+BODY="{\"eventId\":\"evt_manuel_1\",\"type\":\"payment.succeeded\",\"paymentId\":\"$PAYMENT\",\"reference\":\"$CARD_TOPUP\",\"amount\":250.00,\"currency\":\"TRY\",\"occurredAt\":\"2026-03-01T10:00:00+00:00\"}"
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
 curl -s -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
 ```
 
-Paranın gerçekten geldiğini `psql` yerine endpoint'ten görebilirsin — hat asenkron,
-birkaç saniye sürebilir:
+Beklenen: `202 Accepted` + `{"accepted":true,"duplicate":false}`. Birkaç saniye sonra
+yükleme `paid`, cüzdan 250 artmış:
 
 ```bash
-curl -s localhost:8091/v1/wallets/$WALLET
-```
-
-Beklenen: `202 Accepted` + `{"accepted":true,"duplicate":false}`.
-
-Birkaç saniye sonra bakiye artmış olmalı:
-
-```bash
-docker compose exec postgres psql -U postgres -d hiwallet_wallet -c "SELECT balance FROM ledger_balances WHERE ledger_account_id = '<CUZDAN_ID>';"
+curl -s localhost:8109/v1/card-topups/$CARD_TOPUP -H "Authorization: Bearer $TOKEN"
 ```
 
 Aynı komutu ikinci kez çalıştır: yine `202`, ama `"duplicate":true` ve bakiye
-DEĞİŞMEMELİ.
+DEĞİŞMEMELİ. Tutarı değiştirip yeni bir `eventId` ile gönder: card-topup çelişki alarmı
+üretiyor (`docker compose logs card-topup`), mesaj `hiwallet.card-payments.dead`'e düşüyor
+ve yükleme değişmiyor.
 
 İmzayı bozup dene (`SIG` sonuna bir karakter ekle): `401` dönmeli ve inbox'a hiçbir şey
 yazılmamalı:

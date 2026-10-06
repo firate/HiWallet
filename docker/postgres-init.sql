@@ -9,10 +9,11 @@
 -- Şema burada kurulmuyor — o migration'ın işi. Burada yalnızca migration'ın ve
 -- uygulamaların ihtiyaç duyduğu roller ve veritabanları var.
 --
--- Dört veritabanı, dört sınır:
+-- Beş veritabanı, beş sınır:
 -- wallet-service,
 -- topup-webhook,
--- withdrawal-orchestrator
+-- withdrawal-orchestrator,
+-- card-topup,
 -- banka entegrasyonu
 -- birbirinin tablosunu göremiyor (CLAUDE.md "Servis sınırı"). Saga'nın anlamı buna bağlı: orchestrator wallet
 -- tablolarına yazabilseydi compensation gereksizleşirdi (decisions.md madde 7).
@@ -49,6 +50,15 @@ CREATE ROLE withdrawal_app LOGIN PASSWORD :'withdrawal_app_password';
 CREATE DATABASE hiwallet_withdrawal OWNER withdrawal_app ENCODING 'UTF8';
 
 -- ---------------------------------------------------------------------------
+-- card-topup
+-- ---------------------------------------------------------------------------
+-- TEK rol, orchestrator'daki gerekçeyle: yükleme satırı her geçişte, outbox satırı
+-- yayınlandıkça güncelleniyor.
+CREATE ROLE card_topup_app LOGIN PASSWORD :'card_topup_app_password';
+
+CREATE DATABASE hiwallet_card_topup OWNER card_topup_app ENCODING 'UTF8';
+
+-- ---------------------------------------------------------------------------
 -- banka entegrasyonu: bank-adapter + bank-webhook
 -- ---------------------------------------------------------------------------
 -- TEK rol, iki uygulama. wallet'taki ikili kurulumun sebebi append-only'di;
@@ -79,6 +89,7 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_wallet FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_topup FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_withdrawal FROM PUBLIC;
+REVOKE CONNECT ON DATABASE hiwallet_card_topup FROM PUBLIC;
 REVOKE CONNECT ON DATABASE hiwallet_bank FROM PUBLIC;
 
 \connect hiwallet_wallet
@@ -102,6 +113,11 @@ GRANT CREATE ON SCHEMA public TO topup_app;
 -- topup ile aynı kurulum: tek rol, hem migration hem uygulama.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT CREATE ON SCHEMA public TO withdrawal_app;
+
+\connect hiwallet_card_topup
+
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT CREATE ON SCHEMA public TO card_topup_app;
 
 \connect hiwallet_bank
 

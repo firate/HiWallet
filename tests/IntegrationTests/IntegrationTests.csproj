@@ -33,6 +33,7 @@
         <ProjectReference Include="../../fakes/Nvi.Fake/Nvi.Fake.csproj"/>
         <ProjectReference Include="../../src/BankAdapter/BankAdapter.csproj"/>
         <ProjectReference Include="../../src/BankWebhook/BankWebhook.csproj"/>
+        <ProjectReference Include="../../src/CardTopup/CardTopup.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

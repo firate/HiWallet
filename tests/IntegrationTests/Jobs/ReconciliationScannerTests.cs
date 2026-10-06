@@ -1,9 +1,7 @@
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Contracts.Settlements;
-using HiWallet.Shared.Contracts.Topups;
 using HiWallet.WalletService.Application.Promos;
 using HiWallet.WalletService.Application.Settlements;
-using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Application.Transfers;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Ledger;
@@ -38,11 +36,32 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         new FixedTimeProvider(now ?? Now),
         Options.Create(new ReconciliationOptions()));
 
-    private ProcessTopupHandler TopupHandler(DateTimeOffset at) => new(
-        postgres.ContextFactory,
-        TestProviders.Policy,
-        new FixedClock(at),
-        NullLogger<ProcessTopupHandler>.Instance);
+    /// <summary>Verilen anda ödenmiş kartla yükleme: ücret satırının tarihi o an.</summary>
+    private Task<Guid> CardTopupAsync(Guid wallet, decimal amount, DateTimeOffset at, CancellationToken ct, string? providerRef = null) =>
+        CardTopupSeeder.PaidAsync(postgres, wallet, amount, ct, providerRef, new FixedClock(at));
+
+    /// <summary>
+    /// Bankanın faturalı ücret satırı, verilen anda. Canlıda bunu çekimin settlement'ı
+    /// yazıyor; burada sınanan tarama, ücretin nereden doğduğu değil.
+    /// </summary>
+    private async Task BankFeeAsync(Guid wallet, DateTimeOffset at, CancellationToken ct)
+    {
+        await using var db = postgres.CreateContext();
+
+        db.ProviderFees.Add(new ProviderFee
+        {
+            Id = Guid.NewGuid(),
+            TransactionId = await LedgerSeeder.FundAsync(db, wallet, 100m, ct),
+            Provider = Bank,
+            SettlementModel = FeeSettlement.Invoiced,
+            ExpectedAmount = TestProviders.BankFixed,
+            Currency = "TRY",
+            ProviderRef = $"pi_{Guid.NewGuid():N}",
+            OccurredAt = at
+        });
+
+        await db.SaveChangesAsync(ct);
+    }
 
     /// <summary>
     /// <b>Asıl kanıt.</b> Projeksiyon–ledger ayrışması yakalanıyor.
@@ -111,7 +130,7 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         var wallet = await NewWalletAsync(ct);
         var old = Now - TimeSpan.FromDays(10);
 
-        await TopupHandler(old).HandleAsync(Topup(wallet, 100m, Stripe), ct);
+        await CardTopupAsync(wallet, 100m, old, ct);
 
         var report = await CreateScanner().ScanAsync(ct);
 
@@ -131,7 +150,7 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         var old = Now - TimeSpan.FromDays(10);
         var providerRef = $"pi_{Guid.NewGuid():N}";
 
-        await TopupHandler(old).HandleAsync(Topup(wallet, 100m, Stripe, providerRef), ct);
+        await CardTopupAsync(wallet, 100m, old, ct, providerRef);
 
         await SettlementHandler(old).HandleAsync(new SettlementReceived
         {
@@ -163,7 +182,7 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         var wallet = await NewWalletAsync(ct);
         var recent = Now - TimeSpan.FromDays(1);
 
-        var topup = await TopupHandler(recent).HandleAsync(Topup(wallet, 100m, Stripe), ct);
+        var topup = await CardTopupAsync(wallet, 100m, recent, ct);
 
         var report = await CreateScanner().ScanAsync(ct);
 
@@ -171,7 +190,7 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         // satırlar rapora girebilir, o yüzden en eskiye değil bu satıra bakılıyor.
         await using var db = postgres.CreateContext();
         var fee = await db.ProviderFees.AsNoTracking()
-            .SingleAsync(f => f.TransactionId == topup.LedgerTransactionId!.Value, ct);
+            .SingleAsync(f => f.TransactionId == topup, ct);
 
         fee.OccurredAt.ShouldBe(recent);
         report.AgingItems
@@ -226,8 +245,8 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
 
-        // Fatura eşiğinin (45 gün) çok ötesinde bir stripe top-up'ı.
-        await TopupHandler(Now - TimeSpan.FromDays(120)).HandleAsync(Topup(wallet, 100m, Stripe), ct);
+        // Fatura eşiğinin (45 gün) çok ötesinde bir kartla yükleme.
+        await CardTopupAsync(wallet, 100m, Now - TimeSpan.FromDays(120), ct);
 
         var report = await CreateScanner().ScanAsync(ct);
 
@@ -244,7 +263,7 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
 
-        await TopupHandler(Now - TimeSpan.FromDays(120)).HandleAsync(Topup(wallet, 100m, Bank), ct);
+        await BankFeeAsync(wallet, Now - TimeSpan.FromDays(120), ct);
 
         var report = await CreateScanner().ScanAsync(ct);
 
@@ -256,18 +275,6 @@ public sealed class ReconciliationScannerTests(PostgresFixture postgres)
         TestProviders.Policy,
         new FixedClock(at),
         NullLogger<ProcessSettlementHandler>.Instance);
-
-    private static TopupReceived Topup(
-        Guid walletId, decimal amount, string provider, string? providerRef = null) => new()
-    {
-        Provider = provider,
-        EventId = $"evt_{Guid.NewGuid():N}",
-        LedgerAccountId = walletId,
-        Amount = amount,
-        Currency = "TRY",
-        ProviderRef = providerRef ?? $"pi_{Guid.NewGuid():N}",
-        OccurredAt = DateTimeOffset.UtcNow
-    };
 
     /// <summary>
     /// Cüzdanın promo bakiyesi partilerin kalanlarının toplamına eşit olmalı

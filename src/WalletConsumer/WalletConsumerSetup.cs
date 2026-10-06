@@ -1,14 +1,14 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WalletConsumer.CardTopups;
 using HiWallet.WalletConsumer.Deposits;
 using HiWallet.WalletConsumer.Identity;
 using HiWallet.WalletConsumer.Settlements;
-using HiWallet.WalletConsumer.Topups;
 using HiWallet.WalletConsumer.Withdrawals;
 using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.CardTopups;
 using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Application.Settlements;
-using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Application.Withdrawals;
 using HiWallet.WalletService.Setup;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -25,11 +25,9 @@ public static class WalletConsumerSetup
     public static IServiceCollection AddWalletConsumer(
         this IServiceCollection services, IConfiguration configuration)
     {
-        // Ledger'a asenkron giren iki kaynak. Ayrı kuyruklar, ayrı kanallar, ayrı
-        // hosted service'ler — biri tıkanınca diğeri akmaya devam ediyor.
-        services.AddScoped<ProcessTopupHandler>();
-        services.AddHostedService<TopupConsumerService>();
-
+        // Ledger'a asenkron giren her kaynak ayrı kuyruk, ayrı kanal, ayrı hosted service:
+        // biri tıkanınca diğerleri akmaya devam ediyor.
+        //
         // Settlement: sağlayıcının batch ödemesi. Cevap yayınlamıyor, karşı taraf
         // yok — tek yönlü bildirim.
         services.AddScoped<ProcessSettlementHandler>();
@@ -46,6 +44,11 @@ public static class WalletConsumerSetup
         services.AddScoped<ProcessDepositHandler>();
         services.AddHostedService<DepositConsumer>();
         services.AddHolderIdentity();
+
+        // Kartla yükleme: kart yüklemesi servisi ödemenin sonucunu bildiriyor. Ödendiyse para
+        // cüzdana, ödenmediyse limit payı serbest.
+        services.AddScoped<ProcessCardTopupHandler>();
+        services.AddHostedService<CardTopupConsumer>();
 
         // Zamanlanmış işler burada, ayrı bir wallet-jobs deployable'ında DEĞİL:
         // ölçüt erişim seviyesi (decisions.md madde 28) ve job'ların da ingress'i

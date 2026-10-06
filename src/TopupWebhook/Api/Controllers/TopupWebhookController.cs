@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using FluentValidation;
-using HiWallet.Shared.Contracts.Topups;
+using HiWallet.Shared.Contracts.CardPayments;
 using HiWallet.TopupWebhook.Api.Requests;
 using HiWallet.TopupWebhook.Application;
 using Microsoft.AspNetCore.Mvc;
@@ -101,14 +101,15 @@ public sealed class TopupWebhookController(
             return ValidationProblem(ModelState);
         }
 
-        var message = new TopupReceived
+        var message = new CardPaymentUpdated
         {
             Provider = provider,
             EventId = payload.EventId!,
-            LedgerAccountId = payload.WalletId!.Value,
+            Type = payload.Type!,
+            PaymentId = payload.PaymentId!,
+            Reference = payload.Reference!.Value,
             Amount = payload.Amount!.Value,
             Currency = payload.Currency!.ToUpperInvariant(),
-            ProviderRef = payload.Reference!,
             OccurredAt = payload.OccurredAt!.Value
         };
 
