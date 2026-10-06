@@ -555,8 +555,8 @@ kayıt — ve cüzdan bakiyesi başladığı yerde. Komisyon da geri dönmüş o
 
 Kayıt ve temel doğrulamayı bireysel uygulamadan tamamlamış bir müşteri gerekiyor: havale
 yalnızca kimlik numarası hesap sahibininkiyle aynı olan gönderenden cüzdana geçiyor.
-Uygulamadaki "Havaleyle para yükle" sayfası hesap numarasını gösteriyor; `TCKN`
-doğrulamada verilen numara.
+`ACCOUNT_NUMBER` ve `TCKN` "Hesap ve cüzdan kurma"da; hesap numarasını uygulamadaki
+"Havaleyle para yükle" sayfası da gösteriyor.
 
 ```bash
 curl -s -X POST localhost:8094/v1/incoming-transfers -H 'Content-Type: application/json' \
