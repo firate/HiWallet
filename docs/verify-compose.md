@@ -461,7 +461,7 @@ MERCHANT_TOKEN=$(curl -s localhost:8101/realms/hiwallet/protocol/openid-connect/
 ```
 
 İşyeri hesabı `business-api`'den açılmıyor: kayıt ve entegrasyonun hesaba bağlanması
-backoffice'in işi ve backoffice henüz yok. Compose'da iç ağdaki `wallet-api`'ye
+backoffice'in işi ve panelde bu iş henüz yok. Compose'da iç ağdaki `wallet-api`'ye
 işyerinin token'ıyla açılıyor; hesabı açan kimlik, yani `merchant-demo`'nun servis
 hesabı, hesabın kullanıcısı oluyor:
 
