@@ -6,7 +6,9 @@ import { ErrorMessage } from '../components/ErrorMessage'
 import { accountNumber, kycLevel, money } from '../format'
 import type { AccountDetailWallet, KycLevel } from '../types'
 
-const currencies = ['TRY', 'USD', 'EUR']
+// Sistem hesapları para birimi başına ve bugün yalnızca TRY'de var; wallet-api başka
+// bir para biriminde cüzdan açmıyor.
+const walletCurrency = 'TRY'
 
 /**
  * Hesaplar ve altındaki cüzdanlar. Hesabı kayıt açıyor; burada hesap açma yok.
@@ -147,9 +149,8 @@ function DefaultMark({
 function OpenWalletForm({ accountId }: { accountId: string }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
-  const [currency, setCurrency] = useState(currencies[0])
   const openWallet = useMutation({
-    mutationFn: () => api.openWallet(accountId, name.trim(), currency),
+    mutationFn: () => api.openWallet(accountId, name.trim(), walletCurrency),
     onSuccess: async () => {
       setName('')
       await queryClient.invalidateQueries({ queryKey: ['accounts', accountId] })
@@ -170,11 +171,7 @@ function OpenWalletForm({ accountId }: { accountId: string }) {
         onChange={(event) => setName(event.target.value)}
         required
       />
-      <select aria-label="Para birimi" value={currency} onChange={(event) => setCurrency(event.target.value)}>
-        {currencies.map((code) => (
-          <option key={code}>{code}</option>
-        ))}
-      </select>
+      <span className="muted">{walletCurrency}</span>
       <button type="submit" disabled={openWallet.isPending}>
         Cüzdan aç
       </button>
