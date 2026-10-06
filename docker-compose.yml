@@ -329,7 +329,7 @@ services:
   staff-admin-migrator:
     build:
       context: .
-      dockerfile: src/StaffAdmin/Dockerfile
+      dockerfile: src/backoffice/StaffAdmin/Dockerfile
       target: migrator
     depends_on:
       staff-admin-postgres:
@@ -342,7 +342,7 @@ services:
   staff-admin:
     build:
       context: .
-      dockerfile: src/StaffAdmin/Dockerfile
+      dockerfile: src/backoffice/StaffAdmin/Dockerfile
       target: final
     depends_on:
       staff-admin-migrator:
@@ -403,7 +403,7 @@ services:
   onboarding-migrator:
     build:
       context: .
-      dockerfile: src/Onboarding/Dockerfile
+      dockerfile: src/personal/Onboarding/Dockerfile
       target: migrator
     depends_on:
       onboarding-postgres:
@@ -416,7 +416,7 @@ services:
   onboarding:
     build:
       context: .
-      dockerfile: src/Onboarding/Dockerfile
+      dockerfile: src/personal/Onboarding/Dockerfile
       target: final
     depends_on:
       onboarding-migrator:
@@ -524,7 +524,7 @@ services:
   migrator:
     build:
       context: .
-      dockerfile: src/WalletService.Core/Dockerfile
+      dockerfile: src/core/wallet/WalletService.Core/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -539,7 +539,7 @@ services:
   topup-migrator:
     build:
       context: .
-      dockerfile: src/TopupWebhook/Dockerfile
+      dockerfile: src/core/card/TopupWebhook/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -554,7 +554,7 @@ services:
   withdrawal-migrator:
     build:
       context: .
-      dockerfile: src/WithdrawalOrchestrator/Dockerfile
+      dockerfile: src/core/withdrawal/WithdrawalOrchestrator/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -569,7 +569,7 @@ services:
   card-topup-migrator:
     build:
       context: .
-      dockerfile: src/CardTopup/Dockerfile
+      dockerfile: src/core/card/CardTopup/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -586,7 +586,7 @@ services:
   bank-migrator:
     build:
       context: .
-      dockerfile: src/BankAdapter/Dockerfile
+      dockerfile: src/core/bank/BankAdapter/Dockerfile
       target: migrator
     depends_on:
       postgres:
@@ -601,7 +601,7 @@ services:
   wallet-api:
     build:
       context: .
-      dockerfile: src/WalletApi/Dockerfile
+      dockerfile: src/core/wallet/WalletApi/Dockerfile
       target: final
     depends_on:
       # Migration BİTMEDEN başlamamalı; yoksa ilk istek "relation does not exist" alır.
@@ -652,7 +652,7 @@ services:
   personal-mobile-api:
     build:
       context: .
-      dockerfile: src/PersonalMobileApi/Dockerfile
+      dockerfile: src/personal/PersonalMobileApi/Dockerfile
       target: final
     depends_on:
       # Sağlıklı olmaları BEKLENMİYOR: ön API onlarsız da açılıyor ve iç servis
@@ -700,7 +700,7 @@ services:
   personal-web-bff:
     build:
       context: .
-      dockerfile: src/PersonalWebBff/Dockerfile
+      dockerfile: src/personal/PersonalWebBff/Dockerfile
       target: final
     depends_on:
       # Sağlıklı olmaları BEKLENMİYOR: ön API onlarsız da açılıyor ve iç servis
@@ -749,7 +749,7 @@ services:
   business-api:
     build:
       context: .
-      dockerfile: src/BusinessApi/Dockerfile
+      dockerfile: src/business/BusinessApi/Dockerfile
       target: final
     depends_on:
       # Sağlıklı olmaları BEKLENMİYOR: ön API onlarsız da açılıyor ve iç servis
@@ -787,7 +787,7 @@ services:
   business-web-bff:
     build:
       context: .
-      dockerfile: src/BusinessWebBff/Dockerfile
+      dockerfile: src/business/BusinessWebBff/Dockerfile
       target: final
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
@@ -811,7 +811,7 @@ services:
   backoffice-bff:
     build:
       context: .
-      dockerfile: src/BackofficeBff/Dockerfile
+      dockerfile: src/backoffice/BackofficeBff/Dockerfile
       target: final
     depends_on:
       wallet-api:
@@ -852,7 +852,7 @@ services:
   topup-webhook:
     build:
       context: .
-      dockerfile: src/TopupWebhook/Dockerfile
+      dockerfile: src/core/card/TopupWebhook/Dockerfile
       target: final
     depends_on:
       topup-migrator:
@@ -895,7 +895,7 @@ services:
   wallet-consumer:
     build:
       context: .
-      dockerfile: src/WalletConsumer/Dockerfile
+      dockerfile: src/core/wallet/WalletConsumer/Dockerfile
       target: final
     depends_on:
       migrator:
@@ -947,7 +947,7 @@ services:
   withdrawal-orchestrator:
     build:
       context: .
-      dockerfile: src/WithdrawalOrchestrator/Dockerfile
+      dockerfile: src/core/withdrawal/WithdrawalOrchestrator/Dockerfile
       target: final
     depends_on:
       withdrawal-migrator:
@@ -1000,7 +1000,7 @@ services:
   card-topup:
     build:
       context: .
-      dockerfile: src/CardTopup/Dockerfile
+      dockerfile: src/core/card/CardTopup/Dockerfile
       target: final
     depends_on:
       card-topup-migrator:
@@ -1056,7 +1056,7 @@ services:
   bank-adapter:
     build:
       context: .
-      dockerfile: src/BankAdapter/Dockerfile
+      dockerfile: src/core/bank/BankAdapter/Dockerfile
       target: final
     depends_on:
       bank-migrator:
@@ -1112,7 +1112,7 @@ services:
   bank-webhook:
     build:
       context: .
-      dockerfile: src/BankWebhook/Dockerfile
+      dockerfile: src/core/bank/BankWebhook/Dockerfile
       target: final
     depends_on:
       bank-migrator:

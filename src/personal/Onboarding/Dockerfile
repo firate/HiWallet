@@ -1,19 +1,19 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/Onboarding/Dockerfile .
+#   docker build -f src/personal/Onboarding/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/Onboarding/Onboarding.csproj src/Onboarding/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/Onboarding/Onboarding.csproj
+COPY src/personal/Onboarding/Onboarding.csproj src/personal/Onboarding/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/personal/Onboarding/Onboarding.csproj
 
 COPY src/ src/
-RUN dotnet publish src/Onboarding/Onboarding.csproj \
+RUN dotnet publish src/personal/Onboarding/Onboarding.csproj \
         -c Release -o /app/publish --no-restore
 
 # ---------------------------------------------------------------------------
@@ -24,8 +24,8 @@ FROM build AS migrator-build
 RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
-        --project src/Onboarding \
-        --startup-project src/Onboarding \
+        --project src/personal/Onboarding \
+        --startup-project src/personal/Onboarding \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 

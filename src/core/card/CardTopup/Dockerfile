@@ -1,19 +1,19 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/CardTopup/Dockerfile .
+#   docker build -f src/core/card/CardTopup/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/CardTopup/CardTopup.csproj src/CardTopup/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/CardTopup/CardTopup.csproj
+COPY src/core/card/CardTopup/CardTopup.csproj src/core/card/CardTopup/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/core/card/CardTopup/CardTopup.csproj
 
 COPY src/ src/
-RUN dotnet publish src/CardTopup/CardTopup.csproj \
+RUN dotnet publish src/core/card/CardTopup/CardTopup.csproj \
         -c Release -o /app/publish --no-restore
 
 # ---------------------------------------------------------------------------
@@ -25,8 +25,8 @@ FROM build AS migrator-build
 RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
-        --project src/CardTopup \
-        --startup-project src/CardTopup \
+        --project src/core/card/CardTopup \
+        --startup-project src/core/card/CardTopup \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 

@@ -1,7 +1,8 @@
 # Ledger şeması
 
 **Bu dosya kaynak değil, açıklamadır.** Şemanın tek kaynağı EF Core migration'ları
-(`src/WalletService/Infrastructure/Persistence/`): tablolar Fluent API konfigürasyonlarından,
+(`src/core/wallet/WalletService.Core/Infrastructure/Persistence/`): tablolar Fluent API
+konfigürasyonlarından,
 zero-sum trigger'ı ve `REVOKE` ise migration içindeki `migrationBuilder.Sql(...)`
 bloklarından geliyor. Ayrı bir `.sql` dosyası tutulmuyor.
 

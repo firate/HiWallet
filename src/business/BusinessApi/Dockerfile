@@ -1,6 +1,6 @@
 # Ön API, public: işyerinin sistem entegrasyonu. Repo KÖKÜNDEN build edilir;
 # Directory.Build.props ve Directory.Packages.props lazım (merkezi versiyonlama).
-#   docker build -f src/BusinessApi/Dockerfile .
+#   docker build -f src/business/BusinessApi/Dockerfile .
 #
 # WalletService.Core KOPYALANMIYOR: bu host ona referans vermiyor.
 
@@ -9,14 +9,14 @@ WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/BusinessApi/BusinessApi.csproj src/BusinessApi/
-COPY src/EdgeApi.Core/EdgeApi.Core.csproj src/EdgeApi.Core/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/BusinessApi/BusinessApi.csproj
+COPY src/business/BusinessApi/BusinessApi.csproj src/business/BusinessApi/
+COPY src/shared/EdgeApi.Core/EdgeApi.Core.csproj src/shared/EdgeApi.Core/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/business/BusinessApi/BusinessApi.csproj
 
 COPY src/ src/
-RUN dotnet publish src/BusinessApi/BusinessApi.csproj \
+RUN dotnet publish src/business/BusinessApi/BusinessApi.csproj \
         -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final

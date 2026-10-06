@@ -1,6 +1,6 @@
 # Public ingress. Repo KÖKÜNDEN build edilir; Directory.Build.props ve
 # Directory.Packages.props lazım (merkezi versiyonlama).
-#   docker build -f src/WalletApi/Dockerfile .
+#   docker build -f src/core/wallet/WalletApi/Dockerfile .
 #
 # Migration bundle'ı BURADA DEĞİL: şema WalletService.Core'un ve migrator onun
 # Dockerfile'ından geliyor.
@@ -10,14 +10,14 @@ WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/WalletApi/WalletApi.csproj src/WalletApi/
-COPY src/WalletService.Core/WalletService.Core.csproj src/WalletService.Core/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/WalletApi/WalletApi.csproj
+COPY src/core/wallet/WalletApi/WalletApi.csproj src/core/wallet/WalletApi/
+COPY src/core/wallet/WalletService.Core/WalletService.Core.csproj src/core/wallet/WalletService.Core/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/core/wallet/WalletApi/WalletApi.csproj
 
 COPY src/ src/
-RUN dotnet publish src/WalletApi/WalletApi.csproj \
+RUN dotnet publish src/core/wallet/WalletApi/WalletApi.csproj \
         -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final

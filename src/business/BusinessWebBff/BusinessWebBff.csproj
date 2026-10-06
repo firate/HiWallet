@@ -5,7 +5,7 @@
          geçiyor (CLAUDE.md "Deployable'lar"). -->
 
     <ItemGroup>
-        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+        <ProjectReference Include="..\..\shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 
 </Project>

@@ -2,7 +2,7 @@
 # Açtığı tek port sağlık ucu için.
 #
 # Repo KÖKÜNDEN build edilir:
-#   docker build -f src/WalletConsumer/Dockerfile .
+#   docker build -f src/core/wallet/WalletConsumer/Dockerfile .
 #
 # Migration bundle'ı BURADA DEĞİL: şema WalletService.Core'un.
 
@@ -10,14 +10,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/WalletConsumer/WalletConsumer.csproj src/WalletConsumer/
-COPY src/WalletService.Core/WalletService.Core.csproj src/WalletService.Core/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/WalletConsumer/WalletConsumer.csproj
+COPY src/core/wallet/WalletConsumer/WalletConsumer.csproj src/core/wallet/WalletConsumer/
+COPY src/core/wallet/WalletService.Core/WalletService.Core.csproj src/core/wallet/WalletService.Core/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/core/wallet/WalletConsumer/WalletConsumer.csproj
 
 COPY src/ src/
-RUN dotnet publish src/WalletConsumer/WalletConsumer.csproj \
+RUN dotnet publish src/core/wallet/WalletConsumer/WalletConsumer.csproj \
         -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final

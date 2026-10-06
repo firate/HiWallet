@@ -21,7 +21,7 @@
 
     <ItemGroup>
         <!-- Token doğrulama ve 429 gövdesi: iç servislerle aynı kurulum. -->
-        <ProjectReference Include="..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+        <ProjectReference Include="..\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 
 </Project>

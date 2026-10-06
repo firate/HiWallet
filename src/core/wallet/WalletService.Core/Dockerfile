@@ -10,16 +10,16 @@
 # denemesi olurdu.
 #
 # Repo KÖKÜNDEN build edilir:
-#   docker build -f src/WalletService.Core/Dockerfile .
+#   docker build -f src/core/wallet/WalletService.Core/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/WalletService.Core/WalletService.Core.csproj src/WalletService.Core/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/WalletService.Core/WalletService.Core.csproj
+COPY src/core/wallet/WalletService.Core/WalletService.Core.csproj src/core/wallet/WalletService.Core/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/core/wallet/WalletService.Core/WalletService.Core.csproj
 
 COPY src/ src/
 
@@ -29,8 +29,8 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 # Core kendi startup project'i olabiliyor: tasarım zamanı fabrikası (WalletDbContextFactory)
 # onun içinde. Host'lardan birini startup vermek gereksiz yere API'yi de derletirdi.
 RUN dotnet ef migrations bundle \
-        --project src/WalletService.Core \
-        --startup-project src/WalletService.Core \
+        --project src/core/wallet/WalletService.Core \
+        --startup-project src/core/wallet/WalletService.Core \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 

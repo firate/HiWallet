@@ -13,12 +13,12 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
-        <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
-        <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
-        <ProjectReference Include="../../src/Onboarding/Onboarding.csproj"/>
-        <ProjectReference Include="../../src/StaffAdmin/StaffAdmin.csproj"/>
-        <ProjectReference Include="../../src/CardTopup/CardTopup.csproj"/>
+        <ProjectReference Include="../../src/core/wallet/WalletApi/WalletApi.csproj"/>
+        <ProjectReference Include="../../src/core/card/TopupWebhook/TopupWebhook.csproj"/>
+        <ProjectReference Include="../../src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
+        <ProjectReference Include="../../src/personal/Onboarding/Onboarding.csproj"/>
+        <ProjectReference Include="../../src/backoffice/StaffAdmin/StaffAdmin.csproj"/>
+        <ProjectReference Include="../../src/core/card/CardTopup/CardTopup.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

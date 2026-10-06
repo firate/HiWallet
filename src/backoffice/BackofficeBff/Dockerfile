@@ -1,9 +1,9 @@
 # Ön API, iç ağ: backoffice panelinin BFF'i. Repo KÖKÜNDEN build edilir;
 # Directory.Build.props ve Directory.Packages.props lazım (merkezi versiyonlama).
-#   docker build -f src/BackofficeBff/Dockerfile .
+#   docker build -f src/backoffice/BackofficeBff/Dockerfile .
 #
-# Panel (web/backoffice) ayrı aşamada derleniyor ve BFF'in wwwroot'una kopyalanıyor:
-# sayfalar ve API aynı adresten, cookie tek kökende.
+# Panel (yanındaki BackofficeWeb) ayrı aşamada derleniyor ve BFF'in wwwroot'una
+# kopyalanıyor: sayfalar ve API aynı adresten, cookie tek kökende.
 #
 # WalletService.Core KOPYALANMIYOR: bu host ona referans vermiyor.
 
@@ -11,11 +11,11 @@ FROM node:24-alpine AS web
 WORKDIR /web
 
 # Önce yalnızca paket listesi: kaynak değişse de npm ci katmanı cache'ten gelsin.
-COPY web/backoffice/package.json web/backoffice/package-lock.json ./
+COPY src/backoffice/BackofficeWeb/package.json src/backoffice/BackofficeWeb/package-lock.json ./
 RUN npm ci --no-fund --no-audit
 
-COPY web/backoffice/index.html web/backoffice/tsconfig.json web/backoffice/vite.config.ts ./
-COPY web/backoffice/src ./src
+COPY src/backoffice/BackofficeWeb/index.html src/backoffice/BackofficeWeb/tsconfig.json src/backoffice/BackofficeWeb/vite.config.ts ./
+COPY src/backoffice/BackofficeWeb/src ./src
 RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
@@ -23,14 +23,14 @@ WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/BackofficeBff/BackofficeBff.csproj src/BackofficeBff/
-COPY src/EdgeApi.Core/EdgeApi.Core.csproj src/EdgeApi.Core/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/BackofficeBff/BackofficeBff.csproj
+COPY src/backoffice/BackofficeBff/BackofficeBff.csproj src/backoffice/BackofficeBff/
+COPY src/shared/EdgeApi.Core/EdgeApi.Core.csproj src/shared/EdgeApi.Core/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/backoffice/BackofficeBff/BackofficeBff.csproj
 
 COPY src/ src/
-RUN dotnet publish src/BackofficeBff/BackofficeBff.csproj \
+RUN dotnet publish src/backoffice/BackofficeBff/BackofficeBff.csproj \
         -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final

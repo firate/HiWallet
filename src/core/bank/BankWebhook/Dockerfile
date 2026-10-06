@@ -1,6 +1,6 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/BankWebhook/Dockerfile .
+#   docker build -f src/core/bank/BankWebhook/Dockerfile .
 #
 # Bu servis BİZİM ve üretimde de koşuyor. Bankanın bizi çağırdığı uç; ayrı
 # deployable olmasının sebebi ingress'inin olması (decisions.md madde 28, 35).
@@ -14,14 +14,14 @@ WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/BankWebhook/BankWebhook.csproj src/BankWebhook/
-COPY src/BankIntegration.Core/BankIntegration.Core.csproj src/BankIntegration.Core/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/BankWebhook/BankWebhook.csproj
+COPY src/core/bank/BankWebhook/BankWebhook.csproj src/core/bank/BankWebhook/
+COPY src/core/bank/BankIntegration.Core/BankIntegration.Core.csproj src/core/bank/BankIntegration.Core/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/core/bank/BankWebhook/BankWebhook.csproj
 
 COPY src/ src/
-RUN dotnet publish src/BankWebhook/BankWebhook.csproj \
+RUN dotnet publish src/core/bank/BankWebhook/BankWebhook.csproj \
         -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final

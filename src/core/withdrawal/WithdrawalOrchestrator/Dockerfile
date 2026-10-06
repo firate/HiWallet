@@ -1,19 +1,19 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/WithdrawalOrchestrator/Dockerfile .
+#   docker build -f src/core/withdrawal/WithdrawalOrchestrator/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj src/WithdrawalOrchestrator/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
-RUN dotnet restore src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj
+COPY src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj src/core/withdrawal/WithdrawalOrchestrator/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
+RUN dotnet restore src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj
 
 COPY src/ src/
-RUN dotnet publish src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj \
+RUN dotnet publish src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj \
         -c Release -o /app/publish --no-restore
 
 # ---------------------------------------------------------------------------
@@ -25,8 +25,8 @@ FROM build AS migrator-build
 RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
-        --project src/WithdrawalOrchestrator \
-        --startup-project src/WithdrawalOrchestrator \
+        --project src/core/withdrawal/WithdrawalOrchestrator \
+        --startup-project src/core/withdrawal/WithdrawalOrchestrator \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 

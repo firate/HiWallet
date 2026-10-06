@@ -16,24 +16,24 @@
     <!-- Bütün deployable'lar birden. Uçtan uca test hepsini ayrı ayrı ayağa
          kaldırıyor; proje adı bu yüzden tek servise bağlı değil. -->
     <ItemGroup>
-        <ProjectReference Include="../../src/WalletApi/WalletApi.csproj"/>
-        <ProjectReference Include="../../src/PersonalMobileApi/PersonalMobileApi.csproj"/>
-        <ProjectReference Include="../../src/PersonalWebBff/PersonalWebBff.csproj"/>
-        <ProjectReference Include="../../src/BusinessApi/BusinessApi.csproj"/>
-        <ProjectReference Include="../../src/BusinessWebBff/BusinessWebBff.csproj"/>
-        <ProjectReference Include="../../src/BackofficeBff/BackofficeBff.csproj"/>
-        <ProjectReference Include="../../src/TopupWebhook/TopupWebhook.csproj"/>
-        <ProjectReference Include="../../src/WalletConsumer/WalletConsumer.csproj"/>
-        <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
-        <ProjectReference Include="../../src/Onboarding/Onboarding.csproj"/>
-        <ProjectReference Include="../../src/StaffAdmin/StaffAdmin.csproj"/>
+        <ProjectReference Include="../../src/core/wallet/WalletApi/WalletApi.csproj"/>
+        <ProjectReference Include="../../src/personal/PersonalMobileApi/PersonalMobileApi.csproj"/>
+        <ProjectReference Include="../../src/personal/PersonalWebBff/PersonalWebBff.csproj"/>
+        <ProjectReference Include="../../src/business/BusinessApi/BusinessApi.csproj"/>
+        <ProjectReference Include="../../src/business/BusinessWebBff/BusinessWebBff.csproj"/>
+        <ProjectReference Include="../../src/backoffice/BackofficeBff/BackofficeBff.csproj"/>
+        <ProjectReference Include="../../src/core/card/TopupWebhook/TopupWebhook.csproj"/>
+        <ProjectReference Include="../../src/core/wallet/WalletConsumer/WalletConsumer.csproj"/>
+        <ProjectReference Include="../../src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
+        <ProjectReference Include="../../src/personal/Onboarding/Onboarding.csproj"/>
+        <ProjectReference Include="../../src/backoffice/StaffAdmin/StaffAdmin.csproj"/>
         <ProjectReference Include="../../fakes/Bank.Fake/Bank.Fake.csproj"/>
         <ProjectReference Include="../../fakes/Stripe.Fake/Stripe.Fake.csproj"/>
         <ProjectReference Include="../../fakes/Sms.Fake/Sms.Fake.csproj"/>
         <ProjectReference Include="../../fakes/Nvi.Fake/Nvi.Fake.csproj"/>
-        <ProjectReference Include="../../src/BankAdapter/BankAdapter.csproj"/>
-        <ProjectReference Include="../../src/BankWebhook/BankWebhook.csproj"/>
-        <ProjectReference Include="../../src/CardTopup/CardTopup.csproj"/>
+        <ProjectReference Include="../../src/core/bank/BankAdapter/BankAdapter.csproj"/>
+        <ProjectReference Include="../../src/core/bank/BankWebhook/BankWebhook.csproj"/>
+        <ProjectReference Include="../../src/core/card/CardTopup/CardTopup.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -18,8 +18,8 @@ HiWallet/
 ├── Directory.Build.props          -- ortak TargetFramework, Nullable, LangVersion
 ├── Directory.Packages.props       -- merkezi paket versiyonlama
 ├── docs/
-├── src/
-├── web/                           -- tarayıcı uygulamaları; her biri kendi BFF'inin imajına giriyor
+├── src/                           -- kimin için olduğuna göre klasörlü (aşağıda)
+├── fakes/                         -- başka kurumların yerinde duran servisler; canlıda YOK
 └── tests/
 ```
 
@@ -60,49 +60,46 @@ Marka **Hive**, ürün **HiWallet**. Solution `HiWallet.sln`, assembly ve namesp
 `HiWallet.*` → `HiWallet.WalletService`, `HiWallet.Shared.Contracts`.
 
 Dokümanların ilk halinde geçen `wallet-distributed` bir konsept adıydı, kodda kullanılmaz.
-Klasör adları (`src/WalletService/`) kökü tekrar etmez; kök prefix `.csproj` içindeki
+Proje klasörleri (`WalletService.Core/`) kökü tekrar etmez; kök prefix `.csproj` içindeki
 `RootNamespace`/`AssemblyName` ile verilir.
 
 ## src/
 
 ```
 src/
-├── PersonalMobileApi/      -- ön API, host
-├── PersonalWebBff/         -- ön API, host
-├── BusinessApi/            -- ön API, host
-├── BusinessWebBff/         -- ön API, host
-├── BackofficeBff/          -- ön API, host
-├── EdgeApi.Core/           -- kütüphane, host değil; ön API'lerin ortak kodu
-├── WalletService.Core/     -- kütüphane, host değil
-├── WalletApi/              -- host
-├── WalletConsumer/         -- host
-├── TopupWebhook/           -- host; kart sağlayıcısının bildirimi
-├── CardTopup/              -- host; kartla yüklemenin ömrü
-├── WithdrawalOrchestrator/
-├── BankIntegration.Core/
-├── BankAdapter/
-├── BankWebhook/
-├── Onboarding/             -- host; kayıt ve kimlik doğrulaması
-├── StaffAdmin/             -- host; personel yönetimi
-└── Shared/
-    ├── Shared.Contracts/
-    └── Shared.Infrastructure/
+├── personal/                  -- bireysel müşteri
+│   ├── PersonalMobileApi/     -- ön API: mobil uygulama
+│   ├── PersonalWebBff/        -- ön API: web uygulamasının BFF'i
+│   ├── PersonalWeb/           -- web uygulaması; PersonalWebBff'in imajına giriyor
+│   └── Onboarding/            -- kayıt ve kimlik doğrulaması; yalnızca bireysel hesap açıyor
+├── business/                  -- işyeri
+│   ├── BusinessApi/           -- ön API: işyerinin sistem entegrasyonu
+│   └── BusinessWebBff/        -- ön API: işyeri panelinin BFF'i
+├── backoffice/                -- şirketin çalışanları; iç ağ
+│   ├── BackofficeBff/         -- ön API: panelin BFF'i
+│   ├── BackofficeWeb/         -- panel; BackofficeBff'in imajına giriyor
+│   └── StaffAdmin/            -- personel yönetimi
+├── core/                      -- paranın hareket ettiği servisler; müşteri ön API'den ulaşıyor
+│   ├── wallet/                -- ledger'ın sahibi: WalletApi, WalletConsumer, WalletService.Core
+│   ├── card/                  -- kartla yükleme: CardTopup, TopupWebhook
+│   ├── bank/                  -- banka: BankAdapter, BankWebhook, BankIntegration.Core
+│   └── withdrawal/            -- çekim saga'sı: WithdrawalOrchestrator
+├── shared/                    -- birden fazla klasörün kullandığı kütüphaneler
+│   ├── EdgeApi.Core/          -- ön API'lerin ortak kodu
+│   ├── Shared.Contracts/
+│   └── Shared.Infrastructure/
+└── Directory.Build.targets    -- src/ → fakes/ referansı derleme hatası
 ```
 
+Klasör kimin için olduğunu söylüyor: bireysel müşteri, işyeri, şirketin çalışanları.
+Bir kitleye hizmet eden her şey onun klasöründe: ön API'si, arayüzü ve yalnızca o kitleye
+çalışan iç servisi (`Onboarding` bireysel hesabı açıyor, `StaffAdmin` çalışanları
+yönetiyor). Tek bir kitleye ait olmayan, hepsinin parasını taşıyan servisler `core/`'da,
+paranın yoluna göre: cüzdan, kart, banka, çekim.
+
 Her **host** kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
-
-Diskte `src/` düz; gruplama yalnızca `HiWallet.sln`'in klasörlerinde. Dockerfile'lar,
-compose ve proje referansları diskteki yolu kullanıyor, gruplama onlara dokunmuyor.
-
-| Solution klasörü | Projeler |
-|---|---|
-| `src/edge` | ön API'ler ve ortak kodları: `PersonalMobileApi`, `PersonalWebBff`, `BusinessApi`, `BusinessWebBff`, `BackofficeBff`, `EdgeApi.Core` |
-| `src/wallet` | ledger'ın sahibi: `WalletApi`, `WalletConsumer`, `WalletService.Core` |
-| `src/topup` | kartla yükleme: `CardTopup`, `TopupWebhook` |
-| `src/bank` | banka entegrasyonu: `BankAdapter`, `BankWebhook`, `BankIntegration.Core` |
-| `src/withdrawal` | çekim saga'sı: `WithdrawalOrchestrator` |
-| `src/identity` | kimlikler: `Onboarding` (müşteri kaydı), `StaffAdmin` (personel) |
-| `src/shared` | `Shared.Contracts`, `Shared.Infrastructure` |
+`HiWallet.sln`'in klasörleri diskle aynı. Gruplama klasörleri (`core/wallet/`) namespace'e
+GİRMEZ: namespace projenin kökünden başlıyor.
 
 **Servis ≠ deployable.** Wallet sınırının iki host'u var — `WalletApi` (public HTTP)
 ve `WalletConsumer` (ingress'siz worker; hem top-up event'lerini hem çekim
@@ -201,7 +198,7 @@ PersonalWebBff/                -- public; bireysel web uygulamasının BFF'i
 ├── ...                        -- aynı dosyalar
 ├── Controllers/               -- Accounts, Wallets, Transfers, Withdrawals, Session (/bff),
 │                                 Registrations ve Onboarding (tabanı EdgeApi.Core'da)
-└── Dockerfile                 -- web/personal'ı derleyip wwwroot'a koyuyor
+└── Dockerfile                 -- yanındaki PersonalWeb'i derleyip wwwroot'a koyuyor
 
 BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 ├── ...                        -- aynı dosyalar
@@ -210,7 +207,7 @@ BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların Keycloak'ı
 ├── ...                        -- aynı dosyalar
 ├── Controllers/               -- Accounts, Wallets, Withdrawals, PromoCampaigns, Session (/bff)
-└── Dockerfile                 -- web/backoffice'i derleyip wwwroot'a koyuyor
+└── Dockerfile                 -- yanındaki BackofficeWeb'i derleyip wwwroot'a koyuyor
 
 BusinessWebBff/                -- public; işyeri panelinin BFF'i (Controllers/ henüz yok)
 ```
@@ -246,24 +243,24 @@ EdgeApi.Core/
 └── Errors/                    -- iç servisin cevabını istemciye aktaran handler
 ```
 
-### web/ (tarayıcı uygulamaları)
+### Tarayıcı uygulamaları: PersonalWeb, BackofficeWeb
 
 ```
-web/
-├── personal/                  -- bireysel müşteri; BFF'i personal-web-bff
-│   ├── package.json           -- sürümler tam, package-lock.json ile
-│   ├── vite.config.ts         -- geliştirmede API ve oturum yollarını BFF'e iletiyor
-│   ├── index.html
-│   └── src/
-│       ├── api.ts             -- BFF'e istekler: X-CSRF, Idempotency-Key, ProblemDetails
-│       ├── session.tsx        -- oturum yoksa giriş; kayıt (/kayit) oturumun dışında
-│       ├── pages/             -- sayfa başına bir bileşen, testi yanında
-│       ├── components/
-│       └── test/              -- sahte BFF ve render yardımcısı
-└── backoffice/                -- çalışanın paneli; BFF'i backoffice-bff, aynı düzen
-    └── src/
-        ├── session.tsx        -- oturum yoksa giriş, izni yoksa (403) yalnızca çıkış
-        └── pages/             -- hesap, cüzdan, çekim incelemesi, kampanyalar;
+personal/PersonalWeb/          -- bireysel müşteri; BFF'i yanındaki PersonalWebBff
+├── package.json               -- sürümler tam, package-lock.json ile
+├── vite.config.ts             -- geliştirmede API ve oturum yollarını BFF'e iletiyor
+├── index.html
+└── src/
+    ├── api.ts                 -- BFF'e istekler: X-CSRF, Idempotency-Key, ProblemDetails
+    ├── session.tsx            -- oturum yoksa giriş; kayıt (/kayit) oturumun dışında
+    ├── pages/                 -- sayfa başına bir bileşen, testi yanında
+    ├── components/
+    └── test/                  -- sahte BFF ve render yardımcısı
+
+backoffice/BackofficeWeb/      -- çalışanın paneli; BFF'i yanındaki BackofficeBff, aynı düzen
+└── src/
+    ├── session.tsx            -- oturum yoksa giriş, izni yoksa (403) yalnızca çıkış
+    └── pages/                 -- hesap, cüzdan, çekim incelemesi, kampanyalar;
                                   staff/ altında çalışanlar, roller, kayıtlar
 ```
 
@@ -452,7 +449,7 @@ içindeki `HIW001` kontrolü engelliyor. Yorumda yazmak yetmezdi: bu proje aynı
 gerekçeyle veritabanı sınırlarını da Postgres yetkileriyle zorluyor — sınır
 nezaket kuralıysa baskı altında ilk delinen şey olur.
 
-Ters yön serbest: `fakes/` → `src/Shared`. Sahte servis de log ve trace üretmeli,
+Ters yön serbest: `fakes/` → `src/shared`. Sahte servis de log ve trace üretmeli,
 yoksa uçtan uca trace kopar. Bu yüzden `Setup/` klasörü onlarda da var.
 
 `fakes/`'i yalnızca iki şey çağırır: `tests/` ve `docker-compose.yml`.
@@ -470,10 +467,10 @@ IP kısıtlı ingress'i var, öbürünün hiç ingress'i yok (madde 28). Ortak �
 `BankIntegration.Core`'da — `WalletApi` / `WalletConsumer` / `WalletService.Core`
 üçlüsüyle aynı kalıp.
 
-### Shared/
+### shared/: Shared.Contracts, Shared.Infrastructure
 
 ```
-Shared/
+shared/
 ├── Shared.Contracts/          -- servisler arası mesajlar, akışa göre klasörlü
 │   ├── CardPayments/          -- CardPaymentUpdated (topup-webhook → card-topup)
 │   ├── CardTopups/            -- CardTopupClosed (card-topup → wallet)
@@ -572,8 +569,8 @@ istiyor, offline çalışmıyor.
 ## Adlandırma
 
 - Klasör ve namespace çoğul (`Transfers`, `Accounts`), tip tekil (`Transfer`, `Account`).
-- Namespace = `HiWallet.` + dizin yolu: `src/WalletService/Application/Transfers/` →
-  `HiWallet.WalletService.Application.Transfers`.
+- Namespace = projenin kök namespace'i + proje içindeki yol:
+  `WalletService.Core/Application/Transfers/` → `HiWallet.WalletService.Application.Transfers`.
 - Command: `<Fiil><Nesne>Command` → `CreateTransferCommand`. Handler: `<Command adı>Handler`.
 - Event geçmiş zaman: `BankTransferSucceeded`, `CardTopupClosed`.
 - Tablo adları `snake_case` ve çoğul (`ledger_entries`), C# tarafı `PascalCase` tekil.
@@ -587,7 +584,7 @@ Mac'te, repo kökünde:
 
 ```bash
 dotnet ef migrations add <Ad> \
-  --project src/WalletService.Core \
+  --project src/core/wallet/WalletService.Core \
   --output-dir Infrastructure/Persistence/Migrations
 ```
 
