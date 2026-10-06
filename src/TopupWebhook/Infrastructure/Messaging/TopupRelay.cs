@@ -32,7 +32,7 @@ internal sealed class TopupRelay(
     IDbContextFactory<InboxDbContext> contextFactory,
     JobLease lease,
     RabbitMqConnection connection,
-    TopupTopology topupTopology,
+    CardPaymentTopology cardPaymentTopology,
     SettlementTopology settlementTopology,
     TimeProvider timeProvider,
     ILogger<TopupRelay> logger) : BackgroundService
@@ -149,7 +149,7 @@ internal sealed class TopupRelay(
         // etmiyor, yalnızca baytları ve routing key'i geçiriyor.
         var (exchange, type) = message.Kind switch
         {
-            InboxKind.Topup => (topupTopology.Exchange, nameof(Shared.Contracts.Topups.TopupReceived)),
+            InboxKind.Topup => (cardPaymentTopology.Exchange, nameof(Shared.Contracts.CardPayments.CardPaymentUpdated)),
             // Settlement ve fatura AYNI exchange'de, ayrı routing key'lerle. Tip
             // routing key'in kendisi: ikisi de sözleşme tipinin adını taşıyor, o
             // yüzden sabit yazmak faturayı "SettlementReceived" diye etiketlerdi.
@@ -168,9 +168,7 @@ internal sealed class TopupRelay(
             Timestamp = new AmqpTimestamp(message.ReceivedAt.ToUnixTimeSeconds())
         };
 
-        // Top-up'ta routing key cüzdan id: consistent hash exchange bunu hash'leyip
-        // partition seçiyor, aynı cüzdan hep aynı kuyruğa (overview.md madde 8).
-        // Settlement'ta sabit mesaj tipi, direct exchange üzerinden tek kuyruğa.
+        // İki akışta da routing key sabit mesaj tipi, direct exchange üzerinden tek kuyruğa.
         await channel.BasicPublishAsync(
             exchange: exchange,
             routingKey: message.RoutingKey,
@@ -213,7 +211,7 @@ internal sealed class TopupRelay(
         // İki topoloji de burada kuruluyor: relay ikisine de yayınlıyor ve declare
         // idempotent. Yalnızca biri kurulsaydı, ilk settlement mesajı NOT_FOUND ile
         // düşerdi — ve bu ancak ilk settlement geldiğinde ortaya çıkardı.
-        await topupTopology.DeclareAsync(_channel, ct);
+        await cardPaymentTopology.DeclareAsync(_channel, ct);
         await settlementTopology.DeclareAsync(_channel, ct);
 
         return _channel;

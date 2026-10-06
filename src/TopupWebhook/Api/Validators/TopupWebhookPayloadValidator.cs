@@ -1,13 +1,13 @@
 using FluentValidation;
+using HiWallet.Shared.Contracts.CardPayments;
 using HiWallet.TopupWebhook.Api.Requests;
 
 namespace HiWallet.TopupWebhook.Api.Validators;
 
 /// <summary>
-/// Yalnızca ŞEKİL doğrulaması: alan var mı, tipi tutuyor mu, aralıkta mı.
-/// "Bu cüzdan var mı", "para birimi cüzdanınkiyle aynı mı" gibi sorular burada
-/// sorulmuyor — onlar wallet-service'in bilgisi ve tüketici tarafında kontrol
-/// ediliyor. Webhook'un işi mesajı kaybetmeden almak.
+/// Yalnızca ŞEKİL doğrulaması: alan var mı, tipi tutuyor mu, aralıkta mı. "Bu ödemeyi
+/// biz mi açtık", "tutar kaydımızla aynı mı" gibi sorular burada sorulmuyor — onlar kart
+/// yüklemesi servisinin bilgisi. Webhook'un işi mesajı kaybetmeden almak.
 /// </summary>
 public sealed class TopupWebhookPayloadValidator : AbstractValidator<TopupWebhookPayload>
 {
@@ -17,10 +17,18 @@ public sealed class TopupWebhookPayloadValidator : AbstractValidator<TopupWebhoo
             .NotEmpty()
             .MaximumLength(200);
 
-        RuleFor(p => p.WalletId)
+        RuleFor(p => p.Type)
+            .Must(CardPaymentEvents.IsKnown)
+            .WithMessage($"type '{CardPaymentEvents.Succeeded}' ya da '{CardPaymentEvents.Canceled}' olmalı.");
+
+        RuleFor(p => p.PaymentId)
+            .NotEmpty()
+            .MaximumLength(200);
+
+        RuleFor(p => p.Reference)
             .NotNull()
             .Must(id => id != Guid.Empty)
-            .WithMessage("walletId boş olamaz.");
+            .WithMessage("reference boş olamaz.");
 
         RuleFor(p => p.Amount)
             .NotNull()
@@ -29,10 +37,6 @@ public sealed class TopupWebhookPayloadValidator : AbstractValidator<TopupWebhoo
         RuleFor(p => p.Currency)
             .NotEmpty()
             .Length(3);
-
-        RuleFor(p => p.Reference)
-            .NotEmpty()
-            .MaximumLength(200);
 
         RuleFor(p => p.OccurredAt)
             .NotNull();

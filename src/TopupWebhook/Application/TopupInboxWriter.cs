@@ -1,6 +1,6 @@
 using System.Text.Json;
+using HiWallet.Shared.Contracts.CardPayments;
 using HiWallet.Shared.Contracts.Settlements;
-using HiWallet.Shared.Contracts.Topups;
 using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +11,7 @@ namespace HiWallet.TopupWebhook.Application;
 /// Kabul edilen webhook'u inbox'a yazar. 202 dönmeden önceki SON adım —
 /// kalıcılık garanti olmadan sağlayıcıya başarı denmiyor (overview.md madde 5).
 ///
-/// İki akış da buradan geçiyor (top-up, settlement). Ayrı yazıcılar olsaydı
+/// İki akış da buradan geçiyor (kart ödemesi, settlement). Ayrı yazıcılar olsaydı
 /// <c>ON CONFLICT DO NOTHING</c> kalıbı ve "0 satır ise tekrar" yorumu iki yerde
 /// ayrı ayrı doğru tutulmak zorunda kalırdı.
 /// </summary>
@@ -26,14 +26,14 @@ public sealed class TopupInboxWriter(
     /// Çağıran yine 202 dönüyor: sağlayıcı için tekrar gönderim başarılı bir
     /// sonuçtur, hata değil.
     /// </returns>
-    public Task<bool> WriteAsync(TopupReceived message, string rawPayload, CancellationToken ct) =>
+    public Task<bool> WriteAsync(CardPaymentUpdated message, string rawPayload, CancellationToken ct) =>
         WriteAsync(
             InboxKind.Topup,
             message.Provider,
             message.EventId,
-            // Partition anahtarı cüzdan kimliği: aynı cüzdanın mesajları aynı
-            // kuyruğa düşsün (overview.md madde 8).
-            routingKey: message.LedgerAccountId.ToString(),
+            // Sabit mesaj tipi: bildirimde cüzdan yok, ödemeyi kart yüklemesi servisi
+            // kendi kaydıyla eşleştiriyor. Tek kuyruk, tek aktif tüketici.
+            routingKey: CardPaymentTopology.RoutingKey,
             message,
             rawPayload,
             ct);

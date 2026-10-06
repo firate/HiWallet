@@ -32,16 +32,12 @@ public sealed class InboxMessage
     /// <summary>
     /// Yayınlanırken kullanılacak routing key. Payload'ın içinden de çıkarılabilirdi
     /// ama kolon olarak duruyor: relay her satır için JSON parse etmek zorunda
-    /// kalmasın (overview.md madde 8).
-    ///
-    /// Top-up'ta cüzdan kimliği — partition anahtarı, aynı cüzdanın mesajları aynı
-    /// kuyruğa düşsün diye. Settlement'ta sabit mesaj tipi: hiçbir cüzdana
-    /// dokunmuyor, partition'ın koruduğu şey orada yok.
+    /// kalmasın (overview.md madde 8). İki akışta da sabit mesaj tipi.
     /// </summary>
     public required string RoutingKey { get; init; }
 
     /// <summary>
-    /// Yayınlanacak <c>TopupReceived</c>'in JSON hali. Ham gövde değil, NORMALİZE
+    /// Yayınlanacak mesajın (<c>CardPaymentUpdated</c>, <c>SettlementReceived</c>) JSON hali. Ham gövde değil, NORMALİZE
     /// edilmiş mesaj: kalıcı olan şeyle broker'a giden şey birebir aynı olsun diye.
     /// Relay'de yeniden dönüştürme yapılsaydı, o dönüşümün hatası inbox'a
     /// yazıldıktan sonra ortaya çıkardı.
