@@ -18,6 +18,7 @@
         <ProjectReference Include="../../src/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
         <ProjectReference Include="../../src/Onboarding/Onboarding.csproj"/>
         <ProjectReference Include="../../src/StaffAdmin/StaffAdmin.csproj"/>
+        <ProjectReference Include="../../src/CardTopup/CardTopup.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
