@@ -15,15 +15,16 @@ olduğu yere taşınmıyor.
 
 **Kenar (eventual).** Dış dünyayla konuşan akışlar. İki hat da çalışıyor:
 
-- **Top-up:** webhook ayrı bir serviste kendi veritabanıyla, arada RabbitMQ, tüketici
-  üçüncü bir uygulamada.
+- **Kartla yükleme:** limit yetmiyorsa ödeme hiç açılmıyor; wallet ödeme açılmadan önce
+  limitten pay ayırıyor. Ödemenin ömrünü ayrı bir iç servis tutuyor, sağlayıcının bildirimi
+  ayrı bir webhook servisinden RabbitMQ üzerinden ona, kapanış da wallet'a gidiyor.
 - **Withdrawal saga:** orchestrator kendi veritabanında saga durumunu yürütüyor,
   wallet parayı düşüyor, adaptör bankayı HTTP ile arıyor. Banka "aldım" diyor,
   **sonuç sonra** callback ile geliyor — saga o arada gerçekten bekliyor. Banka
   reddederse **compensation** cüzdana parayı geri yazıyor: silmeyle değil, üç
   bacaklı ters kayıtla.
 
-## On üç uygulama: önde ön API'ler, içeride cüzdan
+## On dört uygulama: önde ön API'ler, içeride cüzdan
 
 | deployable | ingress | Postgres | RabbitMQ |
 | --- | --- | --- | --- |
@@ -38,12 +39,13 @@ olduğu yere taşınmıyor.
 | `topup-webhook` | **IP kısıtlı** — sağlayıcı | `hiwallet_topup` / `topup_app` | publish |
 | `wallet-consumer` | **yok** | `hiwallet_wallet` / `wallet_app` | consume |
 | `withdrawal-orchestrator` | **iç ağ** — çekim saga'sı | `hiwallet_withdrawal` | ikisi de |
+| `card-topup` | **iç ağ** — kartla yükleme: limit payı, ödeme, kapanış | `hiwallet_card_topup` / `card_topup_app` | ikisi de |
 | `bank-adapter` | **yok** | `hiwallet_bank` / `bank_app` | ikisi de |
 | `bank-webhook` | **IP kısıtlı** — banka | `hiwallet_bank` / `bank_app` | — |
 | `hiwallet-keycloak` | **public** — müşterilerin ve işyerlerinin kimlik sağlayıcısı (bizim kodumuz değil) | kendi Postgres sunucusu | — |
 | `hiwallet-staff-keycloak` | **iç ağ** — çalışanların kimlik sağlayıcısı, ayrı kurulum (bizim kodumuz değil) | kendi Postgres sunucusu | — |
 
-İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api` ve orchestrator iç servis;
+İstemci yalnızca kendi ön API'sine bağlanıyor. `wallet-api`, orchestrator ve `card-topup` iç servis;
 ön API veritabanına bağlanmıyor ve ledger'a giden her istek `wallet-api`'den geçiyor. Ön
 API'ler ihtiyaç doğdukça açılıyor, her biri public ya da yalnızca iç ağdan erişiliyor.
 Tarayıcıdan kullanılan arayüzün ön API'si BFF: token tarayıcıdaki koda verilmez, tarayıcı
@@ -70,7 +72,7 @@ Bir de **başka kurumların yerinde duran** uygulamalar var:
 | | temsil ettiği kurum | ne yapıyor |
 | --- | --- | --- |
 | `bank-fake` | bankamız | para girişi **ve** çıkışı; hafızası bellekte, veritabanı yok |
-| `stripe-fake` | kart sağlayıcısı | yalnızca para girişi; veritabanı yok |
+| `stripe-fake` | kart sağlayıcısı | yalnızca para girişi: ödeme API'si, ödeme sayfası, sonucun webhook'u; veritabanı yok |
 | `sms-fake` | SMS sağlayıcısı | mesajı göndermiyor, kutusunda tutuyor; veritabanı yok |
 | `nvi-fake` | nüfus kaydı | kimlik bilgisi eşleşiyor mu; eşleşmeyen numara senaryoyla |
 | `mailpit` | e-posta sağlayıcısı | SMTP'yi kabul ediyor, dışarı göndermiyor (bizim kodumuz değil) |
@@ -88,9 +90,9 @@ edilen hiçbir şey oradan çıkmıyor. `src/` → `fakes/` referansı derleme h
 (`HIW001`) — kural yorumda değil, derleyicide.
 
 Ölçüt iki yöne de işliyor: farklı erişim seviyesi aynı process'te birleşmiyor, **aynı
-erişim seviyesi de gereksiz bölünmüyor.** `wallet-consumer` iki kuyruğu birden dinliyor —
-top-up event'leri ve çekim komutları — çünkü ikisi de ingress'siz ve aynı ledger'a
-aynı kütüphaneyle yazıyor.
+erişim seviyesi de gereksiz bölünmüyor.** `wallet-consumer` kartla yüklemelerin
+kapanışlarını, havaleleri ve çekim komutlarını birlikte dinliyor, çünkü hepsi ingress'siz ve
+aynı ledger'a aynı kütüphaneyle yazıyor.
 
 `wallet-api` ve `wallet-consumer` aynı şemayı yazıyor ve **aynı kütüphaneyi**
 (`WalletService.Core`) paylaşıyor. Ayrı deployable, tek kod tabanı — çünkü ledger
@@ -114,15 +116,17 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Optimistic lock, retry, idempotency | evet |
 | `POST /v1/transfers`, ProblemDetails | evet |
 | Baseline: OTel, health, rate limiting, validation | evet |
-| Top-up hattı (webhook → inbox → relay → RabbitMQ → consumer) | evet |
-| HMAC imza, iki kademe idempotency, dead-letter | evet |
+| Kartla yükleme: limit payı, ödeme, bildirim, kapanış, ledger | evet — testte; compose'da denenmedi |
+| Kart limitte öncelikli: limit yetmiyorsa ödeme açılmıyor, açık pay gelen her parayla sayılıyor | evet — testte |
+| Süresi dolan ve bildirimi kaçırılmış ödemenin taramayla kapanması | evet — testte |
+| HMAC imza, inbox, dead-letter | evet |
 | Deployable ayrımı erişim seviyesine göre | evet |
-| Hattın gerçek bir broker'a karşı uçtan uca koşması | evet — webhook → RabbitMQ → ledger |
+| Kartla yüklemenin gerçek bir broker'a karşı uçtan uca koşması | hayır — testler kuyrukları atlayıp handler'ları çağırıyor |
 | Withdrawal saga: state machine, outbox, IBAN doğrulama | evet |
 | Compensation: üç bacaklı ters kayıt (komisyon dahil) | evet |
 | Saga zincirinin uçtan uca koşması | evet — API → wallet → adaptör → banka → callback → saga |
 | Banka entegrasyonu: asenkron sonuç, callback + mutabakat | evet |
-| Sahte sağlayıcılar top-up'ı tetikliyor (tekrar, gecikme, **sırasız**) | evet |
+| Sahte kart sağlayıcısı: ödeme API'si, ödeme sayfası, imzalı webhook | evet |
 | Sekiz container'ın compose'dan ayağa kalkması | evet |
 | Ön API'lerin compose'dan ayağa kalkması | evet |
 | `personal-mobile-api`'nin uçları: cüzdan, transfer, çekim | evet — `wallet-api` ve orchestrator'a iletiyor |
@@ -142,7 +146,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çalışanın izni her istekte: rolü alınan çalışanın bir sonraki isteği reddediliyor | evet — testte |
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
-| Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale; kart yüklemesi sayılıyor ama kesilmiyor |
+| Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale, kartla yükleme |
 | Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
 | Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |
 | Eşleşmeyen havale askıya, panelde liste | evet — testte |
@@ -152,7 +156,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Takılmış saga taraması (job altyapısı + advisory lock) | evet |
 | Business günlük özeti | evet |
 | Sağlayıcı ücreti tahakkuku (`provider_fees`, Net/Invoiced) | evet |
-| Settlement: clearing kapanır, `nostro` hareket eder | evet — top-up ve çekim |
+| Settlement: clearing kapanır, `nostro` hareket eder | evet — kartla yükleme ve çekim |
 | Fatura işleme, uyuşmazlıkta `PendingReview` | evet |
 | Promo: işyerinin kendi müşterisine verdiği parti, ödemede harcama, süre sonu | evet |
 | Promo: kampanya motoru, platform fonlu parti, koruma hesabı açığı raporu | evet — kampanyalar SQL ile |
@@ -163,13 +167,14 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-736 test: 241 unit (DB'siz), 495 integration — gerçek Postgres ve gerçek RabbitMQ.
+796 test: 255 unit (DB'siz), 541 integration — gerçek Postgres ve gerçek RabbitMQ.
 Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 30, panelin 37.
 
-İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
-ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
-bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →
+Withdrawal zinciri broker'la uçtan uca koşuyor: `POST /v1/withdrawals` → orchestrator →
+wallet-consumer → bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →
 orchestrator. Beş host ayrı ayrı ayakta; aralarında hem broker hem gerçek HTTP var.
+Kartla yüklemenin testi ön API → card-topup → wallet-api ve sahte sağlayıcı arasında
+gerçek HTTP ile koşuyor; kuyruk halkaları handler'lara doğrudan veriliyor.
 
 ## Çalıştırma
 
@@ -178,10 +183,11 @@ cp .env.example .env      # <DOLDUR> yazan yerleri doldur
 docker compose up --build
 ```
 
-Sırayla: Postgres ayağa kalkar, beş rol, dört uygulama veritabanı ve integration testlerin
-veritabanı (`hiwallet_schema_check`) kurulur; onboarding'in Postgres'i kendi rolüyle
-ayrıca kalkar → beş migrator şemaları uygular → uygulamalar başlar (on ikisi bizim,
-beşi başka kurumların yerinde). RabbitMQ paralel kalkar; hiçbiri onu BEKLEMEZ.
+Sırayla: Postgres ayağa kalkar, altı rol, beş uygulama veritabanı ve integration testlerin
+veritabanı (`hiwallet_schema_check`) kurulur; onboarding'in ve personel yönetiminin
+Postgres'i kendi rolleriyle ayrıca kalkar → yedi migrator şemaları uygular → uygulamalar
+başlar (on dördü bizim, beşi başka kurumların yerinde). RabbitMQ paralel kalkar; hiçbiri
+onu BEKLEMEZ.
 
 ```bash
 curl http://localhost:8091/health/ready   # wallet-api
@@ -199,12 +205,13 @@ curl http://localhost:8103/health/ready   # onboarding
 curl http://localhost:8104/health/ready   # sms-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8105/health/ready   # nvi-fake (BİZİM DEĞİL, canlıda yok)
 curl http://localhost:8108/health/ready   # staff-admin
+curl http://localhost:8109/health/ready   # card-topup
 curl http://localhost:8101/realms/hiwallet/.well-known/openid-configuration         # keycloak, müşteriler
 curl http://localhost:8107/realms/hiwallet-staff/.well-known/openid-configuration   # keycloak, çalışanlar
 ```
 
-`wallet-api` (8091) ve orchestrator (8093) canlıda iç ağda; compose'da elle denemek için
-host'a açıklar.
+`wallet-api` (8091), orchestrator (8093) ve `card-topup` (8109) canlıda iç ağda;
+compose'da elle denemek için host'a açıklar.
 
 Bireysel web uygulaması <http://localhost:8102>'de. Kayıt uygulamanın kendi sayfasında
 (`/kayit`): e-postaya giden kod Mailpit'te (<http://localhost:8106>), telefona giden kod
@@ -237,6 +244,7 @@ API dokümanı, yalnızca Development'ta. Ters proxy arkasında aynı sayfa
 | --- | --- | --- |
 | `wallet-api` | <http://localhost:8091/scalar/> | müşteri, işyeri |
 | `withdrawal-orchestrator` | <http://localhost:8093/scalar/> | müşteri, işyeri |
+| `card-topup` | <http://localhost:8109/scalar/> | müşteri |
 | `personal-mobile-api` | <http://localhost:8097/scalar/> | müşteri |
 | `onboarding` | <http://localhost:8103/scalar/> | müşteri |
 | `staff-admin` | <http://localhost:8108/scalar/> | — |
@@ -258,12 +266,12 @@ anahtarını giriyor. Ayrıntısı `docs/verify-compose.md` "Kimlik" bölümünd
 
 `topup-webhook`'ta yok: o sözleşmeyi sağlayıcı dayatıyor, biz belgelemiyoruz.
 
-Host portlarının varsayılanı (`8091`–`8106`, `5433`, `5673`) alışıldık portlardan
+Host portlarının varsayılanı (`8091`–`8109`, `5433`, `5673`) alışıldık portlardan
 bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zaman dolu.
 `.env`'den değiştirilebilir.
 
-> **Stack compose'dan koşuyor ve uçtan uca akışları geçiyor.** Top-up, çekimin
-> mutlu yolu ve telafi yolu compose üzerinde doğrulandı: banka reddettiğinde
+> **Stack compose'dan koşuyor ve uçtan uca akışları geçiyor.** Çekimin mutlu yolu ve
+> telafi yolu compose üzerinde doğrulandı: banka reddettiğinde
 > bakiye `500` → `500` dönüyor ve ters kaydın `revenue` bacağı yerinde. Yapısal
 > tarafta uygulamalar `healthy`, migrator'lar şemaları uyguluyor, `wallet_app`
 > konteyner içinde de `ledger_entries`'i güncelleyemiyor ve her rol yalnızca kendi
@@ -272,7 +280,8 @@ bilerek kaçıyor: `8080`, `5432` ve `5672` geliştirme makinelerinde çoğu zam
 >
 > **Bu doğrulama bankanın SENKRON cevap verdiği sürümde yapıldı.** Asenkron hat
 > (adaptör → banka → callback → webhook) testlerde koşuyor ama compose üzerinde
-> henüz tekrarlanmadı; `verify-compose.md`'de açık uç olarak duruyor.
+> henüz tekrarlanmadı; `verify-compose.md`'de açık uç olarak duruyor. Kartla yükleme de
+> compose'da henüz denenmedi.
 
 ### İki veritabanı rolü
 
@@ -302,7 +311,7 @@ WALLET=$(curl -s -X POST http://localhost:8091/v1/accounts/$ACCOUNT/wallets \
 curl -s http://localhost:8091/v1/wallets/$WALLET
 ```
 
-Cüzdan sıfır bakiyeyle açılır ve **para yalnızca ledger üzerinden girer** — top-up ya da
+Cüzdan sıfır bakiyeyle açılır ve **para yalnızca ledger üzerinden girer** — yükleme ya da
 transfer. Bakiyeye doğrudan yazan bir endpoint yok, olsaydı zero-sum invariant'ı delerdi.
 
 Bir hesabın aynı para biriminde birden fazla cüzdanı olabilir (`decisions.md` madde 20);
@@ -337,17 +346,21 @@ curl -X POST http://localhost:8091/v1/transfers \
 ortamı seç, request'leri sırayla koş; kimlikler bir sonrakine kendiliğinden taşınıyor.
 Aşağıdaki `curl` örnekleri aynı işi yapıyor.
 
-**Top-up (dışarıdan para girişi).** En kolayı sahte sağlayıcıya söylemek — imzayı
-o hesaplıyor:
+**Kartla yükleme.** En kolayı bireysel web uygulamasından: tutarı yaz, ödeme sayfasında
+"Öde" de. API'den, müşterinin token'ıyla:
 
 ```bash
-curl -X POST http://localhost:8096/v1/topups -H 'Content-Type: application/json' \
-  -d "{\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"mode\":\"Normal\"}"
+curl -X POST http://localhost:8097/v1/card-topups -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"returnUrl\":\"http://localhost:8102/kart-yukleme\"}"
 ```
 
-`mode`: `Normal` | `Duplicate` | `Delayed` | `OutOfOrder`. `Duplicate` aynı event'i
-iki kez gönderiyor — bakiye **bir kez** artmalı. `OutOfOrder` aynı cüzdana N event'i
-ters sırada gönderiyor.
+Response **`202 Accepted`** ve `paymentUrl`: limit payı ayrıldı, ödeme açıldı, para henüz
+hareket etmedi. Limit yetmiyorsa `422` (`card_topup_limit`) ve ödeme hiç açılmıyor.
+Sayfada "Öde" denince sağlayıcının imzalı webhook'u topup-webhook'a, oradan RabbitMQ
+üzerinden card-topup'a gidiyor; card-topup kapanışı wallet'a yolluyor. Ledger'a iki satır
+düşer: cüzdan `+100`, `clearing/stripe-fake` `-100` (sağlayıcıdan alacak). Toplam sıfır.
+Ödenmeyen ya da oturumu dolan ödemede ledger'a hiçbir şey yazılmıyor, yalnızca pay kapanıyor.
 
 **Havale ile yükleme.** Sahte bankaya toplama hesabına havale geldiğini söyle. Cüzdana
 geçmesi için açıklamada müşterinin hesap numarası, `senderNationalId`'de onun doğrulamada
@@ -359,26 +372,11 @@ curl -X POST http://localhost:8094/v1/incoming-transfers -H 'Content-Type: appli
   -d "{\"amount\":250,\"currency\":\"TRY\",\"description\":\"$ACCOUNT_NUMBER\",\"senderNationalId\":\"$TCKN\"}"
 ```
 
-Elle göndermek istersen imza ham gövde baytları üzerinde HMAC-SHA256:
-
-```bash
-BODY='{"eventId":"evt_1","walletId":"...","amount":100.00,"currency":"TRY","reference":"pi_1","occurredAt":"2026-03-01T10:00:00+00:00"}'
-SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
-curl -X POST http://localhost:8092/v1/webhooks/topup/stripe-fake -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
-```
-
+Kart sağlayıcısının webhook'unu elle göndermek istersen imza ham gövde baytları üzerinde
+HMAC-SHA256; örnek `docs/verify-compose.md` "Ödeme bildirimini elle göndermek"te.
 Response **`202 Accepted`** — `200` değil, bilerek: verilen söz "işledim" değil "kalıcı
-kaydettim". Para response döndüğünde henüz cüzdanda değil.
-
-Yol: **202 (inbox commit'inden sonra) → relay → RabbitMQ → tüketici → ledger.**
-Ledger'a iki satır düşer: cüzdan `+100`, `clearing/stripe-fake` `-100` (sağlayıcıdan
-alacak). Toplam sıfır.
-
-Aynı webhook ikinci kez gelirse yine `202` döner ama `"duplicate": true` ve bakiye
-değişmez. İki kademe de devrede: inbox `(provider, event_id)` UNIQUE onu kuyruğa hiç
-koymaz, koysa bile tüketicideki `processed_events` yutar.
-
-İmza tutmazsa `401` ve inbox'a **hiçbir şey** yazılmaz.
+kaydettim". Aynı webhook ikinci kez gelirse yine `202` döner ama `"duplicate": true` ve
+bakiye değişmez. İmza tutmazsa `401` ve inbox'a **hiçbir şey** yazılmaz.
 
 **Withdrawal (dışarıya para çıkışı).** Saga'nın evi. `Idempotency-Key` burada
 **zorunlu** — transfer'dekinin aksine: çekim çok adımlı ve dışarıya para çıkarıyor,
@@ -440,7 +438,7 @@ cd web/backoffice && npm test
 Integration testler bir Postgres sunucusu ister; bağlantı
 `ConnectionStrings__IntegrationTests`'ten gelir. Her koşu kendi schema'sını açar,
 migration'ı oraya uygular, sonunda düşürür — izolasyon böyle sağlanıyor, Docker
-gerekmiyor. topup-webhook, withdrawal-orchestrator, banka entegrasyonu ve sahte banka için ayrı schema'lar
+gerekmiyor. topup-webhook, withdrawal-orchestrator, card-topup, banka entegrasyonu ve sahte banka için ayrı schema'lar
 açılıyor: canlıdaki ayrı veritabanı sınırları testte de korunuyor, servisler
 birbirinin tablosunu göremiyor.
 
