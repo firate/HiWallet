@@ -93,8 +93,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - wallet-service'te optimistic lock `ledger_balances.version` üzerinde.
   `ledger_entries` üzerinde lock YOK.
 - `IsConcurrencyToken()` yalnızca GERÇEKTEN UPDATE edilen ve birden fazla yazarı olan
-  satırlarda: wallet'ta `LedgerBalance`, orchestrator'da `WithdrawalSaga`. Başka
-  entity'ye EKLENMEZ — append-only tabloda anlamsız (`decisions.md` madde 2).
+  satırlarda: wallet'ta `LedgerBalance`, orchestrator'da `WithdrawalSaga`, card-topup'ta
+  `CardTopup`. Başka entity'ye EKLENMEZ — append-only tabloda anlamsız (`decisions.md` madde 2).
 - Bir transaction içinde birden fazla `ledger_balances` satırı güncelleniyorsa
   her zaman `account_id` artan sırayla güncellenir (deadlock önleme).
 - Redis distributed lock YOK. Background job tekilliği `pg_try_advisory_lock`
@@ -107,6 +107,7 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   Filtre kalsaydı NULL yazabilen bir yol açıldığında o satırlar dedup'ın dışında
   kalır ve hata da vermezdi.
 - `withdrawal_sagas(account_id, idempotency_key)` UNIQUE.
+- `card_topups(subject, idempotency_key)` UNIQUE: kartla yüklemenin kapsamı isteyen kimlik.
 - Para hareketi başlatan HER endpoint'te `Idempotency-Key` başlığı ZORUNLU — transfer dahil.
   Yoksa `400`. Anahtarsız bir tekrar hiçbir constraint'e takılmaz ve çift harcama
   sessizce ledger'a yazılır; append-only olduğu için de geri alınamaz, yalnızca
@@ -115,8 +116,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   "Önce SELECT sonra INSERT" YOK.
 
 **Deployable'lar**
-- **`wallet-api`, `withdrawal-orchestrator`, `onboarding` ve `staff-admin` İÇ servis;**
-  istemci onlara doğrudan bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı (madde 7 ve 33).
+- **`wallet-api`, `withdrawal-orchestrator`, `card-topup`, `onboarding` ve `staff-admin` İÇ
+  servis;** istemci onlara doğrudan bağlanmaz. Orchestrator kendi sınırı ve kendi veritabanı
+  (madde 7 ve 33); card-topup da öyle.
 - Dışarıya açılan her yüzey bir **ön API**. Ön API ihtiyaç doğdukça açılır, kendi
   istemcisine hizmet eder ve ya public ya da yalnızca iç ağdan erişilir:
   `personal-mobile-api`, `personal-web-bff`, `business-api` ve `business-web-bff` public,
@@ -140,8 +142,8 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
 - Ingress'i olmayan ve webhook alan deployable'larda ölçüt ERİŞİM SEVİYESİ
   (`decisions.md` madde 28): `topup-webhook` IP kısıtlı, `wallet-consumer` ingress'siz.
   Farklı erişim seviyesi aynı process'te BİRLEŞTİRİLMEZ. Aynı erişim seviyesi ise ayrı
-  process'e BÖLÜNMEZ — `wallet-consumer` top-up event'lerini, havaleleri ve çekim
-  komutlarını dinliyor, hepsi ingress'siz ve aynı ledger'a yazıyor.
+  process'e BÖLÜNMEZ — `wallet-consumer` kartla yüklemelerin kapanışlarını, havaleleri ve
+  çekim komutlarını dinliyor, hepsi ingress'siz ve aynı ledger'a yazıyor.
 - `wallet-api` ve `wallet-consumer` ortak kütüphane `WalletService.Core` üstünde.
   Ledger'a yazan kodun tek kopyası orada; ikinci bir kopya AÇILMAZ (madde 25).
 - **`WalletService.Core`'a wallet sınırı dışından referans verilmez.**
@@ -252,9 +254,43 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   tutarları risk kararı. Kendi hesabından gelen havale kimlik tespiti DEĞİL, seviye
   değiştirmez.
 
-**Top-up hattı**
-- `topup-webhook` AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol —
-  append-only zorlanacak tablosu yok.
+**Kartla yükleme**
+- Üç deployable: `card-topup` yüklemenin ömrünü tutar (iç servis, kendi veritabanı
+  `hiwallet_card_topup`, TEK rol); `topup-webhook` sağlayıcının bildirimini alır; parayı
+  `wallet-consumer` yazar. Sağlayıcıyı yalnızca card-topup çağırır, wallet-api ÇAĞIRMAZ.
+- Kart limitte öncelikli: ödeme açılmadan ÖNCE wallet'tan limit payı alınır
+  (`POST /v1/card-topup-holds`, müşterinin token'ıyla). Limit yetmiyorsa `422`
+  (`card_topup_limit`) ve ödeme HİÇ açılmaz, kart çekilmez. Açık pay, hesaba gelen her
+  paranın (havale, transfer, başka kart yüklemesi) limit hesabına girer; ödenen yükleme
+  cüzdana yazılırken limit YENİDEN sorulmaz.
+- Pay SAATLE DÜŞMEZ: yalnızca ödeme kapanınca (ödendi ya da ödenmedi) kapanır. Süresi dolan
+  ödemeyi sağlayıcı bildirmez; card-topup'ın taraması sağlayıcıya sorar. Tarama
+  KAPATILAMAZ, yalnızca aralığı ayarlanır: koşmasa her terk edilen ödeme sayfası payı
+  kalıcı tutardı.
+- Pay ve kapanışı wallet'ta insert-only (`card_topup_holds`, `card_topup_hold_closures`,
+  UPDATE/DELETE REVOKE). Açık pay = kapanışı olmayan pay. Kapanış satırı idempotency kapısı,
+  ledger ile AYNI transaction'da.
+- Hesaba gelen paranın limit kararları hesap satırı kilitlenerek (`FOR UPDATE`) sırayla
+  verilir: pay, havale ve transferin alıcı tarafı.
+- Yüklemenin kimliği üç yerde aynı: card-topup'ın kaydı, wallet'taki pay ve sağlayıcıdaki
+  ödemenin referansı. Başlatma üç adım, her biri ayrı commit ve tekrar edilebilir: kayıt,
+  pay, ödeme. Aynı `Idempotency-Key` ile tekrar eden istek yarım kalan adımı tamamlar.
+- Durumlar `created → pending → paid | failed`; wallet payı vermezse `rejected`. Geçişler
+  saga'daki gibi `Applied` / `Ignored` / `Conflict`; `Conflict`'te durum değişmez, alarm.
+- Kapanış (`CardTopupClosed`) outbox'la, geçişle AYNI transaction'da. Yükleme kapandıktan
+  sonra yazılan pay (geç cevap) ödenmedi kapanışıyla serbest bırakılır.
+- Ledger: ödenen yükleme `topup`, cüzdan +, sağlayıcının clearing'i −, kova sağlayıcınınki
+  (`card`). Aktör `customer` (hesap). Anahtar `provider:card_topup_id` (`decisions.md`
+  madde 27).
+- Ödenmedi diye kapanmış yüklemenin parası gelirse ya da tersi, wallet YAZMAZ: dead-letter
+  ve ALARM. Tarifesi olmayan sağlayıcı geçici hata (requeue): kendi konfigürasyon
+  eksiğimiz yüzünden müşterinin parası dead-letter'a gitmez.
+- Dönüş adresine `cardTopupId` eklenir. BFF dönüş adresini kendi adresinden kurar,
+  tarayıcıdan ALMAZ.
+
+**topup-webhook**
+- AYRI servis, AYRI veritabanı (`hiwallet_topup`), TEK rol — append-only zorlanacak
+  tablosu yok.
 - İmza: HAM gövde baytları üzerinde HMAC-SHA256, sabit zamanlı karşılaştırma.
   Gövde parse EDİLMEDEN önce doğrulanır. Geçersiz imza, eksik başlık ve tanınmayan
   sağlayıcı → `401`. Tanınmayan sağlayıcıya `404` DÖNÜLMEZ.
@@ -262,23 +298,20 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   (`decisions.md` madde 29). Ve ancak inbox commit'inden SONRA. Tekrar eden event de
   `202` — sağlayıcı için yeniden gönderim başarılı sonuçtur, ayrım gövdedeki
   `duplicate` alanında.
-- İki kademe idempotency: inbox `(provider, event_id)` UNIQUE + tüketicide
-  `processed_events`. Tüketicide kapı ile ledger AYNI transaction'da.
-- Top-up'ta `ledger_transactions.idempotency_key` = `provider:event_id`
-  (`decisions.md` madde 27). Yalnız `event_id` YAZILMAZ.
-- Kalıcı hata (cüzdan yok, currency uyuşmuyor, tutar geçersiz) → dead-letter.
-  Geçici hata (DB kapalı) → requeue. İkisi karıştırılmaz: kalıcı hatayı requeue etmek
-  partition'ı süresiz tıkar.
-- Routing key = cüzdan id, `x-consistent-hash` exchange, kuyruklarda
-  `x-single-active-consumer`, tüketicide `prefetch=1`.
+- İki kademe idempotency: inbox `(provider, event_id)` UNIQUE + card-topup'ta yüklemenin
+  durumu (aynı sonucun ikinci bildirimi `Ignored`).
+- Bildirim card-topup'a gider (`hiwallet.card-payments`), wallet'a DEĞİL. Tek kuyruk,
+  `x-single-active-consumer`, tüketicide `prefetch=1`. Bizim açmadığımız ya da kaydımızla
+  uyuşmayan ödemenin bildirimi dead-letter; geçici hata (DB kapalı) requeue. İkisi
+  karıştırılmaz: kalıcı hatayı requeue etmek kuyruğu süresiz tıkar.
 - Relay: `FOR UPDATE SKIP LOCKED` + publisher confirms. Önce publish, sonra işaretle —
   ters sıra kayıp üretir.
-- Top-up relay'i TEK instance: tur `pg_try_advisory_lock` ile korunur
-  (`decisions.md` madde 30). İki relay ayrı batch'leri farklı hızda yayınlarsa aynı
-  cüzdanın mesajları exchange'e ters sırada varır ve kuyruk içi sıra garantisi bunu
-  düzeltmez. `SKIP LOCKED` yine de kalır: biri sıra için, öbürü çift yayın için.
-  Withdrawal outbox relay'i kilitlenmez — bir saga'nın aynı anda birden fazla
-  bekleyen komutu olamaz.
+- Relay TEK instance: tur `pg_try_advisory_lock` ile korunur (`decisions.md` madde 30).
+  İki relay ayrı batch'leri farklı hızda yayınlarsa aynı ödemenin bildirimleri exchange'e
+  ters sırada varır ve kuyruk içi sıra garantisi bunu düzeltmez. `SKIP LOCKED` yine de
+  kalır: biri sıra için, öbürü çift yayın için. Withdrawal ve card-topup outbox relay'leri
+  kilitlenmez — bir saga'nın aynı anda birden fazla bekleyen komutu, bir yüklemenin birden
+  fazla kapanışı olamaz.
 
 **Withdrawal saga**
 - Saga state machine SAF: DB, mesajlaşma ve zaman bilmez. "Şimdi"yi çağıran verir.
