@@ -341,10 +341,10 @@ curl -X POST http://localhost:8091/v1/transfers \
 **Yetersiz bakiye / limit aşımı** → `422` + `rule` alanı.
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
-**Elle denemenin en kolay yolu:** Rider'da `fakes/akislar.http`,
-`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ üstten
-ortamı seç, request'leri sırayla koş; kimlikler bir sonrakine kendiliğinden taşınıyor.
-Aşağıdaki `curl` örnekleri aynı işi yapıyor.
+**Uçtan uca akışlar** (kayıt, havale, kart, ödeme, çekim) token'la birlikte
+`docs/verify-compose.md`'de. Sahte servisleri tek başına denemek için Rider'da
+`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`; sağ üstten
+ortamı seç.
 
 **Kartla yükleme.** En kolayı bireysel web uygulamasından: tutarı yaz, ödeme sayfasında
 "Öde" de. API'den, müşterinin token'ıyla:
