@@ -15,6 +15,7 @@ HiWallet/
 │                                     kapısı docker/gateway/ (Caddyfile ve imajı)
 ├── .env.example
 ├── .gitignore
+├── .dockerignore                  -- paketler ve derleme çıktıları imaja girmiyor
 ├── Directory.Build.props          -- ortak TargetFramework, Nullable, LangVersion
 ├── Directory.Packages.props       -- merkezi paket versiyonlama
 ├── docs/
