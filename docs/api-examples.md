@@ -3,8 +3,8 @@
 Her endpoint için request ve **beklenen** response. Elle denemek ve bir şeyin bozulduğunu
 anlamak için; sözleşmenin kaynağı kod, bu dosya ona uyar.
 
-Response'lar compose'da koşan sistemden alındı (`localhost:8091-8096`). Kimlikler her
-koşuda değişir.
+Response'lar compose'da koşan sistemden alındı (`localhost:8091-8096`, `8109`). Kimlikler
+her koşuda değişir.
 
 Adresler ve `docker compose` komutları stack'in koştuğu makineye ait; hepsi orada
 çalışır.
@@ -545,13 +545,38 @@ giriyor: promo payı ve komisyon sayılmıyor.
 
 ---
 
-## topup-webhook — `:8092`
+### Kartla yüklemenin limit payı
 
-Dışarıdan para girişi. Sağlayıcı rolünü sen oynuyorsun: gövdeyi imzalayıp
-gönderiyorsun.
+Bu ucu `card-topup` çağırıyor, müşterinin token'ını ileterek; elle çağırmaya gerek yok.
+Ödeme açılmadan önce seviye limitinden pay ayırıyor.
 
 ```bash
-BODY="{\"eventId\":\"evt_1\",\"walletId\":\"$WALLET\",\"amount\":500.00,\"currency\":\"TRY\",\"reference\":\"pi_1\",\"occurredAt\":\"2026-09-06T10:00:00+00:00\"}"
+curl -i -X POST localhost:8091/v1/card-topup-holds -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"holdId\":\"$(uuidgen)\",\"walletId\":\"$WALLET\",\"amount\":500,\"currency\":\"TRY\",\"provider\":\"stripe-fake\"}"
+```
+```
+HTTP/1.1 201 Created
+```
+```json
+{ "holdId": "…", "accountId": "…", "walletId": "…", "amount": 500, "currency": "TRY", "replayed": false }
+```
+
+Limit yetmiyorsa `422` ve `"rule": "card_topup_limit"`. Aynı `holdId` ile ikinci istek
+yeni pay açmaz, `replayed: true` döner ve limiti yeniden sormaz. `Location` yok: payın
+okuma ucu yok, durumu kart yüklemesi servisi tutuyor.
+
+---
+
+## topup-webhook — `:8092`
+
+Kart sağlayıcısının ödeme bildirimi. Normalde `stripe-fake` gönderiyor; elle göndermek
+için sağlayıcı rolünü sen oynuyorsun: gövdeyi imzalayıp gönderiyorsun. `reference`
+kart yüklemesinin kimliği olmalı: bilinmeyen referansın bildirimi card-topup'ta
+dead-letter'a gidiyor.
+
+```bash
+BODY="{\"eventId\":\"evt_1\",\"type\":\"payment.succeeded\",\"paymentId\":\"pay_1\",\"reference\":\"$CARD_TOPUP\",\"amount\":500.00,\"currency\":\"TRY\",\"occurredAt\":\"2026-09-06T10:00:00+00:00\"}"
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
 
 curl -i -X POST localhost:8092/v1/webhooks/topup/stripe-fake \
@@ -569,12 +594,15 @@ HTTP/1.1 202 Accepted
 
 **`200` değil `202`, bilerek.** Verilen söz "işledim" değil "kalıcı kaydettim".
 Response döndüğünde para henüz cüzdanda yok; hat webhook → inbox → relay → RabbitMQ →
-wallet-consumer → ledger. Birkaç saniye sonra bakiyeye bak.
+card-topup → outbox → RabbitMQ → wallet-consumer → ledger. Birkaç saniye sonra
+yüklemenin durumuna ve bakiyeye bak.
+
+`type`: `payment.succeeded` (kart çekildi) ya da `payment.canceled` (müşteri vazgeçti).
+Tutar ve para birimi yüklemeninkiyle aynı olmalı; değilse card-topup çelişki alarmı
+üretir ve yükleme değişmez.
 
 İmza **ham gövde baytları** üzerinde HMAC-SHA256. Gövdeyi yeniden serialize edersen
-(boşluk, alan sırası) imza tutmaz.
-
-Sağlayıcılar: `stripe-fake`, `bank-fake` — her birinin kendi secret'ı var.
+(boşluk, alan sırası) imza tutmaz. Her sağlayıcının kendi secret'ı var.
 
 <details><summary>Tekrar eden event → yine <code>202</code></summary>
 
@@ -691,6 +719,82 @@ Kod isteyen bir istemci çıkarsa event'e ayrı bir alan eklenir.
 Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 "işleniyor"da bırakırdı.
 </details>
+
+---
+
+## card-topup — `:8109`
+
+Kartla yükleme. İç servis: müşteri ön API'den geliyor (`personal-web-bff` ve
+`personal-mobile-api` aynı uçları iletiyor), burada doğrudan da denenebilir.
+
+### Kartla yükleme başlat
+
+```bash
+curl -i -X POST localhost:8109/v1/card-topups -H "Authorization: Bearer $TOKEN" \
+  -H 'Idempotency-Key: kart-1' -H 'Content-Type: application/json' \
+  -d "{\"walletId\":\"$WALLET\",\"amount\":500,\"currency\":\"TRY\",\"returnUrl\":\"http://localhost:8102/kart-yukleme\"}"
+```
+```
+HTTP/1.1 202 Accepted
+Location: http://localhost:8109/v1/card-topups/6f1c…
+```
+```json
+{
+  "cardTopupId": "6f1c…",
+  "walletId": "…",
+  "state": "pending",
+  "amount": 500,
+  "currency": "TRY",
+  "paymentUrl": "http://localhost:8096/odeme/pay_…",
+  "expiresAt": "2026-10-06T14:15:00+00:00",
+  "failureReason": null,
+  "replayed": false
+}
+```
+
+Sırayla: yükleme kaydedildi, wallet-api'den limit payı alındı, sağlayıcıda ödeme açıldı.
+Müşteri `paymentUrl`'e gidip kartını giriyor; ödeme sayfası onu `returnUrl`'e
+`?cardTopupId=…` ile geri yolluyor. `202`: dönüldüğünde hiçbir para hareket etmedi.
+
+- **Limit yetmiyorsa** wallet'ın `422`'si aynen geliyor (`"rule": "card_topup_limit"`) ve
+  ödeme hiç açılmıyor. Aynı anahtarla tekrar: `202`, `"state": "rejected"`,
+  `"failureReason": "card_topup_limit"`.
+- **`Idempotency-Key` ZORUNLU**, yoksa `400`. Aynı anahtarla ikinci istek yeni yükleme
+  açmaz, mevcut olanı `replayed: true` ile döner; yarım kalmış adım varsa (wallet-api ya da
+  sağlayıcı cevap vermemişti) onu tamamlar.
+- wallet-api'ye ya da sağlayıcıya ulaşılamazsa `503`; yükleme kaydı duruyor, tekrar devam
+  ettiriyor.
+- Çalışanın token'ı `403`: çalışan müşteri yerine para yüklemiyor.
+
+### Yüklemenin durumu
+
+```bash
+curl -s localhost:8109/v1/card-topups/$CARD_TOPUP -H "Authorization: Bearer $TOKEN"
+```
+```json
+{
+  "cardTopupId": "6f1c…",
+  "walletId": "…",
+  "state": "paid",
+  "amount": 500,
+  "currency": "TRY",
+  "paymentUrl": null,
+  "expiresAt": "2026-10-06T14:15:00+00:00",
+  "failureReason": null,
+  "createdAt": "2026-10-06T14:00:00+00:00",
+  "updatedAt": "2026-10-06T14:01:12+00:00"
+}
+```
+
+| `state` | anlamı |
+| --- | --- |
+| `created` | kaydedildi, pay henüz onaylanmadı |
+| `pending` | pay ayrıldı, ödeme açık |
+| `paid` | kart çekildi; para cüzdana yazılıyor ya da yazıldı |
+| `failed` | ödenmedi: `canceled`, `expired`, `payment_not_opened`, `abandoned`, `provider_rejected` |
+| `rejected` | wallet payı vermedi; sebep wallet'ın kural adı |
+
+Başkasının yüklemesi `404`. Çalışan `customer.view` izniyle her yüklemeyi görüyor.
 
 ---
 
@@ -858,42 +962,52 @@ bulmanın tek yolu.
 
 ## stripe-fake (BİZİM DEĞİL) — `:8096`
 
-Kart sağlayıcısının yerinde duran servis; canlıda yok. **Tek endpoint'i var** — Stripe'tan
-para çıkmadığı için ne transfer endpoint'i var ne callback alıcısı.
+Kart sağlayıcısının yerinde duran servis; canlıda yok. Ödeme API'si, ödeme sayfası ve
+sonucun webhook'u — Stripe'tan para çıkmadığı için ne transfer endpoint'i var ne callback
+alıcısı. Ödemeler bellekte; yeniden başlatınca siliniyor.
 
-Gerçek Stripe'ta bu endpoint YOKTUR: webhook müşteri ödeme yaptığında gelir, sen
-istediğinde değil.
+### Ödeme aç
 
-### Para girişi tetikle
+Bunu `card-topup` çağırıyor; elle denemek için:
 
 ```bash
-curl -i -X POST localhost:8096/v1/topups \
-  -H 'Content-Type: application/json' \
-  -d "{\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",\"mode\":\"Normal\"}"
+curl -i -X POST localhost:8096/v1/payments -H 'Content-Type: application/json' \
+  -d "{\"reference\":\"$(uuidgen)\",\"amount\":100,\"currency\":\"TRY\",\"returnUrl\":\"http://localhost:8102/kart-yukleme\",\"expiresAt\":\"2030-01-01T00:00:00+00:00\"}"
 ```
 ```
-HTTP/1.1 202 Accepted
+HTTP/1.1 201 Created
 ```
 ```json
-{ "mode": "Normal", "eventCount": 1 }
+{
+  "id": "pay_…",
+  "reference": "…",
+  "status": "requires_payment",
+  "amount": 100,
+  "currency": "TRY",
+  "expiresAt": "2030-01-01T00:00:00+00:00",
+  "paymentUrl": "http://localhost:8096/odeme/pay_…"
+}
 ```
 
-`202` çünkü gönderim ARKA PLANDA: dönüldüğünde webhook henüz gitmedi. `eventCount`
-kaç webhook gideceğini söylüyor.
+Aynı `reference` ile ikinci istek yeni ödeme açmaz, ilkini `200` ile döner; farklı tutarla
+gelirse `409`.
 
-| `mode` | ne yapar | beklenen |
-| --- | --- | --- |
-| `Normal` | tek event | bakiye bir kez artar |
-| `Duplicate` | **aynı** event iki kez (`eventId` de aynı) | bakiye **bir kez** artar |
-| `Delayed` | tek event, `delayMilliseconds` sonra | eventual davranış görünür olur |
-| `OutOfOrder` | aynı cüzdana `count` event, en yenisi önce | hepsi iner, bakiye toplama eşit |
+### Ödemeyi sorgula
 
-`Duplicate`'in `eventId`'si bilerek aynı: farklı olsaydı bu iki ayrı para girişi
-olurdu, tekrar değil.
+```bash
+curl -s "localhost:8096/v1/payments?reference=$CARD_TOPUP"
+curl -s localhost:8096/v1/payments/pay_…
+```
 
-`OutOfOrder` "sıra korunuyor" demiyor — top-up'ta toplama değişmeli. Dediği şey ters
-sırada gelen bir dizinin tamamının kabul edildiği; değeri consistent-hash routing'in
-hepsini aynı partition'a düşürmesinde.
+`status`: `requires_payment`, `succeeded`, `canceled`, `expired`. Bu referansla ödeme hiç
+açılmadıysa `404`. card-topup'ın taraması oturumu kapanan yüklemeleri bu yoldan soruyor.
+
+### Ödeme sayfası
+
+`paymentUrl` tarayıcıda açılıyor: "Öde" ya da "Vazgeç". Karardan sonra sayfa müşteriyi
+`returnUrl`'e yolluyor (`303`) ve sonucu `topup-webhook`'a imzalı webhook'la gönderiyor
+(`payment.succeeded` ya da `payment.canceled`). Oturumun süresi dolan ödeme için webhook
+GÖNDERMİYOR — gerçek sağlayıcılar gibi.
 
 Banka havalesi bu yoldan gelmiyor: banka hesabımıza gelen parayı kendi bildirimiyle
 `bank-webhook`'a bildiriyor (bkz. "bank-fake", "Gelen havale").
@@ -1037,6 +1151,7 @@ curl -s localhost:8092/health/ready   # topup-webhook  — postgres + rabbitmq
 curl -s localhost:8094/health/ready   # bank-fake      — checks BOŞ (canlıda yok)
 curl -s localhost:8095/health/ready   # bank-webhook   — postgres
 curl -s localhost:8096/health/ready   # stripe-fake    — checks BOŞ (canlıda yok)
+curl -s localhost:8109/health/ready   # card-topup     — postgres + rabbitmq
 ```
 
 Sahte kurumların `checks` listesi boş: ikisinin de veritabanı yok, sağlıklı olmaları
