@@ -167,9 +167,12 @@ public sealed class ProcessDepositHandler(
 
         // --- Limit --------------------------------------------------------------------
         // Seviyenin aylık limiti, ayın toplam girişi ve bakiye tavanı. Aşan havale
-        // reddedilmiyor, askıya düşüyor: para zaten bankamızda.
+        // reddedilmiyor, askıya düşüyor: para zaten bankamızda. Açık kart yüklemesinin
+        // payı girmiş sayılıyor; kart limitte öncelikli.
         if (target.WalletId is not null)
         {
+            await IncomingUsage.LockAsync(db, target.AccountId!.Value, ct);
+
             var received = await IncomingUsage.ThisMonthAsync(db, target.AccountId!.Value, amount.Currency, now, ct);
             var balance = await IncomingUsage.BalanceAsync(db, target.AccountId.Value, amount.Currency, ct);
 
