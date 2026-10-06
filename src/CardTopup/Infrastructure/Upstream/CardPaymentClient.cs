@@ -27,7 +27,7 @@ public sealed class CardPaymentClient(IHttpClientFactory httpClientFactory)
     /// <exception cref="ProviderRejectedException">Sağlayıcı isteği reddetti.</exception>
     public async Task<ProviderPayment> OpenAsync(Domain.CardTopup topup, CancellationToken ct)
     {
-        var request = new OpenPaymentRequest(topup.Id, topup.Amount, topup.Currency, topup.ReturnUrl, topup.ExpiresAt);
+        var request = new OpenPaymentRequest(topup.Id, topup.Amount, topup.Currency, ReturnUrlOf(topup), topup.ExpiresAt);
 
         HttpResponseMessage response;
 
@@ -88,6 +88,13 @@ public sealed class CardPaymentClient(IHttpClientFactory httpClientFactory)
             return await response.Content.ReadFromJsonAsync<ProviderPayment>(JsonOptions, ct);
         }
     }
+
+    /// <summary>
+    /// Arayüzün verdiği adrese yüklemenin kimliği ekleniyor: ödeme sayfasından dönen müşterinin
+    /// hangi yüklemenin sonucunu beklediğini arayüz oradan okuyor.
+    /// </summary>
+    private static string ReturnUrlOf(Domain.CardTopup topup) =>
+        $"{topup.ReturnUrl}{(topup.ReturnUrl.Contains('?') ? '&' : '?')}cardTopupId={topup.Id}";
 
     private sealed record OpenPaymentRequest(
         Guid Reference, decimal Amount, string Currency, string ReturnUrl, DateTimeOffset ExpiresAt);
