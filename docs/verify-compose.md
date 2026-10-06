@@ -839,37 +839,9 @@ set -a; . ./.env; set +a
 
 #### A. Uçtan uca transfer
 
-Cüzdan kur, top-up ile para sok, ikinci cüzdana geçir. Zincirin tamamı konteyner
-içinde: HTTP → inbox → relay → broker → tüketici → ledger.
-
-```bash
-A1=$(curl -s -X POST localhost:8091/v1/accounts -H 'Content-Type: application/json' \
-  -d '{"type":"Person"}' | jq -r .accountId)
-A2=$(curl -s -X POST localhost:8091/v1/accounts -H 'Content-Type: application/json' \
-  -d '{"type":"Person"}' | jq -r .accountId)
-
-W1=$(curl -s -X POST localhost:8091/v1/accounts/$A1/wallets -H 'Content-Type: application/json' \
-  -d '{"name":"Gonderen","currency":"TRY"}' | jq -r .walletId)
-W2=$(curl -s -X POST localhost:8091/v1/accounts/$A2/wallets -H 'Content-Type: application/json' \
-  -d '{"name":"Alan","currency":"TRY"}' | jq -r .walletId)
-
-# Top-up: imza HAM gövde baytları üzerinde.
-BODY="{\"eventId\":\"evt_e2e_1\",\"walletId\":\"$W1\",\"amount\":100.00,\"currency\":\"TRY\",\"reference\":\"pi_e2e_1\",\"occurredAt\":\"2026-09-09T10:00:00+00:00\"}"
-SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
-curl -s -X POST localhost:8092/v1/webhooks/topup/stripe-fake \
-  -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
-
-sleep 3   # hat asenkron
-
-curl -s -X POST localhost:8091/v1/transfers -H 'Content-Type: application/json' \
-  -H "Idempotency-Key: transfer-e2e-$N" \
-  -d "{\"fromWalletId\":\"$W1\",\"toWalletId\":\"$W2\",\"amount\":40,\"currency\":\"TRY\",\"type\":\"P2P\"}"
-
-curl -s localhost:8091/v1/wallets/$W1; echo; curl -s localhost:8091/v1/wallets/$W2
-```
-
-Beklenen: top-up `{"accepted":true,"duplicate":false}`, transfer `201`, sonra
-gönderen `60`, alan `40` (P2P komisyonsuz).
+Para girişi ve transfer yukarıdaki akışlarda: "Havale ile yükleme" ve "Kartla yükleme"
+zincirin tamamını konteyner içinde koşturuyor (HTTP → inbox → relay → broker → tüketici →
+ledger), "Çekim akışını uçtan uca koşturma"nın ödeme adımı da müşteriden işyerine transfer.
 
 #### B. Settlement ve fatura endpoint'leri
 
@@ -968,7 +940,7 @@ geri gelsin.
 
 | ne | nasıl bakılır |
 | --- | --- |
-| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
+| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A**: havale, kart ve ödeme |
 | settlement ve fatura endpoint'leri (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
 | **bütün stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
@@ -979,8 +951,8 @@ geri gelsin.
 
 Bu beşi bu sürümle geldi ve hiçbiri compose'da koşturulmadı. İlki yapısal; sonraki
 üçü madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol";
-sonuncusu kartla yüklemeyi. Adımları `fakes/akislar.http` ve
-`fakes/Stripe.Fake/stripe-fake.http`'de hazır.
+sonuncusu kartla yüklemeyi. Adımları yukarıda: "Çekim akışını uçtan uca koşturma" ve
+"Kartla yükleme".
 
 ### Ödeme bildirimini elle göndermek
 
