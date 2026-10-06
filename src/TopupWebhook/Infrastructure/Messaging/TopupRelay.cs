@@ -13,14 +13,14 @@ namespace HiWallet.TopupWebhook.Infrastructure.Messaging;
 /// <b>En az bir kez teslim.</b> Publish başarılı olup commit'ten önce süreç ölürse
 /// satır "yayınlanmamış" kalıyor ve mesaj ikinci kez gidiyor. Bunu kapatmanın yolu
 /// yok — broker ile veritabanı arasında ortak bir transaction olamaz. Çözüm
-/// tüketicide: <c>processed_events</c> ikinci teslimi yutuyor. Ters sırada
-/// (önce işaretle, sonra publish) hata KAYIP olurdu; kaybetmektense iki kez
-/// göndermek tercih ediliyor.
+/// tüketicide: card-topup'ta yüklemenin durumu aynı sonucun ikinci bildirimini
+/// yutuyor. Ters sırada (önce işaretle, sonra publish) hata KAYIP olurdu;
+/// kaybetmektense iki kez göndermek tercih ediliyor.
 ///
 /// <b>TEK INSTANCE.</b> Tur <c>pg_try_advisory_lock</c> ile korunuyor
 /// (decisions.md madde 30); kilidi alamayan instance o turu atlıyor. Gerekçe
-/// SIRALAMA: iki relay ayrı batch'ler alıp farklı hızda yayınlarsa aynı cüzdanın
-/// iki event'i exchange'e TERS SIRADA varıyor ve kuyruğun içindeki sıra garantisi
+/// SIRALAMA: iki relay ayrı batch'ler alıp farklı hızda yayınlarsa aynı ödemenin
+/// iki bildirimi exchange'e TERS SIRADA varıyor ve kuyruğun içindeki sıra garantisi
 /// bunu düzeltmiyor. Bedeli açık — relay yatay ölçeklenmiyor.
 ///
 /// <b><c>FOR UPDATE SKIP LOCKED</c> KALIYOR.</b> Kilitle gereksizleşmiş gibi duruyor
