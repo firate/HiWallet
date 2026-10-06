@@ -98,6 +98,21 @@ public sealed class StripeFakeTests(InboxFixture inbox) : IAsyncLifetime
             .ShouldBe($"{StripeFakeFactory.PublicUrl}/odeme/{payment.GetProperty("id").GetString()}");
     }
 
+    /// <summary>Ödemeyi açan, ödeme kimliğini bilmeden kendi referansıyla durumu soruyor.</summary>
+    [Fact]
+    public async Task ReferanslaAranir_YoksaBulunamaz()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var reference = Guid.NewGuid();
+        var payment = await OpenAsync(reference);
+
+        var found = await _client.GetFromJsonAsync<JsonElement>($"/v1/payments?reference={reference}", ct);
+        found.GetProperty("id").GetString().ShouldBe(payment.GetProperty("id").GetString());
+
+        var missing = await _client.GetAsync($"/v1/payments?reference={Guid.NewGuid()}", ct);
+        missing.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     /// <summary>Aynı referansla ikinci istek ikinci bir ödeme açmıyor.</summary>
     [Fact]
     public async Task AyniReferans_AyniOdemeyiDoner_FarkliTutar409()

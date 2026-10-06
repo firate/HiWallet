@@ -40,6 +40,8 @@ public sealed class PaymentStore(TimeProvider time)
 
     public CardPayment? Find(string id) => _byId.GetValueOrDefault(id);
 
+    public CardPayment? FindByReference(Guid reference) => _byReference.GetValueOrDefault(reference);
+
     /// <summary>
     /// Müşterinin kararını yazar. Yalnızca açık ve süresi dolmamış ödemede: karar verilmiş ya
     /// da süresi dolmuş ödeme değişmiyor.

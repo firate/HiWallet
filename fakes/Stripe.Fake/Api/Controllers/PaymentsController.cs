@@ -67,6 +67,23 @@ public sealed class PaymentsController(
             ? NotFound()
             : PaymentResponse.From(payment, options.Value, time.GetUtcNow());
     }
+
+    /// <summary>
+    /// Ödemeyi açanın referansıyla arama. Ödemeyi açtığı halde cevabı alamayan taraf ödeme
+    /// kimliğini bilmiyor; durumu bu yoldan soruyor. Bu referansta ödeme yoksa <c>404</c>:
+    /// ödeme hiç açılmadı.
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType<PaymentResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult<PaymentResponse> GetByReference([FromQuery] Guid reference)
+    {
+        var payment = payments.FindByReference(reference);
+
+        return payment is null
+            ? NotFound()
+            : PaymentResponse.From(payment, options.Value, time.GetUtcNow());
+    }
 }
 
 /// <param name="Reference">Ödemeyi açanın kimliği; webhook'ta geri geliyor.</param>
