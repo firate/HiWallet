@@ -165,16 +165,11 @@ public sealed class ProcessCardTopupHandler(
             return new ProcessCardTopupResult(CardTopupOutcome.Paid, existing.LedgerTransactionId, Replayed: true);
         }
 
-        ProviderTerms terms;
-
-        try
-        {
-            terms = providers.For(hold.Provider);
-        }
-        catch (UnknownProviderException exception)
-        {
-            throw new CardTopupRejectedException(hold.Id, exception.Message);
-        }
+        // Tarifesi yazılmamış sağlayıcı KALICI hata sayılmıyor: kendi konfigürasyon eksiğimiz
+        // yüzünden müşterinin parası dead-letter'a gitmemeli. İstisna yukarı çıkıyor, mesaj
+        // kuyrukta bekliyor, tarife eklenince işleniyor. Kapanış satırı transaction'la birlikte
+        // geri alınıyor.
+        var terms = providers.For(hold.Provider);
 
         var clearing = await db.LedgerAccounts
                            .AsNoTracking()
