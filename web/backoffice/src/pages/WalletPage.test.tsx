@@ -47,6 +47,30 @@ describe('WalletPage', () => {
     })
   })
 
+  it('seçili işyerleri hesap numarasıyla yazılabiliyor', async () => {
+    const shop = '0198a0c4-0000-7000-8000-000000000001'
+    const calls = fakeBff({
+      ...staffSession(['customer.view', 'promo.grant']),
+      'GET /v1/wallets/w1': wallet,
+      'GET /v1/wallets/w1/movements': empty,
+      'GET /v1/wallets/w1/promos': empty,
+      'GET /v1/accounts/by-number/1234567897': { status: 200, body: { accountId: shop } },
+      'POST /v1/wallets/w1/promos': { status: 201, body: { grantId: 'g1', replayed: false } },
+    })
+
+    renderAt('/cuzdanlar/w1', <App />)
+    await userEvent.type(await screen.findByLabelText('Tutar'), '100')
+    await userEvent.selectOptions(screen.getByLabelText('Kapsam'), 'selected_businesses')
+    await userEvent.type(screen.getByLabelText(/İşyerleri/), '123 456 7897')
+    await userEvent.click(screen.getByRole('button', { name: 'Promo ver' }))
+
+    expect(await screen.findByText(/Promo verildi/)).toBeTruthy()
+    expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({
+      scope: 'selected_businesses',
+      merchantAccountIds: [shop],
+    })
+  })
+
   it('promo izni olmayan çalışan promo veremiyor, cüzdanı görüyor', async () => {
     fakeBff({
       ...staffSession(['customer.view']),
