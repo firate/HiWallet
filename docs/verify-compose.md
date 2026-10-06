@@ -319,19 +319,23 @@ curl -s localhost:8101/realms/hiwallet/.well-known/openid-configuration | jq -r 
 
 Beklenen: `KEYCLOAK_PUBLIC_URL` + `/realms/hiwallet`.
 
-Kullanıcı aç: yönetim konsolunda (`http://localhost:8101/admin`, kullanıcı `admin`)
-`hiwallet` realm'i, Users, Add user; e-posta, ad ve soyadı da doldur, Credentials
-sekmesinde parola ver ve Temporary'yi kapat. Profil eksikse Keycloak parola akışında
-token vermiyor ("Account is not fully set up"). Kayıt sayfasından da açılabiliyor:
-`http://localhost:8101/realms/hiwallet/account`.
+Müşteri kayıtla geliyor: aşağıdaki "Web uygulaması". Bireysel hesabı yalnızca onboarding
+açıyor ve hesap kaydı yapan kimliğe ait. Yönetim konsolunda açılan kullanıcının wallet'ta
+hesabı yok ve kendisi açamıyor; Keycloak'ın kayıt sayfası kapalı.
+
+Kayıt Keycloak'taki kullanıcıyı yalnızca e-postayla açıyor ve parola akışı adı ve soyadı
+eksik profile token vermiyor ("Account is not fully set up"). İlk token'dan önce yönetim
+konsolunda (`http://localhost:8101/admin`, kullanıcı `admin`) `hiwallet` realm'i, Users,
+kullanıcı, Details'te ad ve soyadı doldur.
 
 Token al. `hiwallet-cli` istemcisi yalnızca compose'da var: parola akışıyla token veriyor,
-mobil uygulamanın tarayıcılı akışını curl'de taklit etmeye gerek bırakmıyor.
+mobil uygulamanın tarayıcılı akışını curl'de taklit etmeye gerek bırakmıyor. Kullanıcı adı
+kayıttaki e-posta.
 
 ```bash
 TOKEN=$(curl -s localhost:8101/realms/hiwallet/protocol/openid-connect/token \
   -d grant_type=password -d client_id=hiwallet-cli \
-  -d username=<kullanıcı> -d password=<parola> | jq -r .access_token)
+  -d username=<e-posta> -d password=<parola> | jq -r .access_token)
 ```
 
 Token beş dakika geçerli; süresi dolunca aynı komutla yenisi alınır.
@@ -342,7 +346,7 @@ Token'sız istek reddediliyor mu:
 curl -s -o /dev/null -w '%{http_code}\n' localhost:8097/v1/accounts
 ```
 
-Beklenen: `401`. Token'la aynı istek `200` ve boş `items` döner; hesabı aşağıda açıyorsun.
+Beklenen: `401`. Token'la aynı istek `200` ve kayıtta açılan hesabı döner.
 
 **Realm yalnızca ilk açılışta içe aktarılıyor.** Keycloak realm'i daha önce içe
 aktardıysa `docker/keycloak/realm-hiwallet.json`'daki değişiklik (yeni istemci, yeni
@@ -383,7 +387,7 @@ aç ve "Kayıt ol"a tıkla:
    `POST http://localhost:8105/v1/scenarios` `{"nationalId":"...","outcome":"Mismatch"}`.
 6. Sözleşme ve aydınlatma metnini onayla. Hesap `Unverified`'a geçiyor.
 
-Para girişi için `stripe-fake`'in Scalar sayfasından cüzdana yükleme yap. `Unverified`
+Para aşağıdaki "Havale ile yükleme" ya da "Kartla yükleme" ile giriyor. `Unverified`
 hesap para alabiliyor ve işyerine ödeyebiliyor; başka birine gönderemiyor ve çekim
 yapamıyor, kendi cüzdanları arasında aktarabiliyor. Seviye limitleri wallet-api'nin ve
 wallet-consumer'ın `appsettings.json`'ında.
