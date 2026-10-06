@@ -509,48 +509,6 @@ curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: B
 Cüzdan sıfır bakiyeyle açılır; para aşağıdaki havale ve kart yüklemesiyle girer. Doğrudan
 bakiyeye yazan bir endpoint YOK — olsaydı zero-sum invariant'ı delerdi.
 
-### Çekim akışını uçtan uca koşturma
-
-Cüzdanda para olduktan sonra:
-
-```bash
-curl -i -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $TOKEN" \
-  -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
-  -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",
-       \"destinationIban\":\"TR330006100519786457841326\"}"
-```
-
-Beklenen: `202 Accepted` ve gövdede `withdrawalId`. Birkaç saniye sonra:
-
-```bash
-curl -s localhost:8093/v1/withdrawals/<ID> -H "Authorization: Bearer $TOKEN"
-```
-
-`state` sırayla `initiated` → `debited` → `bank_transfer_pending` → `completed`
-olmalı. Ledger'a üç bacaklı tek işlem düşer:
-
-```bash
-docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
-  "SELECT la.type, e.amount FROM ledger_entries e
-     JOIN ledger_accounts la ON la.id = e.ledger_account_id
-     JOIN ledger_transactions t ON t.id = e.transaction_id
-    WHERE t.correlation_id = '<ID>';"
-```
-
-**Telafi yolu.** Bankayı reddedici yapıp aynı akışı tekrarla:
-
-```bash
-curl -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
-  -d '{"clientReference":"<ID>","outcome":"Failure"}'
-```
-
-Senaryoyu çekim request'inden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
-bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=Failure` yapıp
-`docker compose up -d bank-fake` ile yeniden başlat.
-
-Beklenen: `state` `failed`, ledger'da İKİ işlem — orijinal düşme ve üç bacaklı ters
-kayıt — ve cüzdan bakiyesi başladığı yerde. Komisyon da geri dönmüş olmalı.
-
 ### Havale ile yükleme
 
 Kayıt ve temel doğrulamayı bireysel uygulamadan tamamlamış bir müşteri gerekiyor: havale
@@ -582,6 +540,87 @@ havaleler"de görünüyor (`deposit.view` izni olan rolle).
 görünüyor. `bank-adapter`'ın taraması (compose'da dakikada bir, otuz saniyeden eski
 havaleler) onu bulup aynı yoldan wallet'a gönderiyor. `bank_deposits.discovered_via`
 `reconciliation` olmalı.
+
+### Çekim akışını uçtan uca koşturma
+
+Bireysel müşteri compose'da çekim yapamıyor. Kayıt en fazla `Unverified`'a çıkıyor ve o
+seviyenin aylık çekim limiti 0; `Verified`'a çıkaran uzaktan kimlik tespiti yok. Müşterinin
+token'ıyla başlatılan çekim `202` alıyor ve `rejected` ile bitiyor, para hareket etmiyor.
+
+Çekimi işyeri yapıyor: "İşyeri entegrasyonu"ndaki `MERCHANT_TOKEN`, `MERCHANT` ve
+`MERCHANT_WALLET`. Parası müşteriden geliyor ve nakit olmak zorunda: kartla yüklenen para
+IBAN'a çıkmıyor ve transferde tipini koruyor (`decisions.md` madde 36), işyerine geçse de
+çekilemiyor.
+
+**Para.** Müşteriye havaleyle 500 TL gönder: yukarıdaki "Havale ile yükleme" isteği,
+`amount` 500.
+
+**Ödeme.** Müşteri işyerine ödüyor:
+
+```bash
+curl -s -X POST localhost:8091/v1/transfers -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" -H 'Content-Type: application/json' \
+  -d "{\"fromWalletId\":\"$WALLET\",\"toWalletId\":\"$MERCHANT_WALLET\",\"amount\":300,\"currency\":\"TRY\",\"type\":\"Payment\"}"
+
+curl -s localhost:8091/v1/wallets/$MERCHANT_WALLET -H "Authorization: Bearer $MERCHANT_TOKEN"
+```
+
+Beklenen: transfer `201`; müşteriden 306 çıkıyor (%2 komisyon), işyerinin `withdrawable`'ı
+300. Ödeme önce `card` kovasını harcıyor: müşteride kart parası varsa işyerine önce o
+geçiyor ve `withdrawable` o kadar düşük kalıyor.
+
+**Çekim.**
+
+```bash
+WITHDRAWAL=$(curl -s -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $MERCHANT_TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" -H 'Content-Type: application/json' \
+  -d "{\"accountId\":\"$MERCHANT\",\"walletId\":\"$MERCHANT_WALLET\",\"amount\":100,\"currency\":\"TRY\",
+       \"destinationIban\":\"TR330006100519786457841326\"}" | jq -r .withdrawalId)
+
+curl -s localhost:8093/v1/withdrawals/$WITHDRAWAL -H "Authorization: Bearer $MERCHANT_TOKEN"
+```
+
+Çekim isteği `202 Accepted` dönüyor; dönüldüğünde hiçbir para hareket etmedi. Durum
+isteğini birkaç kez koş: `state` sırayla `initiated` → `debited` → `bank_transfer_pending` →
+`settling` → `completed`. `bank_transfer_pending`'de birkaç saniye beklemesi istenen
+davranış: banka transferi kabul etti, sonucu `BANK_SETTLEMENT_DELAY` sonra callback'le
+bildiriyor. İşyerinin cüzdanı 198: 100 ve 2 komisyon düştü. Ledger'a üç bacaklı tek işlem
+düşer:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT la.type, e.amount FROM ledger_entries e
+     JOIN ledger_accounts la ON la.id = e.ledger_account_id
+     JOIN ledger_transactions t ON t.id = e.transaction_id
+    WHERE t.correlation_id = '$WITHDRAWAL';"
+```
+
+**Telafi yolu.** Bankanın senaryosu çekimin kimliğine bağlı ama zincir seni beklemiyor:
+wallet parayı düşüyor, adaptör bankayı arıyor ve banka senaryoyu transfer geldiği anda
+okuyor. Kimliği öğrendikten sonra kurulan senaryo büyük ihtimalle geç kalır. Reddi denemek
+için bankanın varsayılanını değiştir:
+
+```bash
+# .env: BANK_DEFAULT_OUTCOME=Failure
+docker compose up -d --no-deps bank-fake
+```
+
+Çekim isteğini tekrar koş. Beklenen: `state` `initiated` → `debited` →
+`bank_transfer_pending` → `compensating` → `failed` ve `failureReason` dolu; ledger'da İKİ
+işlem — orijinal düşme ve üç bacaklı ters kayıt — ve işyerinin cüzdanı başladığı yerde,
+komisyon dahil. Bitince `BANK_DEFAULT_OUTCOME=Success` yap ve bank-fake'i yeniden başlat.
+
+**bank-fake'in hafızası bellekte.** Veritabanı yok; yeniden başlatmak transferleri ve
+senaryoları siliyor. O anda `bank_transfer_pending`'de bekleyen çekim kapanmıyor, banka onu
+artık tanımıyor. Yeniden başlatmadan önce önceki çekimlerin bitmesini bekle.
+
+**Kaçırılan callback.** `.env`'de `BANK_CALLBACK_ENABLED=false` yap,
+`docker compose up -d --no-deps bank-fake` ile yeniden başlat ve çekim isteğini tekrar koş.
+Çekim `bank_transfer_pending`'de bekliyor: callback gelmiyor. `BANK_RECONCILIATION_STALE_AFTER`
+(compose'da 30 saniye) geçip `BANK_RECONCILIATION_INTERVAL` (bir dakika) dolunca
+`bank-adapter`'ın taraması bankaya soruyor ve çekimi kapatıyor; toplam bir iki dakika.
+`bank_transfers.resolved_via` `reconciliation` olmalı. Bitince `BANK_CALLBACK_ENABLED=true`
+yap ve bank-fake'i yeniden başlat.
 
 ### Kartla yükleme
 
