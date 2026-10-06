@@ -2,16 +2,15 @@
 
     <!-- KART SAĞLAYICISININ YERİNDE DURAN SAHTE SERVİS (decisions.md madde 35).
 
-         Üretimde YOK: yerine Stripe'ın kendi webhook'ları geçiyor.
+         Canlıda YOK: yerine sağlayıcının kendi ödeme API'si, ödeme sayfası ve webhook'ları geçiyor.
 
          BANKADAN FARKI: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden
          ne transfer ucu var ne callback alıcısı. Ledger'da da nostro'su yok —
          nostro bir banka hesabı ve Stripe banka değil; parayı bizim banka
          hesabımıza yatırıyor (SystemAccounts).
 
-         VERİTABANI YOK, bilerek. Tetikleyen zaten bir test ya da insan: süreç
-         ölürse yeniden tetiklenir. Kalıcılık eklemek karşılığı olmayan bir parça
-         olurdu. -->
+         VERİTABANI YOK, bilerek: ödemeler bellekte. Süreç ölürse açık ödemeler kaybolur;
+         kart yüklemesi servisi sorduğunda ödemeyi bulamaz ve yüklemeyi kapatır. -->
 
     <PropertyGroup>
         <RootNamespace>HiWallet.Stripe.Fake</RootNamespace>
@@ -24,7 +23,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Fakes.Core\Fakes.Core.csproj"/>
         <ProjectReference Include="..\..\src\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
     </ItemGroup>
 
