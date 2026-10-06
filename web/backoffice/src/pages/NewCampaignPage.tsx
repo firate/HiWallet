@@ -3,7 +3,8 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { campaignRule, idList, promoScope } from '../format'
+import { campaignRule, promoScope } from '../format'
+import { merchantIds } from '../merchants'
 import { useHasPermission } from '../session'
 import type { CampaignRequest, CampaignRule, PromoScope, RewardType } from '../types'
 
@@ -51,7 +52,7 @@ function CampaignForm() {
   const effectiveRewardType: RewardType = rule === 'daily_payment_total' ? 'fixed' : rewardType
 
   const create = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const request: CampaignRequest = {
         name: name.trim(),
         rule,
@@ -69,8 +70,8 @@ function CampaignForm() {
         // Boşsa şimdi: geçmişte başlayan kampanya açılışından önceki ödemeleri ödüllendirirdi.
         startsAt: startsAt ? new Date(startsAt).toISOString() : new Date().toISOString(),
         endsAt: endsAt ? new Date(endsAt).toISOString() : null,
-        triggerMerchantAccountIds: rule === 'payment_to_merchant' ? idList(triggers) : null,
-        scopeMerchantAccountIds: scope === 'selected_businesses' ? idList(scopeMerchants) : null,
+        triggerMerchantAccountIds: rule === 'payment_to_merchant' ? await merchantIds(triggers) : null,
+        scopeMerchantAccountIds: scope === 'selected_businesses' ? await merchantIds(scopeMerchants) : null,
       }
 
       return api.createCampaign(request)
@@ -103,7 +104,7 @@ function CampaignForm() {
         </label>
         {rule === 'payment_to_merchant' ? (
           <label>
-            Tetikleyen işyerleri (her satıra bir hesap kimliği)
+            Tetikleyen işyerleri (her satıra bir hesap numarası ya da kimlik)
             <textarea rows={3} value={triggers} onChange={(event) => setTriggers(event.target.value)} required />
           </label>
         ) : (
@@ -150,7 +151,7 @@ function CampaignForm() {
         </label>
         {scope === 'selected_businesses' && (
           <label>
-            Kapsamdaki işyerleri (her satıra bir hesap kimliği)
+            Kapsamdaki işyerleri (her satıra bir hesap numarası ya da kimlik)
             <textarea
               rows={3}
               value={scopeMerchants}

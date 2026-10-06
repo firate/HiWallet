@@ -122,14 +122,6 @@ export function personName(staff: { firstName: string | null; lastName: string |
   return name || staff.email
 }
 
-/** Satır başına bir hesap kimliği; boş satırlar atlanıyor. */
-export function idList(text: string): string[] {
-  return text
-    .split(/\s+/)
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0)
-}
-
 /** Havalenin askıya alınma sebebi. */
 const depositHoldReasons: Record<string, string> = {
   no_account_number: 'Açıklamada hesap numarası yok',

@@ -3,8 +3,9 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { date, fundType, idList, money, movementType, promoScope } from '../format'
+import { date, fundType, money, movementType, promoScope } from '../format'
 import { useIdempotencyKey } from '../idempotency'
+import { merchantIds } from '../merchants'
 import { useHasPermission } from '../session'
 import type { PromoGrant, PromoScope, Wallet } from '../types'
 
@@ -66,14 +67,14 @@ function StaffPromoForm({ wallet }: { wallet: Wallet }) {
   const [granted, setGranted] = useState<PromoGrant | null>(null)
 
   const grant = useMutation({
-    mutationFn: () =>
+    mutationFn: async () =>
       api.grantStaffPromo(
         wallet.walletId,
         {
           amount: Number(amount),
           currency: wallet.currency,
           scope,
-          merchantAccountIds: scope === 'selected_businesses' ? idList(merchants) : null,
+          merchantAccountIds: scope === 'selected_businesses' ? await merchantIds(merchants) : null,
           // Seçilen günün sonuna kadar, panelin saatine göre.
           expiresAt: expiresOn ? new Date(`${expiresOn}T23:59:59`).toISOString() : null,
         },
@@ -122,7 +123,7 @@ function StaffPromoForm({ wallet }: { wallet: Wallet }) {
         </label>
         {scope === 'selected_businesses' && (
           <label>
-            İşyeri hesapları (her satıra bir kimlik)
+            İşyerleri (her satıra bir hesap numarası ya da kimlik)
             <textarea rows={3} value={merchants} onChange={(event) => setMerchants(event.target.value)} required />
           </label>
         )}
