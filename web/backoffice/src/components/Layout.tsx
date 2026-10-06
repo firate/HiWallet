@@ -4,6 +4,9 @@ import { useHasPermission, useSessionUser, useStaffAccess } from '../session'
 export function Layout() {
   const user = useSessionUser()
   const access = useStaffAccess()
+  // Menü yalnızca izni olan sayfaları gösteriyor; yetkiyi yine iç servis kontrol ediyor.
+  const viewsCustomers = useHasPermission('customer.view')
+  const viewsCampaigns = useHasPermission('campaign.view')
   const managesStaff = useHasPermission('staff.manage')
   const viewsDeposits = useHasPermission('deposit.view')
 
@@ -14,8 +17,8 @@ export function Layout() {
           <Link to="/" className="brand">
             HiWallet <span className="muted">Backoffice</span>
           </Link>
-          <NavLink to="/cekimler">Çekimler</NavLink>
-          <NavLink to="/kampanyalar">Kampanyalar</NavLink>
+          {viewsCustomers && <NavLink to="/cekimler">Çekimler</NavLink>}
+          {viewsCampaigns && <NavLink to="/kampanyalar">Kampanyalar</NavLink>}
           {viewsDeposits && <NavLink to="/havaleler">Askıdaki havaleler</NavLink>}
           {managesStaff && <NavLink to="/personel">Personel</NavLink>}
         </div>
