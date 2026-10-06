@@ -64,6 +64,23 @@ public sealed class ProcessCardTopupHandler(
 
         var hold = await HoldAsync(message, ct);
 
+        // Kart yüklemesi servisi payın yazıldığından emin olamadan kapatabiliyor: pay isteği
+        // cevapsız kaldıysa ödeme hiç açılmadı. Ödenmedi kapanışı o zaman zararsız, para
+        // hareket etmedi ve serbest bırakılacak pay yok.
+        if (hold is null)
+        {
+            if (outcome is CardTopupOutcome.Paid)
+            {
+                throw new CardTopupRejectedException(message.CardTopupId, "Payı olmayan yüklemenin parası geldi.");
+            }
+
+            logger.LogInformation(
+                "Payı yazılmamış kartla yükleme ödenmeden kapandı, yapılacak bir şey yok. {CardTopupId}",
+                message.CardTopupId);
+
+            return new ProcessCardTopupResult(CardTopupOutcome.Failed, null, Replayed: true);
+        }
+
         for (var attempt = 1; ; attempt++)
         {
             try
@@ -85,12 +102,17 @@ public sealed class ProcessCardTopupHandler(
     /// Ödeme başlarken yazılan pay. Mesajdaki tutar, para birimi ve sağlayıcı onunla aynı
     /// olmak zorunda: farklıysa iki servis aynı ödeme için farklı şey biliyor.
     /// </summary>
-    private async Task<CardTopupHold> HoldAsync(CardTopupClosed message, CancellationToken ct)
+    /// <returns>Pay; bu kimlikte pay yoksa <c>null</c>.</returns>
+    private async Task<CardTopupHold?> HoldAsync(CardTopupClosed message, CancellationToken ct)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var hold = await db.CardTopupHolds.AsNoTracking().FirstOrDefaultAsync(h => h.Id == message.CardTopupId, ct)
-                   ?? throw new CardTopupRejectedException(message.CardTopupId, "Bu kimlikte pay yok.");
+        var hold = await db.CardTopupHolds.AsNoTracking().FirstOrDefaultAsync(h => h.Id == message.CardTopupId, ct);
+
+        if (hold is null)
+        {
+            return null;
+        }
 
         if (hold.Provider != message.Provider
             || hold.Currency.Code != message.Currency

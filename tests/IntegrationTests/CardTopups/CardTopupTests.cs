@@ -524,12 +524,27 @@ public sealed class CardTopupTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task PayiOlmayanKimlik_Alarm()
+    public async Task PayiOlmayanYuklemeninParasi_Alarm()
     {
         var ct = TestContext.Current.CancellationToken;
 
         await Should.ThrowAsync<CardTopupRejectedException>(
             () => CloseHandler().HandleAsync(Closed(Guid.NewGuid(), CardTopupClosedOutcomes.Paid, 10m), ct));
+    }
+
+    /// <summary>
+    /// Kart yüklemesi servisi payın yazıldığından emin olamadan kapatabiliyor (pay isteği
+    /// cevapsız kaldı). Ödenmedi kapanışı zararsız: para hareket etmedi, kapatılacak pay yok.
+    /// </summary>
+    [Fact]
+    public async Task PayiOlmayanYukleme_OdenmediyleKapanirsa_Zararsiz()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var result = await CloseHandler().HandleAsync(Closed(Guid.NewGuid(), CardTopupClosedOutcomes.Failed, 10m), ct);
+
+        result.Outcome.ShouldBe(CardTopupOutcome.Failed);
+        result.LedgerTransactionId.ShouldBeNull();
     }
 
     [Fact]
