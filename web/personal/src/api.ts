@@ -104,7 +104,8 @@ export const api = {
   wallet: (walletId: string) => send<Wallet>('GET', `/v1/wallets/${walletId}`),
   movements: (walletId: string, after?: number | null) =>
     send<MovementsPage>('GET', page(`/v1/wallets/${walletId}/movements`, after)),
-  promos: (walletId: string) => send<PromosPage>('GET', `/v1/wallets/${walletId}/promos`),
+  promos: (walletId: string, after?: string | null) =>
+    send<PromosPage>('GET', page(`/v1/wallets/${walletId}/promos`, after)),
 
   transfer: (request: TransferRequest, idempotencyKey: string) =>
     send<TransferResponse>('POST', '/v1/transfers', { body: request, idempotencyKey }),

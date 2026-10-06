@@ -17,7 +17,7 @@ export function WalletPage() {
     return <ErrorMessage error={wallet.error} />
   }
 
-  const { name, currency, balance, withdrawable, balances } = wallet.data
+  const { accountId, name, currency, balance, withdrawable, balances } = wallet.data
 
   return (
     <>
@@ -43,10 +43,37 @@ export function WalletPage() {
             Banka hesabına çek
           </Link>
         </div>
+        <DepositLink accountId={accountId} walletId={walletId} />
       </section>
       <Movements walletId={walletId} />
       <Promos walletId={walletId} />
     </>
+  )
+}
+
+/**
+ * Havale hesap numarasıyla geliyor ve bu para birimindeki varsayılan cüzdana düşüyor:
+ * bağlantı yalnızca o cüzdanda. Bireysel hesapta ve doğrulama tamamlanmışsa; doğrulanmamış
+ * hesabın gelen para limiti sıfır.
+ */
+function DepositLink({ accountId, walletId }: { accountId: string; walletId: string }) {
+  const account = useQuery({ queryKey: ['accounts', accountId], queryFn: () => api.account(accountId) })
+
+  if (!account.data) {
+    return null
+  }
+
+  const { kycLevel, wallets } = account.data
+  const isDefault = wallets.some((wallet) => wallet.walletId === walletId && wallet.isDefault)
+
+  if (kycLevel === null || kycLevel === 'Unknown' || !isDefault) {
+    return null
+  }
+
+  return (
+    <p>
+      <Link to={`/hesaplar/${accountId}/yukle`}>Havaleyle para yükle</Link>
+    </p>
   )
 }
 
@@ -101,9 +128,25 @@ function Movements({ walletId }: { walletId: string }) {
 }
 
 function Promos({ walletId }: { walletId: string }) {
-  const promos = useQuery({ queryKey: ['wallets', walletId, 'promos'], queryFn: () => api.promos(walletId) })
+  const promos = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'promos'],
+    queryFn: ({ pageParam }) => api.promos(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
 
-  if (promos.isPending || promos.error || promos.data.items.length === 0) {
+  if (promos.isPending) {
+    return null
+  }
+
+  if (promos.error) {
+    return <ErrorMessage error={promos.error} />
+  }
+
+  const items = promos.data.pages.flatMap((page) => page.items)
+
+  // Promo'su hiç olmamış cüzdanda bölüm yok.
+  if (items.length === 0) {
     return null
   }
 
@@ -113,7 +156,7 @@ function Promos({ walletId }: { walletId: string }) {
       <p className="muted">Promo yalnızca işyerine ödemede harcanıyor.</p>
       <table>
         <tbody>
-          {promos.data.items.map((promo) => (
+          {items.map((promo) => (
             <tr key={promo.grantId}>
               <td>
                 {money(promo.remaining, promo.currency)} kaldı
@@ -126,6 +169,11 @@ function Promos({ walletId }: { walletId: string }) {
           ))}
         </tbody>
       </table>
+      {promos.hasNextPage && (
+        <button className="secondary" onClick={() => promos.fetchNextPage()} disabled={promos.isFetchingNextPage}>
+          Daha eski partiler
+        </button>
+      )}
     </section>
   )
 }

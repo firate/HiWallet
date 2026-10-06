@@ -67,22 +67,8 @@ public sealed class TransfersController(IMessageBus bus, AccountAccess access) :
         var result = await bus.InvokeAsync<TransferResult>(
             request.ToCommand(idempotencyKey, toWalletId), ct);
 
-        var response = TransferResponse.From(result);
-
-        return CreatedAtAction(
-            actionName: nameof(GetById),
-            routeValues: new { transactionId = response.TransactionId },
-            value: response);
-    }
-
-    /// <summary>
-    /// Şimdilik yalnızca <c>CreatedAtAction</c>'ın Location header'ı için var.
-    /// İşlem detayı endpoint'i henüz yazılmadı.
-    /// </summary>
-    [HttpGet("{transactionId:guid}")]
-    [ApiExplorerSettings(IgnoreApi = true)]
-    public IActionResult GetById(Guid transactionId)
-    {
-        return StatusCode(StatusCodes.Status501NotImplemented);
+        // Location YOK: işlemin detay ucu yok. Olmayan bir adrese işaret eden Location,
+        // istemciyi 404'e ya da 501'e gönderirdi.
+        return StatusCode(StatusCodes.Status201Created, TransferResponse.From(result));
     }
 }

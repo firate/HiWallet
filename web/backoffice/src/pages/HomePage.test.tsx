@@ -47,6 +47,34 @@ describe('HomePage', () => {
     expect(await screen.findByText('Hesap bulunamadı')).toBeTruthy()
   })
 
+  /** Yetkiyi iç servis kontrol ediyor; menü çalışanı reddedilecek sayfaya götürmüyor. */
+  it('menüde ve ana sayfada yalnızca izni olan işleri gösteriyor', async () => {
+    fakeBff(staffSession(['staff.manage']))
+
+    renderAt('/', <App />)
+
+    expect(await screen.findByRole('link', { name: 'Personel' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Çekimler' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Kampanyalar' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Kayıt aç' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'İş kuyrukları' })).toBeNull()
+  })
+
+  it('askıdaki havaleler iş kuyruklarında, kayıt türleri izne göre', async () => {
+    fakeBff(staffSession(['customer.view', 'deposit.view']))
+
+    renderAt('/', <App />)
+
+    const queue = await screen.findByRole('heading', { name: 'İş kuyrukları' })
+    expect(queue.parentElement?.querySelector('a[href="/havaleler"]')?.textContent).toBe('Askıdaki havaleler')
+    expect(screen.queryByRole('link', { name: 'Promo kampanyaları' })).toBeNull()
+
+    const types = Array.from((screen.getByLabelText('Kayıt türü') as HTMLSelectElement).options).map(
+      (option) => option.value,
+    )
+    expect(types).toEqual(['hesaplar', 'cuzdanlar', 'cekimler'])
+  })
+
   it('cüzdana yine kimlikle gidiliyor', async () => {
     const user = userEvent.setup()
     fakeBff(staffSession(['customer.view']))

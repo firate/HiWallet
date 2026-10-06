@@ -61,9 +61,12 @@ WALLET_CONSUMER_CLIENT_SECRET=... # wallet-consumer'ın istemcisi: havalenin gö
 ```
 
 `WALLET_CONSUMER_CLIENT_SECRET`'ten önce kurulmuş bir ortamda realm zaten var ve import
-yeni istemciyi eklemiyor (`Import skipped`). İstemci `kcadm.sh` ile eklenir:
+yeni istemciyi eklemiyor (`Import skipped`). İstemci `kcadm.sh` ile eklenir. Komutlar
+parolayı ve gizli anahtarı kabuktan okuyor; önce `.env` kabuğa yüklenir. Yüklenmezse
+giriş boş parolayla yapılır, kaydedilmez ve ikinci komut `No server specified` ile durur:
 
 ```bash
+set -a; . ./.env; set +a
 docker compose exec hiwallet-keycloak /opt/keycloak/bin/kcadm.sh config credentials \
   --server http://localhost:8080 --realm master --user admin --password "$KEYCLOAK_ADMIN_PASSWORD"
 docker compose exec hiwallet-keycloak /opt/keycloak/bin/kcadm.sh create clients -r hiwallet \

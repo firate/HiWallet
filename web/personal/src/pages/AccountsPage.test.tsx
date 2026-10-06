@@ -52,4 +52,22 @@ describe('AccountsPage', () => {
     await screen.findByRole('button', { name: 'Gelen para buraya gelsin' })
     expect(screen.getAllByText('Gelen para buraya')).toHaveLength(1)
   })
+
+  /** Sunucu bugün yalnızca TRY cüzdanı açıyor; başka bir para birimi seçtirmek reddi davet ederdi. */
+  it('yalnızca TRY cüzdanı açıyor', async () => {
+    const user = userEvent.setup()
+    const calls = fakeBff({
+      'GET /v1/accounts?size=100': { status: 200, body: { items: [account], size: 100, nextCursor: null } },
+      'GET /v1/accounts/a1': { status: 200, body: { ...account, acceptsPromo: false, wallets: [wallet('w1', 'Ana', true)] } },
+      'POST /v1/accounts/a1/wallets': { status: 201, body: wallet('w2', 'Birikim', false) },
+    })
+
+    renderAt('/', <AccountsPage />)
+    await user.type(await screen.findByLabelText('Cüzdan adı'), 'Birikim')
+    await user.click(screen.getByRole('button', { name: 'Cüzdan aç' }))
+
+    await screen.findByText('123 456 7897')
+    expect(screen.queryByLabelText('Para birimi')).toBeNull()
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ name: 'Birikim', currency: 'TRY' })
+  })
 })

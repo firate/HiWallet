@@ -164,7 +164,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
 736 test: 241 unit (DB'siz), 495 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 18, panelin 27.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 30, panelin 37.
 
 İki uçtan uca zincir koşuyor. Top-up: HTTP → inbox → relay → broker → tüketici →
 ledger. Withdrawal: `POST /v1/withdrawals` → orchestrator → wallet-consumer →
