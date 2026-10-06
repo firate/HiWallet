@@ -11,37 +11,7 @@ rate limiting, karta iade yolu (madde 36).
 
 ---
 
-## A. Kodda yarım duran şey
-
-Tip ve şema zaten var, yazan yol yok. Yani bugün çalıştırılamayan kod taşıyoruz.
-
-### A2. `employee` aktörü hiçbir yerde üretilmiyor
-
-Bugün: `ActorType.Employee` enum'da, `Actor.Employee(subject)` fabrikası yazılı,
-`CommandActor.Employee` sözleşmede, value converter iki yönde de eşliyor. Uygulama
-kodunda `Actor.Employee(...)` çağıran tek bir satır yok. Ledger'a bugün yalnızca
-`customer` ve `system` düşüyor.
-
-Sonucu: madde 34'ün "kaydı kim başlattı" ayrımının üçte biri kayıtlı ama kullanılmıyor.
-
-Eklenecek: çalışanın başlattığı işlem. En dar hali operasyon düzeltmesi — bir işlemin
-ters kaydını yazan endpoint. Bu auth'a bağlı: `Actor.Employee`'nin taşıdığı `subject`
-kimlik sağlayıcıdan gelen değer, uydurulamaz. Yani sıralamada auth'tan sonra.
-
----
-
 ## B. API yüzeyi
-
-Bugünkü endpoint'ler:
-
-| Servis | Endpoint |
-|---|---|
-| wallet-api | `POST /v1/accounts`, `GET /v1/accounts/{id}` |
-| wallet-api | `POST /v1/accounts/{id}/wallets`, `GET /v1/wallets/{id}` |
-| wallet-api | `GET /v1/wallets/{id}/movements` |
-| wallet-api | `POST /v1/transfers`, `GET /v1/transfers/{id}` |
-| wallet-api | `POST /v1/promos`, `GET /v1/wallets/{id}/promos` |
-| withdrawal-orchestrator | `POST /v1/withdrawals`, `GET /v1/withdrawals/{id}` |
 
 ### B1. Hareket listesinde filtre
 
@@ -61,13 +31,14 @@ için (madde 20) hesabın tamamının dökümü tek çağrıyla alınamıyor.
 Eklenecek: `GET /v1/accounts/{id}/movements`. Günlük limitin hesap bazında uygulanması
 ile aynı gerekçe — müşterinin gördüğü birim hesap.
 
-### B3. Çekim listesi
+### B3. Müşterinin çekim listesi
 
-Bugün: `GET /v1/withdrawals/{id}` tek kayıt döner, liste yok. Müşteri geçmiş
+Bugün: müşteri yalnızca tek bir çekimi görüyor (`GET /v1/withdrawals/{id}`). Liste
+(`GET /v1/withdrawals?state=...`) çalışanın ucu ve duruma göre süzülüyor. Müşteri geçmiş
 çekimlerini göremiyor.
 
-Eklenecek: cursor ile sayfalanan liste. Kaynak `withdrawal_sagas`; orchestrator'ın
-kendi veritabanında, wallet'a sormadan.
+Eklenecek: müşterinin kendi başlattığı çekimlerin cursor ile sayfalanan listesi. Kaynak
+`withdrawal_sagas`; orchestrator'ın kendi veritabanında, wallet'a sormadan.
 
 ---
 
@@ -77,28 +48,20 @@ kendi veritabanında, wallet'a sormadan.
 
 Bugün: `.github` dizini yok. Build ve testler yalnızca elle koşuyor.
 
-Eklenecek: PR'da `dotnet build` ve iki test projesi. Integration testler Postgres
-istiyor — job içinde servis konteyneri olarak kaldırılır. Bu, "her commit derlenmesin"
-kararıyla çelişmiyor: kural commit başına değil, PR başına.
+Eklenecek: PR'da `dotnet build`, iki test projesi ve iki web uygulamasının testleri.
+Integration testler Postgres istiyor — job içinde servis konteyneri olarak kaldırılır.
+Bu, "her commit derlenmesin" kararıyla çelişmiyor: kural commit başına değil, PR başına.
 
 ### C2. Migration'ın canlı veriyle uyumu
 
-Bugün: migration'lar dört veritabanına da uygulanıyor, ama uygulanmış şemanın koddaki
-model ile aynı olduğunu doğrulayan bir adım yok. 2026-09-23'te test ortamında tam bu
-ayrıştı: image yeni koddu, `__EFMigrationsHistory` squash öncesindeki id'leri
-taşıyordu, uygulamalar `500` dönüyordu.
+Bugün: migration'lar veritabanlarına uygulanıyor, ama uygulanmış şemanın koddaki model
+ile aynı olduğunu doğrulayan bir adım yok. 2026-09-23'te test ortamında tam bu ayrıştı:
+image yeni koddu, `__EFMigrationsHistory` squash öncesindeki id'leri taşıyordu,
+uygulamalar `500` dönüyordu.
 
 Eklenecek: başlangıçta bekleyen migration varsa uygulamanın açılmaması. Bugün açılıyor
 ve ilk isteğe kadar sessiz kalıyor. `decisions.md` madde 5'teki "fail fast" ile aynı
 çizgi.
-
-### C3. Auth
-
-Bugün: yok, ve bu `decisions.md` madde 12'de kayıtlı bir kabul.
-
-Bağlı olan şeyler: A2 (employee aktörü), ve bugün `LimitExceededException`'ın `422`
-gövdesinde hesabın o güne kadarki harcamasını açması — kimliği doğrulanmamış bir
-çağırana verilmemesi gereken bilgi.
 
 ---
 
@@ -110,8 +73,5 @@ gövdesinde hesabın o güne kadarki harcamasını açması — kimliği doğrul
 | 2 | C2 — bekleyen migration'da açılmama | Yaşanmış bir arıza, tek kurulum satırı |
 | 3 | B1 — hareket filtreleri | Var olan endpoint'in üstüne, yeni şema istemiyor |
 | 4 | B2, B3 — ekstre ve çekim listesi | Aynı cursor kalıbının tekrarı |
-| 5 | C3 — auth | Başlı başına bir konu, kendi kararını istiyor |
-| 6 | A2 — employee aktörü | Auth'tan sonra anlamlı |
 
-Sıra tartışmaya açık. A2'nin sonda olması önem sırası değil; kendinden önce auth
-kararını bekliyor.
+Sıra tartışmaya açık.
