@@ -90,6 +90,19 @@ src/
 
 Her **host** kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
 
+Diskte `src/` düz; gruplama yalnızca `HiWallet.sln`'in klasörlerinde. Dockerfile'lar,
+compose ve proje referansları diskteki yolu kullanıyor, gruplama onlara dokunmuyor.
+
+| Solution klasörü | Projeler |
+|---|---|
+| `src/edge` | ön API'ler ve ortak kodları: `PersonalMobileApi`, `PersonalWebBff`, `BusinessApi`, `BusinessWebBff`, `BackofficeBff`, `EdgeApi.Core` |
+| `src/wallet` | ledger'ın sahibi: `WalletApi`, `WalletConsumer`, `WalletService.Core` |
+| `src/topup` | kartla yükleme: `CardTopup`, `TopupWebhook` |
+| `src/bank` | banka entegrasyonu: `BankAdapter`, `BankWebhook`, `BankIntegration.Core` |
+| `src/withdrawal` | çekim saga'sı: `WithdrawalOrchestrator` |
+| `src/identity` | kimlikler: `Onboarding` (müşteri kaydı), `StaffAdmin` (personel) |
+| `src/shared` | `Shared.Contracts`, `Shared.Infrastructure` |
+
 **Servis ≠ deployable.** Wallet sınırının iki host'u var — `WalletApi` (public HTTP)
 ve `WalletConsumer` (ingress'siz worker; hem top-up event'lerini hem çekim
 komutlarını dinliyor) — ve ikisi de `WalletService.Core`'u kullanıyor. Ayrılma sebebi erişim seviyesi (`decisions.md` madde 28); ortak kütüphane
