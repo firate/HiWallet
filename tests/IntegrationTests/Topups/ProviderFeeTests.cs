@@ -1,7 +1,7 @@
 using HiWallet.IntegrationTests.Fixtures;
-using HiWallet.Shared.Contracts.Topups;
+using HiWallet.Shared.Contracts.CardTopups;
 using HiWallet.WalletService.Application.Abstractions;
-using HiWallet.WalletService.Application.Topups;
+using HiWallet.WalletService.Application.CardTopups;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
@@ -13,7 +13,8 @@ using HiWallet.WalletService.Domain.Ledger;
 namespace HiWallet.IntegrationTests.Topups;
 
 /// <summary>
-/// Sağlayıcı ücretinin tahakkuku (adım 5.4, <c>decisions.md</c> madde 10).
+/// Kart sağlayıcısının ücretinin tahakkuku (adım 5.4, <c>decisions.md</c> madde 10).
+/// Kartla yükleme ödendiğinde ücret beklentisi ledger'la aynı transaction'da yazılıyor.
 ///
 /// Ücret bizim müşteriden aldığımız komisyon DEĞİL, sağlayıcının bizden aldığı
 /// ücret — biri gelir, öbürü gider, netleştirilmiyorlar.
@@ -21,21 +22,15 @@ namespace HiWallet.IntegrationTests.Topups;
 [Collection(PostgresCollection.Name)]
 public sealed class ProviderFeeTests(PostgresFixture postgres)
 {
-    private ProcessTopupHandler Handler() => new(
-        postgres.ContextFactory,
-        TestProviders.Policy,
-        new SystemClock(),
-        NullLogger<ProcessTopupHandler>.Instance);
-
     [Fact]
-    public async Task Topup_UcretSatiriYazar_OranVeSabitiUygular()
+    public async Task KartYuklemesi_UcretSatiriYazar_OranVeSabitiUygular()
     {
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
 
-        var result = await Handler().HandleAsync(Message(wallet, 100m, "stripe-fake"), ct);
+        var transactionId = await CardTopupSeeder.PaidAsync(postgres, wallet, 100m, ct);
 
-        var fee = await ReadFeeAsync(result.LedgerTransactionId!.Value, ct);
+        var fee = await ReadFeeAsync(transactionId, ct);
 
         fee.ShouldNotBeNull();
         fee.Provider.ShouldBe("stripe-fake");
@@ -47,43 +42,22 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
     }
 
     /// <summary>
-    /// Gerçekleşen tutar HENÜZ bilinmiyor: Net modelde settlement'ta, Invoiced
-    /// modelde faturada belli olacak. Sıfır yazılsaydı "ücret alınmadı" ile "henüz
-    /// bilmiyoruz" ayrımı kaybolurdu.
+    /// Gerçekleşen tutar HENÜZ bilinmiyor: Net modelde settlement'ta belli olacak. Sıfır
+    /// yazılsaydı "ücret alınmadı" ile "henüz bilmiyoruz" ayrımı kaybolurdu.
     /// </summary>
     [Fact]
-    public async Task Tahakkuk_AninadaGerceklesenTutarBosKalir()
+    public async Task Tahakkuk_AnindaGerceklesenTutarBosKalir()
     {
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
 
-        var result = await Handler().HandleAsync(Message(wallet, 250m, "stripe-fake"), ct);
-        var fee = await ReadFeeAsync(result.LedgerTransactionId!.Value, ct);
+        var transactionId = await CardTopupSeeder.PaidAsync(postgres, wallet, 250m, ct);
+        var fee = await ReadFeeAsync(transactionId, ct);
 
         fee.ShouldNotBeNull();
         fee.ActualAmount.ShouldBeNull();
         fee.InvoiceRef.ShouldBeNull();
         fee.LedgerTransactionId.ShouldBeNull();
-    }
-
-    /// <summary>
-    /// Sağlayıcı bazında model. İki sağlayıcının aynı sistemde farklı modelle
-    /// çalışması bu tasarımın göstermek istediği şey (madde 10).
-    /// </summary>
-    [Fact]
-    public async Task ModelSaglayiciBazinda_BankaFaturali()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var wallet = await NewWalletAsync(ct);
-
-        var result = await Handler().HandleAsync(Message(wallet, 500m, "bank-fake"), ct);
-        var fee = await ReadFeeAsync(result.LedgerTransactionId!.Value, ct);
-
-        fee.ShouldNotBeNull();
-        fee.SettlementModel.ShouldBe(FeeSettlement.Invoiced);
-
-        // Oran sıfır, yalnızca sabit ücret: 1.50.
-        fee.ExpectedAmount.ShouldBe(TestProviders.BankFixed);
     }
 
     /// <summary>
@@ -97,13 +71,13 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
 
-        var result = await Handler().HandleAsync(Message(wallet, 100m, "stripe-fake"), ct);
+        var transactionId = await CardTopupSeeder.PaidAsync(postgres, wallet, 100m, ct);
 
         await using var db = postgres.CreateContext();
 
         var entries = await db.LedgerEntries
             .AsNoTracking()
-            .Where(e => e.TransactionId == result.LedgerTransactionId!.Value)
+            .Where(e => e.TransactionId == transactionId)
             .ToListAsync(ct);
 
         // Yalnızca iki bacak: cüzdan +100, clearing -100. provider_expense YOK —
@@ -114,19 +88,19 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
     }
 
     /// <summary>
-    /// Tekrar eden webhook ikinci ücret satırı yazmamalı. Yazsaydı gider beklentisi
-    /// her yeniden teslimde şişer ve fatura karşılaştırması (madde 11) yanlış
-    /// tarafı suçlardı.
+    /// Tekrar eden kapanış ikinci ücret satırı yazmamalı. Yazsaydı gider beklentisi her
+    /// yeniden teslimde şişer ve fatura karşılaştırması (madde 11) yanlış tarafı suçlardı.
     /// </summary>
     [Fact]
-    public async Task TekrarEdenTopup_IkinciUcretSatiriYazmaz()
+    public async Task TekrarEdenKapanis_IkinciUcretSatiriYazmaz()
     {
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
-        var message = Message(wallet, 100m, "stripe-fake");
+        var id = await PlaceAsync(wallet, 100m, ct);
+        var message = Paid(id, 100m);
 
-        var first = await Handler().HandleAsync(message, ct);
-        var second = await Handler().HandleAsync(message, ct);
+        var first = await Handler(TestProviders.Policy).HandleAsync(message, ct);
+        var second = await Handler(TestProviders.Policy).HandleAsync(message, ct);
 
         second.Replayed.ShouldBeTrue();
 
@@ -144,24 +118,19 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
     /// patlıyor. Sessizce sıfır ücret varsaymak o sağlayıcının bütün giderini
     /// raporlardan siler ve fatura geldiğinde uyuşmazlık üretirdi (madde 11).
     ///
-    /// Asıl risk bu, "hiç tanınmayan sağlayıcı" değil: onun clearing hesabı da yok
-    /// ve akış daha önce <see cref="TopupRejectedException"/> ile reddediyor.
-    /// Buradaki durum ise BİZİM konfigürasyon hatamız — sağlayıcı ledger'da tanımlı,
-    /// tarife unutulmuş.
-    ///
-    /// <see cref="TopupRejectedException"/> DEĞİL, bilerek: o kalıcı hata sayılıp
-    /// dead-letter'a gidiyor. Kendi konfigürasyon eksiğimiz yüzünden müşterinin
-    /// para yükleme bildirimini çöpe atmak yanlış olur — mesaj kuyrukta beklesin,
-    /// tarife eklenince işlensin.
+    /// <see cref="CardTopupRejectedException"/> DEĞİL, bilerek: o kalıcı hata sayılıp
+    /// dead-letter'a gidiyor. Kendi konfigürasyon eksiğimiz yüzünden müşterinin para
+    /// yükleme bildirimini çöpe atmak yanlış olur — mesaj kuyrukta beklesin, tarife
+    /// eklenince işlensin. Bekleyen yükleme yazılmadı: pay açık kalıyor.
     /// </summary>
     [Fact]
-    public async Task TarifesiOlmayanSaglayici_Patlar()
+    public async Task TarifesiOlmayanSaglayici_Patlar_YuklemeAcikKalir()
     {
         var ct = TestContext.Current.CancellationToken;
         var wallet = await NewWalletAsync(ct);
+        var id = await PlaceAsync(wallet, 100m, ct);
 
-        // Yalnızca bank-fake tanımlı; stripe-fake'in clearing hesabı var ama
-        // tarifesi yok.
+        // Yalnızca bank-fake tanımlı; stripe-fake'in clearing hesabı var ama tarifesi yok.
         var eksikPolitika = new ProviderPolicy(new Dictionary<string, ProviderTerms>
         {
             ["bank-fake"] = new(
@@ -169,17 +138,17 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
                 FundType.Cash)
         });
 
-        var handler = new ProcessTopupHandler(
-            postgres.ContextFactory,
-            eksikPolitika,
-            new SystemClock(),
-            NullLogger<ProcessTopupHandler>.Instance);
-
         var exception = await Should.ThrowAsync<UnknownProviderException>(
-            handler.HandleAsync(Message(wallet, 100m, "stripe-fake"), ct));
+            Handler(eksikPolitika).HandleAsync(Paid(id, 100m), ct));
 
         exception.Provider.ShouldBe("stripe-fake");
-        exception.ShouldNotBeAssignableTo<TopupRejectedException>();
+
+        await using var db = postgres.CreateContext();
+        (await db.CardTopupHoldClosures.AnyAsync(c => c.HoldId == id, ct)).ShouldBeFalse();
+
+        // Tarife eklenince aynı mesaj işleniyor.
+        var result = await Handler(TestProviders.Policy).HandleAsync(Paid(id, 100m), ct);
+        result.Replayed.ShouldBeFalse();
     }
 
     /// <summary>
@@ -210,15 +179,29 @@ public sealed class ProviderFeeTests(PostgresFixture postgres)
             .SqlState.ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
     }
 
-    private static TopupReceived Message(Guid walletId, decimal amount, string provider) => new()
+    private ProcessCardTopupHandler Handler(ProviderPolicy providers) => new(
+        postgres.ContextFactory, providers, new SystemClock(), NullLogger<ProcessCardTopupHandler>.Instance);
+
+    private async Task<Guid> PlaceAsync(Guid wallet, decimal amount, CancellationToken ct)
     {
-        Provider = provider,
-        EventId = $"evt_{Guid.NewGuid():N}",
-        LedgerAccountId = walletId,
+        var id = Guid.NewGuid();
+
+        await new PlaceCardTopupHoldHandler(
+                postgres.ContextFactory, TestKycLimits.Policy, new SystemClock(), NullLogger<PlaceCardTopupHoldHandler>.Instance)
+            .HandleAsync(new PlaceCardTopupHoldCommand(id, wallet, amount, "TRY", CardTopupSeeder.Provider), ct);
+
+        return id;
+    }
+
+    private static CardTopupClosed Paid(Guid id, decimal amount) => new()
+    {
+        CardTopupId = id,
+        Outcome = CardTopupClosedOutcomes.Paid,
+        Provider = CardTopupSeeder.Provider,
+        ProviderRef = $"pay_{id:N}",
         Amount = amount,
         Currency = "TRY",
-        ProviderRef = $"pi_{Guid.NewGuid():N}",
-        OccurredAt = DateTimeOffset.UtcNow
+        ClosedAt = DateTimeOffset.UtcNow
     };
 
     private async Task<Guid> NewWalletAsync(CancellationToken ct)

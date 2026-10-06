@@ -4,6 +4,8 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using HiWallet.IntegrationTests.Fixtures;
+using HiWallet.Shared.Contracts.CardPayments;
+using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.TopupWebhook.Application;
 using HiWallet.TopupWebhook.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -41,9 +43,9 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var eventId = NewEventId();
-        var walletId = Guid.NewGuid();
+        var reference = Guid.NewGuid();
 
-        var response = await PostAsync(Payload(eventId, walletId), ct: ct);
+        var response = await PostAsync(Payload(eventId, reference), ct: ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
@@ -56,13 +58,30 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         row.Provider.ShouldBe(TopupWebhookApiFactory.StripeProvider);
         row.Kind.ShouldBe(InboxKind.Topup);
 
-        // Routing key cüzdan kimliği: consistent hash exchange bunu hash'leyip
-        // partition seçiyor, aynı cüzdanın mesajları aynı kuyruğa düşüyor.
-        row.RoutingKey.ShouldBe(walletId.ToString());
+        // Routing key sabit mesaj tipi: bildirimde cüzdan yok, ödemeyi kart yüklemesi
+        // servisi kendi kaydıyla eşleştiriyor.
+        row.RoutingKey.ShouldBe(CardPaymentTopology.RoutingKey);
+
+        // Normalize edilmiş mesaj: kart yüklemesinin kimliği ve olay tipi.
+        using var payload = JsonDocument.Parse(row.Payload);
+        payload.RootElement.GetProperty("reference").GetGuid().ShouldBe(reference);
+        payload.RootElement.GetProperty("type").GetString().ShouldBe(CardPaymentEvents.Succeeded);
 
         // Yayınlanmamış olarak duruyor: 202 dönmek broker'a ulaşmakla ilgili değil,
         // kalıcı olmakla ilgili. Taşımak relay'in işi.
         row.PublishedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task BilinmeyenOlay_400_Doner()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var eventId = NewEventId();
+
+        var response = await PostAsync(Payload(eventId, Guid.NewGuid(), type: "payment.refunded"), ct: ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        await ShouldNotBeInInboxAsync(eventId, ct);
     }
 
     [Fact]
@@ -76,8 +95,8 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
         // durmalı — yeniden serialize edilmiş hali değil.
         var raw = $$"""
                     {  "amount" : 250.00,
-                       "eventId":"{{eventId}}",  "walletId":"{{Guid.NewGuid()}}",
-                       "currency":"TRY","reference":"pi_x","occurredAt":"2026-03-01T10:00:00+00:00"}
+                       "eventId":"{{eventId}}",  "type":"payment.succeeded", "reference":"{{Guid.NewGuid()}}",
+                       "currency":"TRY","paymentId":"pay_x","occurredAt":"2026-03-01T10:00:00+00:00"}
                     """;
 
         var response = await PostRawAsync(raw, TopupWebhookApiFactory.StripeSecret, ct: ct);
@@ -88,7 +107,7 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
 
         // jsonb kolonu boşlukları normalize ediyor; içerik olarak eşit olmalı.
         using var stored = JsonDocument.Parse(row.RawPayload);
-        stored.RootElement.GetProperty("reference").GetString().ShouldBe("pi_x");
+        stored.RootElement.GetProperty("paymentId").GetString().ShouldBe("pay_x");
         stored.RootElement.GetProperty("amount").GetDecimal().ShouldBe(250.00m);
     }
 
@@ -194,8 +213,8 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
 
         // amount yok.
         var raw = $$"""
-                    {"eventId":"{{eventId}}","walletId":"{{Guid.NewGuid()}}",
-                     "currency":"TRY","reference":"pi_x","occurredAt":"2026-03-01T10:00:00+00:00"}
+                    {"eventId":"{{eventId}}","type":"payment.succeeded","reference":"{{Guid.NewGuid()}}",
+                     "currency":"TRY","paymentId":"pay_x","occurredAt":"2026-03-01T10:00:00+00:00"}
                     """;
 
         var response = await PostRawAsync(raw, TopupWebhookApiFactory.StripeSecret, ct: ct);
@@ -218,13 +237,14 @@ public sealed class TopupWebhookApiTests(InboxFixture inbox) : IAsyncLifetime
 
     private static string NewEventId() => $"evt_{Guid.NewGuid():N}";
 
-    private static object Payload(string eventId, Guid walletId) => new
+    private static object Payload(string eventId, Guid reference, string type = CardPaymentEvents.Succeeded) => new
     {
         eventId,
-        walletId,
+        type,
+        paymentId = "pay_test",
+        reference,
         amount = 100.00m,
         currency = "TRY",
-        reference = "pi_test",
         occurredAt = DateTimeOffset.Parse("2026-03-01T10:00:00+00:00")
     };
 

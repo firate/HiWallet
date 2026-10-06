@@ -1,10 +1,9 @@
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Contracts.Settlements;
-using HiWallet.Shared.Contracts.Topups;
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Application.Settlements;
-using HiWallet.WalletService.Application.Topups;
 using HiWallet.WalletService.Domain.Accounts;
+using HiWallet.WalletService.Domain.Policies;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,12 +28,6 @@ public sealed class ProcessInvoiceTests(PostgresFixture postgres)
         TestProviders.Policy,
         new SystemClock(),
         NullLogger<ProcessInvoiceHandler>.Instance);
-
-    private ProcessTopupHandler TopupHandler() => new(
-        postgres.ContextFactory,
-        TestProviders.Policy,
-        new SystemClock(),
-        NullLogger<ProcessTopupHandler>.Instance);
 
     [Fact]
     public async Task TutanFatura_LedgeraYazilir_UcretSatirlariKapanir()
@@ -238,18 +231,17 @@ public sealed class ProcessInvoiceTests(PostgresFixture postgres)
     };
 
     /// <summary>
-    /// Fatura kapsayacak ücret satırı üretir: bank-fake üzerinden top-up, her biri
-    /// 1.50 sabit ücret beklentisi doğuruyor.
+    /// Fatura kapsayacak ücret satırı üretir: bankanın faturalı ücreti, her biri 1.50 sabit
+    /// beklenti. Canlıda bu satırları çekimin settlement'ı yazıyor; burada sınanan fatura,
+    /// ücretin nereden doğduğu değil. Ücret satırı ledger işlemine bağlı, işlem yeni bir
+    /// para girişi.
     /// </summary>
     private async Task<string[]> ArrangeFeesAsync(int count, CancellationToken ct)
     {
-        Guid wallet;
+        await using var db = postgres.CreateContext();
 
-        await using (var db = postgres.CreateContext())
-        {
-            var account = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
-            wallet = await LedgerSeeder.CreateWalletAsync(db, account, "Fatura testi", ct);
-        }
+        var account = await LedgerSeeder.CreateAccountAsync(db, AccountType.Person, ct);
+        var wallet = await LedgerSeeder.CreateWalletAsync(db, account, "Fatura testi", ct);
 
         var refs = new string[count];
 
@@ -257,17 +249,20 @@ public sealed class ProcessInvoiceTests(PostgresFixture postgres)
         {
             refs[i] = $"pi_{Guid.NewGuid():N}";
 
-            await TopupHandler().HandleAsync(new TopupReceived
+            db.ProviderFees.Add(new ProviderFee
             {
+                Id = Guid.NewGuid(),
+                TransactionId = await LedgerSeeder.FundAsync(db, wallet, 100m, ct),
                 Provider = Bank,
-                EventId = $"evt_{Guid.NewGuid():N}",
-                LedgerAccountId = wallet,
-                Amount = 100m,
+                SettlementModel = FeeSettlement.Invoiced,
+                ExpectedAmount = TestProviders.BankFixed,
                 Currency = "TRY",
                 ProviderRef = refs[i],
                 OccurredAt = DateTimeOffset.UtcNow
-            }, ct);
+            });
         }
+
+        await db.SaveChangesAsync(ct);
 
         return refs;
     }
