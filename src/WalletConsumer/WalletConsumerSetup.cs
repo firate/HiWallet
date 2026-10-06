@@ -1,11 +1,13 @@
 using HiWallet.Shared.Infrastructure.HealthChecks;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WalletConsumer.CardTopups;
 using HiWallet.WalletConsumer.Deposits;
 using HiWallet.WalletConsumer.Identity;
 using HiWallet.WalletConsumer.Settlements;
 using HiWallet.WalletConsumer.Topups;
 using HiWallet.WalletConsumer.Withdrawals;
 using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.CardTopups;
 using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Application.Settlements;
 using HiWallet.WalletService.Application.Topups;
@@ -46,6 +48,11 @@ public static class WalletConsumerSetup
         services.AddScoped<ProcessDepositHandler>();
         services.AddHostedService<DepositConsumer>();
         services.AddHolderIdentity();
+
+        // Kartla yükleme: kart yüklemesi servisi ödemenin sonucunu bildiriyor. Ödendiyse para
+        // cüzdana, ödenmediyse limit payı serbest.
+        services.AddScoped<ProcessCardTopupHandler>();
+        services.AddHostedService<CardTopupConsumer>();
 
         // Zamanlanmış işler burada, ayrı bir wallet-jobs deployable'ında DEĞİL:
         // ölçüt erişim seviyesi (decisions.md madde 28) ve job'ların da ingress'i
