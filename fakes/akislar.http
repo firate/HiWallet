@@ -1,5 +1,5 @@
 # Uçtan uca çekim akışları. Birden fazla servise dokunuyor: wallet-api,
-# stripe-fake, orchestrator, bank-fake.
+# orchestrator, bank-fake.
 #
 # Rider'da sağ üstten ortamı seç. Depoda "local" var; stack başka bir makinedeyse
 # kendi ortamını http-client.private.env.json'a ekle (gitignore'da).
@@ -46,12 +46,11 @@ Content-Type: application/json
     client.global.set("walletId", response.body.walletId);
 %}
 
-### 3. 500 TL yükle (kartla)
-# Bir iki saniye bekle, sonra 6 ile bakiyenin 500 olduğunu gör.
-POST {{stripeFake}}/v1/topups
-Content-Type: application/json
-
-{ "walletId": "{{walletId}}", "amount": 500, "currency": "TRY", "mode": "Normal" }
+### 3. 500 TL yükle
+# Cüzdana para kartla yüklemeyle ya da havaleyle giriyor; ikisi de müşteri adına
+# başlıyor (kartta müşterinin token'ı ve ödeme sayfası, havalede hesap numarası).
+# Adımlar docs/verify-compose.md "Kartla yükleme" ve "Havale ile yükleme"de.
+# Bakiye 500 olduktan sonra Akış 1'e geç.
 
 # ============================================================================
 # Akış 1 — başarılı çekim

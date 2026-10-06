@@ -1,68 +1,46 @@
-# stripe-fake — kart sağlayıcısının yerinde duran servis. ÜRETİMDE YOK.
+# stripe-fake — kart sağlayıcısının yerinde duran servis. CANLIDA YOK.
 #
 # Rider'da sağ üstten ortamı seç (fakes/http-client.env.json). Depoda "local" var;
 # stack başka bir makinedeyse kendi ortamını http-client.private.env.json'a ekle.
 #
-# Sıra: önce 1 ve 2'yi koş, cüzdan kimliği sonraki request'lere otomatik taşınıyor.
-# Sonra 3–6'dan istediğini, her birinin ardından 7 ile bakiyeye bak.
-#
-# Gönderim ARKA PLANDA: 202 döndüğünde webhook henüz gitmedi. Bakiyenin
-# değişmesi için bir iki saniye bekle (webhook → inbox → relay → kuyruk →
-# wallet-consumer → ledger).
+# Asıl akışta ödemeyi card-topup açıyor (müşterinin kartla yüklemesi, limit payından
+# sonra) ve müşteri ödeme sayfasında karar veriyor; adımlar docs/verify-compose.md
+# "Kartla yükleme"de. Bu dosya sahte sağlayıcının kendi API'sini tek başına deniyor:
+# buradan açılan ödemenin referansı bir kart yüklemesi değil, sonucu card-topup'ta
+# dead-letter'a düşer ve cüzdana para gitmez.
 
-### 1. Hesap aç
-POST {{walletApi}}/v1/accounts
+### 1. Ödeme aç
+# Beklenen: 201, status "requires_payment" ve paymentUrl. Aynı reference ile ikinci
+# istek yeni ödeme açmaz, ilkini 200 ile döner; farklı tutarla 409.
+POST {{stripeFake}}/v1/payments
 Content-Type: application/json
 
-{ "type": "Person" }
+{
+  "reference": "{{$uuid}}",
+  "amount": 100,
+  "currency": "TRY",
+  "returnUrl": "http://localhost:8102/kart-yukleme",
+  "expiresAt": "2030-01-01T00:00:00+00:00"
+}
 
 > {%
-    client.global.set("accountId", response.body.accountId);
+    client.global.set("paymentId", response.body.id);
+    client.global.set("reference", response.body.reference);
 %}
 
-### 2. Cüzdan aç
-POST {{walletApi}}/v1/accounts/{{accountId}}/wallets
-Content-Type: application/json
+### 2. Ödemeyi kimliğiyle sorgula
+GET {{stripeFake}}/v1/payments/{{paymentId}}
 
-{ "name": "Stripe denemesi", "currency": "TRY" }
+### 3. Ödemeyi açanın referansıyla sorgula
+# card-topup'ın taraması bu yolu kullanıyor: açılışın cevabı kaybolduysa ödeme
+# kimliğini bilmiyor. Bu referansla ödeme yoksa 404.
+GET {{stripeFake}}/v1/payments?reference={{reference}}
 
-> {%
-    client.global.set("walletId", response.body.walletId);
-%}
+### 4. Ödeme sayfası
+# Tarayıcıda aç: "Öde" ya da "Vazgeç". Karar müşteriyi returnUrl'e yolluyor (303) ve
+# sonucu topup-webhook'a imzalı webhook'la gönderiyor. Süresi dolan ödeme için webhook
+# GİTMİYOR; sonucu 2 ya da 3 söylüyor (status "expired").
+GET {{stripeFake}}/odeme/{{paymentId}}
 
-### 3. Normal — tek event
-# Beklenen: bakiye +100.
-POST {{stripeFake}}/v1/topups
-Content-Type: application/json
-
-{ "walletId": "{{walletId}}", "amount": 100, "currency": "TRY", "mode": "Normal" }
-
-### 4. Duplicate — AYNI event iki kez
-# Beklenen: bakiye YİNE +100, +200 DEĞİL. İki webhook gidiyor ama eventId aynı;
-# topup-webhook'un inbox'ı ikincisini (provider, event_id) UNIQUE ile yutuyor.
-POST {{stripeFake}}/v1/topups
-Content-Type: application/json
-
-{ "walletId": "{{walletId}}", "amount": 100, "currency": "TRY", "mode": "Duplicate" }
-
-### 5. Delayed — gecikmeli
-# Hemen 7'yi koşarsan bakiye henüz DEĞİŞMEMİŞ olmalı. Bu hata değil, eventual
-# davranışın görünür hali. 5 sn sonra tekrar bak.
-POST {{stripeFake}}/v1/topups
-Content-Type: application/json
-
-{ "walletId": "{{walletId}}", "amount": 100, "currency": "TRY", "mode": "Delayed", "delayMilliseconds": 5000 }
-
-### 6. OutOfOrder — 5 event, en yenisi önce
-# Beklenen: bakiye +250 (5 × 50). Top-up'ta sıra nihai bakiyeyi etkilemez; bu
-# senaryo hepsinin iniyor olmasını gösteriyor.
-POST {{stripeFake}}/v1/topups
-Content-Type: application/json
-
-{ "walletId": "{{walletId}}", "amount": 50, "currency": "TRY", "mode": "OutOfOrder", "count": 5 }
-
-### 7. Bakiye
-GET {{walletApi}}/v1/wallets/{{walletId}}
-
-### 8. Health check
+### 5. Health check
 GET {{stripeFake}}/health/ready
