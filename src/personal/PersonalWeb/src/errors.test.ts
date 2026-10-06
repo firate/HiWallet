@@ -31,6 +31,16 @@ describe('errorText', () => {
     expect(errorText(rejected(422, { rule: 'Kyc.IncomingTotal.Monthly' }))).toBe('Alıcı bu tutarı alamıyor.')
   })
 
+  /** Kartla yüklemede parayı alan da isteyen de müşterinin kendisi: limitin onun olduğu söyleniyor. */
+  it('kartla yüklemenin limit reddini müşterinin diliyle söylüyor', () => {
+    const error = rejected(422, {
+      detail: "Bu yükleme doğrulama seviyenin limitine sığmıyor: 'Kyc.IncomingTotal.Monthly' limiti 5500 TRY.",
+      rule: 'card_topup_limit',
+    })
+
+    expect(errorText(error)).toBe('Bu yükleme doğrulama seviyenin limitine sığmıyor.')
+  })
+
   it('bilinmeyen kuralda sunucunun mesajını gösteriyor', () => {
     const error = rejected(409, { title: 'Bu e-postayla bir hesap var.', rule: 'email_registered' })
 
