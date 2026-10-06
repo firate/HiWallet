@@ -160,6 +160,49 @@ Gönderenin adı, IBAN'ı ve kimlik numarası burada YOK: kişisel veri ledger'l
 durmuyor, banka entegrasyonunun `bank_deposits` tablosunda kalıyor. Kaynağa iade oradaki
 IBAN'a yapılacak.
 
+## card_topup_holds ve card_topup_hold_closures
+
+Kartla yüklemenin limit payı. Ledger DEĞİL: para henüz kart sağlayıcısında, pay yalnızca
+"bu tutar yolda" diyor. Ödeme açılmadan önce yazılıyor (`POST /v1/card-topup-holds`) ve
+seviye limitinin gelen para hesabında sayılıyor: açık pay, hesaba gelen havale, transfer ve
+başka kart yüklemesiyle birlikte toplanıyor.
+
+İkisi de insert-only; uygulama rolünde UPDATE ve DELETE REVOKE. Açık pay = kapanışı olmayan
+pay. Pay saatle düşmüyor: yalnızca ödeme kapanınca kapanış satırı yazılıyor.
+
+```sql
+CREATE TABLE card_topup_holds (
+    id          uuid PRIMARY KEY,                           -- kartla yüklemenin kimliği
+    account_id  uuid NOT NULL REFERENCES accounts(id),      -- limitin uygulandığı hesap
+    wallet_id   uuid NOT NULL REFERENCES ledger_accounts(id),
+    amount      numeric(19,4) NOT NULL CHECK (amount > 0),
+    currency    char(3) NOT NULL,
+    provider    text NOT NULL,                              -- kart sağlayıcısı
+    created_at  timestamptz NOT NULL
+);
+
+CREATE INDEX ix_card_topup_holds_account ON card_topup_holds (account_id);
+CREATE INDEX ix_card_topup_holds_wallet ON card_topup_holds (wallet_id);
+
+CREATE TABLE card_topup_hold_closures (
+    hold_id                uuid PRIMARY KEY REFERENCES card_topup_holds(id),
+    outcome                text NOT NULL CHECK (outcome IN ('paid','failed')),
+    ledger_transaction_id  uuid NULL,                       -- ödendiyse paranın yazıldığı işlem
+    closed_at              timestamptz NOT NULL,
+    CHECK ((outcome = 'paid') = (ledger_transaction_id IS NOT NULL))
+);
+```
+
+**Kapanış satırı idempotency kapısı.** Pay başına tek kapanış, `ON CONFLICT DO NOTHING` ile
+yazılıyor ve ödendi kapanışı ledger'la AYNI transaction'da. Aynı kapanış bildirimden de
+taramadan da gelebiliyor, broker aynı mesajı iki kez teslim edebiliyor. Ödenen yüklemenin
+ledger anahtarı `provider:card_topup_id`.
+
+Payın kimliği kart yüklemesi servisindeki yüklemenin ve sağlayıcıdaki ödeme referansının
+kimliğiyle aynı. Pay yazılırken hesap satırı kilitleniyor (`SELECT ... FOR UPDATE`): aynı
+hesaba gelen paranın limit kararları (pay, havale, transferin alıcı tarafı) sırayla
+veriliyor.
+
 ## account_members
 
 Hangi kimliğin hangi hesap üzerinde işlem yapabildiği. Kimlik, kimlik sağlayıcıdaki
@@ -324,9 +367,9 @@ kalır ve hiçbir hata da vermezdi.
 
 | `actor_type` | `actor_id` | ne zaman |
 | --- | --- | --- |
-| `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi, cüzdana geçen havale |
+| `customer` | hesabın kimliği | akışı hesap sahibi başlattı: transfer, çekim düşmesi, cüzdana geçen havale, ödenen kartla yükleme |
 | `employee` | kimlik sağlayıcıdaki `sub` | backoffice — kimlik doğrulama gelince |
-| `system` | akışın adı (`topup`, `deposit`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`, `promo-campaign`) | insan yok |
+| `system` | akışın adı (`deposit`, `settlement`, `provider-invoice`, `withdrawal-saga`, `promo-expiry`, `promo-campaign`) | insan yok |
 
 Cüzdana geçen havalenin aktörü hesap: havaleyi müşteri başlattı ve gönderenin o olduğunu
 kimlik numarası doğruladı. Askıya alınan havalenin göndereni belirsiz, aktörü `deposit`.
@@ -342,7 +385,7 @@ eşit sayılmaz ve aynı fatura iki kez yazılabilir hale gelir (`decisions.md` 
 | `type`             | `ledger_account_id`                          | `idempotency_key`   |
 | ------------------ | ------------------------------------- | ------------------- |
 | transfer (5 tip)   | gönderen `user_wallet`                | client'ın key'i     |
-| `topup` (kart)     | alıcı `user_wallet`                   | `provider:event_id` |
+| `topup` (kart)     | alıcı `user_wallet`                   | `provider:card_topup_id` |
 | `topup` (havale)   | alıcı `user_wallet`                   | `provider:bank_reference` |
 | `suspended_deposit` | bankanın `suspense`'i                | `provider:bank_reference` |
 | `withdrawal`       | çeken `user_wallet`                   | client'ın key'i     |
@@ -693,9 +736,9 @@ toplam          0              toplam       0
 İki durumda da nostro aynı tutarla hareket ediyor: banka bakiyesiyle ledger her durumda
 tutuyor.
 
-### Top-up (net settlement, sağlayıcı 2.9 kesip 97.1 gönderiyor)
+### Kartla yükleme (net settlement, sağlayıcı 2.9 kesip 97.1 gönderiyor)
 
-Webhook işlendiğinde:
+Yükleme ödendi diye kapandığında:
 
 ```
 user_wallet  +100
