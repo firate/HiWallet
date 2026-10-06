@@ -567,8 +567,13 @@ havaleler) onu bulup aynı yoldan wallet'a gönderiyor. `bank_deposits.discovere
 
 ### Kartla yükleme
 
-Bireysel uygulamada kayıt olmuş bir müşterinin token'ı ve TL cüzdanı gerekiyor. Ön API'den
-başlat (web BFF'i dönüş adresini kendisi kuruyor; mobil ön API'de `returnUrl` gövdede):
+Bireysel uygulamada kayıt olmuş ve temel doğrulamayı tamamlamış bir müşteri gerekiyor.
+Uygulamada cüzdanın sayfasında "Kartla para yükle", tutarı yaz, "Ödemeye geç": tarayıcı
+sahte sağlayıcının ödeme sayfasına gidiyor. Orada "Öde" de; sayfa uygulamanın
+`/kart-yukleme` sayfasına dönüyor ve durum birkaç saniye içinde "Ödendi" oluyor.
+
+Aynısı mobil ön API'den, müşterinin token'ıyla (web BFF'i dönüş adresini kendisi kuruyor;
+mobil ön API'de `returnUrl` gövdede):
 
 ```bash
 curl -s -X POST localhost:8097/v1/card-topups -H "Authorization: Bearer $TOKEN" \

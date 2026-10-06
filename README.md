@@ -168,7 +168,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
 796 test: 255 unit (DB'siz), 541 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 30, panelin 37.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 41, panelin 37.
 
 Withdrawal zinciri broker'la uçtan uca koşuyor: `POST /v1/withdrawals` → orchestrator →
 wallet-consumer → bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →
@@ -346,8 +346,9 @@ curl -X POST http://localhost:8091/v1/transfers \
 ortamı seç, request'leri sırayla koş; kimlikler bir sonrakine kendiliğinden taşınıyor.
 Aşağıdaki `curl` örnekleri aynı işi yapıyor.
 
-**Kartla yükleme.** En kolayı bireysel web uygulamasından: tutarı yaz, ödeme sayfasında
-"Öde" de. API'den, müşterinin token'ıyla:
+**Kartla yükleme.** En kolayı bireysel web uygulamasından: cüzdanın sayfasında "Kartla para
+yükle", tutarı yaz, ödeme sayfasında "Öde" de. Ödeme sayfası uygulamanın `/kart-yukleme`
+sayfasına dönüyor; sonuç orada kesinleşene kadar izleniyor. API'den, müşterinin token'ıyla:
 
 ```bash
 curl -X POST http://localhost:8097/v1/card-topups -H "Authorization: Bearer $TOKEN" \
