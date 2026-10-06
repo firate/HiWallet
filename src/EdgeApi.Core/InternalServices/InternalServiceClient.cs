@@ -130,3 +130,6 @@ public sealed class OnboardingClient(HttpClient http) : InternalServiceClient(ht
 
 /// <summary>İç ağdaki <c>staff-admin</c>: çalışanlar, panelin rolleri ve rollerin izinleri.</summary>
 public sealed class StaffAdminClient(HttpClient http) : InternalServiceClient(http);
+
+/// <summary>İç ağdaki <c>card-topup</c>: kartla yüklemeyi başlatma ve durumu.</summary>
+public sealed class CardTopupClient(HttpClient http) : InternalServiceClient(http);
