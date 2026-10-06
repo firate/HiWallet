@@ -7,6 +7,8 @@ public sealed class PersonalMobileApiFactory(
     HttpMessageHandler? walletApi = null,
     HttpMessageHandler? withdrawalOrchestrator = null,
     int? rateLimitBurst = null,
-    HttpMessageHandler? onboarding = null)
+    HttpMessageHandler? onboarding = null,
+    HttpMessageHandler? cardTopup = null)
     : EdgeApiFactory<PersonalMobileApiApp>(
-        TestTokens.PersonalMobileAudience, walletApi, withdrawalOrchestrator, rateLimitBurst, onboarding);
+        TestTokens.PersonalMobileAudience, walletApi, withdrawalOrchestrator, rateLimitBurst, onboarding,
+        cardTopup: cardTopup);

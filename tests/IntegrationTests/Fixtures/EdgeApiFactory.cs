@@ -25,13 +25,17 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// <param name="onboarding">
 /// onboarding'e giden handler; yalnızca bireysel müşterinin ön API'leri onu kullanıyor.
 /// </param>
+/// <param name="cardTopup">
+/// kart yüklemesi servisine giden handler; yalnızca bireysel müşterinin ön API'leri onu kullanıyor.
+/// </param>
 public abstract class EdgeApiFactory<TEntryPoint>(
     string audience,
     HttpMessageHandler? walletApi,
     HttpMessageHandler? withdrawalOrchestrator,
     int? rateLimitBurst,
     HttpMessageHandler? onboarding = null,
-    HttpMessageHandler? staffAdmin = null)
+    HttpMessageHandler? staffAdmin = null,
+    HttpMessageHandler? cardTopup = null)
     : WebApplicationFactory<TEntryPoint>
     where TEntryPoint : class
 {
@@ -50,6 +54,7 @@ public abstract class EdgeApiFactory<TEntryPoint>(
                 ["InternalServices:WithdrawalOrchestrator:BaseUrl"] = "http://withdrawal-orchestrator",
                 ["InternalServices:Onboarding:BaseUrl"] = "http://onboarding",
                 ["InternalServices:StaffAdmin:BaseUrl"] = "http://staff-admin",
+                ["InternalServices:CardTopup:BaseUrl"] = "http://card-topup",
                 ["RateLimiting:Registration:BurstSize"] = burst,
                 ["RateLimiting:Registration:SustainedPerMinute"] = sustained,
                 ["RateLimiting:Client:BurstSize"] = burst,
@@ -80,6 +85,9 @@ public abstract class EdgeApiFactory<TEntryPoint>(
 
             services.AddHttpClient(nameof(StaffAdminClient))
                 .ConfigurePrimaryHttpMessageHandler(() => staffAdmin ?? new UnreachableHandler());
+
+            services.AddHttpClient(nameof(CardTopupClient))
+                .ConfigurePrimaryHttpMessageHandler(() => cardTopup ?? new UnreachableHandler());
         });
     }
 }

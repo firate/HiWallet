@@ -6,6 +6,8 @@ namespace HiWallet.IntegrationTests.Fixtures;
 public sealed class PersonalWebBffFactory(
     HttpMessageHandler? walletApi = null,
     HttpMessageHandler? withdrawalOrchestrator = null,
-    HttpMessageHandler? onboarding = null)
+    HttpMessageHandler? onboarding = null,
+    HttpMessageHandler? cardTopup = null)
     : BffFactory<PersonalWebBffApp>(
-        TestTokens.Issuer, "personal-web", staff: false, walletApi, withdrawalOrchestrator, onboarding);
+        TestTokens.Issuer, "personal-web", staff: false, walletApi, withdrawalOrchestrator, onboarding,
+        cardTopup: cardTopup);
