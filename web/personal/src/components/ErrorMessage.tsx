@@ -1,4 +1,5 @@
 import { ApiError } from '../api'
+import { errorText } from '../errors'
 
 /** BFF'in reddi ProblemDetails; doğrulama hatalarında alan başına mesajlar da gösteriliyor. */
 export function ErrorMessage({ error }: { error: Error }) {
@@ -6,7 +7,7 @@ export function ErrorMessage({ error }: { error: Error }) {
 
   return (
     <div className="error" role="alert">
-      <p>{error.message}</p>
+      <p>{errorText(error)}</p>
       {fieldErrors.length > 0 && (
         <ul>
           {fieldErrors.map((message) => (
