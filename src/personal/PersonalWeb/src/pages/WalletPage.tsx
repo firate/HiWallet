@@ -43,7 +43,7 @@ export function WalletPage() {
             Banka hesabına çek
           </Link>
         </div>
-        <DepositLink accountId={accountId} walletId={walletId} />
+        <TopupLinks accountId={accountId} walletId={walletId} />
       </section>
       <Movements walletId={walletId} />
       <Promos walletId={walletId} />
@@ -52,11 +52,11 @@ export function WalletPage() {
 }
 
 /**
- * Havale hesap numarasıyla geliyor ve bu para birimindeki varsayılan cüzdana düşüyor:
- * bağlantı yalnızca o cüzdanda. Bireysel hesapta ve doğrulama tamamlanmışsa; doğrulanmamış
- * hesabın gelen para limiti sıfır.
+ * Para yükleme yalnızca bireysel hesapta ve doğrulama tamamlanmışsa; doğrulanmamış hesabın
+ * gelen para limiti sıfır. Kart yüklemesi bu cüzdana gidiyor. Havale hesap numarasıyla
+ * geliyor ve bu para birimindeki varsayılan cüzdana düşüyor: bağlantısı yalnızca o cüzdanda.
  */
-function DepositLink({ accountId, walletId }: { accountId: string; walletId: string }) {
+function TopupLinks({ accountId, walletId }: { accountId: string; walletId: string }) {
   const account = useQuery({ queryKey: ['accounts', accountId], queryFn: () => api.account(accountId) })
 
   if (!account.data) {
@@ -66,14 +66,21 @@ function DepositLink({ accountId, walletId }: { accountId: string; walletId: str
   const { kycLevel, wallets } = account.data
   const isDefault = wallets.some((wallet) => wallet.walletId === walletId && wallet.isDefault)
 
-  if (kycLevel === null || kycLevel === 'Unknown' || !isDefault) {
+  if (kycLevel === null || kycLevel === 'Unknown') {
     return null
   }
 
   return (
-    <p>
-      <Link to={`/hesaplar/${accountId}/yukle`}>Havaleyle para yükle</Link>
-    </p>
+    <>
+      <p>
+        <Link to={`/cuzdanlar/${walletId}/kartla-yukle`}>Kartla para yükle</Link>
+      </p>
+      {isDefault && (
+        <p>
+          <Link to={`/hesaplar/${accountId}/yukle`}>Havaleyle para yükle</Link>
+        </p>
+      )}
+    </>
   )
 }
 
