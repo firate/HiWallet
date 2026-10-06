@@ -480,19 +480,33 @@ Beklenen: son istek işyeri hesabını dönüyor. Aynı istek mobil uygulamanın
 
 ### Hesap ve cüzdan kurma
 
-Aşağıdaki iki akış da bir cüzdan istiyor. `jq` ile kimlikleri kabuk değişkenine al:
+Aşağıdaki akışlar müşterinin hesabını ve TL cüzdanını istiyor. İkisi kayıtta açıldı; `jq`
+ile kabuk değişkenine al. `TCKN` doğrulamada verilen numara:
 
 ```bash
-ACCOUNT=$(curl -s -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"type":"Person"}' | jq -r .accountId)
+ACCOUNT=$(curl -s localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
+  | jq -r '.items[] | select(.type == "Person") | .accountId')
 
-WALLET=$(curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}' | jq -r .walletId)
+ACCOUNT_NUMBER=$(curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN" \
+  | jq -r .accountNumber)
 
-echo "$ACCOUNT / $WALLET"
+WALLET=$(curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN" \
+  | jq -r '.wallets[] | select(.currency == "TRY" and .isDefault) | .walletId')
+
+TCKN=<doğrulamada verilen numara>
+
+echo "$ACCOUNT / $ACCOUNT_NUMBER / $WALLET"
 ```
 
-Cüzdan sıfır bakiyeyle açılır; para aşağıdaki top-up akışıyla girer. Doğrudan
+Hesaba ikinci bir cüzdan da açılabiliyor. Hesap numarasına gelen para varsayılan cüzdana
+düşmeye devam ediyor; varsayılanı müşteri değiştiriyor:
+
+```bash
+curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}'
+```
+
+Cüzdan sıfır bakiyeyle açılır; para aşağıdaki havale ve kart yüklemesiyle girer. Doğrudan
 bakiyeye yazan bir endpoint YOK — olsaydı zero-sum invariant'ı delerdi.
 
 ### Çekim akışını uçtan uca koşturma
