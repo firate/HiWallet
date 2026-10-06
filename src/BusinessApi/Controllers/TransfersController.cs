@@ -33,7 +33,7 @@ public sealed class TransfersController(WalletApiClient walletApi) : ControllerB
     {
         var response = await walletApi.PostAsync<TransferResponse>("v1/transfers", request, idempotencyKey, ct);
 
-        // Location YOK: işlemin detay ucu yok. wallet-api'nin Location'ı iç adres.
+        // Location YOK: işlemin detay ucu yok.
         return StatusCode(StatusCodes.Status201Created, response);
     }
 }
