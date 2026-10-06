@@ -212,6 +212,24 @@ public sealed class CardTopupServiceTests(PostgresFixture postgres, CardTopupFix
         (await db.CardTopupHolds.CountAsync(h => h.WalletId == _wallet, ct)).ShouldBe(1);
     }
 
+    /// <summary>
+    /// Ödeme sayfası müşteriyi dönüş adresine yüklemenin kimliğiyle yolluyor: arayüz hangi
+    /// yüklemenin sonucunu soracağını oradan biliyor.
+    /// </summary>
+    [Fact]
+    public async Task OdemeSayfasi_DonusAdresineYuklemeKimligiyle()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = await PendingAsync(100m, ct);
+        var topup = await TopupAsync(id, ct);
+
+        var decided = await _provider.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false })
+            .PostAsync($"/odeme/{topup.PaymentId}", new FormUrlEncodedContent([new("action", "cancel")]), ct);
+
+        decided.StatusCode.ShouldBe(HttpStatusCode.SeeOther);
+        decided.Headers.Location.ShouldBe(new Uri($"{ReturnUrl}?cardTopupId={id}"));
+    }
+
     /// <summary>Limit yetmiyor: ödeme hiç açılmıyor, wallet'ın reddi aynen dönüyor.</summary>
     [Fact]
     public async Task LimitYetmiyor_422_OdemeAcilmaz()
