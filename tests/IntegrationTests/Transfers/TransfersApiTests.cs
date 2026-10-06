@@ -125,6 +125,9 @@ public sealed class TransfersApiTests(PostgresFixture postgres) : IAsyncLifetime
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         body.GetProperty("replayed").GetBoolean().ShouldBeFalse();
         body.GetProperty("transactionId").GetGuid().ShouldNotBe(Guid.Empty);
+
+        // İşlemin detay ucu yok; Location olmayan bir adrese işaret etmemeli.
+        response.Headers.Location.ShouldBeNull();
     }
 
     [Fact]
