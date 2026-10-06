@@ -20,6 +20,7 @@
 #   bank-webhook             kısıtlı ingress  — yalnızca bankanın IP'leri
 #   wallet-consumer          ingress YOK      — mesajları kendisi kuyruktan çekiyor
 #   withdrawal-orchestrator  iç ağ            — çekim saga'sı
+#   card-topup               iç ağ            — kartla yükleme: limit payı, ödeme, kapanış
 #   bank-adapter             ingress YOK      — bankayı kendisi arıyor
 #
 # Kimlik sağlayıcı Keycloak: token'ı o imzalıyor, ön API'ler ve iç servisler
@@ -41,29 +42,30 @@
 #   wallet-api + wallet-consumer  → WalletService.Core
 #   bank-adapter + bank-webhook   → BankIntegration.Core
 #
-# Dört veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
+# Beş veritabanı: her servis sınırı kendi şemasında. Orchestrator wallet
 # tablolarına yazamıyor — saga'nın anlamı buna bağlı (madde 7 ve 33). Sahte
 # servislerin veritabanı YOK: bank-fake'in hafızası bellekte ve yeniden
 # başlatınca siliniyor (madde 35).
 
-# Bağlantı havuzu bütçesi. Altı uygulama AYNI Postgres örneğine bakıyor ve
+# Bağlantı havuzu bütçesi. Yedi uygulama AYNI Postgres örneğine bakıyor ve
 # `max_connections` örnek bazında, veritabanı bazında DEĞİL — yani havuzlar
 # toplanıyor. Postgres'in varsayılanı 100; sınırsız bırakılan her servis
-# Npgsql'in varsayılanı olan 100'ü isteyebilir ve altısı birden 600'e çıkar.
+# Npgsql'in varsayılanı olan 100'ü isteyebilir ve yedisi birden 700'e çıkar.
 # O noktada havuz tükenmeden ÖNCE Postgres "too many connections" der.
 #
 #   wallet-api                30   ön API'lerin trafiği, en yüksek eşzamanlılık
 #   wallet-consumer           16   prefetch=1, sıralı tüketim
 #   withdrawal-orchestrator   16   API + tüketici + relay + job
 #   topup-webhook             10   IP kısıtlı, yalnızca inbox yazıyor
+#   card-topup                10   API + tüketici + relay + tarama
 #   bank-adapter              10   tüketici + iki relay + tarama
 #   bank-webhook               6   yalnızca inbox yazıyor, en dar yüzey
 #                            ───
-#                             88   psql ve izleme için ~12 pay kalıyor
+#                             98
 #
 # Sahte servisler ve ön API'ler bütçede YOK: veritabanı bağlantısı hiç açmıyorlar.
 #
-# 88, 100'e fazla yaklaşıyor. Bunu kabul etmenin şartı Postgres'in
+# 98, varsayılan 100'ün sınırında. Bunu kabul etmenin şartı Postgres'in
 # max_connections'ının yükseltilmesi; aşağıda postgres servisinde 200 veriliyor.
 # Yükseltilmeseydi doğru yol havuzları kısmak olurdu, sınırı görmezden gelmek
 # değil.
@@ -87,8 +89,9 @@ services:
       WALLET_APP_PASSWORD: ${WALLET_APP_PASSWORD:?WALLET_APP_PASSWORD .env'de tanımlı değil}
       TOPUP_APP_PASSWORD: ${TOPUP_APP_PASSWORD:?TOPUP_APP_PASSWORD .env'de tanımlı değil}
       WITHDRAWAL_APP_PASSWORD: ${WITHDRAWAL_APP_PASSWORD:?WITHDRAWAL_APP_PASSWORD .env'de tanımlı değil}
+      CARD_TOPUP_APP_PASSWORD: ${CARD_TOPUP_APP_PASSWORD:?CARD_TOPUP_APP_PASSWORD .env'de tanımlı değil}
       BANK_APP_PASSWORD: ${BANK_APP_PASSWORD:?BANK_APP_PASSWORD .env'de tanımlı değil}
-    # Havuz bütçesi 88 (dosyanın başı); varsayılan 100 psql'e yer bırakmıyor.
+    # Havuz bütçesi 98 (dosyanın başı); varsayılan 100 psql'e yer bırakmıyor.
     command: ["postgres", "-c", "max_connections=200"]
     volumes:
       # Yalnızca veri dizini BOŞKEN çalışır. Rolleri/parolaları değiştirmek için
@@ -561,6 +564,21 @@ services:
       - Host=postgres;Port=5432;Database=hiwallet_withdrawal;Username=withdrawal_app;Password=${WITHDRAWAL_APP_PASSWORD}
     restart: "no"
 
+  # Kartla yüklemenin kendi veritabanı: card_topups ve card_topup_outbox. Wallet
+  # şemasına DOKUNMUYOR.
+  card-topup-migrator:
+    build:
+      context: .
+      dockerfile: src/CardTopup/Dockerfile
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --connection
+      - Host=postgres;Port=5432;Database=hiwallet_card_topup;Username=card_topup_app;Password=${CARD_TOPUP_APP_PASSWORD}
+    restart: "no"
+
   # Banka entegrasyonunun şeması: bank_transfers ve bank_callbacks. Sahibi
   # BankIntegration.Core; bundle'ı bank-adapter'ın Dockerfile'ı üretiyor.
   # bank-webhook AYRI migrator açmıyor — iki host aynı şema için ayrı bundle
@@ -645,12 +663,15 @@ services:
         condition: service_started
       onboarding:
         condition: service_started
+      card-topup:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       # İç ağdaki adresler. Eksikse uygulama açılmıyor.
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
       InternalServices__Onboarding__BaseUrl: http://onboarding:8080
+      InternalServices__CardTopup__BaseUrl: http://card-topup:8080
       # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan. Hedef
       # kitle bu ön API'nin adı: yalnızca kendisi için verilmiş token'ı kabul ediyor.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
@@ -690,11 +711,14 @@ services:
         condition: service_started
       onboarding:
         condition: service_started
+      card-topup:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
       InternalServices__Onboarding__BaseUrl: http://onboarding:8080
+      InternalServices__CardTopup__BaseUrl: http://card-topup:8080
       # Keycloak'taki istemci. Giriş sayfası tarayıcının gördüğü adreste, discovery
       # ve token ucu iç ağdan.
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
@@ -970,6 +994,58 @@ services:
     # gider. Alıcı taraf deduplike ediyor ama süre tanımak nadirleştiriyor.
     stop_grace_period: 20s
 
+  # İç servis: kartla yükleme ön API'lerden geliyor. Limit payını wallet-api'den
+  # müşterinin token'ıyla istiyor, ödemeyi sağlayıcıda açıyor. Broker'dan sağlayıcının
+  # bildirimini okuyor, kapanışı wallet'a yazıyor (outbox relay).
+  card-topup:
+    build:
+      context: .
+      dockerfile: src/CardTopup/Dockerfile
+      target: final
+    depends_on:
+      card-topup-migrator:
+        condition: service_completed_successfully
+      # Broker BEKLENMİYOR: yükleme başlatmak yalnızca Postgres'e, wallet-api'ye ve
+      # sağlayıcıya bağlı. Kapanış outbox'ta birikiyor.
+      rabbitmq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__CardTopup: Host=postgres;Port=5432;Database=hiwallet_card_topup;Username=card_topup_app;Password=${CARD_TOPUP_APP_PASSWORD};Application Name=hiwallet-card-topup;Maximum Pool Size=10
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__Username: ${RabbitMq__Username}
+      RabbitMq__Password: ${RabbitMq__Password}
+      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
+      InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
+      # Sahtelik tamamen bu adreste; gerçek sağlayıcıya geçerken kod değişmiyor.
+      CardTopups__ProviderUrl: http://stripe-fake:8080
+      # Bkz. wallet-consumer'daki aynı not. Süresi dolan ödemeyi sağlayıcı bildirmiyor;
+      # payı bu tarama serbest bırakıyor.
+      CardTopups__Scan__Interval: ${JOBS_CARD_TOPUP_SCAN_INTERVAL:-00:01:00}
+      Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
+      Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
+      Authentication__Audience: hiwallet-api
+      # Çalışanların Keycloak'ı: backoffice'ten gelen token, yalnızca okuma ucu.
+      Authentication__Staff__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__Staff__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      Authentication__Staff__StaffAdminUrl: http://staff-admin:8080
+      Authentication__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_SERVICE_NAME: hiwallet-card-topup
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${CARD_TOPUP_HOST_PORT:-8109}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 20s
+
   # BİZİM KODUMUZ, canlıda da koşuyor (decisions.md madde 35).
   #
   # INGRESS'İ YOK: komutu kuyruktan alıyor, bankayı kendisi arıyor. ports tanımı
@@ -1118,8 +1194,12 @@ services:
   # Bankadan farkı: yalnızca PARA GİRİŞİ. Stripe'tan para çıkmıyor, o yüzden ne
   # transfer endpoint'i var ne callback alıcısı. Ledger'da nostro'su da yok.
   #
-  # VERİTABANI YOK ve migrator'ı da yok: tetikleyen taraf zaten bir test ya da
-  # insan, süreç ölürse yeniden tetikliyor.
+  # Ödemeyi card-topup açıyor, müşteri ödeme sayfasında karar veriyor, sonuç
+  # topup-webhook'a imzalı webhook'la gidiyor.
+  #
+  # VERİTABANI YOK ve migrator'ı da yok: ödemeler bellekte. Yeniden başlatınca açık
+  # ödemeler siliniyor; card-topup'ın taraması onları sağlayıcıda bulamayıp
+  # ödenmedi diye kapatıyor.
   stripe-fake:
     build:
       context: .
@@ -1133,10 +1213,12 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      Topup__WebhookUrl: http://topup-webhook:8080
+      StripeFake__WebhookUrl: http://topup-webhook:8080
       # topup-webhook'taki Providers__stripe-fake__WebhookSecret ile AYNI olmak
       # zorunda; ayrışırsa her webhook 401 alır ve hiç para girmez.
-      Topup__WebhookSecret: ${STRIPE_FAKE_WEBHOOK_SECRET}
+      StripeFake__WebhookSecret: ${STRIPE_FAKE_WEBHOOK_SECRET}
+      # Ödeme sayfasının tarayıcıdaki adresi: card-topup müşteriyi buraya yolluyor.
+      StripeFake__PublicUrl: ${STRIPE_FAKE_PUBLIC_URL:-http://localhost:8096}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
       OTEL_SERVICE_NAME: hiwallet-stripe-fake

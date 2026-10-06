@@ -63,6 +63,10 @@ http://hiwallet-withdrawal-orchestrator.{$PROXY_DOMAIN} {
 	reverse_proxy withdrawal-orchestrator:8080
 }
 
+http://hiwallet-card-topup.{$PROXY_DOMAIN} {
+	reverse_proxy card-topup:8080
+}
+
 http://hiwallet-stripe-fake.{$PROXY_DOMAIN} {
 	reverse_proxy stripe-fake:8080
 }
