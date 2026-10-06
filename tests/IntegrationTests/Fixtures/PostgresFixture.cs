@@ -158,6 +158,7 @@ public sealed class PostgresCollection
     : ICollectionFixture<PostgresFixture>,
         ICollectionFixture<InboxFixture>,
         ICollectionFixture<OrchestratorFixture>,
+        ICollectionFixture<CardTopupFixture>,
         ICollectionFixture<BankFixture>,
         ICollectionFixture<OnboardingFixture>,
         ICollectionFixture<StaffAdminFixture>

@@ -2,6 +2,7 @@ using HiWallet.Stripe.Fake;
 using HiWallet.Stripe.Fake.Webhooks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,7 +20,11 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// <c>topup-webhook</c>'taki secret ile AYNI olmalı. Testlerden biri bunu bilerek yanlış
 /// veriyor: imza doğrulamasının gerçekten çalıştığını ancak öyle görürsün.
 /// </param>
-public sealed class StripeFakeFactory(HttpClient topupWebhookClient, string? secret = null)
+/// <param name="time">
+/// Sağlayıcının saati; verilmezse gerçek saat. Oturumun süresinin dolduğunu görmek için ileri
+/// alınabilen bir saat veriliyor.
+/// </param>
+public sealed class StripeFakeFactory(HttpClient topupWebhookClient, string? secret = null, TimeProvider? time = null)
     : WebApplicationFactory<StripeFakeApp>
 {
     /// <summary>Ödeme sayfasının tarayıcıdan ulaşılan adresi, testte.</summary>
@@ -42,5 +47,10 @@ public sealed class StripeFakeFactory(HttpClient topupWebhookClient, string? sec
         builder.ConfigureServices(services =>
             services.AddHttpClient(PaymentWebhookSender.HttpClientName)
                 .ConfigurePrimaryHttpMessageHandler(() => new PassthroughHandler(topupWebhookClient)));
+
+        if (time is not null)
+        {
+            builder.ConfigureTestServices(services => services.AddSingleton(time));
+        }
     }
 }
