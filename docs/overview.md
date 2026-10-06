@@ -72,10 +72,11 @@ Mesaj: _Dağıtık karmaşıklığı her yere yayma. Tutarlılığın kritik old
 | business-web-bff        | Ön API: işyeri panelinin BFF'i; veritabanı yok, iskelet                 | —               |
 | backoffice-bff          | Ön API, iç ağ: backoffice panelinin BFF'i; çalışanın oturumu            | —               |
 | withdrawal-orchestrator | Para çekme saga'sının state machine'i                                   | Eventual (saga) |
+| card-topup              | Kartla yüklemenin ömrü: limit payı, ödeme, kapanış; iç ağda             | Eventual        |
 | bank-adapter            | Bankayı HTTP ile arar, sonucu saga'ya yayınlar                          | Idempotent      |
 | bank-webhook            | Bankanın sonuç callback'ini doğrular, inbox'a yazar                     | Idempotent      |
 | bank-fake (BİZİM DEĞİL) | Bankanın API'sinin yerinde durur; **canlıda YOK**                      | —               |
-| topup-webhook           | Kart/banka yükleme webhook'larını alır (imza doğrulama + inbox)         | —               |
+| topup-webhook           | Kart sağlayıcısının ödeme bildirimini alır (imza doğrulama + inbox)    | —               |
 | stripe-fake (BİZİM DEĞİL) | Kart sağlayıcısının yerinde durur; **canlıda YOK**                    | —               |
 | hiwallet-keycloak       | Kimlik sağlayıcı: token'ı imzalıyor; kendi Postgres'i                   | —               |
 
@@ -124,30 +125,45 @@ payment örneği (100 ödeme, 2 komisyon):
 
 Limit ve komisyon kuralları çekirdeğin dışında bir **policy** bileşeninde tutulur; çekirdek `transfer(from, to, amount, type)` alır, policy tipe göre limit/komisyonu uygular, sonuç tek transaction olarak ledger'a yazılır.
 
-## 5. Top-Up Akışı (eventual, idempotent consumer — saga DEĞİL)
+## 5. Kartla Yükleme Akışı (eventual — saga DEĞİL)
 
-Para sisteme dışarıdan girer. Tek adımlı olduğu için saga değil; idempotent consumer yeterli.
+Para sisteme kart sağlayıcısından girer. Kart limitte öncelikli: limit yetmiyorsa ödeme hiç
+açılmaz. Müşteri ödeme sayfasına gider, sonuç sağlayıcının bildirimiyle gelir. Telafi yok:
+ödeme olmazsa hiçbir para hareket etmemiştir, yalnızca limit payı serbest kalır.
 
 ```
-Dış sağlayıcı (`stripe-fake`, `bank-fake`)
+Müşteri (ön API üzerinden)
+  → card-topup  POST /v1/card-topups, Idempotency-Key zorunlu:
+       1. Yüklemeyi kaydet (created).
+       2. wallet-api'den limit payı iste (müşterinin token'ıyla).
+          Limit yetmiyorsa 422 → yükleme rejected, ödeme açılmaz.
+       3. Pay ayrıldı (pending) → sağlayıcıda ödeme aç, referans yüklemenin kimliği.
+       4. 202 + paymentUrl. Müşteri ödeme sayfasına gider.
+Sağlayıcı (`stripe-fake`)
   → topup-webhook:
-       1. İmza doğrula (HMAC: paylaşılan secret ile payload imzalanır;
-          sahte webhook'u engeller). Geçersiz → 401.
-       2. DB transaction: inbox tablosuna yaz (dış event_id UNIQUE).
-          Duplicate event_id → çakışmayı yakala, yine başarı say.
-       3. Commit başarılı → 202 dön. (202, ancak kalıcılık garanti olduktan SONRA;
-          decisions.md madde 29.)
-  → relay (background worker):
-       inbox'taki "unpublished" satırları RabbitMQ'ya publish eder
-       (publisher confirms ile), sonra "published" işaretler.
-  → RabbitMQ (cüzdan-bazlı partitioning — bkz. madde 8)
-  → wallet-consumer:
-       event_id daha önce işlendi mi? (processed_events tablosu)
-       Hayırsa: (processed_events + ledger yazımı) TEK ACID transaction:
-         kullanıcı cüzdanı +X, clearing -X
+       İmzayı doğrula (HMAC, ham gövde), inbox'a yaz ((provider, event_id) UNIQUE),
+       commit sonrası 202 (decisions.md madde 29). Relay RabbitMQ'ya taşır.
+  → card-topup (hiwallet.card-payments):
+       Bildirimi yüklemeyle eşleştir: paid ya da failed. Kapanışı geçişle aynı
+       transaction'da outbox'a yaz; relay wallet'a taşır.
+  → wallet-consumer (hiwallet.card-topups):
+       Kapanış satırı + ledger TEK ACID transaction:
+         paid:   kullanıcı cüzdanı +X, sağlayıcının clearing'i -X, pay kapanır
+         failed: ledger'a hiçbir şey yazılmaz, pay kapanır
 ```
 
-**İki kademe idempotency:** (1) webhook girişinde inbox `event_id` UNIQUE, (2) consumer'da `processed_events` + ledger aynı transaction. İkisi birlikte: webhook kaybolmaz (inbox + relay), çift teslimde bir kez işlenir (idempotency).
+**Süresi dolan ödeme.** Sağlayıcı oturumu kapanan ödemeyi bildirmiyor. card-topup'ın taraması
+oturumu kapanmış yüklemeleri sağlayıcıya sorup kapatıyor; bildirimi kaçırılmış ödemeyi de
+böyle buluyor. Pay saatle düşmüyor, yalnızca sağlayıcının kesin cevabıyla kapanıyor.
+
+**İdempotency her adımda.** Başlatma `card_topups(subject, idempotency_key)` UNIQUE; pay ve
+ödeme yüklemenin kimliğiyle tekil, bu yüzden tekrar eden istek yarım kalan adımı tamamlıyor.
+Bildirim inbox'ta `(provider, event_id)` UNIQUE, aynı sonucun ikinci bildirimi yüklemenin
+durumunda `Ignored`. Wallet'ta kapanış satırı ledger'la aynı transaction'da; ledger anahtarı
+`provider:card_topup_id` (decisions.md madde 27).
+
+Havale ile yükleme ayrı bir yoldan geliyor: bankanın bildirimi `bank-webhook`'a, oradan
+`bank-adapter` üzerinden wallet'a (`CLAUDE.md` "Havale ile yükleme").
 
 ## 6. Withdrawal Akışı (eventual, SAGA orchestration — compensation burada)
 
@@ -238,9 +254,9 @@ Graceful shutdown ile uyumlu: job'lar `CancellationToken`'a saygı duyar, SIGTER
 
 ## 8. Sıralama (Ordering)
 
-Sıralama yalnızca **aynı cüzdan** için önemlidir; farklı cüzdanlar bağımsız, paralel işlenir. Mesajlar cüzdan id'sine göre partition'lanır (RabbitMQ consistent hashing exchange): aynı cüzdanın tüm mesajları aynı kuyruğa düşer, kuyruk `x-single-active-consumer` ile tek tüketici tarafından sırayla işlenir; farklı cüzdanlar paralel akar. Büyük ölçekte de yeterli — tek darboğaz "tek cüzdana saniyede binlerce işlem" ki gerçekçi değil.
+Her kuyruk `x-single-active-consumer` ve `prefetch=1` ile tek tüketici tarafından sırayla işlenir: kuyruğa gelen mesajlar geldikleri sırayla işleniyor. Çekimde sıra ayrıca saga'nın kendisinden geliyor: bir saga'nın aynı anda tek bekleyen komutu var. Kartla yüklemede aynı ödemenin bildirimleri sağlayıcının gönderdiği sırayla işleniyor.
 
-**Sınır.** Bu garanti broker'a VARDIKTAN sonrası için geçerli. Relay çok instance koşarsa `SKIP LOCKED` ile alınan batch'ler farklı hızda yayınlanabiliyor ve sıra daha exchange'e ulaşmadan bozulabiliyor. Bugün relay tek instance ve top-up'lar toplama olduğu için tetiklenmiyor; `decisions.md` madde 30.
+**Sınır.** Bu garanti broker'a VARDIKTAN sonrası için geçerli. Relay çok instance koşarsa `SKIP LOCKED` ile alınan batch'ler farklı hızda yayınlanabiliyor ve sıra daha exchange'e ulaşmadan bozulabiliyor. topup-webhook'un relay'i bu yüzden tek instance; `decisions.md` madde 30.
 
 ## 9. Sahte kurumlar (`fakes/`)
 
@@ -248,12 +264,14 @@ Gerçek Stripe/banka yerine, dış dünya kötülüklerini **bilinçli tetikleye
 
 İkisi de `fakes/` altında, `src/` altında DEĞİL; `src/` → `fakes/` referansı derleme hatası (`HIW001`).
 
-Para girişi — `stripe-fake` ve `bank-fake` (`POST /v1/topups`, `mode` alanı):
+Kartla para girişi — `stripe-fake`:
 
-- **Başarılı** webhook. Karşılığı `Normal`.
-- **Duplicate** gönderim (aynı event iki kez — idempotency testi: "webhook iki kez geldi, bakiye bir kez arttı"). Karşılığı `Duplicate`.
-- **Gecikmeli** gönderim (eventual davranışı görünür kılmak). Karşılığı `Delayed`.
-- **Sırasız** gönderim (ordering/partitioning testi). Karşılığı `OutOfOrder`.
+- Ödeme API'si: `POST /v1/payments` ödeme açar (aynı referansla ikinci istek ilkini döner), `GET /v1/payments?reference=` durumu söyler.
+- Ödeme sayfası `/odeme/{id}`: müşteri "Öde" ya da "Vazgeç" der, sayfa onu dönüş adresine yollar ve sonuç imzalı webhook'la `topup-webhook`'a gider.
+- Oturumun süresi dolan ödeme için webhook GÖNDERMEZ; sonucu sormak gerekiyor.
+
+Havaleyle para girişi — `bank-fake` (`POST /v1/incoming-transfers`): toplama hesabına gelen havale; bildirim gönderilmeden de verilebiliyor, hesap hareketi taramasını sınamak için.
+
 Para çıkışı — yalnızca `bank-fake` (`POST /v1/scenarios`, `outcome` alanı):
 
 - **Başarılı** transfer. Karşılığı `Success`.
@@ -266,9 +284,8 @@ Transfer sonucu SENKRON DÖNMÜYOR — kabul `202 pending`, kesin sonuç callbac
 
 - 5 transfer tipi tek çekirdekten geçiyor, double-entry invariant'ı (toplam sıfır) her işlemde korunuyor.
 - Limit aşımı immediate reddediliyor; komisyon aynı atomik işlemde kesiliyor.
-- Top-up: webhook imzası doğrulanıyor, inbox+relay ile kaybolmuyor, duplicate webhook bir kez işleniyor.
+- Kartla yükleme: limit yetmiyorsa ödeme açılmıyor; webhook imzası doğrulanıyor, inbox+relay ile kaybolmuyor, duplicate webhook bir kez işleniyor; süresi dolan ödemenin payı tarama ile serbest kalıyor.
 - Withdrawal saga'sı uçtan uca çalışıyor; banka fail senaryosunda compensation cüzdana parayı geri yazıyor (ters kayıtla, silmeden).
 - Clearing hesabı bakiyesi "yolda olan parayı" doğru gösteriyor (mutabakat dayanağı).
 - Scheduled mutabakat raporu clearing ile settlement'ı karşılaştırıp tutarsızlığı yakalayabiliyor.
-- Cüzdan-bazlı partitioning ile aynı cüzdanda sıra korunuyor.
-- Trace uçtan uca takip edilebiliyor (webhook → kuyruk → consumer → ledger; API → saga → bank-adapter → banka → callback → compensation).
+- Trace uçtan uca takip edilebiliyor (API → card-topup → sağlayıcı → webhook → kuyruk → consumer → ledger; API → saga → bank-adapter → banka → callback → compensation).

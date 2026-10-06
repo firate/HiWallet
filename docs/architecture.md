@@ -8,7 +8,7 @@ Diyagramlardaki exchange, kuyruk ve hesap adları koddan alındı; uydurulmuş a
 
 ---
 
-## 1. Topoloji: on üç uygulama, altı veritabanı, bir broker
+## 1. Topoloji: on dört uygulama, yedi veritabanı, bir broker
 
 ```mermaid
 flowchart LR
@@ -29,6 +29,7 @@ flowchart LR
         boapi["<b>backoffice-bff</b><br/>ön API, panelin BFF'i"]
         api["<b>wallet-api</b><br/>hesap, cüzdan, transfer"]
         orch["<b>withdrawal-orchestrator</b><br/>çekim saga'sı"]
+        ctop["<b>card-topup</b><br/>kartla yükleme"]
         onb["<b>onboarding</b><br/>kayıt, kimlik doğrulaması"]
         sadm["<b>staff-admin</b><br/>personel, roller, atamalar"]
     end
@@ -59,6 +60,7 @@ flowchart LR
     wdb[("hiwallet_wallet")]
     tdb[("hiwallet_topup")]
     odb[("hiwallet_withdrawal")]
+    cdb[("hiwallet_card_topup")]
     bdb[("hiwallet_bank")]
     ndb[("hiwallet_onboarding<br/>kendi sunucusu")]
     sdb[("hiwallet_staff_admin<br/>kendi sunucusu")]
@@ -75,6 +77,10 @@ flowchart LR
     pwapi --> orch
     papi --> onb
     pwapi --> onb
+    papi --> ctop
+    pwapi --> ctop
+    ctop -->|"limit payı"| api
+    ctop -->|"ödeme aç, sonucu sor"| stripe
     onb -->|"hesabı aç, seviyeyi yükselt"| api
     onb -->|"kullanıcıyı aç"| idp
     onb -->|HTTP| sms
@@ -100,6 +106,7 @@ flowchart LR
     consumer --> wdb
     hook --> tdb
     orch --> odb
+    ctop --> cdb
     adapter --> bdb
     bhook --> bdb
 
@@ -107,6 +114,7 @@ flowchart LR
 
     hook -->|publish| mq
     orch <-->|"publish + consume"| mq
+    ctop <-->|"publish + consume"| mq
     mq -->|consume| consumer
     consumer -->|publish| mq
     mq -->|consume| adapter
@@ -114,12 +122,12 @@ flowchart LR
 ```
 
 
-**İstemci yalnızca kendi ön API'sine bağlanıyor**; `wallet-api`, orchestrator ve
-`onboarding` iç servis. Webhook'lar ve ingress'siz uygulamalar erişim seviyesine göre ayrılıyor
+**İstemci yalnızca kendi ön API'sine bağlanıyor**; `wallet-api`, orchestrator, `card-topup`
+ve `onboarding` iç servis. Webhook'lar ve ingress'siz uygulamalar erişim seviyesine göre ayrılıyor
 (`decisions.md` madde 28): farklı erişim seviyesi ayrı process'lere dağılıyor, aynı
-erişim seviyesi tek process'te toplanıyor. `wallet-consumer` top-up event'lerini,
-havaleleri, çekim komutlarını ve settlement'ı dinliyor; hepsi ingress'siz ve aynı ledger'a
-yazıyor. Havalenin göndereninin hesap sahibi olup olmadığını onboarding'e kendi token'ıyla
+erişim seviyesi tek process'te toplanıyor. `wallet-consumer` kartla yüklemelerin
+kapanışlarını, havaleleri, çekim komutlarını ve settlement'ı dinliyor; hepsi ingress'siz ve
+aynı ledger'a yazıyor. Havalenin göndereninin hesap sahibi olup olmadığını onboarding'e kendi token'ıyla
 soruyor; kimlik numarası wallet'ta tutulmuyor.
 
 Dikkat edilecek dört şey:
@@ -308,52 +316,63 @@ gelen havale seviye değiştirmiyor: kimlik tespiti değil.
 
 ---
 
-## 2. Top-up: para dışarıdan giriyor
+## 2. Yükleme: para dışarıdan giriyor
 
-**Akışı sağlayıcı başlatıyor.** Müşteri kartıyla ödeme yapıyor; parayı alan kurum bunu
-bize webhook ile bildiriyor. İlk temas o webhook. Banka hesabımıza gelen havale bu yoldan
-DEĞİL, bankanın kendi bildirimiyle geliyor (bkz. "Havale ile yükleme").
+### Kartla yükleme
 
-Compose'da bu bildirimi sahte kart sağlayıcısı üretiyor: `POST :8096/v1/topups`
-(stripe-fake). Arkadan `topup-webhook`'a imzalı webhook gönderiyor — gerçek kurumun
-yapacağı çağrının aynısı.
+**Akışı müşteri başlatıyor:** uygulamada tutarı yazıp "Kartla yükle" diyor. Kart limitte
+öncelikli: ödeme açılmadan önce wallet seviye limitinden pay ayırıyor; limit yetmiyorsa
+ödeme hiç açılmıyor ve kart çekilmiyor. Pay açık kaldıkça hesaba gelen her para
+(havale, transfer, başka kart yüklemesi) onunla birlikte sayılıyor.
+
+Compose'da kart sağlayıcısının yerinde `stripe-fake` duruyor: ödemeyi açıyor, ödeme
+sayfasını sunuyor ve sonucu `topup-webhook`'a imzalı webhook'la bildiriyor — gerçek kurumun
+yapacağı çağrıların aynısı.
 
 ```mermaid
 sequenceDiagram
+    participant M as Müşteri
+    participant T as card-topup
+    participant W as wallet-api
     participant P as Sağlayıcı
     participant H as topup-webhook
-    participant R as relay
-    participant MQ as hiwallet.topups
     participant C as wallet-consumer
 
-    P->>H: POST /v1/webhooks/topup/stripe-fake
-    Note right of H: HAM gövde üzerinde HMAC,<br/>parse ETMEDEN önce.<br/>INSERT topup_inbox —<br/>provider + event_id UNIQUE
-    H-->>P: 202 Accepted
-    Note over P,H: Söz: kalıcı kaydettim
-
-    loop her tur
-        R->>R: SELECT FOR UPDATE SKIP LOCKED
-        R->>MQ: publish, routing key = cüzdan id
-        R->>R: işlendi olarak işaretle
-    end
-    Note right of R: ÖNCE publish, SONRA işaretle.<br/>Ters sıra kayıp üretir.<br/>Relay tek instance — advisory lock
-
-    MQ->>C: p0 .. p3, x-consistent-hash
-    Note right of C: prefetch=1, x-single-active-consumer.<br/>processed_events + ledger<br/>AYNI transaction'da
+    M->>T: POST /v1/card-topups (ön API üzerinden, Idempotency-Key)
+    Note right of T: INSERT card_topups — created
+    T->>W: POST /v1/card-topup-holds (müşterinin token'ı)
+    Note right of W: hesap satırı FOR UPDATE.<br/>Seviye limiti + açık paylar.<br/>INSERT card_topup_holds
+    W-->>T: 201 — ya da 422 card_topup_limit
+    T->>P: POST /v1/payments, referans = yüklemenin kimliği
+    P-->>T: paymentUrl
+    T-->>M: 202 pending + paymentUrl
+    M->>P: ödeme sayfası: Öde
+    P-->>M: 303 dönüş adresi?cardTopupId=
+    P->>H: POST /v1/webhooks/topup/stripe-fake + HMAC
+    Note right of H: INSERT topup_inbox, 202.<br/>Relay hiwallet.card-payments'a
+    H->>T: CardPaymentUpdated (kuyruktan)
+    Note right of T: paid + card_topup_outbox<br/>AYNI transaction'da
+    T->>C: CardTopupClosed (hiwallet.card-topups)
+    Note right of C: kapanış satırı + ledger<br/>AYNI transaction'da:<br/>cüzdan +, clearing −
 ```
 
-`relay`, `topup-webhook`'un içinde koşan bir `BackgroundService`. Diyagramda ayrı
-çizilmesinin sebebi akışın orada ikiye ayrılması: HTTP
-request'i inbox'a yazıldığında `202` ile bitiyor, yayın ise relay'in sonraki turunda
-ve ayrı bir transaction'da oluyor.
+**Başlatmanın üç adımı ayrı commit'ler:** kayıt, pay, ödeme. Kayıt önce: süreç pay alındıktan
+sonra ölse bile pay sahipsiz kalmıyor. Pay ve ödeme yüklemenin kimliğiyle tekil; aynı
+`Idempotency-Key` ile tekrar eden istek yarım kalan adımı tamamlıyor. wallet-api'nin reddi
+(`422 card_topup_limit` gibi) ön API'den müşteriye aynen gidiyor.
 
-Routing key cüzdan kimliği: aynı cüzdanın mesajları hep aynı partition'a düşüyor ve
-sıra orada korunuyor. Bu yüzden relay **tek instance** koşuyor — iki relay ayrı
-batch'leri farklı hızda yayınlarsa mesajlar exchange'e ters sırada varır ve kuyruk içi
-sıra garantisi bunu düzeltmez (madde 30).
+**Kapanış iki yoldan gelebilir.** Bildirim asıl yol. Oturumun süresi dolduğunda sağlayıcı
+bildirim göndermiyor; card-topup'ın taraması oturumu kapanmış yüklemeyi sağlayıcıya sorup
+kapatıyor, bildirimi kaçırılmış ödemeyi de böyle buluyor. Ödenmedi kapanışında ledger'a
+hiçbir şey yazılmıyor, yalnızca pay kapanıyor. Pay saatle düşmüyor.
 
-İki kademe idempotency var: inbox'ta `(provider, event_id)` UNIQUE, tüketicide
-`processed_events`. İkincisi ledger yazımıyla aynı transaction'da.
+`topup-webhook`'un relay'i **tek instance** koşuyor: iki relay ayrı batch'leri farklı hızda
+yayınlarsa aynı ödemenin bildirimleri exchange'e ters sırada varır ve kuyruk içi sıra
+garantisi bunu düzeltmez (madde 30).
+
+Idempotency her halkada: inbox'ta `(provider, event_id)` UNIQUE, card-topup'ta yüklemenin
+durumu (aynı sonucun ikinci bildirimi `Ignored`), wallet'ta kapanış satırı ledger'la aynı
+transaction'da ve ledger anahtarı `provider:card_topup_id` (madde 27).
 
 ### Havale ile yükleme
 
@@ -545,17 +564,19 @@ bir banka hesabı. Stripe parayı bizim banka hesabımıza yatırıyor.
 | iş | nerede | varsayılan | ne yapıyor |
 | --- | --- | --- | --- |
 | takılmış saga taraması | orchestrator | 5 dk | iki veritabanı arasında asılı kalan çekimi yakalıyor |
+| açık yükleme taraması | card-topup | 1 dk | oturumu kapanmış ödemeyi sağlayıcıya sorup kapatıyor, terk edilmiş yüklemeyi kapatıyor |
 | banka mutabakatı | bank-adapter | 4 saat | callback'i kaçırılmış transferi bankaya sorup kapatıyor |
 | hesap hareketi taraması | bank-adapter | 4 saat | bildirimi kaçırılmış havaleyi hesap hareketlerinden bulup kaydediyor |
 | mutabakat | wallet-consumer | 6 saat | projeksiyon sapması, gelmeyen settlement, geciken fatura |
 | işletme günlük özeti | wallet-consumer | 1 saat | hacim, işlem sayısı, kesilen komisyon |
 
-Dördü de `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve ilk turunu bir
+Hepsi `pg_try_advisory_lock` ile tek instance'a kilitleniyor ve ilk turunu bir
 aralık sonra koşuyor; dağıtımda ayağa kalkan instance'lar aynı anda tarama
 başlatmıyor.
 
-İki tarama da bir kararın zorunlu tamamlayıcısı: takılmış saga taraması ayrı
+Üç tarama bir kararın zorunlu tamamlayıcısı: takılmış saga taraması ayrı
 orchestrator veritabanının (madde 33), banka mutabakatı asenkron banka sonucunun
-(madde 35). Banka mutabakatının aralığı ayarlanabiliyor, kendisi her kurulumda koşuyor.
+(madde 35), açık yükleme taraması sağlayıcının süresi dolan ödemeyi bildirmemesinin.
+Aralıkları ayarlanabiliyor, kendileri her kurulumda koşuyor.
 Kapsamları farklı: biri iki veritabanımız arasındaki ayrışmaya bakıyor, öbürü bizimle
 banka arasındakine.
