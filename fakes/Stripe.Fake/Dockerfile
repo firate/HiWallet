@@ -12,8 +12,8 @@ WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
 COPY fakes/Stripe.Fake/Stripe.Fake.csproj fakes/Stripe.Fake/
-COPY src/Shared/Shared.Contracts/Shared.Contracts.csproj src/Shared/Shared.Contracts/
-COPY src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/Shared/Shared.Infrastructure/
+COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
+COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
 RUN dotnet restore fakes/Stripe.Fake/Stripe.Fake.csproj
 
 COPY src/ src/

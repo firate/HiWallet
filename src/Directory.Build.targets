@@ -21,7 +21,7 @@
          gerekçeyle veritabanı sınırlarını da Postgres yetkileriyle zorluyor: sınır
          nezaket kuralıysa baskı altında ilk delinen şey olur.
 
-         Ters yön SERBEST: fakes/ → src/Shared'a referans verebiliyor (observability,
+         Ters yön SERBEST: fakes/ → src/shared'e referans verebiliyor (observability,
          sağlık ucu). Sahte servis de log ve trace üretmeli, yoksa uçtan uca trace
          kopar. -->
     <Target Name="HiWalletFakeReferenceGuard" BeforeTargets="ResolveProjectReferences">

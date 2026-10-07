@@ -1,6 +1,6 @@
 /*
  * keycloak.v2 teması PatternFly 5 kullanıyor; renkler onun değişkenleriyle veriliyor.
- * Değerler bireysel web uygulamasının renkleri (web/personal/src/styles.css).
+ * Değerler bireysel web uygulamasının renkleri (src/personal/edge/PersonalWeb/src/styles.css).
  */
 :root {
   --hiwallet-bg: #f6f7f9;

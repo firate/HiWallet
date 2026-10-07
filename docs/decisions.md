@@ -1336,7 +1336,7 @@ kontrolü, `src/` altındaki bir projenin `fakes/`'e referans vermesini hata yap
 Yorum olarak bırakılsaydı ilk acele eden kişi delerdi — projenin veritabanı
 sınırlarını Postgres yetkileriyle zorlamasıyla aynı gerekçe (madde 24).
 
-Ters yön serbest: `fakes/` → `src/Shared`'a bakabiliyor. Sahte servisin de log ve
+Ters yön serbest: `fakes/` → `src/shared`'a bakabiliyor. Sahte servisin de log ve
 trace üretmesi gerekiyor, aksi halde uçtan uca trace onun üzerinde kopar.
 
 **Sonucu iki yol getiriyor ve rolleri EŞİT DEĞİL.**

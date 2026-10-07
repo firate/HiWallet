@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Ön API'lerin ortak kodu: iç servislere giden istemciler ve iç servisin
+         cevabını istemciye aktaran hata eşlemesi. Yalnızca ön API'ler referans verir;
+         iç servisler bu kodu taşımaz.
+
+         Veritabanı ve broker YOK: ön API'nin tek bağımlılığı iç ağdaki HTTP servisleri
+         (CLAUDE.md "Deployable'lar"). -->
+
+    <PropertyGroup>
+        <RootNamespace>HiWallet.EdgeApi</RootNamespace>
+        <AssemblyName>HiWallet.EdgeApi.Core</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience"/>
+        <!-- BFF'lerin tarayıcı oturumu (Sessions/). -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Token doğrulama ve 429 gövdesi: iç servislerle aynı kurulum. -->
+        <ProjectReference Include="..\Shared.Infrastructure\Shared.Infrastructure.csproj"/>
+    </ItemGroup>
+
+</Project>

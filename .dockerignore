@@ -1,0 +1,8 @@
+# İmajların build bağlamına girmeyenler. .NET imajları src/'yi bütün olarak kopyalıyor ve
+# web uygulamaları da src/ altında: makinede kurulmuş paketler ve derleme çıktıları imaja
+# girmesin. Web uygulaması imajda kendi aşamasında npm ci ile kuruluyor; makinenin obj/'si
+# imajdaki restore'un üstüne yazılırsa yayın makinenin yollarını arar.
+**/node_modules
+**/dist
+**/bin
+**/obj
