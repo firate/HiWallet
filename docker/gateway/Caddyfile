@@ -112,8 +112,9 @@ http://hiwallet-nvi-fake.{$PROXY_DOMAIN} {
 	reverse_proxy nvi-fake:8080
 }
 
-# Gönderilen e-postalar: kayıt kodu ve parola sıfırlama.
-http://hiwallet-mailpit.{$PROXY_DOMAIN} {
+# E-posta sağlayıcısının yerinde duran Mailpit; canlıda yok. Gönderilen kayıt kodları,
+# davetler ve parola sıfırlama.
+http://hiwallet-mail-fake.{$PROXY_DOMAIN} {
 	reverse_proxy mailpit:8025
 }
 

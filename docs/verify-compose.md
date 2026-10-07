@@ -378,7 +378,7 @@ dönüyor; liste realm dosyasında.
 aç ve "Kayıt ol"a tıkla:
 
 1. E-postanı yaz. Kod Mailpit'e düşüyor: `http://localhost:8106` (ters proxy arkasında
-   `https://hiwallet-mailpit.<PROXY_DOMAIN>`).
+   `https://hiwallet-mail-fake.<PROXY_DOMAIN>`).
 2. Kodu gir, parolanı belirle (en az 8 karakter). Keycloak'ta kullanıcı ve wallet'ta
    `Unknown` seviyesinde hesap ile bir TRY cüzdanı açılıyor.
 3. "Giriş yap": Keycloak'ın sayfası HiWallet temasıyla, e-posta dolu.
@@ -426,7 +426,7 @@ docker compose logs staff-admin | grep -i "ilk yönetici"
 ```
 
 Davet e-postası Mailpit'te (`http://localhost:8106`; ters proxy arkasında
-`https://hiwallet-mailpit.<PROXY_DOMAIN>`). Bağlantıdan parolanı ve doğrulayıcı
+`https://hiwallet-mail-fake.<PROXY_DOMAIN>`). Bağlantıdan parolanı ve doğrulayıcı
 uygulamayla OTP'ni kur; bağlantı panele dönüyor. Sonraki her girişte kod soruluyor.
 
 `http://localhost:8099` (ters proxy arkasında `https://hiwallet-backoffice-bff.<PROXY_DOMAIN>`)
