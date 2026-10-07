@@ -18,8 +18,8 @@
 	}
 }
 
-# Çalışanın girişi ve paneli yalnızca STAFF_ALLOWED_RANGES'teki adreslerden; gerisine
-# 403. Canlıda bu iki yüzey iç ağda, ters proxy arkasında aynı sınırı kapı çiziyor.
+# Çalışanın ve işletmenin yüzeyleri yalnızca STAFF_ALLOWED_RANGES'teki adreslerden;
+# gerisine 403. Canlıda bunlar iç ağda, ters proxy arkasında aynı sınırı kapı çiziyor.
 (staff_only) {
 	@outside not client_ip {$STAFF_ALLOWED_RANGES}
 	respond @outside 403
@@ -55,6 +55,31 @@ http://hiwallet-backoffice-bff.{$PROXY_DOMAIN} {
 	reverse_proxy backoffice-bff:8080
 }
 
+# Personel yönetimi: rolleri ve izinleri o tutuyor.
+http://hiwallet-staff-admin.{$PROXY_DOMAIN} {
+	import staff_only
+	reverse_proxy staff-admin:8080
+}
+
+# Broker'ın yönetim ekranı: kuyruk ve mesaj silebiliyor. Kapı ona ayırt edici adla
+# gidiyor: "rabbitmq" proxy'nin ağındaki başka bir projenin konteynerine çözülebilir.
+http://hiwallet-rabbitmq.{$PROXY_DOMAIN} {
+	import staff_only
+	reverse_proxy hiwallet-rabbitmq:15672
+}
+
+# Kart sağlayıcısının ve bankanın bildirim uçları. Canlıda yalnızca onların adreslerine
+# açık; burada onları sahteler iç ağdan çağırıyor, dışarıdan yalnızca izinli aralık.
+http://hiwallet-topup-webhook.{$PROXY_DOMAIN} {
+	import staff_only
+	reverse_proxy topup-webhook:8080
+}
+
+http://hiwallet-bank-webhook.{$PROXY_DOMAIN} {
+	import staff_only
+	reverse_proxy bank-webhook:8080
+}
+
 http://hiwallet-wallet-api.{$PROXY_DOMAIN} {
 	reverse_proxy wallet-api:8080
 }
@@ -87,8 +112,9 @@ http://hiwallet-nvi-fake.{$PROXY_DOMAIN} {
 	reverse_proxy nvi-fake:8080
 }
 
-# Gönderilen e-postalar: kayıt kodu ve parola sıfırlama.
-http://hiwallet-mailpit.{$PROXY_DOMAIN} {
+# E-posta sağlayıcısının yerinde duran Mailpit; canlıda yok. Gönderilen kayıt kodları,
+# davetler ve parola sıfırlama.
+http://hiwallet-mail-fake.{$PROXY_DOMAIN} {
 	reverse_proxy mailpit:8025
 }
 

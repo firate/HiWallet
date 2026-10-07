@@ -3,7 +3,8 @@
 # hiwallet-* adlarını hiwallet-gateway'e veriyor; kapı adı servise eşliyor
 # (docker/gateway/Caddyfile). Adres hiwallet-<servis>.<PROXY_DOMAIN>, müşterilerin
 # Keycloak'ı hiwallet-auth.<PROXY_DOMAIN>, çalışanlarınki hiwallet-staff-auth.<PROXY_DOMAIN>.
-# Çalışanın girişi ve paneli yalnızca STAFF_ALLOWED_RANGES'ten açılıyor.
+# Çalışanın girişi ve paneli, personel yönetimi, broker'ın yönetim ekranı ve bildirim
+# uçları yalnızca STAFF_ALLOWED_RANGES'ten açılıyor.
 #
 # HTTPS iki yerde şart: Keycloak'ın yönetim konsolu özel ağ dışından gelen düz HTTP'yi
 # reddediyor, Scalar'daki giriş de tarayıcıda PKCE için güvenli sayfa istiyor.
@@ -13,7 +14,7 @@
 #   KEYCLOAK_PUBLIC_URL=https://hiwallet-auth.<PROXY_DOMAIN>
 #   STAFF_KEYCLOAK_PUBLIC_URL=https://hiwallet-staff-auth.<PROXY_DOMAIN>
 #   PROXY_DOMAIN, PROXY_NETWORK, PROXY_ENTRYPOINT, PROXY_CERT_RESOLVER
-#   STAFF_ALLOWED_RANGES   çalışan yüzeylerine izin verilen adres aralıkları, boşlukla
+#   STAFF_ALLOWED_RANGES   çalışan ve işletim yüzeylerine izin verilen adres aralıkları, boşlukla
 # COMPOSE_FILE ile her docker compose komutu bu dosyayı da okuyor.
 
 # Kapının arkasındaki .NET servisleri isteğin HTTPS olduğunu X-Forwarded-Proto'dan
@@ -72,6 +73,17 @@ services:
   onboarding: *behind-gateway
   sms-fake: *behind-gateway
   nvi-fake: *behind-gateway
+  staff-admin: *behind-gateway
+  topup-webhook: *behind-gateway
+  bank-webhook: *behind-gateway
+
+  # Kapı iki ağda ve "rabbitmq" adı proxy'nin ağındaki başka bir projenin konteynerine
+  # çözülebilir; yönetim ekranına bu ayırt edici adla gidiyor.
+  rabbitmq:
+    networks:
+      default:
+        aliases:
+          - hiwallet-rabbitmq
 
 # Traefik'in Docker ağı. Başka projelerle ortak olabilir; bu yüzden servisler değil
 # yalnızca kapı bağlanıyor (docker/gateway/Caddyfile).

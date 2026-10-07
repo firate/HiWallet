@@ -95,18 +95,20 @@ PROXY_DOMAIN=...          # alan adı; sertifikası Traefik'te
 PROXY_NETWORK=...         # Traefik'in Docker ağı
 PROXY_ENTRYPOINT=...      # Traefik'in HTTPS entrypoint'i
 PROXY_CERT_RESOLVER=...   # Traefik'in sertifika çözücüsü
-STAFF_ALLOWED_RANGES=...  # çalışanın girişine ve paneline izin verilen aralıklar, boşlukla
+STAFF_ALLOWED_RANGES=...  # çalışan ve işletim yüzeylerine izin verilen aralıklar, boşlukla
 ```
 
 `COMPOSE_FILE` ile her `docker compose` komutu ek dosyayı da okuyor. Adres
 `https://hiwallet-<servis>.<PROXY_DOMAIN>` (`hiwallet-wallet-api`,
 `hiwallet-personal-mobile-api`, `hiwallet-stripe-fake`, ...); müşterilerin Keycloak'ı
 `https://hiwallet-auth.<PROXY_DOMAIN>`, çalışanlarınki
-`https://hiwallet-staff-auth.<PROXY_DOMAIN>`. Webhook'lar dışarıda: onları sahteler iç
-ağdan çağırıyor.
+`https://hiwallet-staff-auth.<PROXY_DOMAIN>`. Broker'ın yönetim ekranı
+`https://hiwallet-rabbitmq.<PROXY_DOMAIN>`.
 
-Çalışanların Keycloak'ı ve `backoffice-bff` yalnızca `STAFF_ALLOWED_RANGES`'teki
-adreslerden açılıyor, gerisi `403`. Kapı istemcinin adresini Traefik'in
+Çalışanların Keycloak'ı, `backoffice-bff`, `staff-admin`, broker'ın yönetim ekranı ve iki
+bildirim ucu (`topup-webhook`, `bank-webhook`) yalnızca `STAFF_ALLOWED_RANGES`'teki
+adreslerden açılıyor, gerisi `403`. Bildirim uçlarını sahteler iç ağdan çağırıyor; adları
+yalnızca elle bakmak için. Kapı istemcinin adresini Traefik'in
 `X-Forwarded-For`'undan okuyor; Traefik'in gördüğü adres istemcinin gerçek adresi
 olmalı. Kendi adresinden açılıyor mu ve aralığın dışından `403` alıyor mu, ikisini de
 dene.
@@ -376,7 +378,7 @@ dönüyor; liste realm dosyasında.
 aç ve "Kayıt ol"a tıkla:
 
 1. E-postanı yaz. Kod Mailpit'e düşüyor: `http://localhost:8106` (ters proxy arkasında
-   `https://hiwallet-mailpit.<PROXY_DOMAIN>`).
+   `https://hiwallet-mail-fake.<PROXY_DOMAIN>`).
 2. Kodu gir, parolanı belirle (en az 8 karakter). Keycloak'ta kullanıcı ve wallet'ta
    `Unknown` seviyesinde hesap ile bir TRY cüzdanı açılıyor.
 3. "Giriş yap": Keycloak'ın sayfası HiWallet temasıyla, e-posta dolu.
@@ -424,7 +426,7 @@ docker compose logs staff-admin | grep -i "ilk yönetici"
 ```
 
 Davet e-postası Mailpit'te (`http://localhost:8106`; ters proxy arkasında
-`https://hiwallet-mailpit.<PROXY_DOMAIN>`). Bağlantıdan parolanı ve doğrulayıcı
+`https://hiwallet-mail-fake.<PROXY_DOMAIN>`). Bağlantıdan parolanı ve doğrulayıcı
 uygulamayla OTP'ni kur; bağlantı panele dönüyor. Sonraki her girişte kod soruluyor.
 
 `http://localhost:8099` (ters proxy arkasında `https://hiwallet-backoffice-bff.<PROXY_DOMAIN>`)
