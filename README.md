@@ -223,14 +223,14 @@ adres kullanılıyor (`docs/verify-compose.md`).
 Arayüzü geliştirirken Vite'ın sunucusu, arkada compose'daki BFF:
 
 ```bash
-cd src/personal/PersonalWeb && npm install && npm run dev   # http://localhost:5173
+cd src/personal/edge/PersonalWeb && npm install && npm run dev   # http://localhost:5173
 ```
 
 Backoffice paneli <http://localhost:8099>'da; giriş çalışanların Keycloak'ından, OTP ile.
 Geliştirirken:
 
 ```bash
-cd src/backoffice/BackofficeWeb && npm install && npm run dev   # http://localhost:5174
+cd src/backoffice/edge/BackofficeWeb && npm install && npm run dev   # http://localhost:5174
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
@@ -341,10 +341,10 @@ curl -X POST http://localhost:8091/v1/transfers \
 **Yetersiz bakiye / limit aşımı** → `422` + `rule` alanı.
 **Concurrency çakışması** (retry tükendi) → `409`. İkisi karıştırılmaz.
 
-**Elle denemenin en kolay yolu:** Rider'da `fakes/akislar.http`,
-`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`. Sağ üstten
-ortamı seç, request'leri sırayla koş; kimlikler bir sonrakine kendiliğinden taşınıyor.
-Aşağıdaki `curl` örnekleri aynı işi yapıyor.
+**Uçtan uca akışlar** (kayıt, havale, kart, ödeme, çekim) token'la birlikte
+`docs/verify-compose.md`'de. Sahte servisleri tek başına denemek için Rider'da
+`fakes/Bank.Fake/bank-fake.http` ve `fakes/Stripe.Fake/stripe-fake.http`; sağ üstten
+ortamı seç.
 
 **Kartla yükleme.** En kolayı bireysel web uygulamasından: cüzdanın sayfasında "Kartla para
 yükle", tutarı yaz, ödeme sayfasında "Öde" de. Ödeme sayfası uygulamanın `/kart-yukleme`
@@ -432,8 +432,8 @@ sapmamış. Testin iddiası "her transfer başarılı olur" değil — çakışa
 
 ```bash
 dotnet test
-cd src/personal/PersonalWeb && npm test
-cd src/backoffice/BackofficeWeb && npm test
+cd src/personal/edge/PersonalWeb && npm test
+cd src/backoffice/edge/BackofficeWeb && npm test
 ```
 
 Integration testler bir Postgres sunucusu ister; bağlantı

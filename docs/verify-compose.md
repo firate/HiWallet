@@ -319,19 +319,23 @@ curl -s localhost:8101/realms/hiwallet/.well-known/openid-configuration | jq -r 
 
 Beklenen: `KEYCLOAK_PUBLIC_URL` + `/realms/hiwallet`.
 
-Kullanıcı aç: yönetim konsolunda (`http://localhost:8101/admin`, kullanıcı `admin`)
-`hiwallet` realm'i, Users, Add user; e-posta, ad ve soyadı da doldur, Credentials
-sekmesinde parola ver ve Temporary'yi kapat. Profil eksikse Keycloak parola akışında
-token vermiyor ("Account is not fully set up"). Kayıt sayfasından da açılabiliyor:
-`http://localhost:8101/realms/hiwallet/account`.
+Müşteri kayıtla geliyor: aşağıdaki "Web uygulaması". Bireysel hesabı yalnızca onboarding
+açıyor ve hesap kaydı yapan kimliğe ait. Yönetim konsolunda açılan kullanıcının wallet'ta
+hesabı yok ve kendisi açamıyor; Keycloak'ın kayıt sayfası kapalı.
+
+Kayıt Keycloak'taki kullanıcıyı yalnızca e-postayla açıyor ve parola akışı adı ve soyadı
+eksik profile token vermiyor ("Account is not fully set up"). İlk token'dan önce yönetim
+konsolunda (`http://localhost:8101/admin`, kullanıcı `admin`) `hiwallet` realm'i, Users,
+kullanıcı, Details'te ad ve soyadı doldur.
 
 Token al. `hiwallet-cli` istemcisi yalnızca compose'da var: parola akışıyla token veriyor,
-mobil uygulamanın tarayıcılı akışını curl'de taklit etmeye gerek bırakmıyor.
+mobil uygulamanın tarayıcılı akışını curl'de taklit etmeye gerek bırakmıyor. Kullanıcı adı
+kayıttaki e-posta.
 
 ```bash
 TOKEN=$(curl -s localhost:8101/realms/hiwallet/protocol/openid-connect/token \
   -d grant_type=password -d client_id=hiwallet-cli \
-  -d username=<kullanıcı> -d password=<parola> | jq -r .access_token)
+  -d username=<e-posta> -d password=<parola> | jq -r .access_token)
 ```
 
 Token beş dakika geçerli; süresi dolunca aynı komutla yenisi alınır.
@@ -342,7 +346,7 @@ Token'sız istek reddediliyor mu:
 curl -s -o /dev/null -w '%{http_code}\n' localhost:8097/v1/accounts
 ```
 
-Beklenen: `401`. Token'la aynı istek `200` ve boş `items` döner; hesabı aşağıda açıyorsun.
+Beklenen: `401`. Token'la aynı istek `200` ve kayıtta açılan hesabı döner.
 
 **Realm yalnızca ilk açılışta içe aktarılıyor.** Keycloak realm'i daha önce içe
 aktardıysa `docker/keycloak/realm-hiwallet.json`'daki değişiklik (yeni istemci, yeni
@@ -383,7 +387,7 @@ aç ve "Kayıt ol"a tıkla:
    `POST http://localhost:8105/v1/scenarios` `{"nationalId":"...","outcome":"Mismatch"}`.
 6. Sözleşme ve aydınlatma metnini onayla. Hesap `Unverified`'a geçiyor.
 
-Para girişi için `stripe-fake`'in Scalar sayfasından cüzdana yükleme yap. `Unverified`
+Para aşağıdaki "Havale ile yükleme" ya da "Kartla yükleme" ile giriyor. `Unverified`
 hesap para alabiliyor ve işyerine ödeyebiliyor; başka birine gönderemiyor ve çekim
 yapamıyor, kendi cüzdanları arasında aktarabiliyor. Seviye limitleri wallet-api'nin ve
 wallet-consumer'ın `appsettings.json`'ında.
@@ -457,7 +461,7 @@ MERCHANT_TOKEN=$(curl -s localhost:8101/realms/hiwallet/protocol/openid-connect/
 ```
 
 İşyeri hesabı `business-api`'den açılmıyor: kayıt ve entegrasyonun hesaba bağlanması
-backoffice'in işi ve backoffice henüz yok. Compose'da iç ağdaki `wallet-api`'ye
+backoffice'in işi ve panelde bu iş henüz yok. Compose'da iç ağdaki `wallet-api`'ye
 işyerinin token'ıyla açılıyor; hesabı açan kimlik, yani `merchant-demo`'nun servis
 hesabı, hesabın kullanıcısı oluyor:
 
@@ -476,69 +480,41 @@ Beklenen: son istek işyeri hesabını dönüyor. Aynı istek mobil uygulamanın
 
 ### Hesap ve cüzdan kurma
 
-Aşağıdaki iki akış da bir cüzdan istiyor. `jq` ile kimlikleri kabuk değişkenine al:
+Aşağıdaki akışlar müşterinin hesabını ve TL cüzdanını istiyor. İkisi kayıtta açıldı; `jq`
+ile kabuk değişkenine al. `TCKN` doğrulamada verilen numara:
 
 ```bash
-ACCOUNT=$(curl -s -X POST localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"type":"Person"}' | jq -r .accountId)
+ACCOUNT=$(curl -s localhost:8091/v1/accounts -H "Authorization: Bearer $TOKEN" \
+  | jq -r '.items[] | select(.type == "Person") | .accountId')
 
-WALLET=$(curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}' | jq -r .walletId)
+ACCOUNT_NUMBER=$(curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN" \
+  | jq -r .accountNumber)
 
-echo "$ACCOUNT / $WALLET"
+WALLET=$(curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN" \
+  | jq -r '.wallets[] | select(.currency == "TRY" and .isDefault) | .walletId')
+
+TCKN=<doğrulamada verilen numara>
+
+echo "$ACCOUNT / $ACCOUNT_NUMBER / $WALLET"
 ```
 
-Cüzdan sıfır bakiyeyle açılır; para aşağıdaki top-up akışıyla girer. Doğrudan
+Hesaba ikinci bir cüzdan da açılabiliyor. Hesap numarasına gelen para varsayılan cüzdana
+düşmeye devam ediyor; varsayılanı müşteri değiştiriyor:
+
+```bash
+curl -s -X POST localhost:8091/v1/accounts/$ACCOUNT/wallets -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"Birikim","currency":"TRY"}'
+```
+
+Cüzdan sıfır bakiyeyle açılır; para aşağıdaki havale ve kart yüklemesiyle girer. Doğrudan
 bakiyeye yazan bir endpoint YOK — olsaydı zero-sum invariant'ı delerdi.
-
-### Çekim akışını uçtan uca koşturma
-
-Cüzdanda para olduktan sonra:
-
-```bash
-curl -i -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $TOKEN" \
-  -H 'Idempotency-Key: cekim-1' -H 'Content-Type: application/json' \
-  -d "{\"accountId\":\"$ACCOUNT\",\"walletId\":\"$WALLET\",\"amount\":100,\"currency\":\"TRY\",
-       \"destinationIban\":\"TR330006100519786457841326\"}"
-```
-
-Beklenen: `202 Accepted` ve gövdede `withdrawalId`. Birkaç saniye sonra:
-
-```bash
-curl -s localhost:8093/v1/withdrawals/<ID> -H "Authorization: Bearer $TOKEN"
-```
-
-`state` sırayla `initiated` → `debited` → `bank_transfer_pending` → `completed`
-olmalı. Ledger'a üç bacaklı tek işlem düşer:
-
-```bash
-docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
-  "SELECT la.type, e.amount FROM ledger_entries e
-     JOIN ledger_accounts la ON la.id = e.ledger_account_id
-     JOIN ledger_transactions t ON t.id = e.transaction_id
-    WHERE t.correlation_id = '<ID>';"
-```
-
-**Telafi yolu.** Bankayı reddedici yapıp aynı akışı tekrarla:
-
-```bash
-curl -X POST localhost:8094/v1/scenarios -H 'Content-Type: application/json' \
-  -d '{"clientReference":"<ID>","outcome":"Failure"}'
-```
-
-Senaryoyu çekim request'inden ÖNCE kurmak gerekiyorsa (saga kimliğini önceden
-bilemiyorsun) `.env`'de `BANK_DEFAULT_OUTCOME=Failure` yapıp
-`docker compose up -d bank-fake` ile yeniden başlat.
-
-Beklenen: `state` `failed`, ledger'da İKİ işlem — orijinal düşme ve üç bacaklı ters
-kayıt — ve cüzdan bakiyesi başladığı yerde. Komisyon da geri dönmüş olmalı.
 
 ### Havale ile yükleme
 
 Kayıt ve temel doğrulamayı bireysel uygulamadan tamamlamış bir müşteri gerekiyor: havale
 yalnızca kimlik numarası hesap sahibininkiyle aynı olan gönderenden cüzdana geçiyor.
-Uygulamadaki "Havaleyle para yükle" sayfası hesap numarasını gösteriyor; `TCKN`
-doğrulamada verilen numara.
+`ACCOUNT_NUMBER` ve `TCKN` "Hesap ve cüzdan kurma"da; hesap numarasını uygulamadaki
+"Havaleyle para yükle" sayfası da gösteriyor.
 
 ```bash
 curl -s -X POST localhost:8094/v1/incoming-transfers -H 'Content-Type: application/json' \
@@ -564,6 +540,87 @@ havaleler"de görünüyor (`deposit.view` izni olan rolle).
 görünüyor. `bank-adapter`'ın taraması (compose'da dakikada bir, otuz saniyeden eski
 havaleler) onu bulup aynı yoldan wallet'a gönderiyor. `bank_deposits.discovered_via`
 `reconciliation` olmalı.
+
+### Çekim akışını uçtan uca koşturma
+
+Bireysel müşteri compose'da çekim yapamıyor. Kayıt en fazla `Unverified`'a çıkıyor ve o
+seviyenin aylık çekim limiti 0; `Verified`'a çıkaran uzaktan kimlik tespiti yok. Müşterinin
+token'ıyla başlatılan çekim `202` alıyor ve `rejected` ile bitiyor, para hareket etmiyor.
+
+Çekimi işyeri yapıyor: "İşyeri entegrasyonu"ndaki `MERCHANT_TOKEN`, `MERCHANT` ve
+`MERCHANT_WALLET`. Parası müşteriden geliyor ve nakit olmak zorunda: kartla yüklenen para
+IBAN'a çıkmıyor ve transferde tipini koruyor (`decisions.md` madde 36), işyerine geçse de
+çekilemiyor.
+
+**Para.** Müşteriye havaleyle 500 TL gönder: yukarıdaki "Havale ile yükleme" isteği,
+`amount` 500.
+
+**Ödeme.** Müşteri işyerine ödüyor:
+
+```bash
+curl -s -X POST localhost:8091/v1/transfers -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" -H 'Content-Type: application/json' \
+  -d "{\"fromWalletId\":\"$WALLET\",\"toWalletId\":\"$MERCHANT_WALLET\",\"amount\":300,\"currency\":\"TRY\",\"type\":\"Payment\"}"
+
+curl -s localhost:8091/v1/wallets/$MERCHANT_WALLET -H "Authorization: Bearer $MERCHANT_TOKEN"
+```
+
+Beklenen: transfer `201`; müşteriden 306 çıkıyor (%2 komisyon), işyerinin `withdrawable`'ı
+300. Ödeme önce `card` kovasını harcıyor: müşteride kart parası varsa işyerine önce o
+geçiyor ve `withdrawable` o kadar düşük kalıyor.
+
+**Çekim.**
+
+```bash
+WITHDRAWAL=$(curl -s -X POST localhost:8093/v1/withdrawals -H "Authorization: Bearer $MERCHANT_TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" -H 'Content-Type: application/json' \
+  -d "{\"accountId\":\"$MERCHANT\",\"walletId\":\"$MERCHANT_WALLET\",\"amount\":100,\"currency\":\"TRY\",
+       \"destinationIban\":\"TR330006100519786457841326\"}" | jq -r .withdrawalId)
+
+curl -s localhost:8093/v1/withdrawals/$WITHDRAWAL -H "Authorization: Bearer $MERCHANT_TOKEN"
+```
+
+Çekim isteği `202 Accepted` dönüyor; dönüldüğünde hiçbir para hareket etmedi. Durum
+isteğini birkaç kez koş: `state` sırayla `initiated` → `debited` → `bank_transfer_pending` →
+`settling` → `completed`. `bank_transfer_pending`'de birkaç saniye beklemesi istenen
+davranış: banka transferi kabul etti, sonucu `BANK_SETTLEMENT_DELAY` sonra callback'le
+bildiriyor. İşyerinin cüzdanı 198: 100 ve 2 komisyon düştü. Ledger'a üç bacaklı tek işlem
+düşer:
+
+```bash
+docker compose exec postgres psql -U postgres -d hiwallet_wallet -c \
+  "SELECT la.type, e.amount FROM ledger_entries e
+     JOIN ledger_accounts la ON la.id = e.ledger_account_id
+     JOIN ledger_transactions t ON t.id = e.transaction_id
+    WHERE t.correlation_id = '$WITHDRAWAL';"
+```
+
+**Telafi yolu.** Bankanın senaryosu çekimin kimliğine bağlı ama zincir seni beklemiyor:
+wallet parayı düşüyor, adaptör bankayı arıyor ve banka senaryoyu transfer geldiği anda
+okuyor. Kimliği öğrendikten sonra kurulan senaryo büyük ihtimalle geç kalır. Reddi denemek
+için bankanın varsayılanını değiştir:
+
+```bash
+# .env: BANK_DEFAULT_OUTCOME=Failure
+docker compose up -d --no-deps bank-fake
+```
+
+Çekim isteğini tekrar koş. Beklenen: `state` `initiated` → `debited` →
+`bank_transfer_pending` → `compensating` → `failed` ve `failureReason` dolu; ledger'da İKİ
+işlem — orijinal düşme ve üç bacaklı ters kayıt — ve işyerinin cüzdanı başladığı yerde,
+komisyon dahil. Bitince `BANK_DEFAULT_OUTCOME=Success` yap ve bank-fake'i yeniden başlat.
+
+**bank-fake'in hafızası bellekte.** Veritabanı yok; yeniden başlatmak transferleri ve
+senaryoları siliyor. O anda `bank_transfer_pending`'de bekleyen çekim kapanmıyor, banka onu
+artık tanımıyor. Yeniden başlatmadan önce önceki çekimlerin bitmesini bekle.
+
+**Kaçırılan callback.** `.env`'de `BANK_CALLBACK_ENABLED=false` yap,
+`docker compose up -d --no-deps bank-fake` ile yeniden başlat ve çekim isteğini tekrar koş.
+Çekim `bank_transfer_pending`'de bekliyor: callback gelmiyor. `BANK_RECONCILIATION_STALE_AFTER`
+(compose'da 30 saniye) geçip `BANK_RECONCILIATION_INTERVAL` (bir dakika) dolunca
+`bank-adapter`'ın taraması bankaya soruyor ve çekimi kapatıyor; toplam bir iki dakika.
+`bank_transfers.resolved_via` `reconciliation` olmalı. Bitince `BANK_CALLBACK_ENABLED=true`
+yap ve bank-fake'i yeniden başlat.
 
 ### Kartla yükleme
 
@@ -787,37 +844,9 @@ set -a; . ./.env; set +a
 
 #### A. Uçtan uca transfer
 
-Cüzdan kur, top-up ile para sok, ikinci cüzdana geçir. Zincirin tamamı konteyner
-içinde: HTTP → inbox → relay → broker → tüketici → ledger.
-
-```bash
-A1=$(curl -s -X POST localhost:8091/v1/accounts -H 'Content-Type: application/json' \
-  -d '{"type":"Person"}' | jq -r .accountId)
-A2=$(curl -s -X POST localhost:8091/v1/accounts -H 'Content-Type: application/json' \
-  -d '{"type":"Person"}' | jq -r .accountId)
-
-W1=$(curl -s -X POST localhost:8091/v1/accounts/$A1/wallets -H 'Content-Type: application/json' \
-  -d '{"name":"Gonderen","currency":"TRY"}' | jq -r .walletId)
-W2=$(curl -s -X POST localhost:8091/v1/accounts/$A2/wallets -H 'Content-Type: application/json' \
-  -d '{"name":"Alan","currency":"TRY"}' | jq -r .walletId)
-
-# Top-up: imza HAM gövde baytları üzerinde.
-BODY="{\"eventId\":\"evt_e2e_1\",\"walletId\":\"$W1\",\"amount\":100.00,\"currency\":\"TRY\",\"reference\":\"pi_e2e_1\",\"occurredAt\":\"2026-09-09T10:00:00+00:00\"}"
-SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STRIPE_FAKE_WEBHOOK_SECRET" -hex | awk '{print $2}')
-curl -s -X POST localhost:8092/v1/webhooks/topup/stripe-fake \
-  -H 'Content-Type: application/json' -H "X-Hive-Signature: sha256=$SIG" --data "$BODY"
-
-sleep 3   # hat asenkron
-
-curl -s -X POST localhost:8091/v1/transfers -H 'Content-Type: application/json' \
-  -H "Idempotency-Key: transfer-e2e-$N" \
-  -d "{\"fromWalletId\":\"$W1\",\"toWalletId\":\"$W2\",\"amount\":40,\"currency\":\"TRY\",\"type\":\"P2P\"}"
-
-curl -s localhost:8091/v1/wallets/$W1; echo; curl -s localhost:8091/v1/wallets/$W2
-```
-
-Beklenen: top-up `{"accepted":true,"duplicate":false}`, transfer `201`, sonra
-gönderen `60`, alan `40` (P2P komisyonsuz).
+Para girişi ve transfer yukarıdaki akışlarda: "Havale ile yükleme" ve "Kartla yükleme"
+zincirin tamamını konteyner içinde koşturuyor (HTTP → inbox → relay → broker → tüketici →
+ledger), "Çekim akışını uçtan uca koşturma"nın ödeme adımı da müşteriden işyerine transfer.
 
 #### B. Settlement ve fatura endpoint'leri
 
@@ -916,7 +945,7 @@ geri gelsin.
 
 | ne | nasıl bakılır |
 | --- | --- |
-| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A** |
+| konteynerlenmiş uygulamadan uçtan uca transfer | yukarıdaki **A**: havale, kart ve ödeme |
 | settlement ve fatura endpoint'leri (5.5–5.6) | yukarıdaki **B** |
 | scheduled job'lar (5.1–5.3, 5.7) | yukarıdaki **C** |
 | **bütün stack'in ayağa kalkması** | `docker compose ps` — hepsi `healthy` mi |
@@ -927,8 +956,8 @@ geri gelsin.
 
 Bu beşi bu sürümle geldi ve hiçbiri compose'da koşturulmadı. İlki yapısal; sonraki
 üçü madde 35'in asıl iddiasını sınıyor — "callback asıl yol, tarama kontrol";
-sonuncusu kartla yüklemeyi. Adımları `fakes/akislar.http` ve
-`fakes/Stripe.Fake/stripe-fake.http`'de hazır.
+sonuncusu kartla yüklemeyi. Adımları yukarıda: "Çekim akışını uçtan uca koşturma" ve
+"Kartla yükleme".
 
 ### Ödeme bildirimini elle göndermek
 

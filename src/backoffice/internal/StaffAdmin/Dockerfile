@@ -1,31 +1,31 @@
 # Repo KÖKÜNDEN build edilir; Directory.Build.props ve Directory.Packages.props
 # lazım (merkezi versiyonlama). compose'da context: . olarak veriliyor.
-#   docker build -f src/personal/Onboarding/Dockerfile .
+#   docker build -f src/backoffice/internal/StaffAdmin/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/personal/Onboarding/Onboarding.csproj src/personal/Onboarding/
+COPY src/backoffice/internal/StaffAdmin/StaffAdmin.csproj src/backoffice/internal/StaffAdmin/
 COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
 COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
-RUN dotnet restore src/personal/Onboarding/Onboarding.csproj
+RUN dotnet restore src/backoffice/internal/StaffAdmin/StaffAdmin.csproj
 
 COPY src/ src/
-RUN dotnet publish src/personal/Onboarding/Onboarding.csproj \
+RUN dotnet publish src/backoffice/internal/StaffAdmin/StaffAdmin.csproj \
         -c Release -o /app/publish --no-restore
 
 # ---------------------------------------------------------------------------
-# Migration bundle. Şemanın sahibi onboarding_owner olarak koşuyor; uygulama
-# onboarding_app ile bağlanıyor ve consents üzerindeki REVOKE ona işliyor.
+# Migration bundle. Şemanın sahibi staff_admin_owner olarak koşuyor; uygulama
+# staff_admin_app ile bağlanıyor ve kayıt üzerindeki REVOKE ona işliyor.
 # ---------------------------------------------------------------------------
 FROM build AS migrator-build
 RUN dotnet tool install --global dotnet-ef --version 10.0.11
 ENV PATH="$PATH:/root/.dotnet/tools"
 RUN dotnet ef migrations bundle \
-        --project src/personal/Onboarding \
-        --startup-project src/personal/Onboarding \
+        --project src/backoffice/internal/StaffAdmin \
+        --startup-project src/backoffice/internal/StaffAdmin \
         --self-contained -r linux-musl-x64 \
         -o /app/efbundle
 
@@ -47,4 +47,4 @@ COPY --from=build /app/publish .
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
 
-ENTRYPOINT ["dotnet", "HiWallet.Onboarding.dll"]
+ENTRYPOINT ["dotnet", "HiWallet.StaffAdmin.dll"]
