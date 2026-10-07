@@ -167,7 +167,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-796 test: 255 unit (DB'siz), 541 integration — gerçek Postgres ve gerçek RabbitMQ.
+798 test: 255 unit (DB'siz), 543 integration — gerçek Postgres ve gerçek RabbitMQ.
 Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 41, panelin 37.
 
 Withdrawal zinciri broker'la uçtan uca koşuyor: `POST /v1/withdrawals` → orchestrator →
@@ -457,8 +457,9 @@ olduğu yazıyor — kurulumu zorunlu kılmak yerine varsa doğrulanıyor, atlan
 değil "skipped" görünüyor.
 
 Her koşu kendine özel bir exchange/kuyruk ön eki kullanıyor (`RabbitMq:NamePrefix`) ve
-sonunda topolojiyi siliyor: aynı broker'a bakan iki koşu birbirinin kuyruğundan mesaj
-çekmiyor, broker'da da çöp birikmiyor.
+sonunda topolojiyi siliyor (`BrokerCleanup`): aynı broker'a bakan iki koşu birbirinin
+kuyruğundan mesaj çekmiyor, broker'da da çöp birikmiyor. Yarıda kesilen koşunun artığı
+kalıyor.
 
 ```bash
 set -a; . ./.env; set +a

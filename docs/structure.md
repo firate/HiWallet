@@ -546,7 +546,10 @@ görünüyor, hangi güvencenin ölçülmediği çıktıdan okunuyor.
 
 **Integration test izolasyonu: koşu başına schema.** `PostgresFixture` her koşuda kendi
 schema'sını açar, migration'ı oraya uygular, sonunda `DROP SCHEMA ... CASCADE` ile düşürür.
-Bağlantı `ConnectionStrings__IntegrationTests`'ten gelir.
+Bağlantı `ConnectionStrings__IntegrationTests`'ten gelir. Broker'da karşılığı koşu başına
+ön ek (`it-xxxxxxxx.`): koşu bitince `BrokerCleanup` o ön ekle açılan bütün kuyruk ve
+exchange'leri siliyor. Adları topoloji sınıflarından okuyor; yeni topoloji kendiliğinden
+temizleniyor. Süreç çökerse o koşunun artığı broker'da kalıyor.
 
 Testcontainers elenmedi ama seçilmedi: aynı izolasyonu verir, karşılığında bir Docker
 daemon'a konuşmak zorunda. Schema yolu Docker'sız çalışıyor ve paralel koşuyu da
