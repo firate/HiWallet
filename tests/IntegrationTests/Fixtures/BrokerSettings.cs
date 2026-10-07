@@ -15,12 +15,6 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// </summary>
 internal static class BrokerSettings
 {
-    /// <summary>
-    /// Testlerde 2 partition yeter ve koşuyu hızlandırır: her partition ayrı bir
-    /// kanal ve ayrı bir consumer demek.
-    /// </summary>
-    private const int TestPartitionCount = 2;
-
     private const string PlaceholderHost = "rabbitmq-not-configured";
 
     /// <summary>
@@ -48,9 +42,6 @@ internal static class BrokerSettings
         Set(settings, "RabbitMq:Username", "RabbitMq__Username", "guest");
         Set(settings, "RabbitMq:Password", "RabbitMq__Password", "guest");
 
-        // Partition sayısı ortamdan gelse bile test için sabitleniyor: koşunun
-        // açtığı kuyruk sayısı testin kendi kararı olmalı.
-        settings["RabbitMq:PartitionCount"] = TestPartitionCount.ToString();
         settings["RabbitMq:NamePrefix"] = NamePrefix;
     }
 
@@ -61,15 +52,15 @@ internal static class BrokerSettings
         Port = int.TryParse(Environment.GetEnvironmentVariable("RabbitMq__Port"), out var port) ? port : 5672,
         Username = Environment.GetEnvironmentVariable("RabbitMq__Username") ?? "guest",
         Password = Environment.GetEnvironmentVariable("RabbitMq__Password") ?? "guest",
-        PartitionCount = TestPartitionCount,
         NamePrefix = namePrefix ?? NamePrefix,
         ClientName = clientName
     };
 
     /// <summary>
-    /// Broker'a bağlanılabiliyor mu. Withdrawal topolojisi düz bir direct exchange
-    /// kullanıyor, eklenti istemiyor — o yüzden <see cref="IsUsableAsync"/>'in
-    /// eklenti kontrolü burada gereksiz ve atlama mesajını yanıltıcı yapardı.
+    /// Broker uçtan uca testleri koşturabilecek durumda mı. Uçtan uca testler bunu sorup
+    /// değilse kendini atlıyor — kurulumu zorunlu kılmak yerine, varsa doğruluyor
+    /// (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım). Bağlanabilmek yetiyor: bütün
+    /// topolojiler düz direct ve fanout exchange, eklenti istemiyor.
     /// </summary>
     public static async Task<bool> IsReachableAsync(CancellationToken ct)
     {
@@ -82,43 +73,6 @@ internal static class BrokerSettings
 
             await using var channel = await (await connection.GetAsync(ct))
                 .CreateChannelAsync(cancellationToken: ct);
-
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Broker uçtan uca testleri KOŞTURABİLECEK durumda mı. Uçtan uca testler bunu
-    /// sorup değilse kendini atlıyor — kurulumu zorunlu kılmak yerine, varsa
-    /// doğruluyor (<c>AppRolePrivilegeTests</c> ile aynı yaklaşım).
-    ///
-    /// Bağlanabilmek YETMİYOR: topoloji <c>x-consistent-hash</c> exchange'ine dayanıyor
-    /// ve o, standart imajda kapalı gelen bir eklenti. Yalnızca bağlantıya bakılsaydı
-    /// testler atlanmak yerine <c>PRECONDITION_FAILED</c> ile düşerdi ve çıktıdan
-    /// eksiğin ne olduğu anlaşılmazdı. Atlama koşulu, gerçek ön koşulun kendisi olmalı.
-    /// </summary>
-    public static async Task<bool> IsUsableAsync(CancellationToken ct)
-    {
-        if (!Configured) return false;
-
-        try
-        {
-            await using var connection = new RabbitMqConnection(
-                Options.Create(BuildOptions("hiwallet-tests-probe")));
-
-            await using var channel = await (await connection.GetAsync(ct)).CreateChannelAsync(cancellationToken: ct);
-
-            // Başarısız declare kanalı kapatıyor; kanal zaten tek kullanımlık.
-            // autoDelete: broker'da iz bırakmıyor.
-            await channel.ExchangeDeclareAsync(
-                $"{NamePrefix}plugincheck", "x-consistent-hash",
-                durable: false, autoDelete: true, cancellationToken: ct);
-
-            await channel.ExchangeDeleteAsync($"{NamePrefix}plugincheck", cancellationToken: ct);
 
             return true;
         }

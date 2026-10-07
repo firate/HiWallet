@@ -26,9 +26,6 @@ public static class MessagingSetup
             .Validate(
                 options => options.Port is > 0 and <= 65535,
                 $"{RabbitMqOptions.SectionName}:Port geçersiz.")
-            .Validate(
-                options => options.PartitionCount is >= 1 and <= 64,
-                $"{RabbitMqOptions.SectionName}:PartitionCount 1-64 aralığında olmalı.")
             // Fail fast: eksik broker adresi ilk mesajda değil, başlangıçta patlasın.
             .ValidateOnStart();
 

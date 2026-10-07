@@ -21,17 +21,6 @@ public sealed class RabbitMqOptions
     public string VirtualHost { get; init; } = "/";
 
     /// <summary>
-    /// Kaç partition kuyruğu açılacağı. Aynı cüzdanın mesajları hep aynı kuyruğa
-    /// düşer, sıra orada korunur (overview.md madde 8).
-    ///
-    /// DEĞİŞTİRİLEMEZ bir sayı gibi düşünülmeli: sonradan artırmak bir cüzdanın
-    /// mesajlarını başka kuyruğa taşır ve eski kuyrukta bekleyen mesaj varsa
-    /// sıralama garantisi o cüzdan için tek seferlik bozulur. Artırmadan önce
-    /// kuyrukların boşalması beklenir.
-    /// </summary>
-    public int PartitionCount { get; init; } = 4;
-
-    /// <summary>
     /// Exchange ve kuyruk adlarının önüne eklenir. Canlıda boş.
     ///
     /// Var olma sebebi test izolasyonu: aynı broker'a bakan iki koşu ön eksiz
