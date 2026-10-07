@@ -8,7 +8,7 @@
 #      çağırmazsın; burada sahtenin nasıl davrandığını görmek için.
 #   B. Kumanda: bankada olmayan, test için var olan endpoint'ler.
 #
-# Uçtan uca çekim senaryoları ayrı dosyada: fakes/akislar.http
+# Uçtan uca çekim akışı docs/verify-compose.md'de: "Çekim akışını uçtan uca koşturma".
 
 # ============================================================================
 # A. Bankanın kendisi
