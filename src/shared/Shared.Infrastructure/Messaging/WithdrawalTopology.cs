@@ -8,11 +8,9 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Withdrawal saga'sının topolojisi. Üç servis de bunu çağırıyor; declare
 /// idempotent, hangisi önce kalkarsa o kuruyor.
 ///
-/// <b>Top-up'takinden farklı: partition YOK.</b> Orada aynı cüzdanın mesajlarının
-/// sırası önemliydi ve mesajlar tek bir tüketici havuzuna akıyordu. Burada her
-/// mesajın belli bir alıcısı var ve sıra saga'nın kendisinden geliyor — refund
-/// komutu ancak debit tamamlandıktan sonra gönderiliyor, yani nedensel olarak
-/// zaten sıralı. Consistent hash eklemek karşılığı olmayan bir karmaşıklık olurdu.
+/// <b>Sıra saga'nın kendisinden geliyor.</b> Her mesajın belli bir alıcısı var ve refund
+/// komutu ancak debit tamamlandıktan sonra gönderiliyor, yani mesajlar nedensel olarak
+/// zaten sıralı.
 ///
 /// Şekil — tek direct exchange, alıcı başına bir kuyruk, routing key = mesaj tipi:
 /// <code>

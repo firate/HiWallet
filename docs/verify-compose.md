@@ -765,7 +765,6 @@ Beş uygulamalı stack üzerinde, gerçek broker ve gerçek Postgres ile koştur
 
 | varsayım | durum | kanıt |
 | --- | --- | --- |
-| `rabbitmq` eklentisi yükleniyor | evet | `rabbit_exchange_type_consistent_hash_registry` boot adımı |
 | `withdrawal-orchestrator` broker'SIZ ayakta kalıyor | evet | `stop rabbitmq` sonrası `Degraded`, `Unhealthy` değil |
 | top-up hattının tamamı | evet | webhook `202` → relay → broker → tüketici → bakiye `500` |
 | çekim mutlu yolu | evet | saga `settling` üzerinden `completed`, cüzdan `398` |
@@ -1003,19 +1002,6 @@ Doğrudan `dotnet test` / `dotnet run` çalıştıracaksan .NET 10 SDK gerekir.
 ## Çözülmüş hatalar
 
 Doğrulama sırasında çıkıp düzeltilenler, tekrar görülürse diye:
-
-**`PRECONDITION_FAILED - unknown exchange type 'x-consistent-hash'`.** Topoloji bu
-exchange tipine dayanıyor ama o RabbitMQ çekirdeğinde değil, eklentiyle geliyor ve
-varsayılan olarak KAPALI. Compose'daki broker `docker/rabbitmq/enabled_plugins` ile
-açık geliyor; mevcut bir broker'a karşı koşturacaksan elle açman gerekiyor:
-
-```bash
-docker exec <rabbitmq> rabbitmq-plugins enable rabbitmq_consistent_hash_exchange
-```
-
-Yeniden başlatma gerekmiyor. Testlerin atlama koşulu artık bunu da kontrol ediyor —
-önce yalnızca bağlantıya bakıyordu ve eklenti yokken testler atlanmak yerine bu
-hatayla düşüyordu.
 
 **`Unable to create a 'DbContext' ... ConnectionStrings__WalletOwner ortamda yok`**
 build sırasında. Design-time factory bağlantı dizesini ZORUNLU tutuyordu; oysa

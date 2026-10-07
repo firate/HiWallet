@@ -7,7 +7,7 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Kartla yüklemenin kapanışları. <c>card-topup</c> yayınlıyor, <c>wallet-consumer</c>
 /// tüketiyor.
 ///
-/// <b>Partition YOK, tek kuyruk ve tek aktif tüketici</b>, havaledeki gibi
+/// <b>Tek kuyruk ve tek aktif tüketici</b>, havaledeki gibi
 /// (<see cref="DepositTopology"/>): ödenen yüklemeler aynı clearing satırını güncelliyor ve
 /// hacim düşük. <c>x-single-active-consumer</c> ve <c>prefetch=1</c> kapanışları birer birer
 /// işletiyor.

@@ -120,8 +120,6 @@ services:
       retries: 30
 
   rabbitmq:
-    # Standart imaj x-consistent-hash exchange'ini GETİRMİYOR; eklenti dosyayla
-    # etkinleştiriliyor. Onsuz topoloji declare'i PRECONDITION_FAILED veriyor.
     image: rabbitmq:4-management-alpine
     # Broker verisini düğüm adına göre saklıyor ve düğüm adı makine adından geliyor.
     # Sabit olmasa konteyner her yeniden yaratıldığında yeni bir düğüm açılır ve
@@ -131,7 +129,6 @@ services:
       RABBITMQ_DEFAULT_USER: ${RabbitMq__Username:?RabbitMq__Username .env'de tanımlı değil}
       RABBITMQ_DEFAULT_PASS: ${RabbitMq__Password:?RabbitMq__Password .env'de tanımlı değil}
     volumes:
-      - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
       # Kuyruklar durable; volume ve sabit makine adı olmadan konteyner yeniden
       # yaratıldığında yayınlanmış ama işlenmemiş mesajlar kaybolurdu.
       - rabbitmq-data:/var/lib/rabbitmq
@@ -872,7 +869,6 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
-      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       # Sağlayıcı başına paylaşılan HMAC secret'ı. Sahte webhook'u engelleyen
       # tek şey bu; koda gömülmez.
       Providers__stripe-fake__WebhookSecret: ${STRIPE_FAKE_WEBHOOK_SECRET:?STRIPE_FAKE_WEBHOOK_SECRET .env'de tanımlı değil}
@@ -918,7 +914,6 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
-      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       # Job aralıkları. Varsayılanlar canlı değerleri; .env'den kısaltmak yalnızca
       # ilk turu gözle görmek için. İlk tur BEKLEMEDEN koşmuyor (ScheduledJob) —
       # kısaltılmazsa mutabakatı görmek için altı saat beklemek gerekirdi.
@@ -968,7 +963,6 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
-      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       # Bkz. wallet-consumer'daki aynı not.
       Jobs__StuckSagaScan__Interval: ${JOBS_STUCK_SAGA_SCAN_INTERVAL:-00:05:00}
       # Token doğrulama. Issuer token'daki public adres, anahtarlar iç ağdan.
@@ -1020,7 +1014,6 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
-      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       # Sahtelik tamamen bu adreste; gerçek sağlayıcıya geçerken kod değişmiyor.
       CardTopups__ProviderUrl: http://stripe-fake:8080
@@ -1076,7 +1069,6 @@ services:
       RabbitMq__Port: "5672"
       RabbitMq__Username: ${RabbitMq__Username}
       RabbitMq__Password: ${RabbitMq__Password}
-      RabbitMq__PartitionCount: ${RABBITMQ_PARTITION_COUNT:-4}
       # CANLIDA BURAYA BANKANIN KENDİ ADRESİ YAZILIR.
       Bank__BaseUrl: http://bank-fake:8080
       # Mutabakat taraması KAPATILAMAZ, yalnızca aralığı ayarlanır. Compose'da

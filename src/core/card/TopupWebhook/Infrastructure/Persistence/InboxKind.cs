@@ -9,7 +9,7 @@ namespace HiWallet.TopupWebhook.Infrastructure.Persistence;
 /// </summary>
 public enum InboxKind
 {
-    /// <summary>Para girişi bildirimi; cüzdan bazında partition'lanıyor.</summary>
+    /// <summary>Kart sağlayıcısının ödeme bildirimi; card-topup'a gidiyor.</summary>
     Topup = 1,
 
     /// <summary>

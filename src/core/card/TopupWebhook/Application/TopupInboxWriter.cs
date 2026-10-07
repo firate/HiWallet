@@ -43,8 +43,7 @@ public sealed class TopupInboxWriter(
             InboxKind.Settlement,
             message.Provider,
             message.SettlementId,
-            // Sabit: settlement hiçbir cüzdana dokunmuyor, partition'ın koruduğu
-            // sıra burada yok.
+            // Sabit: settlement hiçbir cüzdana dokunmuyor, sırası da yok.
             routingKey: SettlementTopology.RoutingKey,
             message,
             rawPayload,

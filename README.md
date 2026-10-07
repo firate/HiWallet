@@ -443,18 +443,10 @@ gerekmiyor. topup-webhook, withdrawal-orchestrator, card-topup, banka entegrasyo
 açılıyor: canlıdaki ayrı veritabanı sınırları testte de korunuyor, servisler
 birbirinin tablosunu göremiyor.
 
-Uçtan uca testler ayrıca bir RabbitMQ ister (`RabbitMq__*`). Top-up hattı bir de
-`rabbitmq_consistent_hash_exchange` eklentisi istiyor — routing key cüzdan kimliği ve
-partition'ı o exchange seçiyor. Withdrawal zinciri düz bir direct exchange kullanıyor,
-eklenti istemiyor:
-
-```bash
-docker exec <rabbitmq> rabbitmq-plugins enable rabbitmq_consistent_hash_exchange
-```
-
-İkisinden biri eksikse test `Assert.SkipUnless` ile atlanıyor ve mesajda eksiğin ne
-olduğu yazıyor — kurulumu zorunlu kılmak yerine varsa doğrulanıyor, atlanan test yeşil
-değil "skipped" görünüyor.
+Uçtan uca testler ayrıca bir RabbitMQ ister (`RabbitMq__*`); eklenti istemiyor, bütün
+topolojiler düz direct ve fanout exchange. Broker'a ulaşılamıyorsa test
+`Assert.SkipUnless` ile atlanıyor ve mesajda eksiğin ne olduğu yazıyor — kurulumu
+zorunlu kılmak yerine varsa doğrulanıyor, atlanan test yeşil değil "skipped" görünüyor.
 
 Her koşu kendine özel bir exchange/kuyruk ön eki kullanıyor (`RabbitMq:NamePrefix`) ve
 sonunda topolojiyi siliyor (`BrokerCleanup`): aynı broker'a bakan iki koşu birbirinin
