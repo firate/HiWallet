@@ -54,14 +54,15 @@ internal static class BrokerSettings
         settings["RabbitMq:NamePrefix"] = NamePrefix;
     }
 
-    public static RabbitMqOptions BuildOptions(string clientName) => new()
+    /// <param name="namePrefix">Koşunun ön eki yerine; koşuyla karışmaması gereken bir topoloji için.</param>
+    public static RabbitMqOptions BuildOptions(string clientName, string? namePrefix = null) => new()
     {
         Host = Host ?? PlaceholderHost,
         Port = int.TryParse(Environment.GetEnvironmentVariable("RabbitMq__Port"), out var port) ? port : 5672,
         Username = Environment.GetEnvironmentVariable("RabbitMq__Username") ?? "guest",
         Password = Environment.GetEnvironmentVariable("RabbitMq__Password") ?? "guest",
         PartitionCount = TestPartitionCount,
-        NamePrefix = NamePrefix,
+        NamePrefix = namePrefix ?? NamePrefix,
         ClientName = clientName
     };
 
