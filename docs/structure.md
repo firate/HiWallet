@@ -430,7 +430,6 @@ fakes/
 │   └── stripe-fake.http
 ├── Sms.Fake/                -- SMS sağlayıcısı: mesajı kutusunda tutuyor
 ├── Nvi.Fake/                -- nüfus kaydı: kimlik eşleşiyor mu
-├── akislar.http             -- uçtan uca çekim akışları (birden fazla servis)
 ├── http-client.env.json     -- Rider ortamı: local
 └── http-client.private.env.json.example
                              -- stack başka bir makinedeyse: kopyala, .example'ı at,
