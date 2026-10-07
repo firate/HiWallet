@@ -123,13 +123,17 @@ services:
     # Standart imaj x-consistent-hash exchange'ini GETİRMİYOR; eklenti dosyayla
     # etkinleştiriliyor. Onsuz topoloji declare'i PRECONDITION_FAILED veriyor.
     image: rabbitmq:4-management-alpine
+    # Broker verisini düğüm adına göre saklıyor ve düğüm adı makine adından geliyor.
+    # Sabit olmasa konteyner her yeniden yaratıldığında yeni bir düğüm açılır ve
+    # volume'daki kuyruklar ile mesajlar ona görünmez.
+    hostname: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RabbitMq__Username:?RabbitMq__Username .env'de tanımlı değil}
       RABBITMQ_DEFAULT_PASS: ${RabbitMq__Password:?RabbitMq__Password .env'de tanımlı değil}
     volumes:
       - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
-      # Kuyruklar durable; volume olmadan konteyner yeniden yaratıldığında
-      # yayınlanmış ama işlenmemiş mesajlar kaybolurdu.
+      # Kuyruklar durable; volume ve sabit makine adı olmadan konteyner yeniden
+      # yaratıldığında yayınlanmış ama işlenmemiş mesajlar kaybolurdu.
       - rabbitmq-data:/var/lib/rabbitmq
     ports:
       - "${RABBITMQ_HOST_PORT:-5673}:5672"
