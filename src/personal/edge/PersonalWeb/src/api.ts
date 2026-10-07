@@ -1,6 +1,9 @@
 import type {
   AccountDetail,
   AccountsPage,
+  CardTopup,
+  CardTopupAccepted,
+  CardTopupRequest,
   DepositInstructions,
   IdentityRequest,
   MovementsPage,
@@ -112,6 +115,9 @@ export const api = {
   withdraw: (request: WithdrawalRequest, idempotencyKey: string) =>
     send<WithdrawalAccepted>('POST', '/v1/withdrawals', { body: request, idempotencyKey }),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+  startCardTopup: (request: CardTopupRequest, idempotencyKey: string) =>
+    send<CardTopupAccepted>('POST', '/v1/card-topups', { body: request, idempotencyKey }),
+  cardTopup: (cardTopupId: string) => send<CardTopup>('GET', `/v1/card-topups/${cardTopupId}`),
 
   // Kayıt, oturumsuz. Hesabı kayıt açıyor; uygulamada hesap açma yok.
   startRegistration: (email: string) =>

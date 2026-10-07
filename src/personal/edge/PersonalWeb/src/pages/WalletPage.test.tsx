@@ -86,6 +86,35 @@ describe('WalletPage', () => {
     expect(screen.queryByRole('link', { name: 'Havaleyle para yükle' })).toBeNull()
   })
 
+  /** Kart yüklemesi cüzdanı kendisi seçiyor; varsayılan olması gerekmiyor. */
+  it('doğrulanmış hesabın her cüzdanında kartla yüklemeyi gösteriyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Unverified', false) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    const link = await screen.findByRole('link', { name: 'Kartla para yükle' })
+    expect(link.getAttribute('href')).toBe('/cuzdanlar/w1/kartla-yukle')
+  })
+
+  it('doğrulanmamış hesapta kartla yüklemeyi göstermiyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Unknown', true) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    await screen.findByText('Henüz hareket yok.')
+    expect(screen.queryByRole('link', { name: 'Kartla para yükle' })).toBeNull()
+  })
+
   it('promo partilerini sayfa sayfa gösteriyor', async () => {
     const user = userEvent.setup()
     fakeBff({

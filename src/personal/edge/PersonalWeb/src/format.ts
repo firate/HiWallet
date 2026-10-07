@@ -78,3 +78,37 @@ export function withdrawalState(value: string): string {
 export function isFinalWithdrawalState(value: string): boolean {
   return value === 'rejected' || value === 'completed' || value === 'failed' || value === 'cancelled'
 }
+
+const cardTopupStates: Record<string, string> = {
+  created: 'Başlatıldı',
+  pending: 'Ödeme bekleniyor',
+  paid: 'Ödendi',
+  failed: 'Ödenmedi',
+  rejected: 'Reddedildi',
+}
+
+export function cardTopupState(value: string): string {
+  return cardTopupStates[value] ?? value
+}
+
+/** Sonucu artık değişmeyen durumlar; izleme burada duruyor. */
+export function isFinalCardTopupState(value: string): boolean {
+  return value === 'paid' || value === 'failed' || value === 'rejected'
+}
+
+/**
+ * Ödenmeden kapanan yüklemenin sebebi. Reddedilen yüklemede sebep wallet'ın kural adı;
+ * limit dışındakiler müşterinin düzeltebileceği bir şey söylemiyor.
+ */
+const cardTopupFailures: Record<string, string> = {
+  canceled: 'Ödeme tamamlanmadı: vazgeçildi ya da kart reddedildi.',
+  expired: 'Ödeme süresi içinde yapılmadı.',
+  abandoned: 'Ödeme başlatılamadı.',
+  payment_not_opened: 'Ödeme başlatılamadı.',
+  provider_rejected: 'Kart sağlayıcısı ödemeyi başlatmadı.',
+  card_topup_limit: 'Bu yükleme doğrulama seviyenin limitine sığmıyor.',
+}
+
+export function cardTopupFailure(value: string): string {
+  return cardTopupFailures[value] ?? 'Yükleme yapılamadı.'
+}

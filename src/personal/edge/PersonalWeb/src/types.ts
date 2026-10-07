@@ -144,6 +144,39 @@ export interface Withdrawal {
   updatedAt: string
 }
 
+/** Dönüş adresi yok: BFF onu kendi adresinden kuruyor. */
+export interface CardTopupRequest {
+  walletId: string
+  amount: number
+  currency: string
+}
+
+export interface CardTopupAccepted {
+  cardTopupId: string
+  walletId: string
+  state: string
+  amount: number
+  currency: string
+  paymentUrl: string | null
+  expiresAt: string
+  failureReason: string | null
+  replayed: boolean
+}
+
+export interface CardTopup {
+  cardTopupId: string
+  walletId: string
+  /** `created`, `pending`, `paid`, `failed`, `rejected`. */
+  state: string
+  amount: number
+  currency: string
+  paymentUrl: string | null
+  expiresAt: string
+  failureReason: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 /**
  * RFC 7807. Doğrulama hatalarında alan başına mesajlar `errors`'ta; iş kuralı
  * reddinde makinenin okuyacağı ad `rule`'da.

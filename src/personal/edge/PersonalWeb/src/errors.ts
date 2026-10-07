@@ -12,6 +12,8 @@ const ruleMessages: Record<string, string> = {
   unsupported_currency: 'Şu an yalnızca TRY cüzdanı açılabiliyor.',
   'Kyc.OutgoingTransfer.Monthly': 'Doğrulama seviyenin aylık gönderim limiti bu tutara izin vermiyor.',
   'Kyc.Payment.Monthly': 'Doğrulama seviyenin aylık ödeme limiti bu tutara izin vermiyor.',
+  // Kartla yükleme: parayı alan da isteyen de müşterinin kendisi, limit onun.
+  card_topup_limit: 'Bu yükleme doğrulama seviyenin limitine sığmıyor.',
   // Alıcının limiti. Hangi limitin dolduğu alıcının hesabı hakkında bilgi; söylenmiyor.
   'Kyc.IncomingTransfer.Monthly': 'Alıcı bu tutarı alamıyor.',
   'Kyc.IncomingTotal.Monthly': 'Alıcı bu tutarı alamıyor.',
