@@ -69,18 +69,23 @@ Proje klasörleri (`WalletService.Core/`) kökü tekrar etmez; kök prefix `.csp
 ```
 src/
 ├── personal/                  -- bireysel müşteri
-│   ├── PersonalMobileApi/     -- ön API: mobil uygulama
-│   ├── PersonalWebBff/        -- ön API: web uygulamasının BFF'i
-│   ├── PersonalWeb/           -- web uygulaması; PersonalWebBff'in imajına giriyor
-│   └── Onboarding/            -- kayıt ve kimlik doğrulaması; yalnızca bireysel hesap açıyor
+│   ├── edge/
+│   │   ├── PersonalMobileApi/ -- ön API, public: mobil uygulama
+│   │   ├── PersonalWebBff/    -- ön API, public: web uygulamasının BFF'i
+│   │   └── PersonalWeb/       -- web uygulaması (tarayıcıda); PersonalWebBff'in imajına giriyor
+│   └── internal/
+│       └── Onboarding/        -- iç servis: kayıt ve kimlik doğrulaması, bireysel hesabı açıyor
 ├── business/                  -- işyeri
-│   ├── BusinessApi/           -- ön API: işyerinin sistem entegrasyonu
-│   └── BusinessWebBff/        -- ön API: işyeri panelinin BFF'i
-├── backoffice/                -- şirketin çalışanları; iç ağ
-│   ├── BackofficeBff/         -- ön API: panelin BFF'i
-│   ├── BackofficeWeb/         -- panel; BackofficeBff'in imajına giriyor
-│   └── StaffAdmin/            -- personel yönetimi
-├── core/                      -- paranın hareket ettiği servisler; müşteri ön API'den ulaşıyor
+│   └── edge/
+│       ├── BusinessApi/       -- ön API, public: işyerinin sistem entegrasyonu
+│       └── BusinessWebBff/    -- ön API, public: işyeri panelinin BFF'i
+├── backoffice/                -- şirketin çalışanları
+│   ├── edge/
+│   │   ├── BackofficeBff/     -- ön API, iç ağ: panelin BFF'i
+│   │   └── BackofficeWeb/     -- panel (tarayıcıda); BackofficeBff'in imajına giriyor
+│   └── internal/
+│       └── StaffAdmin/        -- iç servis: personel yönetimi
+├── core/                      -- paranın hareket ettiği servisler; hepsi istemciye kapalı
 │   ├── wallet/                -- ledger'ın sahibi: WalletApi, WalletConsumer, WalletService.Core
 │   ├── card/                  -- kartla yükleme: CardTopup, TopupWebhook
 │   ├── bank/                  -- banka: BankAdapter, BankWebhook, BankIntegration.Core
@@ -92,15 +97,20 @@ src/
 └── Directory.Build.targets    -- src/ → fakes/ referansı derleme hatası
 ```
 
-Klasör kimin için olduğunu söylüyor: bireysel müşteri, işyeri, şirketin çalışanları.
-Bir kitleye hizmet eden her şey onun klasöründe: ön API'si, arayüzü ve yalnızca o kitleye
-çalışan iç servisi (`Onboarding` bireysel hesabı açıyor, `StaffAdmin` çalışanları
-yönetiyor). Tek bir kitleye ait olmayan, hepsinin parasını taşıyan servisler `core/`'da,
-paranın yoluna göre: cüzdan, kart, banka, çekim.
+İlk seviye kimin için olduğunu söylüyor: bireysel müşteri, işyeri, şirketin çalışanları.
+Bir kitleye hizmet eden her şey onun klasöründe. Tek bir kitleye ait olmayan, hepsinin
+parasını taşıyan servisler `core/`'da, paranın yoluna göre: cüzdan, kart, banka, çekim.
+
+İkinci seviye erişim: istemcinin bağlandığı yüzey ile iç servis aynı seviyede DURMAZ.
+`edge/` istemcinin konuştuğu her şey: ön API'ler ve tarayıcıda çalışan arayüzler.
+`internal/` istemcinin doğrudan bağlanamadığı iç servisler; onlara yalnızca ön API'ler ve
+öteki iç servisler ulaşıyor. Kitlenin iç servisi yoksa `internal/` açılmıyor (`business/`).
+`core/`'da bu ayrım yok, çünkü orada istemcinin bağlandığı proje yok: iç servisler,
+ingress'siz tüketiciler ve yalnızca kart sağlayıcısının ve bankanın çağırdığı webhook'lar.
 
 Her **host** kendi klasöründe, kendi `Program.cs`'i ve kendi `Dockerfile`'ı ile.
-`HiWallet.sln`'in klasörleri diskle aynı. Gruplama klasörleri (`core/wallet/`) namespace'e
-GİRMEZ: namespace projenin kökünden başlıyor.
+`HiWallet.sln`'in klasörleri diskle aynı. Gruplama klasörleri (`personal/edge/`,
+`core/wallet/`) namespace'e GİRMEZ: namespace projenin kökünden başlıyor.
 
 **Servis ≠ deployable.** Wallet sınırının iki host'u var — `WalletApi` (public HTTP)
 ve `WalletConsumer` (ingress'siz worker; hem top-up event'lerini hem çekim
@@ -247,7 +257,7 @@ EdgeApi.Core/
 ### Tarayıcı uygulamaları: PersonalWeb, BackofficeWeb
 
 ```
-personal/PersonalWeb/          -- bireysel müşteri; BFF'i yanındaki PersonalWebBff
+personal/edge/PersonalWeb/     -- bireysel müşteri; BFF'i yanındaki PersonalWebBff
 ├── package.json               -- sürümler tam, package-lock.json ile
 ├── vite.config.ts             -- geliştirmede API ve oturum yollarını BFF'e iletiyor
 ├── index.html
@@ -258,7 +268,7 @@ personal/PersonalWeb/          -- bireysel müşteri; BFF'i yanındaki PersonalW
     ├── components/
     └── test/                  -- sahte BFF ve render yardımcısı
 
-backoffice/BackofficeWeb/      -- çalışanın paneli; BFF'i yanındaki BackofficeBff, aynı düzen
+backoffice/edge/BackofficeWeb/ -- çalışanın paneli; BFF'i yanındaki BackofficeBff, aynı düzen
 └── src/
     ├── session.tsx            -- oturum yoksa giriş, izni yoksa (403) yalnızca çıkış
     └── pages/                 -- hesap, cüzdan, çekim incelemesi, kampanyalar;

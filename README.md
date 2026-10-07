@@ -223,14 +223,14 @@ adres kullanılıyor (`docs/verify-compose.md`).
 Arayüzü geliştirirken Vite'ın sunucusu, arkada compose'daki BFF:
 
 ```bash
-cd src/personal/PersonalWeb && npm install && npm run dev   # http://localhost:5173
+cd src/personal/edge/PersonalWeb && npm install && npm run dev   # http://localhost:5173
 ```
 
 Backoffice paneli <http://localhost:8099>'da; giriş çalışanların Keycloak'ından, OTP ile.
 Geliştirirken:
 
 ```bash
-cd src/backoffice/BackofficeWeb && npm install && npm run dev   # http://localhost:5174
+cd src/backoffice/edge/BackofficeWeb && npm install && npm run dev   # http://localhost:5174
 ```
 
 `wallet-consumer`'ın host'a açılmış portu yok — health check container'ın içinden
@@ -431,8 +431,8 @@ sapmamış. Testin iddiası "her transfer başarılı olur" değil — çakışa
 
 ```bash
 dotnet test
-cd src/personal/PersonalWeb && npm test
-cd src/backoffice/BackofficeWeb && npm test
+cd src/personal/edge/PersonalWeb && npm test
+cd src/backoffice/edge/BackofficeWeb && npm test
 ```
 
 Integration testler bir Postgres sunucusu ister; bağlantı

@@ -16,8 +16,8 @@
         <ProjectReference Include="../../src/core/wallet/WalletApi/WalletApi.csproj"/>
         <ProjectReference Include="../../src/core/card/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
-        <ProjectReference Include="../../src/personal/Onboarding/Onboarding.csproj"/>
-        <ProjectReference Include="../../src/backoffice/StaffAdmin/StaffAdmin.csproj"/>
+        <ProjectReference Include="../../src/personal/internal/Onboarding/Onboarding.csproj"/>
+        <ProjectReference Include="../../src/backoffice/internal/StaffAdmin/StaffAdmin.csproj"/>
         <ProjectReference Include="../../src/core/card/CardTopup/CardTopup.csproj"/>
     </ItemGroup>
 

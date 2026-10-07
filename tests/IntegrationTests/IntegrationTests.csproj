@@ -17,16 +17,16 @@
          kaldırıyor; proje adı bu yüzden tek servise bağlı değil. -->
     <ItemGroup>
         <ProjectReference Include="../../src/core/wallet/WalletApi/WalletApi.csproj"/>
-        <ProjectReference Include="../../src/personal/PersonalMobileApi/PersonalMobileApi.csproj"/>
-        <ProjectReference Include="../../src/personal/PersonalWebBff/PersonalWebBff.csproj"/>
-        <ProjectReference Include="../../src/business/BusinessApi/BusinessApi.csproj"/>
-        <ProjectReference Include="../../src/business/BusinessWebBff/BusinessWebBff.csproj"/>
-        <ProjectReference Include="../../src/backoffice/BackofficeBff/BackofficeBff.csproj"/>
+        <ProjectReference Include="../../src/personal/edge/PersonalMobileApi/PersonalMobileApi.csproj"/>
+        <ProjectReference Include="../../src/personal/edge/PersonalWebBff/PersonalWebBff.csproj"/>
+        <ProjectReference Include="../../src/business/edge/BusinessApi/BusinessApi.csproj"/>
+        <ProjectReference Include="../../src/business/edge/BusinessWebBff/BusinessWebBff.csproj"/>
+        <ProjectReference Include="../../src/backoffice/edge/BackofficeBff/BackofficeBff.csproj"/>
         <ProjectReference Include="../../src/core/card/TopupWebhook/TopupWebhook.csproj"/>
         <ProjectReference Include="../../src/core/wallet/WalletConsumer/WalletConsumer.csproj"/>
         <ProjectReference Include="../../src/core/withdrawal/WithdrawalOrchestrator/WithdrawalOrchestrator.csproj"/>
-        <ProjectReference Include="../../src/personal/Onboarding/Onboarding.csproj"/>
-        <ProjectReference Include="../../src/backoffice/StaffAdmin/StaffAdmin.csproj"/>
+        <ProjectReference Include="../../src/personal/internal/Onboarding/Onboarding.csproj"/>
+        <ProjectReference Include="../../src/backoffice/internal/StaffAdmin/StaffAdmin.csproj"/>
         <ProjectReference Include="../../fakes/Bank.Fake/Bank.Fake.csproj"/>
         <ProjectReference Include="../../fakes/Stripe.Fake/Stripe.Fake.csproj"/>
         <ProjectReference Include="../../fakes/Sms.Fake/Sms.Fake.csproj"/>

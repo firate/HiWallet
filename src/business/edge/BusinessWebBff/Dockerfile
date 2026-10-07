@@ -1,6 +1,6 @@
 # Ön API, public: işyeri panelinin BFF'i. Repo KÖKÜNDEN build edilir;
 # Directory.Build.props ve Directory.Packages.props lazım (merkezi versiyonlama).
-#   docker build -f src/business/BusinessWebBff/Dockerfile .
+#   docker build -f src/business/edge/BusinessWebBff/Dockerfile .
 #
 # WalletService.Core KOPYALANMIYOR: bu host ona referans vermiyor.
 
@@ -9,13 +9,13 @@ WORKDIR /src
 
 # Önce yalnızca proje dosyaları: kaynak değişse de restore katmanı cache'ten gelsin.
 COPY Directory.Build.props Directory.Packages.props nuget.config ./
-COPY src/business/BusinessWebBff/BusinessWebBff.csproj src/business/BusinessWebBff/
+COPY src/business/edge/BusinessWebBff/BusinessWebBff.csproj src/business/edge/BusinessWebBff/
 COPY src/shared/Shared.Contracts/Shared.Contracts.csproj src/shared/Shared.Contracts/
 COPY src/shared/Shared.Infrastructure/Shared.Infrastructure.csproj src/shared/Shared.Infrastructure/
-RUN dotnet restore src/business/BusinessWebBff/BusinessWebBff.csproj
+RUN dotnet restore src/business/edge/BusinessWebBff/BusinessWebBff.csproj
 
 COPY src/ src/
-RUN dotnet publish src/business/BusinessWebBff/BusinessWebBff.csproj \
+RUN dotnet publish src/business/edge/BusinessWebBff/BusinessWebBff.csproj \
         -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
