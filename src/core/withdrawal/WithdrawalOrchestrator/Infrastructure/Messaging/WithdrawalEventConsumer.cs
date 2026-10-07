@@ -16,9 +16,8 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 /// <b>Bu sınıf yalnızca TAŞIMA.</b> Kanal açmak, mesajı tipine göre çözmek, ack/nack
 /// kararı. Geçiş kuralları state machine'de, kalıcılık handler'da.
 ///
-/// <b>Tek kanal, <c>prefetch=1</c>.</b> Top-up'taki gibi partition YOK: oradaki amaç
-/// aynı cüzdanın mesajlarını sıralı tutarken farklı cüzdanları paralel akıtmaktı.
-/// Burada sıra zaten saga'nın nedenselliğinden geliyor ve hacim düşük. Paralelliğe
+/// <b>Tek kanal, <c>prefetch=1</c>.</b> Sıra saga'nın nedenselliğinden geliyor ve hacim
+/// düşük. Paralelliğe
 /// ihtiyaç olursa prefetch artırılır — aynı saga'ya iki mesaj denk gelirse
 /// <c>withdrawal_sagas.version</c> ikincisini reddediyor ve requeue ediliyor.
 /// </summary>

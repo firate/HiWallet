@@ -7,7 +7,7 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Kart sağlayıcısının ödeme bildirimleri. <c>topup-webhook</c> yayınlıyor (inbox
 /// relay'i), <c>card-topup</c> tüketiyor.
 ///
-/// <b>Partition YOK, tek kuyruk ve tek aktif tüketici.</b> Mesaj yayınlanırken cüzdan
+/// <b>Tek kuyruk ve tek aktif tüketici.</b> Mesaj yayınlanırken cüzdan
 /// bilinmiyor; ödemeyi kendi kaydıyla kart yüklemesi servisi eşleştiriyor. Aynı ödemenin
 /// iki bildirimi (önce vazgeçildi, sonra ödendi gibi bir çelişki) sırayla işlensin; hacim
 /// düşük.

@@ -9,7 +9,7 @@ namespace HiWallet.IntegrationTests.Topups;
 /// Relay tekilliği (<c>decisions.md</c> madde 30).
 ///
 /// Kilidin varlık sebebi SIRALAMA: iki relay ayrı batch'ler alıp farklı hızda
-/// yayınlarsa aynı cüzdanın iki event'i exchange'e ters sırada varıyor ve kuyruğun
+/// yayınlarsa aynı ödemenin iki bildirimi exchange'e ters sırada varıyor ve kuyruğun
 /// içindeki <c>x-single-active-consumer</c> garantisi bunu düzeltmiyor —
 /// o, kuyruğa YANLIŞ SIRADA gelmiş mesajı düzeltmez.
 ///

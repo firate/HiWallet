@@ -122,7 +122,7 @@ internal sealed class BankCommandConsumer(
             when (exception is JsonException or UnknownCommandException or PermanentBankException)
         {
             // Zehirli mesaj: aynı hata her denemede tekrarlanır. Requeue etmek
-            // partition'ı süresiz tıkardı.
+            // kuyruğu süresiz tıkardı.
             logger.LogError(
                 exception, "Banka komutu işlenemedi, dead-letter'a gidiyor. {Command}", commandName);
 

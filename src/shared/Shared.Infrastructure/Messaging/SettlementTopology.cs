@@ -7,14 +7,9 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Settlement bildirimlerinin topolojisi. topup-webhook yayınlıyor, wallet-consumer
 /// tüketiyor.
 ///
-/// <b>Top-up'takinden farklı: partition YOK.</b> Orada sıra cüzdan başına önemliydi
-/// ve routing key cüzdan kimliğiydi. Settlement hiçbir cüzdana dokunmuyor — yalnızca
-/// sistem hesaplarını hareket ettiriyor (<c>clearing</c>, <c>provider_expense</c>,
-/// <c>nostro</c>). Cüzdan bazlı partition'ın koruduğu şey burada yok, o yüzden
-/// consistent hash de yok; eklemek <c>x-consistent-hash</c> eklentisine gereksiz bir
-/// bağımlılık olurdu.
-///
-/// <b>Sıra sağlayıcı bazında bile gerekmiyor.</b> Her settlement kendi batch'ini
+/// <b>Sıra gerekmiyor.</b> Settlement hiçbir cüzdana dokunmuyor — yalnızca sistem
+/// hesaplarını hareket ettiriyor (<c>clearing</c>, <c>provider_expense</c>,
+/// <c>nostro</c>). Sağlayıcı bazında bile sıra yok: her settlement kendi batch'ini
 /// kapatıyor ve kapattığı alacak başka bir batch'in konusu değil; iki settlement'ın
 /// ters sırada işlenmesi aynı clearing bakiyesini veriyor.
 ///

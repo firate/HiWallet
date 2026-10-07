@@ -7,10 +7,10 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Gelen havalelerin topolojisi. <c>bank-adapter</c> yayınlıyor, <c>wallet-consumer</c>
 /// tüketiyor.
 ///
-/// <b>Partition YOK, tek kuyruk ve tek aktif tüketici.</b> Top-up'ta routing key cüzdandı;
-/// havalede mesaj yayınlanırken cüzdan bilinmiyor, onu açıklamadaki numaradan wallet
-/// buluyor. Sıra yine de bir şeyi koruyor: aynı hesaba gelen iki havale aynı anda
-/// işlenirse ikisi de seviyenin aylık limitini ayrı ayrı yeterli görebilirdi.
+/// <b>Tek kuyruk ve tek aktif tüketici.</b> Mesaj yayınlanırken cüzdan bilinmiyor, onu
+/// açıklamadaki numaradan wallet buluyor. Sıra bir şeyi koruyor: aynı hesaba gelen iki
+/// havale aynı anda işlenirse ikisi de seviyenin aylık limitini ayrı ayrı yeterli
+/// görebilirdi.
 /// <c>x-single-active-consumer</c> ve <c>prefetch=1</c> havaleleri birer birer işletiyor;
 /// hacim düşük, bedeli yok.
 ///
