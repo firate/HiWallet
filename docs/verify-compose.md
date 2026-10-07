@@ -95,18 +95,20 @@ PROXY_DOMAIN=...          # alan adı; sertifikası Traefik'te
 PROXY_NETWORK=...         # Traefik'in Docker ağı
 PROXY_ENTRYPOINT=...      # Traefik'in HTTPS entrypoint'i
 PROXY_CERT_RESOLVER=...   # Traefik'in sertifika çözücüsü
-STAFF_ALLOWED_RANGES=...  # çalışanın girişine ve paneline izin verilen aralıklar, boşlukla
+STAFF_ALLOWED_RANGES=...  # çalışan ve işletim yüzeylerine izin verilen aralıklar, boşlukla
 ```
 
 `COMPOSE_FILE` ile her `docker compose` komutu ek dosyayı da okuyor. Adres
 `https://hiwallet-<servis>.<PROXY_DOMAIN>` (`hiwallet-wallet-api`,
 `hiwallet-personal-mobile-api`, `hiwallet-stripe-fake`, ...); müşterilerin Keycloak'ı
 `https://hiwallet-auth.<PROXY_DOMAIN>`, çalışanlarınki
-`https://hiwallet-staff-auth.<PROXY_DOMAIN>`. Webhook'lar dışarıda: onları sahteler iç
-ağdan çağırıyor.
+`https://hiwallet-staff-auth.<PROXY_DOMAIN>`. Broker'ın yönetim ekranı
+`https://hiwallet-rabbitmq.<PROXY_DOMAIN>`.
 
-Çalışanların Keycloak'ı ve `backoffice-bff` yalnızca `STAFF_ALLOWED_RANGES`'teki
-adreslerden açılıyor, gerisi `403`. Kapı istemcinin adresini Traefik'in
+Çalışanların Keycloak'ı, `backoffice-bff`, `staff-admin`, broker'ın yönetim ekranı ve iki
+bildirim ucu (`topup-webhook`, `bank-webhook`) yalnızca `STAFF_ALLOWED_RANGES`'teki
+adreslerden açılıyor, gerisi `403`. Bildirim uçlarını sahteler iç ağdan çağırıyor; adları
+yalnızca elle bakmak için. Kapı istemcinin adresini Traefik'in
 `X-Forwarded-For`'undan okuyor; Traefik'in gördüğü adres istemcinin gerçek adresi
 olmalı. Kendi adresinden açılıyor mu ve aralığın dışından `403` alıyor mu, ikisini de
 dene.
