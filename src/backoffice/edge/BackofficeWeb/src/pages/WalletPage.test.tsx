@@ -22,6 +22,42 @@ const wallet = {
 const empty = { status: 200, body: { items: [], size: 20, nextCursor: null } }
 
 describe('WalletPage', () => {
+  it('cüzdanın çekimlerini çekim sayfalarına bağlıyor', async () => {
+    fakeBff({
+      ...staffSession(['customer.view']),
+      'GET /v1/wallets/w1': wallet,
+      'GET /v1/wallets/w1/movements': empty,
+      'GET /v1/wallets/w1/promos': empty,
+      'GET /v1/wallets/w1/withdrawals': {
+        status: 200,
+        body: {
+          items: [
+            {
+              withdrawalId: 'c1',
+              accountId: 'a1',
+              walletId: 'w1',
+              state: 'under_review',
+              amount: 9000,
+              currency: 'TRY',
+              destinationIban: 'TR33******************1326',
+              totalDebited: 9180,
+              failureReason: null,
+              createdAt: '2026-10-08T10:00:00Z',
+              updatedAt: '2026-10-08T10:00:05Z',
+            },
+          ],
+          size: 20,
+          nextCursor: null,
+        },
+      },
+    })
+
+    renderAt('/cuzdanlar/w1', <App />)
+
+    const link = await screen.findByRole('link', { name: 'İncelemede' })
+    expect(link.getAttribute('href')).toBe('/cekimler/c1')
+  })
+
   it('personel promo’su tekrar edilebilir anahtarla veriliyor', async () => {
     const calls = fakeBff({
       ...staffSession(['customer.view', 'promo.grant', 'campaign.view', 'campaign.manage', 'merchant.promo_acceptance']),

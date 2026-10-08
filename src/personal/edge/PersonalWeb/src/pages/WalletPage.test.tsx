@@ -109,6 +109,43 @@ describe('WalletPage', () => {
     expect(screen.getByRole('link', { name: 'Limitlerim' }).getAttribute('href')).toBe('/hesaplar/a1/limitler')
   })
 
+  /** Müşteri başlattığı çekimi sayfasını kaybetse de cüzdanından buluyor. */
+  it('cüzdanın çekimlerini durum sayfalarına bağlıyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Verified', true) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+      'GET /v1/wallets/w1/withdrawals': {
+        status: 200,
+        body: {
+          items: [
+            {
+              withdrawalId: 'c1',
+              accountId: 'a1',
+              walletId: 'w1',
+              state: 'bank_transfer_pending',
+              amount: 100,
+              currency: 'TRY',
+              destinationIban: 'TR33******************1326',
+              totalDebited: 102,
+              failureReason: null,
+              createdAt: '2026-10-08T10:00:00Z',
+              updatedAt: '2026-10-08T10:00:05Z',
+            },
+          ],
+          size: 20,
+          nextCursor: null,
+        },
+      },
+    })
+
+    renderWallet()
+
+    const link = await screen.findByRole('link', { name: 'Bankada' })
+    expect(link.getAttribute('href')).toBe('/cekimler/c1')
+  })
+
   it('limit okunamazsa düğmeleri açık bırakıyor', async () => {
     fakeBff({
       'GET /v1/wallets/w1': { status: 200, body: wallet },

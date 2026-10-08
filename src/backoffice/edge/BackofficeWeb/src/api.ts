@@ -124,6 +124,8 @@ export const api = {
   withdrawals: (state: string, after?: string | null) =>
     send<WithdrawalsPage>('GET', page(`/v1/withdrawals?state=${encodeURIComponent(state)}`, after)),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+  walletWithdrawals: (walletId: string, after?: string | null) =>
+    send<WithdrawalsPage>('GET', page(`/v1/wallets/${walletId}/withdrawals`, after)),
   suspendedDeposits: (after?: string | null) =>
     send<SuspendedDepositsPage>('GET', page('/v1/suspended-deposits', after)),
   releaseWithdrawal: (withdrawalId: string) => send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/release`),

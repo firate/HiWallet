@@ -21,6 +21,7 @@ import type {
   Withdrawal,
   WithdrawalAccepted,
   WithdrawalRequest,
+  WithdrawalsPage,
 } from './types'
 
 /** BFF'in reddi. Mesaj ProblemDetails'ten; iç servisin cevabı olduğu gibi geliyor. */
@@ -118,6 +119,8 @@ export const api = {
   withdraw: (request: WithdrawalRequest, idempotencyKey: string) =>
     send<WithdrawalAccepted>('POST', '/v1/withdrawals', { body: request, idempotencyKey }),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+  walletWithdrawals: (walletId: string, after?: string | null) =>
+    send<WithdrawalsPage>('GET', page(`/v1/wallets/${walletId}/withdrawals`, after)),
   startCardTopup: (request: CardTopupRequest, idempotencyKey: string) =>
     send<CardTopupAccepted>('POST', '/v1/card-topups', { body: request, idempotencyKey }),
   cardTopup: (cardTopupId: string) => send<CardTopup>('GET', `/v1/card-topups/${cardTopupId}`),

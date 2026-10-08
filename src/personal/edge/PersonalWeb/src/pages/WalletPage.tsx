@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { date, fundType, money, movementType } from '../format'
+import { date, fundType, money, movementType, withdrawalState } from '../format'
 import { blockedReason, useLimits } from '../limits'
 
 /** Cüzdanın bakiyesi, hareketleri ve promo partileri. */
@@ -40,8 +40,63 @@ export function WalletPage() {
         <TopupLinks accountId={accountId} walletId={walletId} />
       </section>
       <Movements walletId={walletId} />
+      <Withdrawals walletId={walletId} />
       <Promos walletId={walletId} />
     </>
+  )
+}
+
+/** Bu cüzdandan başlatılan çekimler; her biri durum sayfasına gidiyor. Çekim yoksa bölüm yok. */
+function Withdrawals({ walletId }: { walletId: string }) {
+  const withdrawals = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'withdrawals'],
+    queryFn: ({ pageParam }) => api.walletWithdrawals(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
+
+  if (withdrawals.isPending) {
+    return null
+  }
+
+  if (withdrawals.error) {
+    return <ErrorMessage error={withdrawals.error} />
+  }
+
+  const items = withdrawals.data.pages.flatMap((page) => page.items)
+
+  if (items.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="card">
+      <h2>Çekimler</h2>
+      <table>
+        <tbody>
+          {items.map((withdrawal) => (
+            <tr key={withdrawal.withdrawalId}>
+              <td>
+                <Link to={`/cekimler/${withdrawal.withdrawalId}`}>{withdrawalState(withdrawal.state)}</Link>
+                <div className="muted small">
+                  {withdrawal.destinationIban}, {date(withdrawal.createdAt)}
+                </div>
+              </td>
+              <td className="amount">{money(withdrawal.amount, withdrawal.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {withdrawals.hasNextPage && (
+        <button
+          className="secondary"
+          onClick={() => withdrawals.fetchNextPage()}
+          disabled={withdrawals.isFetchingNextPage}
+        >
+          Daha eski çekimler
+        </button>
+      )}
+    </section>
   )
 }
 

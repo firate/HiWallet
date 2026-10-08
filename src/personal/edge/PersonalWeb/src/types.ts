@@ -169,6 +169,12 @@ export interface Withdrawal {
   updatedAt: string
 }
 
+export interface WithdrawalsPage {
+  items: Withdrawal[]
+  size: number
+  nextCursor: string | null
+}
+
 /** Dönüş adresi yok: BFF onu kendi adresinden kuruyor. */
 export interface CardTopupRequest {
   walletId: string
