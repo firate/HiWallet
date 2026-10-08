@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { accountNumber, accountType, date, kycLevel, money } from '../format'
+import { accountNumber, accountType, date, kycLevel, kycMovement, money } from '../format'
 import { useHasPermission } from '../session'
-import type { AccountDetail } from '../types'
+import type { AccountDetail, KycMovement } from '../types'
 
 /** Müşterinin hesabı: tipi, seviyesi ve cüzdanları. */
 export function AccountPage() {
@@ -71,7 +71,74 @@ export function AccountPage() {
           </ul>
         )}
       </section>
+      {account.data.kycLevel && (
+        <Limits accountId={accountId} currency={wallets[0]?.currency ?? 'TRY'} />
+      )}
     </>
+  )
+}
+
+const order: KycMovement[] = ['OutgoingTransfer', 'Payment', 'Withdrawal', 'IncomingTransfer', 'Deposit', 'IncomingTotal']
+
+/**
+ * Seviyenin aylık limitleri ve bu ay kullanılanı: müşterinin "neden gönderemiyorum"
+ * sorusunun cevabı. Sayılar wallet-api'nin limit kontrolünün saydığıyla aynı.
+ */
+function Limits({ accountId, currency }: { accountId: string; currency: string }) {
+  const limits = useQuery({
+    queryKey: ['accounts', accountId, 'limits', currency],
+    queryFn: () => api.limits(accountId, currency),
+  })
+
+  if (limits.isPending) {
+    return null
+  }
+
+  if (limits.error) {
+    return <ErrorMessage error={limits.error} />
+  }
+
+  const { movements, balanceCap, balance, periodStart } = limits.data
+  const unit = limits.data.currency
+
+  return (
+    <section className="card">
+      <h2>Seviye limitleri</h2>
+      <p className="muted small">Aylık. Kullanım {date(periodStart)} tarihinden beri sayılıyor.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Hareket</th>
+            <th className="amount">Aylık limit</th>
+            <th className="amount">Bu ay</th>
+            <th className="amount">Kalan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {order.map((name) => {
+            const item = movements.find((candidate) => candidate.movement === name)
+
+            if (!item) {
+              return null
+            }
+
+            return (
+              <tr key={name}>
+                <td>{kycMovement(name)}</td>
+                <td className="amount">{item.limit === 0 ? 'Kapalı' : money(item.limit, unit)}</td>
+                <td className="amount">{money(item.used, unit)}</td>
+                <td className="amount">{item.limit === 0 ? '-' : money(item.remaining, unit)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {balanceCap !== null && (
+        <p className="muted">
+          Bakiye tavanı {money(balanceCap, unit)}; şu an {money(balance, unit)}.
+        </p>
+      )}
+    </section>
   )
 }
 

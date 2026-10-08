@@ -32,6 +32,35 @@ describe('AccountPage', () => {
     expect(screen.queryByRole('button', { name: /promo/i })).toBeNull()
   })
 
+  it('bireysel hesabın seviye limitlerini ve bu ay kullanılanı gösteriyor', async () => {
+    fakeBff({
+      ...staffSession(['customer.view']),
+      'GET /v1/accounts/a1': { status: 200, body: account({}) },
+      'GET /v1/accounts/a1/limits?currency=TRY': {
+        status: 200,
+        body: {
+          accountId: 'a1',
+          kycLevel: 'Unverified',
+          currency: 'TRY',
+          periodStart: '2026-10-01T00:00:00Z',
+          movements: [
+            { movement: 'OutgoingTransfer', limit: 0, used: 0, remaining: 0 },
+            { movement: 'Payment', limit: 5500, used: 1200, remaining: 4300 },
+          ],
+          balanceCap: 5500,
+          balance: 250,
+        },
+      },
+    })
+
+    renderAt('/hesaplar/a1', <App />)
+
+    const outgoing = (await screen.findByText('Başka birine gönderim')).closest('tr')!
+    expect(outgoing.textContent).toContain('Kapalı')
+    expect(screen.getByText('İşyerine ödeme').closest('tr')!.textContent).toMatch(/4\.300,00/)
+    expect(screen.getByText(/Bakiye tavanı/).textContent).toMatch(/5\.500,00/)
+  })
+
   it('izinli çalışan işyerinin promo kabulünü açıyor', async () => {
     const calls = fakeBff({
       ...staffSession(['customer.view', 'promo.grant', 'campaign.view', 'campaign.manage', 'merchant.promo_acceptance']),

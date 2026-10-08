@@ -304,3 +304,25 @@ export interface ProblemDetails {
   rule?: string
   errors?: Record<string, string[]>
 }
+
+/** Seviye limitinin sayıldığı hareket. */
+export type KycMovement = 'IncomingTransfer' | 'OutgoingTransfer' | 'Payment' | 'Withdrawal' | 'Deposit' | 'IncomingTotal'
+
+/** Hareketin aylık limiti ve bu ay kullanılanı. Limit sıfırsa hareket bu seviyede kapalı. */
+export interface MovementLimit {
+  movement: KycMovement
+  limit: number
+  used: number
+  remaining: number
+}
+
+/** Müşterinin seviye limitleri; kullanım wallet-api'nin limit kontrolünün saydığıyla aynı. */
+export interface AccountLimits {
+  accountId: string
+  kycLevel: KycLevel
+  currency: string
+  periodStart: string
+  movements: MovementLimit[]
+  balanceCap: number | null
+  balance: number
+}

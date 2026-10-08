@@ -1,5 +1,6 @@
 import type {
   AccountDetail,
+  AccountLimits,
   AuditEventsPage,
   Campaign,
   CampaignRequest,
@@ -105,6 +106,8 @@ export const api = {
   access: () => send<StaffAccess>('GET', '/v1/me'),
 
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
+  limits: (accountId: string, currency: string) =>
+    send<AccountLimits>('GET', `/v1/accounts/${accountId}/limits?currency=${encodeURIComponent(currency)}`),
   accountByNumber: (number: string) =>
     send<AccountDetail>('GET', `/v1/accounts/by-number/${encodeURIComponent(number)}`),
   setAcceptsPromo: (accountId: string, acceptsPromo: boolean) =>

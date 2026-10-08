@@ -33,6 +33,19 @@ export function kycLevel(value: string): string {
   return kycLevels[value] ?? value
 }
 
+const kycMovements: Record<string, string> = {
+  OutgoingTransfer: 'Başka birine gönderim',
+  Payment: 'İşyerine ödeme',
+  Withdrawal: 'Banka hesabına çekim',
+  IncomingTransfer: 'Gelen transfer',
+  Deposit: 'Para yükleme',
+  IncomingTotal: 'Toplam giriş (yükleme ve gelen transfer)',
+}
+
+export function kycMovement(value: string): string {
+  return kycMovements[value] ?? value
+}
+
 const fundTypes: Record<string, string> = {
   cash: 'Nakit',
   card: 'Kart',
