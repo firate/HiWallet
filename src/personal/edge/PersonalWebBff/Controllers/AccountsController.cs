@@ -35,6 +35,22 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
         return await walletApi.GetAsync<AccountDetailResponse>($"v1/accounts/{accountId}", ct);
     }
 
+    /// <summary>
+    /// Seviyenin aylık limitleri ve bu ay kullanılanı: hangi hareketin kapalı olduğu ve ne
+    /// kadar yer kaldığı işlem denenmeden görünüyor. İşyeri hesabında <c>422</c>.
+    /// </summary>
+    /// <param name="currency">Limitin sayıldığı para birimi (<c>TRY</c>).</param>
+    [HttpGet("{accountId:guid}/limits")]
+    [ProducesResponseType<AccountLimitsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<AccountLimitsResponse> GetLimits(Guid accountId, [FromQuery] string? currency, CancellationToken ct)
+    {
+        return await walletApi.GetAsync<AccountLimitsResponse>(
+            $"v1/accounts/{accountId}/limits?currency={Uri.EscapeDataString(currency ?? string.Empty)}", ct);
+    }
+
     /// <summary>Hesaba cüzdan açar. Bakiye sıfırla başlıyor.</summary>
     [HttpPost("{accountId:guid}/wallets")]
     [ProducesResponseType<WalletResponse>(StatusCodes.Status201Created)]

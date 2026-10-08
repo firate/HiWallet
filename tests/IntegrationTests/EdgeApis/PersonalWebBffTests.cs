@@ -100,6 +100,19 @@ public sealed class PersonalWebBffTests(PostgresFixture postgres, OrchestratorFi
         (await LedgerSeeder.BalanceAsync(check, friend, ct)).ShouldBe(30m);
     }
 
+    [Fact]
+    public async Task Limitler_WalletApidenGelir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.GetAsync($"/v1/accounts/{_customer}/limits?currency=TRY", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        var limits = await ReadAsync(response, ct);
+        limits.GetProperty("kycLevel").GetString().ShouldBe("Contracted");
+        limits.GetProperty("movements").GetArrayLength().ShouldBe(6);
+    }
+
     /// <summary>"Para yükle": toplama hesabının IBAN'ı ve açıklamaya yazılacak hesap numarası.</summary>
     [Fact]
     public async Task YuklemeBilgisi_HesapNumarasiylaGelir()

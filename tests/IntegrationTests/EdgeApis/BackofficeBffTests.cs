@@ -59,6 +59,19 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
     private static string NewStaff() => $"calisan-{Guid.NewGuid():N}";
 
     [Fact]
+    public async Task Destek_MusterininLimitleriniGorur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), TestStaff.Support);
+
+        var response = await _client.GetAsync($"/v1/accounts/{_customer}/limits?currency=TRY", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("movements").GetArrayLength().ShouldBe(6);
+    }
+
+    [Fact]
     public async Task Destek_MusterininKaydiniGorur()
     {
         var ct = TestContext.Current.CancellationToken;

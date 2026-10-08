@@ -99,6 +99,19 @@ public sealed class PersonalMobileApiTests(PostgresFixture postgres, Orchestrato
     }
 
     [Fact]
+    public async Task Limitler_WalletApidenGelir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (accountId, _) = await SeedWalletAsync(0m, ct);
+        _client.AsOwnerOf(accountId);
+
+        var response = await _client.GetAsync($"/v1/accounts/{accountId}/limits?currency=TRY", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        (await ReadAsync(response, ct)).GetProperty("movements").GetArrayLength().ShouldBe(6);
+    }
+
+    [Fact]
     public async Task Cuzdan_WalletApidenGelir()
     {
         var ct = TestContext.Current.CancellationToken;
