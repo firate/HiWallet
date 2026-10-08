@@ -99,6 +99,12 @@ public sealed class KycLimitPolicy(
         }
     }
 
+    /// <summary>Seviyenin bu hareketteki aylık limiti; tarifede yoksa sıfır, yani kapalı.</summary>
+    public decimal MonthlyLimit(KycLevel level, KycMovement movement) => Limit(level, movement);
+
+    /// <summary>Seviyenin bakiye tavanı; kimliği tespit edilmiş seviyede yok.</summary>
+    public decimal? BalanceCap(KycLevel level) => balanceCaps.TryGetValue(level, out var cap) ? cap : null;
+
     private void Ensure(KycLevel level, KycMovement movement, Money amount, Money receivedThisMonth)
     {
         var limit = Limit(level, movement);
