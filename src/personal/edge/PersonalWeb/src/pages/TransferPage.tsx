@@ -5,6 +5,7 @@ import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { money } from '../format'
 import { useIdempotencyKey } from '../idempotency'
+import { blockedReason, useLimits } from '../limits'
 import type { TransferResponse, TransferType } from '../types'
 
 /**
@@ -15,12 +16,24 @@ export function TransferPage() {
   const { walletId = '' } = useParams()
   const queryClient = useQueryClient()
   const wallet = useQuery({ queryKey: ['wallets', walletId], queryFn: () => api.wallet(walletId) })
+  const accountId = wallet.data?.accountId
+  const account = useQuery({
+    queryKey: ['accounts', accountId],
+    queryFn: () => api.account(accountId ?? ''),
+    enabled: accountId !== undefined,
+  })
+  const limits = useLimits(accountId, account.data?.kycLevel, wallet.data?.currency)
 
   const [toAccountNumber, setToAccountNumber] = useState('')
   const [amount, setAmount] = useState('')
-  const [type, setType] = useState<TransferType>('P2P')
+  const [chosenType, setType] = useState<TransferType>('P2P')
   const [idempotencyKey, renewIdempotencyKey] = useIdempotencyKey()
   const [done, setDone] = useState<TransferResponse | null>(null)
+
+  // Seviyenin kapattığı tür seçilemiyor; kişiye gönderim kapalıysa form işyerine ödemeyle açılıyor.
+  const p2pBlocked = blockedReason(limits.data, 'OutgoingTransfer')
+  const paymentBlocked = blockedReason(limits.data, 'Payment')
+  const type: TransferType = chosenType === 'P2P' && p2pBlocked && !paymentBlocked ? 'Payment' : chosenType
 
   const transfer = useMutation({
     mutationFn: (currency: string) =>
@@ -54,11 +67,30 @@ export function TransferPage() {
     transfer.mutate(currency)
   }
 
+  const back = (
+    <p>
+      <Link to={`/cuzdanlar/${walletId}`}>{name}</Link>
+    </p>
+  )
+
+  if (p2pBlocked && paymentBlocked) {
+    return (
+      <>
+        {back}
+        <section className="card">
+          <h1>Para gönder</h1>
+          <div className="notice">
+            <p>Şu an para gönderemiyorsun: {paymentBlocked}</p>
+            <Link to={`/hesaplar/${wallet.data.accountId}/limitler`}>Limitlerim</Link>
+          </div>
+        </section>
+      </>
+    )
+  }
+
   return (
     <>
-      <p>
-        <Link to={`/cuzdanlar/${walletId}`}>{name}</Link>
-      </p>
+      {back}
       <section className="card">
         <h1>Para gönder</h1>
         <p className="muted">
@@ -69,10 +101,15 @@ export function TransferPage() {
           <label>
             Ne için
             <select value={type} onChange={(event) => setType(event.target.value as TransferType)}>
-              <option value="P2P">Bir kişiye</option>
-              <option value="Payment">İşyerine ödeme</option>
+              <option value="P2P" disabled={p2pBlocked !== null}>
+                Bir kişiye{p2pBlocked && ' (kapalı)'}
+              </option>
+              <option value="Payment" disabled={paymentBlocked !== null}>
+                İşyerine ödeme{paymentBlocked && ' (kapalı)'}
+              </option>
             </select>
           </label>
+          {p2pBlocked && <p className="muted small">Başka birine gönderemiyorsun: {p2pBlocked}</p>}
           <label>
             Alıcının hesap numarası
             <input

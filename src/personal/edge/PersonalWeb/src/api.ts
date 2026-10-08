@@ -1,5 +1,6 @@
 import type {
   AccountDetail,
+  AccountLimits,
   AccountsPage,
   CardTopup,
   CardTopupAccepted,
@@ -97,6 +98,8 @@ export const api = {
   // Bir müşterinin birkaç hesabı olur; tavan sayfa yeterli.
   accounts: () => send<AccountsPage>('GET', '/v1/accounts?size=100'),
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
+  limits: (accountId: string, currency: string) =>
+    send<AccountLimits>('GET', `/v1/accounts/${accountId}/limits?currency=${encodeURIComponent(currency)}`),
   openWallet: (accountId: string, name: string, currency: string) =>
     send<Wallet>('POST', `/v1/accounts/${accountId}/wallets`, { body: { name, currency } }),
   setDefaultWallet: (accountId: string, currency: string, walletId: string) =>

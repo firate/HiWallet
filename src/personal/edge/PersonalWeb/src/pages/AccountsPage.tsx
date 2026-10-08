@@ -45,7 +45,7 @@ export function AccountsPage() {
 }
 
 /** Doğrulama seviyesi ve müşterinin sonraki adımı. */
-function LevelNotice({ level }: { level: KycLevel }) {
+function LevelNotice({ accountId, level }: { accountId: string; level: KycLevel }) {
   if (level === 'Unknown') {
     return (
       <div className="notice">
@@ -57,7 +57,11 @@ function LevelNotice({ level }: { level: KycLevel }) {
     )
   }
 
-  return <p className="muted small">Doğrulama seviyesi: {kycLevel(level)}</p>
+  return (
+    <p className="muted small">
+      Doğrulama seviyesi: {kycLevel(level)}. <Link to={`/hesaplar/${accountId}/limitler`}>Limitlerim</Link>
+    </p>
+  )
 }
 
 function AccountCard({ accountId, level }: { accountId: string; level: KycLevel | null }) {
@@ -79,7 +83,7 @@ function AccountCard({ accountId, level }: { accountId: string; level: KycLevel 
         Hesap numaran: <strong className="account-number">{accountNumber(account.data.accountNumber)}</strong>
       </p>
       <p className="muted small">Sana para gönderecek kişiye bu numarayı ver.</p>
-      {level !== null && <LevelNotice level={level} />}
+      {level !== null && <LevelNotice accountId={accountId} level={level} />}
       {level !== null && level !== 'Unknown' && (
         <p>
           <Link to={`/hesaplar/${accountId}/yukle`}>Havaleyle para yükle</Link>

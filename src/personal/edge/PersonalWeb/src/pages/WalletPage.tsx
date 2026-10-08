@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { date, fundType, money, movementType } from '../format'
+import { blockedReason, useLimits } from '../limits'
 
 /** Cüzdanın bakiyesi, hareketleri ve promo partileri. */
 export function WalletPage() {
@@ -35,18 +36,49 @@ export function WalletPage() {
             </li>
           ))}
         </ul>
-        <div className="actions">
-          <Link className="button" to={`/cuzdanlar/${walletId}/transfer`}>
-            Para gönder
-          </Link>
-          <Link className="button secondary" to={`/cuzdanlar/${walletId}/cekim`}>
-            Banka hesabına çek
-          </Link>
-        </div>
+        <Actions accountId={accountId} walletId={walletId} currency={currency} />
         <TopupLinks accountId={accountId} walletId={walletId} />
       </section>
       <Movements walletId={walletId} />
       <Promos walletId={walletId} />
+    </>
+  )
+}
+
+/**
+ * Gönderme ve çekme. Seviyenin kapattığı ya da bu ay dolan hareketin düğmesi yok, sebebi
+ * yazıyor: müşteri işlemi denedikten sonra reddedilmesin. Limit okunamazsa düğmeler açık;
+ * kararı yine sunucu veriyor.
+ */
+function Actions({ accountId, walletId, currency }: { accountId: string; walletId: string; currency: string }) {
+  const account = useQuery({ queryKey: ['accounts', accountId], queryFn: () => api.account(accountId) })
+  const limits = useLimits(accountId, account.data?.kycLevel, currency)
+
+  // Gönderim sayfası kişiye ve işyerine ödemeyi birlikte sunuyor; ikisi de kapalıysa sayfa yok.
+  const sendBlocked = blockedReason(limits.data, 'OutgoingTransfer') && blockedReason(limits.data, 'Payment')
+  const withdrawalBlocked = blockedReason(limits.data, 'Withdrawal')
+
+  return (
+    <>
+      <div className="actions">
+        {!sendBlocked && (
+          <Link className="button" to={`/cuzdanlar/${walletId}/transfer`}>
+            Para gönder
+          </Link>
+        )}
+        {!withdrawalBlocked && (
+          <Link className="button secondary" to={`/cuzdanlar/${walletId}/cekim`}>
+            Banka hesabına çek
+          </Link>
+        )}
+      </div>
+      {(sendBlocked || withdrawalBlocked) && (
+        <p className="muted small">
+          {sendBlocked && <>Para gönderemiyorsun: {sendBlocked} </>}
+          {withdrawalBlocked && <>Banka hesabına çekemiyorsun: {withdrawalBlocked} </>}
+          <Link to={`/hesaplar/${accountId}/limitler`}>Limitlerim</Link>
+        </p>
+      )}
     </>
   )
 }
