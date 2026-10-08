@@ -196,6 +196,10 @@ public sealed class PersonalWebBffTests(PostgresFixture postgres, OrchestratorFi
         location.AbsolutePath.ShouldBe($"/v1/withdrawals/{withdrawalId}");
 
         (await _client.GetAsync(location, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Cüzdanın çekim listesinde görünüyor: müşteri onu sonradan da buluyor.
+        var list = await ReadAsync(await _client.GetAsync($"/v1/wallets/{emptyWallet}/withdrawals", ct), ct);
+        list.GetProperty("items")[0].GetProperty("withdrawalId").GetGuid().ShouldBe(withdrawalId);
     }
 
     [Fact]

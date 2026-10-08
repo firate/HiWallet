@@ -148,6 +148,35 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Destek_CuzdaninCekimleriniGorur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var accountId = Guid.NewGuid();
+        var walletId = Guid.NewGuid();
+
+        using var customer = _orchestrator.CreateClient().As(TestTokens.SubjectOf(accountId));
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/withdrawals")
+        {
+            Content = JsonContent.Create(new
+            {
+                accountId,
+                walletId,
+                amount = 100m,
+                currency = "TRY",
+                destinationIban = "TR330006100519786457841326"
+            }),
+            Headers = { { "Idempotency-Key", Guid.NewGuid().ToString() } }
+        };
+        var started = await customer.SendAsync(request, ct);
+        var withdrawalId = (await started.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("withdrawalId").GetGuid();
+
+        var list = await _client.SignedInAs(NewStaff(), TestStaff.Support)
+            .GetFromJsonAsync<JsonElement>($"/v1/wallets/{walletId}/withdrawals", ct);
+
+        list.GetProperty("items")[0].GetProperty("withdrawalId").GetGuid().ShouldBe(withdrawalId);
+    }
+
     /// <summary>
     /// İzni olmayan çalışanın oturumu var ama işi yok: reddi iç servis veriyor, BFF aynen
     /// aktarıyor. Kullanıcı bilgisi açık; panel izinleri ayrıca soruyor.

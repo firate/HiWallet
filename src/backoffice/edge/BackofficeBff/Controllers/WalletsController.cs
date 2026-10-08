@@ -10,7 +10,7 @@ namespace HiWallet.BackofficeBff.Controllers;
 [ApiController]
 [Route("v1/wallets")]
 [EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
-public sealed class WalletsController(WalletApiClient walletApi) : ControllerBase
+public sealed class WalletsController(WalletApiClient walletApi, WithdrawalOrchestratorClient orchestrator) : ControllerBase
 {
     /// <summary>Cüzdanın güncel bakiyesi, kova kırılımıyla.</summary>
     [HttpGet("{walletId:guid}")]
@@ -68,5 +68,20 @@ public sealed class WalletsController(WalletApiClient walletApi) : ControllerBas
             $"v1/wallets/{walletId}/promos", request, idempotencyKey, ct);
 
         return CreatedAtAction(nameof(GetPromos), new { walletId }, response);
+    }
+
+    /// <summary>
+    /// Cüzdanın çekimleri, yeniden eskiye; orchestrator'dan aynen. Müşteri yalnızca kendi
+    /// başlattığı çekimleri görüyor.
+    /// </summary>
+    /// <param name="after">Önceki sayfanın <c>nextCursor</c> değeri. İlk sayfada verilmiyor.</param>
+    /// <param name="size">Sayfa boyutu. Verilmezse varsayılan; tavanın üstü tavana çekiliyor.</param>
+    [HttpGet("{walletId:guid}/withdrawals")]
+    [ProducesResponseType<WithdrawalsResponse>(StatusCodes.Status200OK)]
+    public async Task<WithdrawalsResponse> GetWithdrawals(
+        Guid walletId, [FromQuery] Guid? after, [FromQuery] int? size, CancellationToken ct)
+    {
+        return await orchestrator.GetAsync<WithdrawalsResponse>(
+            InternalServiceClient.Paged($"v1/wallets/{walletId}/withdrawals", after?.ToString(), size), ct);
     }
 }
