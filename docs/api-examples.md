@@ -298,6 +298,36 @@ Cevap kimlikle sorgulamanın aynısı. Gruplama boşlukları kabul ediliyor
 (`481%20730%205925`). Kontrol hanesi tutmayan numara `400`, olmayan numara ve
 başkasının hesabı `404`. Çalışan `customer.view` izniyle her hesabı buluyor.
 
+### Seviye limitleri
+
+```bash
+curl -s "localhost:8091/v1/accounts/$ACCOUNT/limits?currency=TRY" -H "Authorization: Bearer $TOKEN"
+```
+```json
+{
+  "accountId": "8f7c...",
+  "kycLevel": "Unverified",
+  "currency": "TRY",
+  "periodStart": "2026-10-01T00:00:00+00:00",
+  "movements": [
+    { "movement": "IncomingTransfer", "limit": 5500, "used": 250, "remaining": 5250 },
+    { "movement": "OutgoingTransfer", "limit": 0, "used": 0, "remaining": 0 },
+    { "movement": "Payment", "limit": 5500, "used": 120, "remaining": 5380 },
+    { "movement": "Withdrawal", "limit": 0, "used": 0, "remaining": 0 },
+    { "movement": "Deposit", "limit": 5500, "used": 500, "remaining": 5000 },
+    { "movement": "IncomingTotal", "limit": 5500, "used": 750, "remaining": 4750 }
+  ],
+  "balanceCap": 5500,
+  "balance": 630
+}
+```
+
+Seviyenin aylık limitleri ve bu ay kullanılanı; kullanım limit kontrolünün saydığıyla aynı.
+`limit: 0` hareketin bu seviyede kapalı olduğu demek. Giden harekette kullanım cüzdandan
+düşen, komisyon dahil; çekimde iade edilenler düşülmüş. `balanceCap` yalnızca kimliği
+tespit edilmemiş seviyede. İşyeri hesabı `422` (`kyc_level_not_applicable`), başkasının
+hesabı `404`; çalışan `customer.view` izniyle görüyor. Ön API'lerde aynı yol.
+
 ### Varsayılan cüzdanı değiştir
 
 ```bash
