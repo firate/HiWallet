@@ -1,5 +1,6 @@
 using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
@@ -93,7 +94,9 @@ public sealed class DebitForWithdrawalHandler(
         var commission = policy.Commission(amount);
         var totalDebit = amount + commission;
 
-        var spentToday = await SpentTodayAsync(db, accountId, currency, ct);
+        // Bugün çekimle çıkan NET tutar: banka reddedip geri dönen para hesaptan çıkmadı.
+        var spentToday = await OutgoingUsage.WithdrawnSinceAsync(
+            db, accountId, currency, OutgoingUsage.StartOfDay(clock.UtcNow), ct);
 
         // Kapsam hesap, cüzdan değil (decisions.md madde 20). Kontrol edilen tutar
         // komisyon DAHİL (madde 22).
@@ -107,7 +110,8 @@ public sealed class DebitForWithdrawalHandler(
 
         if (level is { } kycLevel)
         {
-            var spentThisMonth = await SpentSinceAsync(db, accountId, currency, StartOfMonth(), ct);
+            var spentThisMonth = await OutgoingUsage.WithdrawnSinceAsync(
+                db, accountId, currency, OutgoingUsage.StartOfMonth(clock.UtcNow), ct);
 
             kycLimits.EnsureOutgoing(accountId, kycLevel, KycMovement.Withdrawal, totalDebit, spentThisMonth);
         }
@@ -260,49 +264,6 @@ public sealed class DebitForWithdrawalHandler(
         }
     }
 
-    /// <summary>
-    /// Bugün bu hesabın TÜM cüzdanlarından çekimle çıkan NET tutar.
-    ///
-    /// <b>İade edilenler düşülüyor.</b> Transfer tarafındaki sayım yalnızca kendi
-    /// tipinin debit bacaklarını topluyor; çekimde bu yanlış olurdu. Banka reddedip
-    /// para müşteriye geri döndüyse o para hesaptan ÇIKMADI ve günlük limiti
-    /// tüketmemeli — limitin koruduğu şey "bugün bu hesaptan ne kadar para çıktı"
-    /// (decisions.md madde 22).
-    ///
-    /// İşaretli toplam alınıyor: düşme bacağı negatif, iade bacağı pozitif, ikisi
-    /// birbirini götürüyor. Sonuç ters çevrilip pozitif "harcanan" olarak dönüyor.
-    /// </summary>
-    private Task<Money> SpentTodayAsync(
-        WalletDbContext db, Guid accountId, Currency currency, CancellationToken ct) =>
-        SpentSinceAsync(db, accountId, currency, new DateTimeOffset(clock.UtcNow.UtcDateTime.Date, TimeSpan.Zero), ct);
-
-    /// <summary>Ay UTC'ye göre, günlük limitteki gün gibi.</summary>
-    private DateTimeOffset StartOfMonth()
-    {
-        var now = clock.UtcNow.UtcDateTime;
-        return new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
-    }
-
-    /// <summary>Verilen andan bu yana çekimle çıkan NET tutar; iade edilenler düşülmüş.</summary>
-    private static async Task<Money> SpentSinceAsync(
-        WalletDbContext db, Guid accountId, Currency currency, DateTimeOffset since, CancellationToken ct)
-    {
-        var walletIds = db.LedgerAccounts
-            .Where(a => a.AccountId == accountId)
-            .Select(a => a.Id);
-
-        var net = await db.LedgerEntries
-            .Where(e => walletIds.Contains(e.LedgerAccountId)
-                        && e.Currency == currency
-                        && e.CreatedAt >= since
-                        && db.LedgerTransactions.Any(t =>
-                            t.Id == e.TransactionId
-                            && (t.Type == LedgerTransactionType.Withdrawal
-                                || t.Type == LedgerTransactionType.Refund)))
-            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
-
-        return new Money(-net, currency);
-    }
 
     /// <summary>
     /// Komutu sahiplenir. <c>ON CONFLICT DO NOTHING</c> kararı tek adımda DB'ye

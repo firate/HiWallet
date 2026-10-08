@@ -132,7 +132,8 @@ public sealed class CreateTransferHandler(
             if (accounts[senderAccountId].KycLevel is { } senderLevel)
             {
                 var movement = command.Type is TransferType.Payment ? KycMovement.Payment : KycMovement.OutgoingTransfer;
-                var sent = await SentThisMonthAsync(db, senderAccountId, movement, currency, ct);
+                var sent = await OutgoingUsage.TransfersThisMonthAsync(
+                    db, senderAccountId, movement, currency, clock.UtcNow, ct);
 
                 kycLimits.EnsureOutgoing(senderAccountId, senderLevel, movement, debit, sent);
             }
@@ -310,43 +311,6 @@ public sealed class CreateTransferHandler(
                 g.Scope == PromoScope.SelectedBusinesses,
                 g.CreatedAt))
             .ToListAsync(ct);
-    }
-
-    /// <summary>
-    /// Bu ay hesabın cüzdanlarından başka hesaplara bu hareketle çıkan toplam, komisyon
-    /// dahil. Kendi cüzdanına aktarım sayılmıyor: aynı işlemde hesabın bir cüzdanına
-    /// alacak bacağı var. Ay UTC'ye göre, günlük limitteki gün gibi.
-    /// </summary>
-    private async Task<Money> SentThisMonthAsync(
-        WalletDbContext db, Guid accountId, KycMovement movement, Currency currency, CancellationToken ct)
-    {
-        var since = StartOfMonth();
-        LedgerTransactionType[] types = movement is KycMovement.Payment
-            ? [LedgerTransactionType.Payment]
-            : [LedgerTransactionType.P2P, LedgerTransactionType.P2B];
-
-        var walletIds = db.LedgerAccounts
-            .Where(a => a.AccountId == accountId)
-            .Select(a => a.Id);
-
-        var debited = await db.LedgerEntries
-            .Where(e => walletIds.Contains(e.LedgerAccountId)
-                        && e.Amount < 0m
-                        && e.Currency == currency
-                        && e.CreatedAt >= since
-                        && db.LedgerTransactions.Any(t => t.Id == e.TransactionId && types.Contains(t.Type))
-                        && !db.LedgerEntries.Any(other => other.TransactionId == e.TransactionId
-                                                          && other.Amount > 0m
-                                                          && walletIds.Contains(other.LedgerAccountId)))
-            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
-
-        return new Money(-debited, currency);
-    }
-
-    private DateTimeOffset StartOfMonth()
-    {
-        var now = clock.UtcNow.UtcDateTime;
-        return new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
     }
 
     /// <summary>
