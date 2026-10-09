@@ -165,6 +165,8 @@ export interface Withdrawal {
   destinationIban: string
   totalDebited: number | null
   failureReason: string | null
+  /** Sebebin makinenin okuyacağı adı; müşteriye bundan kurulan metin gösteriliyor. */
+  failureRule?: string | null
   createdAt: string
   updatedAt: string
 }
