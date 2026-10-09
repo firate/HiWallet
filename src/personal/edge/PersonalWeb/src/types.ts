@@ -47,6 +47,8 @@ export interface AccountDetailWallet extends AccountWallet {
 export interface AccountDetail extends Account {
   /** Platform fonlu promo bu işyerinde geçiyor mu; bireysel hesapta hep false. */
   acceptsPromo: boolean
+  /** Bu ana kadar bankaya çekim kapalı (telefon değişikliği); yoksa null. */
+  withdrawalHoldUntil?: string | null
   wallets: AccountDetailWallet[]
 }
 
@@ -259,4 +261,10 @@ export interface CardTopupsPage {
   items: CardTopup[]
   size: number
   nextCursor: string | null
+}
+
+/** Numara değişti; bankaya çekim `withdrawalHoldUntil` anına kadar kapalı. */
+export interface PhoneChanged {
+  phone: string
+  withdrawalHoldUntil: string | null
 }

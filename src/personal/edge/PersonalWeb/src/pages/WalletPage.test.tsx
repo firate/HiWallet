@@ -109,6 +109,43 @@ describe('WalletPage', () => {
     expect(screen.getByRole('link', { name: 'Limitlerim' }).getAttribute('href')).toBe('/hesaplar/a1/limitler')
   })
 
+  /** Telefon değişince bankaya çekim bir süre kapalı; gönderim açık. */
+  it('telefon değişikliğinden sonra çekimi göstermiyor, bitişini söylüyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': {
+        status: 200,
+        body: { ...account('Verified', true), withdrawalHoldUntil: '2099-01-01T10:00:00Z' },
+      },
+      'GET /v1/accounts/a1/limits?currency=TRY': { status: 200, body: limitsOf('Verified') },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    expect(await screen.findByText(/Telefon numaran değiştiği için .* tarihine kadar kapalı/)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Banka hesabına çek' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Para gönder' })).toBeTruthy()
+  })
+
+  it('süresi geçmiş çekim kısıtında düğmeyi gösteriyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': {
+        status: 200,
+        body: { ...account('Verified', true), withdrawalHoldUntil: '2026-01-01T10:00:00Z' },
+      },
+      'GET /v1/accounts/a1/limits?currency=TRY': { status: 200, body: limitsOf('Verified') },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    expect(await screen.findByRole('link', { name: 'Banka hesabına çek' })).toBeTruthy()
+  })
+
   /** Müşteri başlattığı çekimi sayfasını kaybetse de cüzdanından buluyor. */
   it('cüzdanın çekimlerini durum sayfalarına bağlıyor', async () => {
     fakeBff({

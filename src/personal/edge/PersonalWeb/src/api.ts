@@ -10,6 +10,7 @@ import type {
   IdentityRequest,
   MovementsPage,
   OnboardingStatus,
+  PhoneChanged,
   PhoneVerificationStarted,
   ProblemDetails,
   PromosPage,
@@ -144,6 +145,11 @@ export const api = {
     send<PhoneVerificationStarted>('POST', '/v1/me/phone-verifications', { body: { phone } }),
   confirmPhone: (verificationId: string, code: string) =>
     send<{ phone: string }>('POST', `/v1/me/phone-verifications/${verificationId}/confirmation`, { body: { code } }),
+  // Temel doğrulamadan sonra numara değişikliği; parolayla yakın zamanda giriş istiyor.
+  startPhoneChange: (phone: string) =>
+    send<PhoneVerificationStarted>('POST', '/v1/me/phone-changes', { body: { phone } }),
+  confirmPhoneChange: (verificationId: string, code: string) =>
+    send<PhoneChanged>('POST', `/v1/me/phone-changes/${verificationId}/confirmation`, { body: { code } }),
   verifyIdentity: (identity: IdentityRequest) =>
     send<{ nationalId: string }>('PUT', '/v1/me/identity', { body: identity }),
   completeBasicVerification: (termsVersion: string, privacyNoticeVersion: string) =>
@@ -159,4 +165,12 @@ export const api = {
 export function loginUrl(returnUrl: string, loginHint?: string): string {
   const url = `/bff/login?returnUrl=${encodeURIComponent(returnUrl)}`
   return loginHint ? `${url}&loginHint=${encodeURIComponent(loginHint)}` : url
+}
+
+/**
+ * Açık oturumda da parolayı yeniden soran giriş: telefon değiştirme yakın zamanda yapılmış
+ * bir giriş istiyor. Dönüşte aynı sayfa.
+ */
+export function reauthenticationUrl(returnUrl: string): string {
+  return `${loginUrl(returnUrl)}&reauthenticate=true`
 }

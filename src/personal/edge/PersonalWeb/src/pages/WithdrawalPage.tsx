@@ -5,7 +5,7 @@ import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { money } from '../format'
 import { useIdempotencyKey } from '../idempotency'
-import { blockedReason, useLimits } from '../limits'
+import { useLimits, withdrawalBlockedReason } from '../limits'
 
 /**
  * IBAN'a para çekme. Cevap "istek alındı" demek, para henüz çıkmadı; sonuç çekimin
@@ -42,7 +42,7 @@ export function WithdrawalPage() {
   }
 
   const { name, currency, withdrawable } = wallet.data
-  const blocked = blockedReason(limits.data, 'Withdrawal')
+  const blocked = withdrawalBlockedReason(account.data, limits.data)
 
   function submit(event: FormEvent) {
     event.preventDefault()

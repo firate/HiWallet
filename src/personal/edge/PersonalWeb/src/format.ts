@@ -96,6 +96,7 @@ const withdrawalFailures: Record<string, string> = {
   'Withdrawal.PerTransaction': 'Tutar tek seferde çekilebilecek tutarı aşıyor.',
   'Withdrawal.Daily': 'Bugünkü çekim limitin bu tutara yetmedi.',
   'Kyc.Withdrawal.Monthly': 'Doğrulama seviyenin aylık çekim limiti bu tutara izin vermedi.',
+  withdrawal_hold: 'Telefon numaran yakın zamanda değiştiği için banka hesabına çekim bir süre kapalı.',
   bank_rejected: 'Banka transferi kabul etmedi; para komisyonuyla birlikte cüzdanına geri döndü.',
   review_cancelled: 'Çekim incelemede iptal edildi; para komisyonuyla birlikte cüzdanına geri döndü.',
 }

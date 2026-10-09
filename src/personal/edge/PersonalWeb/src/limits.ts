@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from './api'
-import type { AccountLimits, KycLevel, KycMovement } from './types'
+import { date } from './format'
+import type { AccountDetail, AccountLimits, KycLevel, KycMovement } from './types'
 
 /**
  * Hesabın seviye limitleri. Seviyesi olmayan (işyeri) hesapta sorulmuyor. Okunamazsa
@@ -23,4 +24,22 @@ export function blockedReason(limits: AccountLimits | undefined, movement: KycMo
   }
 
   return item.limit === 0 ? 'Doğrulama seviyen buna izin vermiyor.' : 'Bu ayki limitin doldu.'
+}
+
+/**
+ * Bankaya çekim neden yapılamıyor: telefon değişikliğinden sonraki güvenlik süresi ya da
+ * seviyenin limiti. Yapılabiliyorsa `null`.
+ */
+export function withdrawalBlockedReason(
+  account: AccountDetail | undefined,
+  limits: AccountLimits | undefined,
+  now: Date = new Date(),
+): string | null {
+  const holdUntil = account?.withdrawalHoldUntil
+
+  if (holdUntil && new Date(holdUntil) > now) {
+    return `Telefon numaran değiştiği için ${date(holdUntil)} tarihine kadar kapalı.`
+  }
+
+  return blockedReason(limits, 'Withdrawal')
 }

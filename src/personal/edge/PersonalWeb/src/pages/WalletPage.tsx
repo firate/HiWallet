@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { cardTopupState, date, fundType, money, movementType, withdrawalState } from '../format'
-import { blockedReason, useLimits } from '../limits'
+import { blockedReason, useLimits, withdrawalBlockedReason } from '../limits'
 
 /** Cüzdanın bakiyesi, hareketleri ve promo partileri. */
 export function WalletPage() {
@@ -163,7 +163,7 @@ function Actions({ accountId, walletId, currency }: { accountId: string; walletI
 
   // Gönderim sayfası kişiye ve işyerine ödemeyi birlikte sunuyor; ikisi de kapalıysa sayfa yok.
   const sendBlocked = blockedReason(limits.data, 'OutgoingTransfer') && blockedReason(limits.data, 'Payment')
-  const withdrawalBlocked = blockedReason(limits.data, 'Withdrawal')
+  const withdrawalBlocked = withdrawalBlockedReason(account.data, limits.data)
 
   return (
     <>
