@@ -697,6 +697,7 @@ curl -s localhost:8093/v1/withdrawals/$WD -H "Authorization: Bearer $TOKEN"
   "destinationIban": "TR33******************1326",
   "totalDebited": 102.0000,
   "failureReason": null,
+  "failureRule": null,
   "createdAt": "2026-09-06T12:54:21.993862+00:00",
   "updatedAt": "2026-09-06T12:54:23.2473+00:00"
 }
@@ -750,12 +751,16 @@ ortaya çıkıyor:
 {
   "state": "rejected",
   "failureReason": "Cüzdan 2394... 50,00 TRY tutuyor, 102,00 TRY çekilemez.",
+  "failureRule": "insufficient_funds",
   "totalDebited": null
 }
 ```
 
-`failureReason` domain'in mesajı, makine tarafından ayrıştırılacak bir kod değil.
-Kod isteyen bir istemci çıkarsa event'e ayrı bir alan eklenir.
+`failureReason` domain'in mesajı: destek için, hesap kimliği taşıyabiliyor. Müşterinin
+ekranı `failureRule`'dan kuruluyor. Reddetmede wallet'ın kural adı, wallet-api'nin hata
+cevabındaki `rule` ile aynı (`insufficient_funds`, `Withdrawal.PerTransaction`,
+`Withdrawal.Daily`, `Kyc.Withdrawal.Monthly`); banka reddinde `bank_rejected`, incelemede
+iptalde `review_cancelled`.
 
 Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 "işleniyor"da bırakırdı.
