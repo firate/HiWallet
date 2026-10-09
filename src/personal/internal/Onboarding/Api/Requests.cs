@@ -24,6 +24,9 @@ public sealed record BasicVerificationRequest(string TermsVersion, string Privac
 /// <param name="NationalId">Bankanın bildirdiği gönderen kimlik numarası, olduğu gibi.</param>
 public sealed record HolderCheckRequest(string Holder, string NationalId);
 
+/// <summary>Tek ölçüt: e-posta, telefon ya da kimlik numarası.</summary>
+public sealed record CustomerSearchRequest(string? Email, string? Phone, string? NationalId);
+
 public sealed class StartRegistrationRequestValidator : AbstractValidator<StartRegistrationRequest>
 {
     public StartRegistrationRequestValidator()
@@ -110,5 +113,34 @@ public sealed class HolderCheckRequestValidator : AbstractValidator<HolderCheckR
     {
         RuleFor(r => r.Holder).NotEmpty().MaximumLength(255);
         RuleFor(r => r.NationalId).NotEmpty().MaximumLength(32);
+    }
+}
+
+/// <summary>
+/// Tek ölçüt ve geçerli biçimde. Kurala uymayan kimlik numarası ya da telefon aranacak bir
+/// şey değil: hiçbir müşteride olamaz, boş liste yerine <c>400</c>.
+/// </summary>
+public sealed class CustomerSearchRequestValidator : AbstractValidator<CustomerSearchRequest>
+{
+    public CustomerSearchRequestValidator()
+    {
+        RuleFor(r => r)
+            .Must(r => new[] { r.Email, r.Phone, r.NationalId }.Count(c => c is not null) == 1)
+            .WithName("Criterion")
+            .WithMessage("Tek ölçüt gir: e-posta, telefon ya da kimlik numarası.");
+
+        RuleFor(r => r.Email)
+            .MaximumLength(254).EmailAddress().WithMessage("Geçerli bir e-posta adresi gir.")
+            .When(r => r.Email is not null);
+
+        RuleFor(r => r.Phone)
+            .Must(phone => PhoneNumber.TryParse(phone, out _))
+            .WithMessage("Türkiye'de bir cep telefonu numarası gir.")
+            .When(r => r.Phone is not null);
+
+        RuleFor(r => r.NationalId)
+            .Must(id => Domain.NationalId.TryParse(id, out _))
+            .WithMessage("Geçerli bir T.C. kimlik numarası gir.")
+            .When(r => r.NationalId is not null);
     }
 }

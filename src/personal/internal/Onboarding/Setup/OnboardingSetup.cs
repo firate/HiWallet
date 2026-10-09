@@ -35,6 +35,7 @@ public static class OnboardingSetup
         services.AddScoped<VerificationService>();
         services.AddScoped<PhoneChangeService>();
         services.AddScoped<HolderCheckService>();
+        services.AddScoped<CustomerLookupService>();
 
         services.AddOptions<PhoneChangeOptions>()
             .BindConfiguration(PhoneChangeOptions.SectionName)
