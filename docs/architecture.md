@@ -180,11 +180,11 @@ ikişer ön API'si var: mobil uygulama `personal-mobile-api`'ye, tarayıcıdaki 
 panel `business-web-bff`'ye bağlanıyor.
 
 `personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: kayıt ve doğrulama, hesap ve
-seviye limitleri, cüzdan, hareketler, promo partileri, transfer ve çekim. Hesap ön API'den açılmıyor, kayıt
+seviye limitleri, cüzdan, hareketler, promo partileri, transfer, çekim ve cüzdanın çekimleri. Hesap ön API'den açılmıyor, kayıt
 açıyor. Web uygulamasının sayfalarını da `personal-web-bff` sunuyor
 (`src/personal/edge/PersonalWeb`). `business-api`'nin uçları: hesap, cüzdan, hareketler,
 transfer (`B2P`, `B2B`), müşteriye promo ve çekim. `backoffice-bff`'in uçları: müşteri
-kaydını ve seviye limitlerini görüntüleme, çekim incelemesi, işyerinin promo kabulü, personel promo'su,
+kaydını, seviye limitlerini ve cüzdanın çekimlerini görüntüleme, çekim incelemesi, işyerinin promo kabulü, personel promo'su,
 kampanyalar ve personel yönetimi; her biri kendi izniyle. Panelin sayfalarını da o
 sunuyor (`src/backoffice/edge/BackofficeWeb`).
 `business-web-bff` sağlık uçlarıyla ayakta.

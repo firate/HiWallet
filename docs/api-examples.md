@@ -716,6 +716,17 @@ bir çalışanın kararını bekliyor. Kuyruk ve karar çalışanın uçları; k
 | `POST /v1/withdrawals/{id}/release` | serbest bırakır, banka komutu gider; `200`, incelemede değilse `422` |
 | `POST /v1/withdrawals/{id}/cancel` `{"reason": "..."}` | iptal eder, para cüzdana döner; `202`, çekim `cancelling` → `cancelled` |
 
+### Cüzdanın çekimleri
+
+```bash
+curl -s "localhost:8093/v1/wallets/$WALLET/withdrawals?size=20" -H "Authorization: Bearer $TOKEN"
+```
+
+Yeniden eskiye, sayfalama `after` (önceki sayfanın `nextCursor`'ı) ile; her eleman çekimin
+sorgusundaki gövdeyle aynı. Orchestrator hesabın kullanıcılarını bilmiyor: müşteri yalnızca
+kendi başlattığı çekimleri görüyor, başkasının cüzdanında liste boş. Çalışan
+`customer.view` izniyle cüzdanın bütün çekimlerini görüyor. Ön API'lerde aynı yol.
+
 `totalDebited` cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi
 yapana kadar `null` — `0` yazılmıyor, "komisyonsuz çekildi" ile karışırdı.
 
