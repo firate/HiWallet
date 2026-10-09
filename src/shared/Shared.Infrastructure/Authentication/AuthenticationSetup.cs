@@ -257,7 +257,7 @@ public static class AuthenticationSetup
 /// </summary>
 public static class StaffPermissions
 {
-    /// <summary>Müşteri kaydını görüntüler: hesap, cüzdan, hareket, promo partisi, çekim.</summary>
+    /// <summary>Müşteri kaydını görüntüler: kişisel bilgiler (maskeli), hesap, cüzdan, hareket, promo partisi, çekim.</summary>
     public const string CustomerView = "customer.view";
 
     /// <summary>İncelemedeki çekimi serbest bırakır ya da iptal eder.</summary>
@@ -284,7 +284,7 @@ public static class StaffPermissions
     /// <summary>Panelde izin seçilirken gösterilen açıklamalar; her iznin bir açıklaması var.</summary>
     public static readonly IReadOnlyDictionary<string, string> Descriptions = new Dictionary<string, string>
     {
-        [CustomerView] = "Müşteri kaydını görüntüler: hesap, cüzdan, hareket, promo partisi, çekim",
+        [CustomerView] = "Müşteri kaydını görüntüler: kişisel bilgiler (maskeli), hesap, cüzdan, hareket, promo partisi, çekim",
         [WithdrawalReview] = "İncelemedeki çekimi serbest bırakır ya da iptal eder",
         [PromoGrant] = "Müşteriye personel promo'su verir",
         [CampaignView] = "Promo kampanyalarını görüntüler",
