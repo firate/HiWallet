@@ -837,6 +837,18 @@ curl -s localhost:8109/v1/card-topups/$CARD_TOPUP -H "Authorization: Bearer $TOK
 
 Başkasının yüklemesi `404`. Çalışan `customer.view` izniyle her yüklemeyi görüyor.
 
+### Cüzdanın kartla yüklemeleri
+
+```bash
+curl -s "localhost:8109/v1/wallets/$WALLET/card-topups?size=20" -H "Authorization: Bearer $TOKEN"
+```
+
+Yeniden eskiye, sayfalama `after` (önceki sayfanın `nextCursor`'ı) ile; her eleman
+yüklemenin sorgusundaki gövdeyle aynı. Servis hesabın kullanıcılarını bilmiyor: müşteri
+yalnızca kendi başlattığı yüklemeleri görüyor, başkasının cüzdanında liste boş. Çalışan
+`customer.view` izniyle cüzdanın bütün yüklemelerini görüyor. Ön API'lerde ve backoffice'te
+aynı yol.
+
 ---
 
 ## bank-fake (BİZİM DEĞİL) — `:8094`
