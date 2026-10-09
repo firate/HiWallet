@@ -283,6 +283,42 @@ public sealed class PersonalWebBffSessionTests
     }
 
     /// <summary>
+    /// Telefon değiştirme gibi işlemler yakın zamanda yapılmış bir giriş istiyor: açık oturum
+    /// olsa da Keycloak parolayı yeniden soruyor (<c>prompt=login</c>).
+    /// </summary>
+    [Fact]
+    public async Task YenidenGiris_KeycloakParolayiTekrarSorar()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var factory = new PersonalWebBffFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync("/bff/login?returnUrl=/profil&reauthenticate=true", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        var query = HttpUtility.ParseQueryString(response.Headers.Location.ShouldNotBeNull().Query);
+        query["prompt"].ShouldBe("login");
+    }
+
+    /// <summary>Numara değişikliği onboarding'e aynen gidiyor; reddi de aynen dönüyor.</summary>
+    [Fact]
+    public async Task TelefonDegisikligi_OnboardingeIletilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var onboarding = new RecordingHandler(HttpStatusCode.Forbidden,
+            """{"title":"Numaranı değiştirmek için parolanla yeniden giriş yap.","status":403,"rule":"reauthentication_required"}""");
+        await using var factory = new PersonalWebBffFactory(onboarding: onboarding);
+        using var client = factory.CreateClient().SignedInAsOwnerOf(Guid.NewGuid()).WithCsrfHeader();
+
+        var response = await client.PostAsJsonAsync("/v1/me/phone-changes", new { phone = "05321234567" }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("rule").GetString()
+            .ShouldBe("reauthentication_required");
+        onboarding.LastPath.ShouldBe("/v1/me/phone-changes");
+    }
+
+    /// <summary>
     /// Başlıksız API isteği reddediliyor. Cookie aynı sitedeki başka bir alt alan adından
     /// gelen isteğe de ekleniyor; o sayfa bu başlığı ekleyemiyor, çünkü başlık tarayıcıda
     /// CORS ön kontrolünü tetikliyor ve BFF buna izin vermiyor.

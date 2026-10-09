@@ -33,6 +33,10 @@ public sealed record ConfirmPhoneRequest(string Code);
 
 public sealed record PhoneVerifiedResponse(string Phone);
 
+/// <param name="Phone">Yeni numara, maskeli.</param>
+/// <param name="WithdrawalHoldUntil">Bankaya çekimin açılacağı an; tekrar edilen onayda <c>null</c>.</param>
+public sealed record PhoneChangedResponse(string Phone, DateTimeOffset? WithdrawalHoldUntil);
+
 public sealed record IdentityRequest(string FirstName, string LastName, string NationalId, DateOnly BirthDate);
 
 /// <param name="NationalId">Maskeli.</param>
