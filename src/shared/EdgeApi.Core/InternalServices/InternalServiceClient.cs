@@ -125,7 +125,7 @@ public sealed class WalletApiClient(HttpClient http) : InternalServiceClient(htt
 /// <summary>İç ağdaki <c>withdrawal-orchestrator</c>: çekim başlatma ve durumu.</summary>
 public sealed class WithdrawalOrchestratorClient(HttpClient http) : InternalServiceClient(http);
 
-/// <summary>İç ağdaki <c>onboarding</c>: kayıt ve kimlik doğrulaması.</summary>
+/// <summary>İç ağdaki <c>onboarding</c>: kayıt, kimlik doğrulaması ve müşterinin kişisel bilgisi.</summary>
 public sealed class OnboardingClient(HttpClient http) : InternalServiceClient(http);
 
 /// <summary>İç ağdaki <c>staff-admin</c>: çalışanlar, panelin rolleri ve rollerin izinleri.</summary>
