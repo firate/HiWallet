@@ -234,7 +234,12 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   Postgres sunucusunda; ledger'la aynı yerde DURMAZ. Wallet yalnızca doğrulamanın
   sonucunu (seviye) bilir. Onaylar değişmez ve silinmez (REVOKE).
 - TCKN ve telefon sınırda doğrulanıp tipe dönüşür (`NationalId`, `PhoneNumber`), akışta
-  string dolaşmaz, maskeli görünür. Bir TCKN tek müşteride.
+  string dolaşmaz, maskeli görünür. Bir TCKN tek müşteride, bir telefon numarası da.
+- Temel doğrulamadan sonra numara YALNIZCA telefon değiştirme akışından değişir: son on
+  dakikada parolayla giriş (`auth_time`), kod yeni numaraya; eski numaraya kod GİTMEZ,
+  değişiklikten sonra eski numaraya ve e-postaya haber gider. Değişince bankaya çekim bir
+  süre KAPANIR (transfer ve ödeme açık). Önce wallet'ta kısıt, sonra numara: yarıda kalan
+  iş kısıtlı tarafta kalır.
 - Bireysel hesabı YALNIZCA onboarding açar (`POST /v1/person-accounts`, token'ın
   `azp`'si onboarding'in istemcisi); müşteri açamaz, açabilseydi doğrulamayı atlardı.
   Kimlik başına tek bireysel hesap (`accounts.holder` UNIQUE), açılış tekrar edilebilir.

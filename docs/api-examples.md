@@ -287,6 +287,8 @@ curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN"
 
 Kırılım liste görünümünde de var: "neden çekemiyorum" sorusunun cevabı tek cüzdana
 girmeden görünüyor. `isDefault`: hesap numarasına gelen TRY bu cüzdana düşüyor.
+Telefon değişikliğinden sonra gövdede `withdrawalHoldUntil` da var: o ana kadar bankaya
+çekim kapalı.
 
 ### Hesabı numarasıyla bul
 
@@ -342,6 +344,23 @@ HTTP/1.1 204 No Content
 Hesap numarasına gelen TRY bundan sonra bu cüzdana. Her para biriminde tam bir varsayılan
 var; hesabın o para birimindeki ilk cüzdanı kendiliğinden varsayılan. Başka bir hesabın
 cüzdanı `404`, başka para biriminin cüzdanı `422`. Müşterinin tercihi: çalışan `403`.
+
+### Çekimi beklet (onboarding)
+
+```bash
+curl -s -X PUT localhost:8091/v1/accounts/$ACCOUNT/withdrawal-hold \
+  -H "Authorization: Bearer $ONBOARDING_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"until":"2026-10-10T13:00:00+00:00"}'
+```
+```json
+{ "accountId": "8f7c...", "withdrawalHoldUntil": "2026-10-10T13:00:00+00:00" }
+```
+
+Telefon numarası değişince onboarding koyuyor; `$ONBOARDING_TOKEN` onboarding'in
+istemcisinin client credentials ile aldığı token. Bekletme yalnızca uzuyor: mevcut daha
+uzunsa değişmiyor ve cevapta o dönüyor. Süre dolana kadar çekim düşmeden reddediliyor
+(`withdrawal_hold`); transfer ve ödeme açık. Token'ın `azp`'si onboarding'in istemcisi
+değilse `403`.
 
 ### Havaleyle yükleme bilgisi
 

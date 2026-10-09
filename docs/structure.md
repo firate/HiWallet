@@ -397,14 +397,16 @@ fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı Y
 └── Webhooks/                  -- sonucun imzalı webhook'u, ayarlar
 
 Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulaması
-├── Domain/                    -- Registration, PhoneVerification, Customer, Consent,
-│                                 NationalId, PhoneNumber, VerificationCode
-├── Application/               -- RegistrationService, VerificationService, dış servislerin
-│                                 arayüzleri (Abstractions/)
+├── Domain/                    -- Registration, PhoneVerification, PhoneChange, Customer,
+│                                 Consent, NationalId, PhoneNumber, VerificationCode
+├── Application/               -- RegistrationService, VerificationService,
+│                                 PhoneChangeService, dış servislerin arayüzleri
+│                                 (Abstractions/)
 ├── Infrastructure/
 │   ├── Persistence/           -- OnboardingDbContext, migration'lar; kendi Postgres sunucusu
 │   ├── Keycloak/              -- yönetim API'si ve servisin kendi token'ı
-│   ├── Wallet/                -- WalletAccountsClient: hesabı aç, seviyeyi yükselt
+│   ├── Wallet/                -- WalletAccountsClient: hesabı aç, seviyeyi yükselt,
+│   │                             çekimi beklet
 │   ├── Messaging/             -- SMTP e-posta, SMS sağlayıcısı
 │   └── PopulationRegistry/    -- nüfus kaydı
 ├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla)

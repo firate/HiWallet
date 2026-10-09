@@ -317,6 +317,36 @@ Tutarlar wallet-api'nin (transfer, ödeme) ve wallet-consumer'ın (çekim, yükl
 Seviye yalnızca yükseliyor. `Verified` ve `Contracted`'a geçiş henüz yok. Kendi hesabından
 gelen havale seviye değiştirmiyor: kimlik tespiti değil.
 
+### Telefon değiştirme
+
+**Akışı müşteri başlatıyor:** uygulamanın profil sayfasında yeni numarayı yazıyor.
+
+```
+yeni numara ──▶ son 10 dakikada parolayla giriş mi? ──hayır──▶ 403, Keycloak'ın sayfasında parola
+                       │ evet
+                       ▼
+               yeni numaraya kod ──▶ kod ──▶ wallet: çekim 24 saat kapalı ──▶ numara değişti
+                                                                              ──▶ eski numaraya SMS, e-posta
+```
+
+Açık bir oturum yetmiyor: telefonu ele geçiren biri oturumu da ele geçirmiş olabilir.
+Onboarding token'daki `auth_time`'a bakıyor; eskiyse `403` (`reauthentication_required`),
+BFF girişi `prompt=login` ile başlatıyor ve Keycloak oturum açık olsa da parolayı soruyor.
+Eski numaraya kod gitmiyor: müşteri numarasını kaybettiği için değiştiriyor olabilir. Onun
+yerine değişiklikten sonra eski numaraya ve e-postaya haber gidiyor.
+
+Değişiklikten sonra bankaya çekim bir süre kapalı (`PhoneChange:WithdrawalHold`, 24 saat);
+transfer ve ödeme açık. Kısıt hesapta (`accounts.withdrawal_hold_until`) ve yalnızca
+uzayabiliyor; wallet çekimi düşmeden önce bakıyor ve `withdrawal_hold` kuralıyla reddediyor.
+Sıra kısıtlayan taraftan başlıyor: önce wallet'ta çekim kapanıyor, sonra numara değişiyor.
+Yarıda kalırsa numara eski, çekim bir süre kapalı; tersi kısıtsız bir numara değişikliği
+bırakırdı.
+
+Bir numara tek müşteride. Kontrol uygulamada, numaraya göre bir advisory lock altında:
+eski kayıtlarda aynı numarayı taşıyan müşteri olabileceği için veritabanında unique index
+yok. Temel doğrulamayı bitiren müşterinin numarası doğrulama akışından değişmiyor
+(`409`, `phone_change_required`), yalnızca bu akıştan.
+
 ---
 
 ## 2. Yükleme: para dışarıdan giriyor
