@@ -73,7 +73,8 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
 
     /// <summary>
     /// Promo partisi değişmiyor, tüketim eklenerek yazılıyor (decisions.md madde 37); kartla
-    /// yüklemenin payı da değişmiyor, kapanışı eklenerek bitiyor. Yetki satır aranmadan
+    /// yüklemenin payı da değişmiyor, kapanışı eklenerek bitiyor; askıdaki havale için verilen
+    /// karar da değişmiyor. Yetki satır aranmadan
     /// kontrol edildiği için tabloların boş olması sorun değil.
     /// </summary>
     [Theory]
@@ -82,6 +83,7 @@ public sealed class AppRolePrivilegeTests(PostgresFixture postgres)
     [InlineData("promo_consumptions", "amount")]
     [InlineData("card_topup_holds", "amount")]
     [InlineData("card_topup_hold_closures", "outcome")]
+    [InlineData("suspended_deposit_resolutions", "account_id")]
     public async Task UygulamaRolu_DegismeyenTablolariGuncelleyemezVeSilemez(string table, string column)
     {
         var ct = TestContext.Current.CancellationToken;
