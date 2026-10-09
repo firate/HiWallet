@@ -25,5 +25,10 @@ internal sealed class RegistrationConfiguration : IEntityTypeConfiguration<Regis
 
         builder.HasIndex(r => r.Email).HasDatabaseName("ix_registrations_email");
         builder.HasIndex(r => r.Subject).HasDatabaseName("ix_registrations_subject");
+
+        // Çalışan müşteriyi hesabından buluyor.
+        builder.HasIndex(r => r.AccountId)
+            .HasDatabaseName("ix_registrations_account_id")
+            .HasFilter("account_id IS NOT NULL");
     }
 }
