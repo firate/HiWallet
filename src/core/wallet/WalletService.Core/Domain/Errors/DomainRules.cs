@@ -22,6 +22,7 @@ public static class DomainRules
         AccountRuleException => "account_rule",
         NoWalletInCurrencyException => "no_wallet_in_currency",
         WithdrawalRejectedException => "withdrawal_rejected",
+        WithdrawalHeldException => "withdrawal_hold",
         _ => "business_rule"
     };
 }

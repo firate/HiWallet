@@ -71,6 +71,9 @@ internal sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasDefaultValue(false)
             .IsRequired();
 
+        builder.Property(a => a.WithdrawalHoldUntil)
+            .HasColumnName("withdrawal_hold_until");
+
         builder.Property(a => a.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");

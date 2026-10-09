@@ -243,6 +243,26 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
     /// seviyeyi yükselten yollar birbirinden habersiz, geç gelen bir alt seviye ulaşılmış
     /// üst seviyeyi geri almamalı.
     /// </summary>
+    /// <summary>
+    /// Hesabın bankaya çekimini bir süre kapatır; transfer ve ödeme açık kalıyor. Telefon
+    /// numarası değişince onboarding koyuyor. Yalnızca uzuyor: mevcut bekletme daha uzunsa
+    /// değişmiyor. Yalnızca onboarding'in istemcisi.
+    /// </summary>
+    [HttpPut("{accountId:guid}/withdrawal-hold")]
+    [Authorize(Policy = OnboardingAccess.Policy)]
+    [ProducesResponseType<WithdrawalHoldResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WithdrawalHoldResponse>> HoldWithdrawals(
+        Guid accountId,
+        [FromBody] HoldWithdrawalsRequest request,
+        CancellationToken ct)
+    {
+        var result = await bus.InvokeAsync<WithdrawalHoldResult>(request.ToCommand(accountId), ct);
+
+        return Ok(WithdrawalHoldResponse.From(result));
+    }
+
     [HttpPut("{accountId:guid}/kyc-level")]
     [Authorize(Policy = OnboardingAccess.Policy)]
     [ProducesResponseType<KycLevelResponse>(StatusCodes.Status200OK)]

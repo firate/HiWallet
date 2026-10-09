@@ -62,6 +62,7 @@ public sealed class GetAccountHandler(IDbContextFactory<WalletDbContext> context
             .ToArray();
 
         return new AccountView(
-            account.Id, account.Number, account.Type, account.KycLevel, account.AcceptsPromo, account.CreatedAt, wallets);
+            account.Id, account.Number, account.Type, account.KycLevel, account.AcceptsPromo, account.CreatedAt,
+            account.WithdrawalHoldUntil, wallets);
     }
 }

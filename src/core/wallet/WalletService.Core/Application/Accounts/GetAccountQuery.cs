@@ -11,6 +11,7 @@ public sealed record GetAccountQuery(Guid AccountId);
 
 /// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
 /// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
+/// <param name="WithdrawalHoldUntil">Bu ana kadar bankaya çekim kapalı; bekletme hiç olmadıysa <c>null</c>.</param>
 public sealed record AccountView(
     Guid AccountId,
     AccountNumber Number,
@@ -18,6 +19,7 @@ public sealed record AccountView(
     KycLevel? KycLevel,
     bool AcceptsPromo,
     DateTimeOffset CreatedAt,
+    DateTimeOffset? WithdrawalHoldUntil,
     IReadOnlyList<AccountWalletView> Wallets);
 
 /// <param name="Balance">Kovaların toplamı: müşterinin gördüğü bakiye.</param>

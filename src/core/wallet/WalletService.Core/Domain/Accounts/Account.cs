@@ -67,6 +67,12 @@ public sealed class Account
     /// </summary>
     public bool AcceptsPromo { get; private set; }
 
+    /// <summary>
+    /// Bu ana kadar bankaya çekim kapalı (telefon değişikliğinden sonraki güvenlik süresi).
+    /// Transfer ve ödeme açık; para hesaptan dışarı yalnızca çekimle çıkıyor.
+    /// </summary>
+    public DateTimeOffset? WithdrawalHoldUntil { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
@@ -125,4 +131,21 @@ public sealed class Account
         KycLevel = level;
         return true;
     }
+
+    /// <summary>
+    /// Çekim bu ana kadar kapalı; telefon numarası değişince onboarding koyuyor. Yalnızca
+    /// uzuyor: art arda iki değişiklikte geç gelen kısa süre öncekini kısaltmıyor.
+    /// </summary>
+    /// <returns>Geçerli bekletmenin sonu.</returns>
+    public DateTimeOffset HoldWithdrawalsUntil(DateTimeOffset until)
+    {
+        if (WithdrawalHoldUntil is not { } current || until > current)
+        {
+            WithdrawalHoldUntil = until;
+        }
+
+        return WithdrawalHoldUntil!.Value;
+    }
+
+    public bool WithdrawalsHeldAt(DateTimeOffset now) => WithdrawalHoldUntil > now;
 }

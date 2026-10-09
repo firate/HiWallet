@@ -15,3 +15,9 @@ public sealed record KycLevelResponse(Guid AccountId, KycLevel KycLevel)
 {
     public static KycLevelResponse From(KycLevelResult result) => new(result.AccountId, result.KycLevel);
 }
+
+/// <param name="WithdrawalHoldUntil">Geçerli bekletmenin sonu; istenenden geç olabilir.</param>
+public sealed record WithdrawalHoldResponse(Guid AccountId, DateTimeOffset WithdrawalHoldUntil)
+{
+    public static WithdrawalHoldResponse From(WithdrawalHoldResult result) => new(result.AccountId, result.Until);
+}

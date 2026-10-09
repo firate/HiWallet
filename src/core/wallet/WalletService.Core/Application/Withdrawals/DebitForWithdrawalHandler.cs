@@ -102,13 +102,19 @@ public sealed class DebitForWithdrawalHandler(
         // komisyon DAHİL (madde 22).
         policy.EnsureWithinLimit(accountId, totalDebit, spentToday);
 
-        // Doğrulama seviyesinin aylık çekim limiti, yalnızca bireysel hesapta.
-        var level = await db.Accounts
+        var account = await db.Accounts
             .Where(a => a.Id == accountId)
-            .Select(a => a.KycLevel)
+            .Select(a => new { a.KycLevel, a.WithdrawalHoldUntil })
             .SingleAsync(ct);
 
-        if (level is { } kycLevel)
+        // Telefon numarası yakın zamanda değişti: çekim güvenlik süresi boyunca kapalı.
+        if (account.WithdrawalHoldUntil is { } holdUntil && holdUntil > clock.UtcNow)
+        {
+            throw new WithdrawalHeldException(accountId, holdUntil);
+        }
+
+        // Doğrulama seviyesinin aylık çekim limiti, yalnızca bireysel hesapta.
+        if (account.KycLevel is { } kycLevel)
         {
             var spentThisMonth = await OutgoingUsage.WithdrawnSinceAsync(
                 db, accountId, currency, OutgoingUsage.StartOfMonth(clock.UtcNow), ct);

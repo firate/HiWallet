@@ -6,6 +6,7 @@ namespace HiWallet.WalletApi.Responses;
 /// <param name="AccountNumber">İnsanın kullandığı on haneli numara; hesaba gelen para bu numarayla.</param>
 /// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
 /// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
+/// <param name="WithdrawalHoldUntil">Bu ana kadar bankaya çekim kapalı (telefon değişikliği); yoksa <c>null</c>.</param>
 public sealed record AccountDetailResponse(
     Guid AccountId,
     string AccountNumber,
@@ -13,6 +14,7 @@ public sealed record AccountDetailResponse(
     KycLevel? KycLevel,
     bool AcceptsPromo,
     DateTimeOffset CreatedAt,
+    DateTimeOffset? WithdrawalHoldUntil,
     IReadOnlyList<AccountWalletResponse> Wallets)
 {
     public static AccountDetailResponse From(AccountView view)
@@ -24,6 +26,7 @@ public sealed record AccountDetailResponse(
             view.KycLevel,
             view.AcceptsPromo,
             view.CreatedAt,
+            view.WithdrawalHoldUntil,
             view.Wallets
                 .Select(w => new AccountWalletResponse(
                     w.WalletId, w.Name, w.Currency, w.Balance, w.Withdrawable,

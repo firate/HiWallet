@@ -16,6 +16,7 @@ public sealed record AccountsResponse(IReadOnlyList<AccountResponse> Items, int 
 /// <param name="AccountNumber">İnsanın kullandığı on haneli numara; hesaba gelen para bu numarayla.</param>
 /// <param name="KycLevel">Bireysel hesabın doğrulama seviyesi; işyeri hesabında <c>null</c>.</param>
 /// <param name="AcceptsPromo">Platform fonlu promo bu işyerinde geçiyor mu. Bireysel hesapta hep <c>false</c>.</param>
+/// <param name="WithdrawalHoldUntil">Bu ana kadar bankaya çekim kapalı (telefon değişikliği); yoksa <c>null</c>.</param>
 public sealed record AccountDetailResponse(
     Guid AccountId,
     string AccountNumber,
@@ -23,6 +24,7 @@ public sealed record AccountDetailResponse(
     string? KycLevel,
     bool AcceptsPromo,
     DateTimeOffset CreatedAt,
+    DateTimeOffset? WithdrawalHoldUntil,
     IReadOnlyList<AccountWalletResponse> Wallets);
 
 /// <param name="Withdrawable">IBAN'a çıkabilen kısım; toplamdan ayrı dönüyor.</param>
