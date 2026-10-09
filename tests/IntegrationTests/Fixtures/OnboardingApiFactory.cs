@@ -45,6 +45,7 @@ public sealed class OnboardingApiFactory(OnboardingFixture fixture, HttpMessageH
         builder.ConfigureTestServices(services =>
         {
             TestTokens.Trust(services);
+            TestStaffPermissions.Use(services);
 
             services.AddSingleton<IIdentityProvider>(IdentityProvider);
             services.AddSingleton<IEmailSender>(Emails);

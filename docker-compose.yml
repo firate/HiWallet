@@ -444,6 +444,11 @@ services:
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
       Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: hiwallet-api
+      # Müşteri bilgisini okuyan uçlarda çalışanın token'ı, backoffice'ten.
+      Authentication__Staff__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__Staff__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      # Çalışanın izinleri token'da değil: her istekte personel yönetimine soruluyor.
+      Authentication__Staff__StaffAdminUrl: http://staff-admin:8080
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}

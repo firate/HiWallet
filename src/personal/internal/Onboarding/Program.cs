@@ -7,7 +7,8 @@ using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 
 // İç servis: müşteri kaydı ve kimlik doğrulaması. Ön API'ler çağırıyor; kayıt uçları
-// kimliksiz, doğrulama uçları müşterinin token'ıyla. Kişisel veri kendi veritabanında,
+// kimliksiz, doğrulama uçları müşterinin token'ıyla, müşteri bilgisini okuyan uçlar
+// çalışanın token'ıyla. Kişisel veri kendi veritabanında,
 // ledger'dan ayrı. Wallet'a yalnızca "hesabı aç" ve "seviyeyi yükselt" gidiyor.
 const string ServiceName = "hiwallet-onboarding";
 
@@ -22,8 +23,9 @@ builder.AddHiWalletObservability(ServiceName);
 builder.Services.AddOnboarding();
 builder.Services.AddOnboardingValidation();
 
-// Token'ı ön API iletiyor, burada yeniden doğrulanıyor.
-builder.Services.AddHiWalletAuthentication();
+// Token'ı ön API iletiyor, burada yeniden doğrulanıyor. Çalışan backoffice'ten geliyor ve
+// yalnızca müşteri bilgisini okuyan uçlarda geçiyor; kayıt ve doğrulama uçları ona kapalı.
+builder.Services.AddHiWalletAuthentication(acceptStaffTokens: true);
 builder.Services.AddWalletConsumerAccess(builder.Configuration);
 
 builder.Services
