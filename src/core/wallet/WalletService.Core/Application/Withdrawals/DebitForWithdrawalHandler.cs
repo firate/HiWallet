@@ -390,9 +390,3 @@ public sealed class DebitForWithdrawalHandler(
                ?? throw new InvalidOperationException($"{currency} revenue hesabı yok.");
     }
 }
-
-/// <summary>
-/// Çekim iş kuralı gereği reddedildi. <see cref="DomainException"/> olması önemli:
-/// akış bunu hata değil CEVAP olarak ele alıyor ve saga'ya bildiriyor.
-/// </summary>
-public sealed class WithdrawalRejectedException(string message) : DomainException(message);
