@@ -238,12 +238,6 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
     }
 
     /// <summary>
-    /// Bireysel hesabın doğrulama seviyesini yükseltir. Yalnızca onboarding çağırıyor.
-    /// Hesap zaten o seviyede ya da üstündeyse değişmiyor ve mevcut seviye dönüyor:
-    /// seviyeyi yükselten yollar birbirinden habersiz, geç gelen bir alt seviye ulaşılmış
-    /// üst seviyeyi geri almamalı.
-    /// </summary>
-    /// <summary>
     /// Hesabın bankaya çekimini bir süre kapatır; transfer ve ödeme açık kalıyor. Telefon
     /// numarası değişince onboarding koyuyor. Yalnızca uzuyor: mevcut bekletme daha uzunsa
     /// değişmiyor. Yalnızca onboarding'in istemcisi.
@@ -263,6 +257,12 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
         return Ok(WithdrawalHoldResponse.From(result));
     }
 
+    /// <summary>
+    /// Bireysel hesabın doğrulama seviyesini yükseltir. Yalnızca onboarding çağırıyor.
+    /// Hesap zaten o seviyede ya da üstündeyse değişmiyor ve mevcut seviye dönüyor:
+    /// seviyeyi yükselten yollar birbirinden habersiz, geç gelen bir alt seviye ulaşılmış
+    /// üst seviyeyi geri almamalı.
+    /// </summary>
     [HttpPut("{accountId:guid}/kyc-level")]
     [Authorize(Policy = OnboardingAccess.Policy)]
     [ProducesResponseType<KycLevelResponse>(StatusCodes.Status200OK)]
