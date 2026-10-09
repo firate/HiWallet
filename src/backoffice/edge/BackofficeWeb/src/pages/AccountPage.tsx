@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
-import { api } from '../api'
+import { api, ApiError } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { accountNumber, accountType, date, kycLevel, kycMovement, money } from '../format'
+import { accountNumber, accountType, consentDocument, date, day, kycLevel, kycMovement, money } from '../format'
 import { useHasPermission } from '../session'
 import type { AccountDetail, KycMovement } from '../types'
 
@@ -51,6 +51,7 @@ export function AccountPage() {
         </dl>
         {type === 'Business' && <AcceptsPromoToggle account={account.data} />}
       </section>
+      {type === 'Person' && <Customer accountId={accountId} />}
       <section className="card">
         <h2>Cüzdanlar</h2>
         {wallets.length === 0 ? (
@@ -75,6 +76,130 @@ export function AccountPage() {
         <Limits accountId={accountId} currency={wallets[0]?.currency ?? 'TRY'} />
       )}
     </>
+  )
+}
+
+/**
+ * Bireysel hesabın sahibi, onboarding'den. Kimlik numarası ve telefon maskeli geliyor;
+ * numaranın ne zaman değiştiği hesabı ele geçirme şüphesinde ilk bakılan yer.
+ */
+function Customer({ accountId }: { accountId: string }) {
+  const customer = useQuery({ queryKey: ['customers', accountId], queryFn: () => api.customer(accountId) })
+
+  if (customer.isPending) {
+    return null
+  }
+
+  if (customer.error) {
+    // Hesap kayıttan açılmamış: onboarding'de sahibi yok.
+    if (customer.error instanceof ApiError && customer.error.status === 404) {
+      return (
+        <section className="card">
+          <h2>Müşteri</h2>
+          <p className="muted">Hesabın kayıt bilgisi yok; kişisel bilgisi görüntülenemiyor.</p>
+        </section>
+      )
+    }
+
+    return <ErrorMessage error={customer.error} />
+  }
+
+  const profile = customer.data
+  const name = [profile.firstName, profile.lastName].filter(Boolean).join(' ')
+
+  return (
+    <section className="card">
+      <h2>Müşteri</h2>
+      <dl>
+        {name && (
+          <>
+            <dt>Ad soyad</dt>
+            <dd>{name}</dd>
+          </>
+        )}
+        <dt>E-posta</dt>
+        <dd>{profile.email}</dd>
+        {profile.nationalId && (
+          <>
+            <dt>T.C. kimlik no</dt>
+            <dd>
+              <code>{profile.nationalId}</code>
+            </dd>
+          </>
+        )}
+        {profile.birthDate && (
+          <>
+            <dt>Doğum tarihi</dt>
+            <dd>{day(profile.birthDate)}</dd>
+          </>
+        )}
+        <dt>Telefon</dt>
+        <dd>
+          {profile.phone && profile.phoneVerifiedAt ? (
+            <>
+              <code>{profile.phone}</code>
+              <span className="muted small"> doğrulandı {date(profile.phoneVerifiedAt)}</span>
+            </>
+          ) : (
+            'Doğrulanmadı.'
+          )}
+        </dd>
+        <dt>Kimlik</dt>
+        <dd>
+          {profile.identityVerifiedAt
+            ? `Nüfus kaydıyla eşleşti, ${date(profile.identityVerifiedAt)}`
+            : 'Kimlik doğrulanmadı.'}
+        </dd>
+        <dt>Temel doğrulama</dt>
+        <dd>{profile.basicVerifiedAt ? date(profile.basicVerifiedAt) : 'Tamamlanmadı.'}</dd>
+      </dl>
+      {profile.consents.length > 0 && (
+        <>
+          <h3>Onaylar</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Metin</th>
+                <th>Sürüm</th>
+                <th>Onay</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profile.consents.map((consent) => (
+                <tr key={`${consent.document}-${consent.version}`}>
+                  <td>{consentDocument(consent.document)}</td>
+                  <td>{consent.version}</td>
+                  <td>{date(consent.acceptedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {profile.phoneChanges.length > 0 && (
+        <>
+          <h3>Numara değişiklikleri</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Eski numara</th>
+                <th>Yeni numara</th>
+                <th>Tarih</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profile.phoneChanges.map((change) => (
+                <tr key={change.changedAt}>
+                  <td>{change.oldPhone ?? '-'}</td>
+                  <td>{change.newPhone}</td>
+                  <td>{date(change.changedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
   )
 }
 
