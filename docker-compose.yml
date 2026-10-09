@@ -821,11 +821,14 @@ services:
         condition: service_started
       staff-admin:
         condition: service_started
+      card-topup:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
       InternalServices__StaffAdmin__BaseUrl: http://staff-admin:8080
+      InternalServices__CardTopup__BaseUrl: http://card-topup:8080
       # Çalışanların Keycloak'ındaki istemci. Giriş sayfası tarayıcının gördüğü adreste,
       # discovery ve token ucu iç ağdan.
       Authentication__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff

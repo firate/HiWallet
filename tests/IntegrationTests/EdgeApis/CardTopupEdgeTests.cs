@@ -74,6 +74,34 @@ public sealed class CardTopupEdgeTests(PostgresFixture postgres, CardTopupFixtur
     private static async Task<JsonElement> ReadAsync(HttpResponseMessage response, CancellationToken ct) =>
         await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
+    /// <summary>Müşteri yüklemelerini cüzdanından buluyor; çalışan da panelden.</summary>
+    [Fact]
+    public async Task Gecmis_BffVeBackofficeteGorunur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var client = _bff.CreateClient().SignedInAsOwnerOf(_account).WithCsrfHeader();
+
+        var started = await client.SendAsync(
+            Post(new { walletId = _wallet, amount = 120m, currency = "TRY" }, Guid.NewGuid().ToString()), ct);
+        var id = (await ReadAsync(started, ct)).GetProperty("cardTopupId").GetGuid();
+
+        var mineResponse = await client.GetAsync($"/v1/wallets/{_wallet}/card-topups", ct);
+        mineResponse.StatusCode.ShouldBe(HttpStatusCode.OK, await mineResponse.Content.ReadAsStringAsync(ct));
+        var mine = await ReadAsync(mineResponse, ct);
+
+        await using var backoffice = new BackofficeBffFactory(cardTopup: new PassthroughHandler(_cardTopup.CreateClient()));
+        using var staff = backoffice.CreateClient()
+            .SignedInAs($"calisan-{Guid.NewGuid():N}", TestStaff.Support)
+            .WithCsrfHeader();
+        var seenResponse = await staff.GetAsync($"/v1/wallets/{_wallet}/card-topups", ct);
+        seenResponse.StatusCode.ShouldBe(HttpStatusCode.OK, await seenResponse.Content.ReadAsStringAsync(ct));
+        var seen = await ReadAsync(seenResponse, ct);
+
+        mine.GetProperty("items")[0].GetProperty("cardTopupId").GetGuid().ShouldBe(id);
+        seen.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("cardTopupId").GetGuid())
+            .ShouldContain(id);
+    }
+
     /// <summary>
     /// Tarayıcı yalnızca tutarı veriyor; dönüş adresi BFF'in kendi adresindeki sayfa. Ödeme
     /// sayfası müşteriyi oraya yüklemenin kimliğiyle yolluyor.

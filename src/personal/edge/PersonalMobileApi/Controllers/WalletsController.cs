@@ -10,7 +10,7 @@ namespace HiWallet.PersonalMobileApi.Controllers;
 [ApiController]
 [Route("v1/wallets")]
 [EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
-public sealed class WalletsController(WalletApiClient walletApi, WithdrawalOrchestratorClient orchestrator) : ControllerBase
+public sealed class WalletsController(WalletApiClient walletApi, WithdrawalOrchestratorClient orchestrator, CardTopupClient cardTopup) : ControllerBase
 {
     /// <summary>Cüzdanın güncel bakiyesi, kova kırılımıyla.</summary>
     [HttpGet("{walletId:guid}")]
@@ -61,5 +61,20 @@ public sealed class WalletsController(WalletApiClient walletApi, WithdrawalOrche
     {
         return await orchestrator.GetAsync<WithdrawalsResponse>(
             InternalServiceClient.Paged($"v1/wallets/{walletId}/withdrawals", after?.ToString(), size), ct);
+    }
+
+    /// <summary>
+    /// Cüzdanın kartla yüklemeleri, yeniden eskiye; card-topup'tan aynen. Müşteri yalnızca
+    /// kendi başlattığı yüklemeleri görüyor.
+    /// </summary>
+    /// <param name="after">Önceki sayfanın <c>nextCursor</c> değeri. İlk sayfada verilmiyor.</param>
+    /// <param name="size">Sayfa boyutu. Verilmezse varsayılan; tavanın üstü tavana çekiliyor.</param>
+    [HttpGet("{walletId:guid}/card-topups")]
+    [ProducesResponseType<CardTopupsResponse>(StatusCodes.Status200OK)]
+    public async Task<CardTopupsResponse> GetCardTopups(
+        Guid walletId, [FromQuery] Guid? after, [FromQuery] int? size, CancellationToken ct)
+    {
+        return await cardTopup.GetAsync<CardTopupsResponse>(
+            InternalServiceClient.Paged($"v1/wallets/{walletId}/card-topups", after?.ToString(), size), ct);
     }
 }

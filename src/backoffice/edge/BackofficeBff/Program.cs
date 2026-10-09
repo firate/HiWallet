@@ -33,6 +33,7 @@ builder.Services.AddBffSession(applicationName: ServiceName);
 builder.Services.AddWalletApiClient();
 builder.Services.AddWithdrawalOrchestratorClient();
 builder.Services.AddStaffAdminClient();
+builder.Services.AddCardTopupClient();
 
 // Çalışan başına kova. Panel müşteri uygulamasından daha sık istek atıyor (arama,
 // liste); çekim kovası burada kullanılmıyor.

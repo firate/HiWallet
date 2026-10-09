@@ -6,6 +6,8 @@ namespace HiWallet.IntegrationTests.Fixtures;
 public sealed class BackofficeBffFactory(
     HttpMessageHandler? walletApi = null,
     HttpMessageHandler? withdrawalOrchestrator = null,
-    HttpMessageHandler? staffAdmin = null)
+    HttpMessageHandler? staffAdmin = null,
+    HttpMessageHandler? cardTopup = null)
     : BffFactory<BackofficeBffApp>(
-        TestTokens.StaffIssuer, "backoffice", staff: true, walletApi, withdrawalOrchestrator, staffAdmin: staffAdmin);
+        TestTokens.StaffIssuer, "backoffice", staff: true, walletApi, withdrawalOrchestrator, staffAdmin: staffAdmin,
+        cardTopup: cardTopup);
