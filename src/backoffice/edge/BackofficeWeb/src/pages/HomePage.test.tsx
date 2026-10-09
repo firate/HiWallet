@@ -57,6 +57,7 @@ describe('HomePage', () => {
     expect(screen.queryByRole('link', { name: 'Çekimler' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Kampanyalar' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Kayıt aç' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Müşteri ara' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'İş kuyrukları' })).toBeNull()
   })
 
@@ -73,6 +74,68 @@ describe('HomePage', () => {
       (option) => option.value,
     )
     expect(types).toEqual(['hesaplar', 'cuzdanlar', 'cekimler'])
+  })
+
+  /** Kimlik numarası adreste değil gövdede gidiyor: adres erişim log'larına düşüyor. */
+  it('müşteriyi kimlik numarasıyla arıyor, sonuçtan hesaba gidiyor', async () => {
+    const user = userEvent.setup()
+    const calls = fakeBff({
+      ...staffSession(['customer.view']),
+      'POST /v1/customer-searches': {
+        status: 200,
+        body: {
+          items: [
+            {
+              accountId: account.accountId,
+              email: 'ayse@ornek.com',
+              firstName: 'Ayşe',
+              lastName: 'Yılmaz',
+              phone: '+90 532 *** ** 45',
+            },
+          ],
+        },
+      },
+      [`GET /v1/accounts/${account.accountId}`]: { status: 200, body: account },
+    })
+
+    renderAt('/', <App />)
+    await user.selectOptions(await screen.findByLabelText('Arama ölçütü'), 'nationalId')
+    await user.type(screen.getByLabelText('Aranan'), ' 10000000146 ')
+    await user.click(screen.getByRole('button', { name: 'Ara' }))
+
+    const match = await screen.findByRole('link', { name: /Ayşe Yılmaz/ })
+    expect(match.textContent).toContain('+90 532 *** ** 45')
+    const search = calls.find((call) => call.path === '/v1/customer-searches')!
+    expect(search.body).toEqual({ nationalId: '10000000146' })
+
+    await user.click(match)
+    expect(await screen.findByText('Bireysel hesap')).toBeTruthy()
+  })
+
+  it('eşleşme yoksa söylüyor, geçersiz ölçütte onboarding’in mesajını gösteriyor', async () => {
+    const user = userEvent.setup()
+    fakeBff({
+      ...staffSession(['customer.view']),
+      'POST /v1/customer-searches': [
+        { status: 200, body: { items: [] } },
+        {
+          status: 400,
+          body: { title: 'One or more validation errors occurred.', errors: { Phone: ['Türkiye’de bir cep telefonu numarası gir.'] } },
+        },
+      ],
+    })
+
+    renderAt('/', <App />)
+    await user.type(await screen.findByLabelText('Aranan'), 'yok@ornek.com')
+    await user.click(screen.getByRole('button', { name: 'Ara' }))
+    expect(await screen.findByText('Eşleşen müşteri yok.')).toBeTruthy()
+
+    await user.selectOptions(screen.getByLabelText('Arama ölçütü'), 'phone')
+    await user.clear(screen.getByLabelText('Aranan'))
+    await user.type(screen.getByLabelText('Aranan'), '12345')
+    await user.click(screen.getByRole('button', { name: 'Ara' }))
+    expect(await screen.findByText('Türkiye’de bir cep telefonu numarası gir.')).toBeTruthy()
+    expect(screen.queryByText('Eşleşen müşteri yok.')).toBeNull()
   })
 
   it('cüzdana yine kimlikle gidiliyor', async () => {
