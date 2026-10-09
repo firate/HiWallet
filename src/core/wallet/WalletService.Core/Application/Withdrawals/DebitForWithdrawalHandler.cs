@@ -307,7 +307,8 @@ public sealed class DebitForWithdrawalHandler(
         var reply = WithdrawalReply.For(new WithdrawalDebitRejected
         {
             SagaId = command.SagaId,
-            Reason = rejection.Message
+            Reason = rejection.Message,
+            Rule = DomainRules.Of(rejection)
         });
 
         var claimed = await ClaimAsync(

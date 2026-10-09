@@ -35,8 +35,18 @@ public sealed record WithdrawalDebitRejected
 {
     public required Guid SagaId { get; init; }
 
-    /// <summary>Müşteriye gösterilebilir sebep. İç detay ya da bakiye içermez.</summary>
+    /// <summary>
+    /// Sebebin metni: log ve destek için, hesap kimliği ve iç ayrıntı taşıyabilir. Müşteriye
+    /// <see cref="Rule"/> gösteriliyor.
+    /// </summary>
     public required string Reason { get; init; }
+
+    /// <summary>
+    /// Makinenin okuyacağı kural (<c>insufficient_funds</c>, <c>Withdrawal.Daily</c>,
+    /// <c>Kyc.Withdrawal.Monthly</c>, ...); wallet-api'nin hata cevabındaki <c>rule</c> ile aynı
+    /// adlar. Alan sonradan eklendi: daha önce yayınlanmış mesajda yok.
+    /// </summary>
+    public string? Rule { get; init; }
 }
 
 /// <summary>
