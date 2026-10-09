@@ -28,7 +28,7 @@ public static class OnboardingFlows
 
     /// <summary>Telefonu, kimliği ve onayları tamamlamış müşteri; doğrulanan numarasıyla.</summary>
     public static async Task<(string Subject, Guid AccountId, string Email, string Phone)> VerifiedAsync(
-        OnboardingApiFactory factory, CancellationToken ct, string? phone = null)
+        OnboardingApiFactory factory, CancellationToken ct, string? phone = null, string? nationalId = null)
     {
         var (subject, accountId, email) = await RegisteredAsync(factory, ct);
         using var customer = factory.CreateClient().As(subject);
@@ -45,7 +45,7 @@ public static class OnboardingFlows
         {
             firstName = "Ayşe",
             lastName = "Yılmaz",
-            nationalId = NationalIds.New(),
+            nationalId = nationalId ?? NationalIds.New(),
             birthDate = "1990-05-17"
         }, ct);
         identity.StatusCode.ShouldBe(HttpStatusCode.OK);
