@@ -8,6 +8,7 @@ using HiWallet.CardTopup.Infrastructure.Upstream;
 using HiWallet.IntegrationTests.Fixtures;
 using HiWallet.Shared.Contracts.CardPayments;
 using HiWallet.Shared.Contracts.CardTopups;
+using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Application.CardTopups;
 using HiWallet.WalletService.Domain.Accounts;
@@ -148,6 +149,52 @@ public sealed class CardTopupServiceTests(PostgresFixture postgres, CardTopupFix
         new FixedTimeProvider(now),
         factory.Services.GetRequiredService<IOptions<CardTopupOptions>>(),
         NullLogger<OpenCardTopupScanner>.Instance);
+
+    // ------------------------------------------------------------------
+    // Geçmiş
+    // ------------------------------------------------------------------
+    private static Guid[] Ids(JsonElement page) =>
+        [.. page.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("cardTopupId").GetGuid())];
+
+    [Fact]
+    public async Task Gecmis_CuzdaninYuklemeleriYenidenEskiye()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var first = (await (await StartAsync(100m, "gecmis-1", ct)).Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("cardTopupId").GetGuid();
+        var second = (await (await StartAsync(200m, "gecmis-2", ct)).Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("cardTopupId").GetGuid();
+
+        var page = await _factory.CreateClient().AsOwnerOf(_account)
+            .GetFromJsonAsync<JsonElement>($"/v1/wallets/{_wallet}/card-topups", ct);
+        var paged = await _factory.CreateClient().AsOwnerOf(_account)
+            .GetFromJsonAsync<JsonElement>($"/v1/wallets/{_wallet}/card-topups?size=1", ct);
+
+        Ids(page).ShouldBe([second, first]);
+        page.GetProperty("items")[0].GetProperty("state").GetString().ShouldBe("pending");
+        Ids(paged).ShouldBe([second]);
+        paged.GetProperty("nextCursor").GetGuid().ShouldBe(second);
+    }
+
+    /// <summary>Başkasının cüzdanında liste boş: cüzdanın var olduğu da söylenmiyor.</summary>
+    [Fact]
+    public async Task Gecmis_BaskasiGoremez_CalisanGorur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        (await StartAsync(100m, "gecmis-baskasi", ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var other = await _factory.CreateClient().As($"baska-{Guid.NewGuid():N}")
+            .GetFromJsonAsync<JsonElement>($"/v1/wallets/{_wallet}/card-topups", ct);
+        var staff = await _factory.CreateClient()
+            .AsStaff($"calisan-{Guid.NewGuid():N}", StaffPermissions.CustomerView)
+            .GetFromJsonAsync<JsonElement>($"/v1/wallets/{_wallet}/card-topups", ct);
+        var unauthorized = await _factory.CreateClient().AsStaff($"calisan-{Guid.NewGuid():N}")
+            .GetAsync($"/v1/wallets/{_wallet}/card-topups", ct);
+
+        other.GetProperty("items").GetArrayLength().ShouldBe(0);
+        staff.GetProperty("items").GetArrayLength().ShouldBe(1);
+        unauthorized.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
 
     // ------------------------------------------------------------------
     // Başlatma

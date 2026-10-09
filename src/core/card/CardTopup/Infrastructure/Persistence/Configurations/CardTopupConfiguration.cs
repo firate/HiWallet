@@ -64,6 +64,10 @@ internal sealed class CardTopupConfiguration : IEntityTypeConfiguration<Domain.C
         builder.HasIndex(c => c.ExpiresAt)
             .HasDatabaseName("ix_card_topups_open")
             .HasFilter("state IN ('created','pending')");
+
+        // Cüzdanın yükleme geçmişi, yeniden eskiye.
+        builder.HasIndex(c => new { c.WalletId, c.CreatedAt })
+            .HasDatabaseName("ix_card_topups_wallet");
     }
 }
 
