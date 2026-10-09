@@ -33,7 +33,14 @@ public static class OnboardingSetup
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<RegistrationService>();
         services.AddScoped<VerificationService>();
+        services.AddScoped<PhoneChangeService>();
         services.AddScoped<HolderCheckService>();
+
+        services.AddOptions<PhoneChangeOptions>()
+            .BindConfiguration(PhoneChangeOptions.SectionName)
+            .Validate(o => o.ReauthenticationWindow > TimeSpan.Zero && o.WithdrawalHold > TimeSpan.Zero,
+                $"{PhoneChangeOptions.SectionName}: ReauthenticationWindow ve WithdrawalHold sıfırdan büyük olmalı.")
+            .ValidateOnStart();
 
         // Fail fast: eksik ayar ilk kayıtta değil başlangıçta patlasın.
         services.AddOptions<DocumentOptions>()

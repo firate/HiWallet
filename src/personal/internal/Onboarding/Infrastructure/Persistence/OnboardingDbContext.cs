@@ -22,6 +22,8 @@ public sealed class OnboardingDbContext(DbContextOptions<OnboardingDbContext> op
 
     public DbSet<Consent> Consents => Set<Consent>();
 
+    public DbSet<PhoneChange> PhoneChanges => Set<PhoneChange>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Eşlemeler tek tek uygulanıyor, assembly taraması yapılmıyor: hangi tablonun
@@ -30,5 +32,6 @@ public sealed class OnboardingDbContext(DbContextOptions<OnboardingDbContext> op
         modelBuilder.ApplyConfiguration(new Configurations.PhoneVerificationConfiguration());
         modelBuilder.ApplyConfiguration(new Configurations.CustomerConfiguration());
         modelBuilder.ApplyConfiguration(new Configurations.ConsentConfiguration());
+        modelBuilder.ApplyConfiguration(new Configurations.PhoneChangeConfiguration());
     }
 }

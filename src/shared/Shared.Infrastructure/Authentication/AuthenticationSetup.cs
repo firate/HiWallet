@@ -236,6 +236,15 @@ public static class AuthenticationSetup
         user.FindFirst(SubjectClaim)?.Value
         ?? throw new InvalidOperationException("Token'da 'sub' yok.");
 
+    /// <summary>
+    /// Kullanıcının parolasıyla en son giriş yaptığı an (<c>auth_time</c>); token'da yoksa
+    /// <c>null</c>. Yenilenen token aynı anı taşıyor: açık kalan oturum taze giriş sayılmıyor.
+    /// </summary>
+    public static DateTimeOffset? AuthenticatedAt(this ClaimsPrincipal user) =>
+        long.TryParse(user.FindFirst("auth_time")?.Value, out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
+
     /// <summary>Token çalışanların realm'inden geldi ve orada doğrulandı.</summary>
     public static bool IsEmployee(this ClaimsPrincipal user) =>
         user.Identities.Any(identity => identity is { IsAuthenticated: true, AuthenticationType: StaffIdentityType });

@@ -14,6 +14,12 @@ public sealed record PhoneVerificationStartedResponse(Guid VerificationId, strin
 /// <param name="Phone">Maskeli.</param>
 public sealed record PhoneVerifiedResponse(string Phone);
 
+/// <param name="Phone">Yeni numara, maskeli.</param>
+/// <param name="WithdrawalHoldUntil">
+/// Bankaya çekimin açılacağı an. Aynı değişikliğin tekrar edilen onayında <c>null</c>.
+/// </param>
+public sealed record PhoneChangedResponse(string Phone, DateTimeOffset? WithdrawalHoldUntil);
+
 /// <param name="NationalId">Maskeli.</param>
 public sealed record IdentityVerifiedResponse(string NationalId);
 

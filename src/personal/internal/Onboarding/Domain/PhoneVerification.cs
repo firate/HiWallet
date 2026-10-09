@@ -27,15 +27,24 @@ public sealed class PhoneVerification
 
     public DateTimeOffset? VerifiedAt { get; private set; }
 
+    /// <summary>
+    /// Doğrulama neyin adımı. İkisinin kodu birbirinin yerine kullanılamıyor: değişikliğin
+    /// kodu ilk doğrulamanın yolundan onaylansaydı yeniden giriş ve çekim bekletmesi atlanırdı.
+    /// </summary>
+    public PhoneVerificationPurpose Purpose { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public static PhoneVerification Start(Guid id, string subject, PhoneNumber phone, string code, DateTimeOffset now) => new()
+    public static PhoneVerification Start(
+        Guid id, string subject, PhoneNumber phone, string code, DateTimeOffset now,
+        PhoneVerificationPurpose purpose = PhoneVerificationPurpose.Basic) => new()
     {
         Id = id,
         Subject = subject,
         Phone = phone,
         CodeHash = VerificationCode.Hash(id, code),
         ExpiresAt = now + Registration.CodeLifetime,
+        Purpose = purpose,
         CreatedAt = now
     };
 
@@ -54,4 +63,13 @@ public sealed class PhoneVerification
         VerifiedAt = now;
         return CodeCheck.Verified;
     }
+}
+
+public enum PhoneVerificationPurpose
+{
+    /// <summary>Temel doğrulamanın telefon adımı.</summary>
+    Basic,
+
+    /// <summary>Temel doğrulamadan sonra numara değişikliği.</summary>
+    Change
 }

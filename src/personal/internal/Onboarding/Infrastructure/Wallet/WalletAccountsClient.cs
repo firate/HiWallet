@@ -19,6 +19,19 @@ public sealed class WalletAccountsClient(HttpClient http)
         return body.GetProperty("accountId").GetGuid();
     }
 
+    /// <summary>
+    /// Hesabın bankaya çekimini bu ana kadar kapatır; telefon numarası değişince. Bekletme
+    /// yalnızca uzuyor; geçerli bekletmenin sonunu döner.
+    /// </summary>
+    public async Task<DateTimeOffset> HoldWithdrawalsAsync(Guid accountId, DateTimeOffset until, CancellationToken ct)
+    {
+        using var response = await http.PutAsJsonAsync($"v1/accounts/{accountId}/withdrawal-hold", new { until }, ct);
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        return body.GetProperty("withdrawalHoldUntil").GetDateTimeOffset();
+    }
+
     /// <summary>Seviyeyi yükseltir; hesabın ulaştığı seviyeyi döner.</summary>
     public async Task<string> RaiseKycLevelAsync(Guid accountId, string level, CancellationToken ct)
     {

@@ -23,6 +23,13 @@ internal sealed class PhoneVerificationConfiguration : IEntityTypeConfiguration<
         builder.Property(v => v.ExpiresAt).HasColumnName("expires_at");
         builder.Property(v => v.FailedAttempts).HasColumnName("failed_attempts");
         builder.Property(v => v.VerifiedAt).HasColumnName("verified_at");
+        builder.Property(v => v.Purpose)
+            .HasColumnName("purpose")
+            .HasConversion(purpose => purpose == PhoneVerificationPurpose.Change ? "change" : "basic",
+                text => text == "change" ? PhoneVerificationPurpose.Change : PhoneVerificationPurpose.Basic)
+            .HasColumnType("text")
+            .HasDefaultValue(PhoneVerificationPurpose.Basic)
+            .IsRequired();
         builder.Property(v => v.CreatedAt).HasColumnName("created_at");
 
         builder.HasIndex(v => v.Subject).HasDatabaseName("ix_phone_verifications_subject");

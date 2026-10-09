@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiWallet.Onboarding.Setup;
 
 /// <summary>
-/// İş kuralı reddi <c>422</c>, çakışma <c>409</c>, bulunamayan <c>404</c>. Gövdedeki
-/// <c>rule</c> uygulamanın müşteriye ne göstereceğini seçtiği ad. Bağlı bir servise
-/// (kimlik sağlayıcı, wallet, SMS, nüfus kaydı) ulaşılamazsa <c>503</c>: müşteri
-/// adımı yeniden deneyebilir.
+/// İş kuralı reddi <c>422</c>, çakışma <c>409</c>, bulunamayan <c>404</c>, yeniden giriş
+/// gereken işlem <c>403</c>. Gövdedeki <c>rule</c> uygulamanın müşteriye ne göstereceğini
+/// seçtiği ad. Bağlı bir servise (kimlik sağlayıcı, wallet, SMS, nüfus kaydı) ulaşılamazsa
+/// <c>503</c>: müşteri adımı yeniden deneyebilir.
 /// </summary>
 internal sealed class OnboardingExceptionHandler(IProblemDetailsService problemDetails, ILogger<OnboardingExceptionHandler> logger)
     : IExceptionHandler
@@ -19,6 +19,7 @@ internal sealed class OnboardingExceptionHandler(IProblemDetailsService problemD
         {
             OnboardingRuleException e => (StatusCodes.Status422UnprocessableEntity, e.Message, e.Rule),
             OnboardingConflictException e => (StatusCodes.Status409Conflict, e.Message, e.Rule),
+            ReauthenticationRequiredException e => (StatusCodes.Status403Forbidden, e.Message, e.Rule),
             OnboardingNotFoundException e => (StatusCodes.Status404NotFound, e.Message, (string?)null),
             HttpRequestException => (StatusCodes.Status503ServiceUnavailable, "Bağlı bir servis şu an yanıt vermiyor; tekrar dene.", null),
             _ => (0, string.Empty, null)

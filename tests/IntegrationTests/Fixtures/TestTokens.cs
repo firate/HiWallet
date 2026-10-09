@@ -77,18 +77,24 @@ public static class TestTokens
     /// <param name="authorizedParty">
     /// Token'ı alan istemci (<c>azp</c>). Servislerin kendi token'larında istemcinin adı.
     /// </param>
+    /// <param name="authTime">
+    /// Kullanıcının parolasıyla en son giriş yaptığı an (<c>auth_time</c>). Verilmezse şimdi:
+    /// taze bir giriş. Yeniden giriş isteyen uçların testi eski bir an veriyor.
+    /// </param>
     public static string For(
         string subject,
         SecurityKey? signingKey = null,
         string[]? audiences = null,
         string issuer = Issuer,
-        string? authorizedParty = null)
+        string? authorizedParty = null,
+        DateTimeOffset? authTime = null)
     {
         var now = DateTime.UtcNow;
         var claims = new Dictionary<string, object>
         {
             ["sub"] = subject,
-            ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience]
+            ["aud"] = audiences ?? [PersonalMobileAudience, InternalAudience],
+            ["auth_time"] = (authTime ?? now).ToUnixTimeSeconds()
         };
 
         if (authorizedParty is not null)
@@ -115,6 +121,14 @@ public static class TestTokens
 
     public static HttpClient AsOwnerOf(this HttpClient client, Guid accountId) =>
         client.As(SubjectOf(accountId));
+
+    /// <summary>Müşterinin token'ı; parolasıyla en son verilen anda giriş yapmış.</summary>
+    public static HttpClient AsAuthenticatedAt(this HttpClient client, string subject, DateTimeOffset authTime)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", For(subject, authTime: authTime));
+        return client;
+    }
 
     /// <summary>İşyerinin sistem entegrasyonu: business-api ve iç servisler için token.</summary>
     public static HttpClient AsIntegration(this HttpClient client, string subject)

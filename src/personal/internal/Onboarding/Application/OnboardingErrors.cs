@@ -18,6 +18,16 @@ public sealed class OnboardingConflictException(string rule, string message) : E
     public string Rule { get; } = rule;
 }
 
+/// <summary>
+/// İşlem parolayla yakın zamanda yapılmış bir giriş istiyor; açık oturum yetmiyor →
+/// <c>403</c>, kural <see cref="OnboardingRules.ReauthenticationRequired"/>. Uygulama
+/// müşteriyi giriş sayfasına yeniden gönderiyor.
+/// </summary>
+public sealed class ReauthenticationRequiredException(string message) : Exception(message)
+{
+    public string Rule => OnboardingRules.ReauthenticationRequired;
+}
+
 /// <summary>Makinenin okuyacağı kural adları.</summary>
 public static class OnboardingRules
 {
@@ -34,4 +44,8 @@ public static class OnboardingRules
     public const string VerificationIncomplete = "verification_incomplete";
     public const string DocumentOutdated = "document_outdated";
     public const string RegistrationMissing = "registration_missing";
+    public const string PhoneInUse = "phone_in_use";
+    public const string PhoneChangeRequired = "phone_change_required";
+    public const string SamePhone = "same_phone";
+    public const string ReauthenticationRequired = "reauthentication_required";
 }
