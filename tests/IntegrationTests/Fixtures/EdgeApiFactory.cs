@@ -23,10 +23,12 @@ namespace HiWallet.IntegrationTests.Fixtures;
 /// iki kova da bu kadar request alıyor ve dakikada bir token yenileniyor.
 /// </param>
 /// <param name="onboarding">
-/// onboarding'e giden handler; yalnızca bireysel müşterinin ön API'leri onu kullanıyor.
+/// onboarding'e giden handler: bireysel müşterinin ön API'lerinde kayıt ve doğrulama,
+/// backoffice'te müşterinin kişisel bilgisi.
 /// </param>
 /// <param name="cardTopup">
-/// kart yüklemesi servisine giden handler; yalnızca bireysel müşterinin ön API'leri onu kullanıyor.
+/// kart yüklemesi servisine giden handler: bireysel müşterinin ön API'lerinde yükleme,
+/// backoffice'te yükleme geçmişi.
 /// </param>
 public abstract class EdgeApiFactory<TEntryPoint>(
     string audience,

@@ -7,7 +7,8 @@ public sealed class BackofficeBffFactory(
     HttpMessageHandler? walletApi = null,
     HttpMessageHandler? withdrawalOrchestrator = null,
     HttpMessageHandler? staffAdmin = null,
-    HttpMessageHandler? cardTopup = null)
+    HttpMessageHandler? cardTopup = null,
+    HttpMessageHandler? onboarding = null)
     : BffFactory<BackofficeBffApp>(
-        TestTokens.StaffIssuer, "backoffice", staff: true, walletApi, withdrawalOrchestrator, staffAdmin: staffAdmin,
-        cardTopup: cardTopup);
+        TestTokens.StaffIssuer, "backoffice", staff: true, walletApi, withdrawalOrchestrator, onboarding, staffAdmin,
+        cardTopup);
