@@ -235,6 +235,9 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   sonucunu (seviye) bilir. Onaylar değişmez ve silinmez (REVOKE).
 - TCKN ve telefon sınırda doğrulanıp tipe dönüşür (`NationalId`, `PhoneNumber`), akışta
   string dolaşmaz, maskeli görünür. Bir TCKN tek müşteride, bir telefon numarası da.
+- Çalışan kişisel veriyi onboarding'in okuma uçlarından görür (`customer.view`): TCKN ve
+  telefon maskeli, açık hali onboarding'den ÇIKMAZ. Arama tek ölçütle ve ölçüt gövdede,
+  adreste DEĞİL: adres erişim log'larına düşer.
 - Temel doğrulamadan sonra numara YALNIZCA telefon değiştirme akışından değişir: son on
   dakikada parolayla giriş (`auth_time`), kod yeni numaraya; eski numaraya kod GİTMEZ,
   değişiklikten sonra eski numaraya ve e-postaya haber gider. Değişince bankaya çekim bir

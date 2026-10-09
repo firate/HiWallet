@@ -787,6 +787,69 @@ Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 
 ---
 
+## onboarding — `:8103`
+
+Kayıt ve doğrulama ön API'lerden geliyor (`verify-compose.md`). Burada çalışanın iki okuma
+ucu; ikisi de `customer.view` izni, müşterinin token'ı `403`. Backoffice'te aynı yollar.
+
+### Hesabın sahibi (çalışan)
+
+```bash
+curl -s "localhost:8103/v1/customers/by-account/$ACCOUNT" -H "Authorization: Bearer $STAFF_TOKEN"
+```
+```json
+{
+  "accountId": "…",
+  "email": "ayse@ornek.com",
+  "firstName": "Ayşe",
+  "lastName": "Yılmaz",
+  "nationalId": "10*******46",
+  "birthDate": "1990-05-17",
+  "phone": "+90 532 *** ** 45",
+  "phoneVerifiedAt": "…",
+  "identityVerifiedAt": "…",
+  "basicVerifiedAt": "…",
+  "consents": [
+    { "document": "Terms", "version": "2026-09", "acceptedAt": "…" },
+    { "document": "PrivacyNotice", "version": "2026-09", "acceptedAt": "…" }
+  ],
+  "phoneChanges": [
+    { "oldPhone": "+90 555 *** ** 12", "newPhone": "+90 532 *** ** 45", "changedAt": "…" }
+  ]
+}
+```
+
+Kimlik numarası ve telefon maskeli. Doğrulamaya başlamamış müşteride yalnızca `email` dolu,
+listeler boş. Numara değişiklikleri yeniden eskiye. Kayıttan açılmamış hesap (işyeri) `404`.
+
+### Müşteri ara (çalışan)
+
+```bash
+curl -s localhost:8103/v1/customer-searches \
+  -H "Authorization: Bearer $STAFF_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"nationalId":"10000000146"}'
+```
+```json
+{
+  "items": [
+    {
+      "accountId": "…",
+      "email": "ayse@ornek.com",
+      "firstName": "Ayşe",
+      "lastName": "Yılmaz",
+      "phone": "+90 532 *** ** 45"
+    }
+  ]
+}
+```
+
+Tek ölçüt: `email`, `phone` ya da `nationalId`. Ölçüt gövdede, adreste değil: adres erişim
+log'larına düşüyor. E-posta büyük-küçük harften ve baştaki-sondaki boşluktan bağımsız,
+telefon yazıldığı biçimden bağımsız. Ölçüt yoksa, birden fazlaysa ya da kurala uymuyorsa
+`400`; eşleşme yoksa boş liste. Sonuç yeniden eskiye, en çok yirmi hesap.
+
+---
+
 ## card-topup — `:8109`
 
 Kartla yükleme. İç servis: müşteri ön API'den geliyor (`personal-web-bff` ve

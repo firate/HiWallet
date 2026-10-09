@@ -147,6 +147,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
 | Telefon değiştirme: parolayla yeniden giriş, yeni numaraya kod, bankaya çekim 24 saat kapalı | evet — testte; compose'da denenmedi |
+| Panelde müşterinin kişisel bilgisi (maskeli) ve e-posta, telefon ya da kimlik numarasıyla arama | evet — testte; compose'da denenmedi |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale, kartla yükleme |
 | Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
 | Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |

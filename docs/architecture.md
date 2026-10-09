@@ -235,7 +235,7 @@ HiWallet temasıyla. Çalışan backoffice panelinden giriyor; `backoffice-bff` 
 çalışan token'ını iç servise iletiyor.
 
 ```
-tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator
+tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator / onboarding
                      izni yoksa reddeder                 issuer'a göre doğrular, izni kontrol eder
 ```
 
@@ -346,6 +346,27 @@ Bir numara tek müşteride. Kontrol uygulamada, numaraya göre bir advisory lock
 eski kayıtlarda aynı numarayı taşıyan müşteri olabileceği için veritabanında unique index
 yok. Temel doğrulamayı bitiren müşterinin numarası doğrulama akışından değişmiyor
 (`409`, `phone_change_required`), yalnızca bu akıştan.
+
+### Çalışanın gördüğü müşteri bilgisi
+
+**Akışı çalışan başlatıyor:** panelin ana sayfasında müşteriyi e-posta, telefon ya da kimlik
+numarasıyla arıyor ya da hesabın sayfasını açıyor.
+
+```
+panel ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ onboarding: customer.view
+                                                         kayıt ─▶ müşteri, onaylar, numara değişiklikleri
+```
+
+Kişisel veri onboarding'de; panel onu wallet'tan değil onboarding'in iki okuma ucundan
+alıyor: hesabın sahibi (`GET /v1/customers/by-account/{accountId}`) ve arama
+(`POST /v1/customer-searches`). Hesaptan müşteriye kayıt üzerinden gidiliyor: hesabı kayıt
+açtı ve kaydın `sub`'ı müşterinin anahtarı. Kayıttan açılmamış hesabın (işyeri) sahibi
+onboarding'de yok, `404`.
+
+Kimlik numarası ve telefon maskeli dönüyor; açık hali onboarding'den çıkmıyor. Arama tek
+ölçütle ve ölçüt gövdede: adres erişim log'larına düşüyor. Kurala uymayan numara `400`,
+eşleşme yoksa boş liste; sonuç en çok yirmi hesap. Numara değişiklikleri yeniden eskiye
+listeleniyor: hesabı ele geçirme şüphesinde ilk bakılan yer.
 
 ---
 

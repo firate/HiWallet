@@ -217,7 +217,8 @@ BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 
 BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların Keycloak'ı
 ├── ...                        -- aynı dosyalar
-├── Controllers/               -- Accounts, Wallets, Withdrawals, PromoCampaigns, Session (/bff)
+├── Controllers/               -- Accounts, Customers, Wallets, Withdrawals, PromoCampaigns,
+│                                 Session (/bff)
 └── Dockerfile                 -- yanındaki BackofficeWeb'i derleyip wwwroot'a koyuyor
 
 BusinessWebBff/                -- public; işyeri panelinin BFF'i (Controllers/ henüz yok)
@@ -400,7 +401,8 @@ Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulamas
 ├── Domain/                    -- Registration, PhoneVerification, PhoneChange, Customer,
 │                                 Consent, NationalId, PhoneNumber, VerificationCode
 ├── Application/               -- RegistrationService, VerificationService,
-│                                 PhoneChangeService, dış servislerin arayüzleri
+│                                 PhoneChangeService, HolderCheckService,
+│                                 CustomerLookupService, dış servislerin arayüzleri
 │                                 (Abstractions/)
 ├── Infrastructure/
 │   ├── Persistence/           -- OnboardingDbContext, migration'lar; kendi Postgres sunucusu
@@ -409,7 +411,9 @@ Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulamas
 │   │                             çekimi beklet
 │   ├── Messaging/             -- SMTP e-posta, SMS sağlayıcısı
 │   └── PopulationRegistry/    -- nüfus kaydı
-├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla)
+├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla),
+│                                 HolderChecks (wallet-consumer), Customers ve
+│                                 CustomerSearches (çalışanın token'ıyla)
 └── Setup/
 
 StaffAdmin/                    -- BİZİM; iç ağ, personel yönetimi
