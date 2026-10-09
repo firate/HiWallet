@@ -8,6 +8,24 @@ export function date(value: string): string {
   return dateFormat.format(new Date(value))
 }
 
+/**
+ * Doğum tarihi gibi saatsiz gün: `YYYY-MM-DD` → `GG.AA.YYYY`. `Date`'e çevrilmiyor; UTC gece
+ * yarısı batıdaki saat diliminde önceki güne düşerdi.
+ */
+export function day(value: string): string {
+  const [year, month, dayOfMonth] = value.split('-')
+  return `${dayOfMonth}.${month}.${year}`
+}
+
+const consentDocuments: Record<string, string> = {
+  Terms: 'Kullanıcı sözleşmesi',
+  PrivacyNotice: 'KVKK aydınlatma metni',
+}
+
+export function consentDocument(value: string): string {
+  return consentDocuments[value] ?? value
+}
+
 /** Hesap numarası okunsun diye üçlü gruplar halinde: 123 456 7890. */
 export function accountNumber(value: string): string {
   return `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`

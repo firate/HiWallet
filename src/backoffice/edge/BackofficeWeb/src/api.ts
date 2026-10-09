@@ -6,6 +6,9 @@ import type {
   Campaign,
   CampaignRequest,
   CampaignsPage,
+  CustomerProfile,
+  CustomerSearch,
+  CustomerSearchResult,
   InviteRequest,
   MovementsPage,
   Permission,
@@ -113,6 +116,11 @@ export const api = {
     send<AccountDetail>('GET', `/v1/accounts/by-number/${encodeURIComponent(number)}`),
   setAcceptsPromo: (accountId: string, acceptsPromo: boolean) =>
     send<void>('PUT', `/v1/accounts/${accountId}/accepts-promo`, { body: { acceptsPromo } }),
+
+  // Kişisel bilgi onboarding'den. Arama ölçütü gövdede: adres erişim log'larına düşüyor.
+  customer: (accountId: string) => send<CustomerProfile>('GET', `/v1/customers/by-account/${accountId}`),
+  searchCustomers: (criterion: CustomerSearch) =>
+    send<CustomerSearchResult>('POST', '/v1/customer-searches', { body: criterion }),
 
   wallet: (walletId: string) => send<Wallet>('GET', `/v1/wallets/${walletId}`),
   movements: (walletId: string, after?: number | null) =>

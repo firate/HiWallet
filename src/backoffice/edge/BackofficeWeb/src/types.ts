@@ -67,6 +67,55 @@ export interface Wallet extends AccountWallet {
   accountId: string
 }
 
+/** Arama ölçütü; tek ölçüt gidiyor. */
+export type CustomerSearch = { email: string } | { phone: string } | { nationalId: string }
+
+/** Aramanın bulduğu hesap; telefon maskeli. */
+export interface CustomerMatch {
+  accountId: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  phone: string | null
+}
+
+export interface CustomerSearchResult {
+  items: CustomerMatch[]
+}
+
+export interface Consent {
+  document: 'Terms' | 'PrivacyNotice'
+  version: string
+  acceptedAt: string
+}
+
+/** Numara değişikliği; numaralar maskeli. */
+export interface PhoneChange {
+  oldPhone: string | null
+  newPhone: string
+  changedAt: string
+}
+
+/**
+ * Bireysel hesabın sahibi, onboarding'den. Kimlik numarası ve telefon maskeli;
+ * doğrulamaya başlamamış müşteride yalnızca e-posta dolu.
+ */
+export interface CustomerProfile {
+  accountId: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  nationalId: string | null
+  /** `YYYY-MM-DD`; saat dilimi yok. */
+  birthDate: string | null
+  phone: string | null
+  phoneVerifiedAt: string | null
+  identityVerifiedAt: string | null
+  basicVerifiedAt: string | null
+  consents: Consent[]
+  phoneChanges: PhoneChange[]
+}
+
 export interface Movement {
   movementId: number
   transactionId: string
