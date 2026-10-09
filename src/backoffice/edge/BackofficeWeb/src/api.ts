@@ -1,6 +1,7 @@
 import type {
   AccountDetail,
   AccountLimits,
+  CardTopupsPage,
   AuditEventsPage,
   Campaign,
   CampaignRequest,
@@ -126,6 +127,8 @@ export const api = {
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
   walletWithdrawals: (walletId: string, after?: string | null) =>
     send<WithdrawalsPage>('GET', page(`/v1/wallets/${walletId}/withdrawals`, after)),
+  walletCardTopups: (walletId: string, after?: string | null) =>
+    send<CardTopupsPage>('GET', page(`/v1/wallets/${walletId}/card-topups`, after)),
   suspendedDeposits: (after?: string | null) =>
     send<SuspendedDepositsPage>('GET', page('/v1/suspended-deposits', after)),
   releaseWithdrawal: (withdrawalId: string) => send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/release`),

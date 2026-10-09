@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { date, fundType, money, movementType, withdrawalState } from '../format'
+import { cardTopupState, date, fundType, money, movementType, withdrawalState } from '../format'
 import { blockedReason, useLimits } from '../limits'
 
 /** Cüzdanın bakiyesi, hareketleri ve promo partileri. */
@@ -41,8 +41,60 @@ export function WalletPage() {
       </section>
       <Movements walletId={walletId} />
       <Withdrawals walletId={walletId} />
+      <CardTopups walletId={walletId} />
       <Promos walletId={walletId} />
     </>
+  )
+}
+
+/**
+ * Bu cüzdana başlatılan kartla yüklemeler; her biri dönüş sayfasına gidiyor ve sonucu orada.
+ * Yükleme yoksa bölüm yok.
+ */
+function CardTopups({ walletId }: { walletId: string }) {
+  const topups = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'card-topups'],
+    queryFn: ({ pageParam }) => api.walletCardTopups(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
+
+  if (topups.isPending) {
+    return null
+  }
+
+  if (topups.error) {
+    return <ErrorMessage error={topups.error} />
+  }
+
+  const items = topups.data.pages.flatMap((page) => page.items)
+
+  if (items.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="card">
+      <h2>Kartla yüklemeler</h2>
+      <table>
+        <tbody>
+          {items.map((topup) => (
+            <tr key={topup.cardTopupId}>
+              <td>
+                <Link to={`/kart-yukleme?cardTopupId=${topup.cardTopupId}`}>{cardTopupState(topup.state)}</Link>
+                <div className="muted small">{date(topup.createdAt)}</div>
+              </td>
+              <td className="amount">{money(topup.amount, topup.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {topups.hasNextPage && (
+        <button className="secondary" onClick={() => topups.fetchNextPage()} disabled={topups.isFetchingNextPage}>
+          Daha eski yüklemeler
+        </button>
+      )}
+    </section>
   )
 }
 

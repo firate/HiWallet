@@ -150,3 +150,15 @@ const depositHoldReasons: Record<string, string> = {
 export function depositHoldReason(value: string): string {
   return depositHoldReasons[value] ?? value
 }
+
+const cardTopupStates: Record<string, string> = {
+  created: 'Başlatıldı',
+  pending: 'Ödeme bekleniyor',
+  paid: 'Ödendi',
+  failed: 'Ödenmedi',
+  rejected: 'Reddedildi',
+}
+
+export function cardTopupState(value: string): string {
+  return cardTopupStates[value] ?? value
+}

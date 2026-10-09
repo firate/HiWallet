@@ -252,3 +252,9 @@ export interface IdentityRequest {
   nationalId: string
   birthDate: string
 }
+
+export interface CardTopupsPage {
+  items: CardTopup[]
+  size: number
+  nextCursor: string | null
+}

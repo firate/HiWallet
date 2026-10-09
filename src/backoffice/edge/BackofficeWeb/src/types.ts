@@ -326,3 +326,23 @@ export interface AccountLimits {
   balanceCap: number | null
   balance: number
 }
+
+/** Kartla yükleme; `state` `created`, `pending`, `paid`, `failed` ya da `rejected`. */
+export interface CardTopup {
+  cardTopupId: string
+  walletId: string
+  state: string
+  amount: number
+  currency: string
+  paymentUrl: string | null
+  expiresAt: string
+  failureReason: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CardTopupsPage {
+  items: CardTopup[]
+  size: number
+  nextCursor: string | null
+}

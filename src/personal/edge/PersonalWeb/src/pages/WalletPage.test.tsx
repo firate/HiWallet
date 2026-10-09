@@ -146,6 +146,41 @@ describe('WalletPage', () => {
     expect(link.getAttribute('href')).toBe('/cekimler/c1')
   })
 
+  it('kartla yüklemeleri sonuç sayfalarına bağlıyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Verified', true) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+      'GET /v1/wallets/w1/card-topups': {
+        status: 200,
+        body: {
+          items: [
+            {
+              cardTopupId: 'k1',
+              walletId: 'w1',
+              state: 'paid',
+              amount: 250,
+              currency: 'TRY',
+              paymentUrl: null,
+              expiresAt: '2026-10-08T10:15:00Z',
+              failureReason: null,
+              createdAt: '2026-10-08T10:00:00Z',
+              updatedAt: '2026-10-08T10:01:00Z',
+            },
+          ],
+          size: 20,
+          nextCursor: null,
+        },
+      },
+    })
+
+    renderWallet()
+
+    const link = await screen.findByRole('link', { name: 'Ödendi' })
+    expect(link.getAttribute('href')).toBe('/kart-yukleme?cardTopupId=k1')
+  })
+
   it('limit okunamazsa düğmeleri açık bırakıyor', async () => {
     fakeBff({
       'GET /v1/wallets/w1': { status: 200, body: wallet },
