@@ -11,6 +11,8 @@ public sealed record WithdrawalAcceptedResponse(Guid WithdrawalId, string State,
 /// <param name="TotalDebited">
 /// Cüzdandan çıkan toplam (tutar + komisyon). Düşme yapılana kadar <c>null</c>.
 /// </param>
+/// <param name="FailureReason">Sebebin metni: destek için, iç ayrıntı taşıyabilir.</param>
+/// <param name="FailureRule">Sebebin makinenin okuyacağı adı; müşterinin ekranı bundan kuruluyor.</param>
 public sealed record WithdrawalResponse(
     Guid WithdrawalId,
     Guid AccountId,
@@ -21,6 +23,7 @@ public sealed record WithdrawalResponse(
     string DestinationIban,
     decimal? TotalDebited,
     string? FailureReason,
+    string? FailureRule,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

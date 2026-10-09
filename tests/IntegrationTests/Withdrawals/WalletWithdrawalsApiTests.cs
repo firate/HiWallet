@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using HiWallet.IntegrationTests.Fixtures;
+using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.Shared.Infrastructure.Authentication;
+using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HiWallet.IntegrationTests.Withdrawals;
 
@@ -83,6 +86,35 @@ public sealed class WalletWithdrawalsApiTests(OrchestratorFixture fixture) : IAs
         Ids(page).ShouldBe([third, second]);
         Ids(next).ShouldBe([first]);
         next.GetProperty("nextCursor").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    /// <summary>
+    /// Wallet'ın reddi saga'ya kural adıyla yazılıyor; müşterinin ekranı sebebi bundan kuruyor.
+    /// Sebep metni destek için, hesap kimliği taşıyabiliyor.
+    /// </summary>
+    [Fact]
+    public async Task Ret_KuralAdiylaDoner()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var walletId = Guid.NewGuid();
+        using var owner = _factory.CreateClient().As($"musteri-{Guid.NewGuid():N}");
+        var withdrawalId = await WithdrawAsync(owner, walletId, 100m, ct);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AdvanceSagaHandler>().HandleAsync(
+                new WithdrawalDebitRejected
+                {
+                    SagaId = withdrawalId,
+                    Reason = "Hesap 3f2a... için 'Kyc.Withdrawal.Monthly' limiti aşıldı",
+                    Rule = "Kyc.Withdrawal.Monthly"
+                }, ct);
+        }
+
+        var withdrawal = await owner.GetFromJsonAsync<JsonElement>($"/v1/withdrawals/{withdrawalId}", ct);
+
+        withdrawal.GetProperty("state").GetString().ShouldBe("rejected");
+        withdrawal.GetProperty("failureRule").GetString().ShouldBe("Kyc.Withdrawal.Monthly");
     }
 
     [Fact]

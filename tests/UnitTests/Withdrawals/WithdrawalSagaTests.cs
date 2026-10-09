@@ -95,6 +95,7 @@ public sealed class WithdrawalSagaTests
         saga.BankTransferFailed("hesap kapalı", Now).ShouldBe(TransitionResult.Applied);
         saga.State.ShouldBe(WithdrawalState.Compensating);
         saga.FailureReason.ShouldBe("hesap kapalı");
+        saga.FailureRule.ShouldBe(WithdrawalFailureRules.BankRejected);
 
         saga.Refunded(Guid.NewGuid(), Now).ShouldBe(TransitionResult.Applied);
         saga.State.ShouldBe(WithdrawalState.Failed);
@@ -106,10 +107,11 @@ public sealed class WithdrawalSagaTests
     {
         var saga = NewSaga();
 
-        saga.Rejected("günlük limit aşıldı", Now).ShouldBe(TransitionResult.Applied);
+        saga.Rejected("günlük limit aşıldı", "Withdrawal.Daily", Now).ShouldBe(TransitionResult.Applied);
 
         saga.State.ShouldBe(WithdrawalState.Rejected);
         saga.IsTerminal.ShouldBeTrue();
+        saga.FailureRule.ShouldBe("Withdrawal.Daily");
 
         // Hiç para hareketi olmadı: debit kaydı yok.
         saga.DebitTransactionId.ShouldBeNull();
@@ -220,7 +222,7 @@ public sealed class WithdrawalSagaTests
     public void ReddedilmisSagaya_HerhangiBirIlerleme_CELISKI()
     {
         var saga = NewSaga();
-        saga.Rejected("limit", Now);
+        saga.Rejected("limit", "Withdrawal.Daily", Now);
 
         // Reddedilen request'te bankaya hiç komut gitmedi; bir cevap gelmesi mümkün değil.
         saga.Debited(Guid.NewGuid(), 102m, Now).ShouldBe(TransitionResult.Conflict);
@@ -236,7 +238,7 @@ public sealed class WithdrawalSagaTests
 
         // Para düştükten sonra "reddedildi" demek anlamsız; reddetme yalnızca
         // hiçbir hareket olmamışken geçerli.
-        saga.Rejected("geç kalan limit kontrolü", Now).ShouldBe(TransitionResult.Conflict);
+        saga.Rejected("geç kalan limit kontrolü", "Withdrawal.Daily", Now).ShouldBe(TransitionResult.Conflict);
         saga.State.ShouldBe(WithdrawalState.Debited);
     }
 
@@ -321,6 +323,7 @@ public sealed class WithdrawalSagaTests
         saga.Cancel("calisan-1", "Şüpheli işlem", Now.AddMinutes(5)).ShouldBe(TransitionResult.Applied);
         saga.State.ShouldBe(WithdrawalState.Cancelling);
         saga.FailureReason.ShouldBe("Şüpheli işlem");
+        saga.FailureRule.ShouldBe(WithdrawalFailureRules.ReviewCancelled);
         saga.ReviewedBy.ShouldBe("calisan-1");
 
         saga.Refunded(Guid.NewGuid(), Now.AddMinutes(6)).ShouldBe(TransitionResult.Applied);

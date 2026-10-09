@@ -64,7 +64,7 @@ public sealed class AdvanceSagaHandler(
     public Task<TransitionResult> HandleAsync(WithdrawalDebitRejected @event, CancellationToken ct) =>
         ApplyAsync(@event.SagaId, nameof(WithdrawalDebitRejected), (saga, now) =>
             // Hiçbir para hareketi olmadı; telafi edilecek bir şey yok, saga burada bitiyor.
-            (saga.Rejected(@event.Reason, now), null), ct);
+            (saga.Rejected(@event.Reason, @event.Rule, now), null), ct);
 
     public Task<TransitionResult> HandleAsync(BankTransferSucceeded @event, CancellationToken ct) =>
         ApplyAsync(@event.SagaId, nameof(BankTransferSucceeded), (saga, now) =>
