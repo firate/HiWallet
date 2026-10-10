@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
+using HiWallet.Shared.Contracts.DepositReturns;
 using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WalletService.Application.DepositReturns;
 using HiWallet.WalletService.Application.Withdrawals;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
@@ -11,7 +13,7 @@ namespace HiWallet.WalletConsumer.Withdrawals;
 
 /// <summary>
 /// Orchestrator'ın wallet'a gönderdiği komutları dinler, handler'a verir ve cevabı
-/// yayınlar.
+/// yayınlar: çekimin ve askıdaki havalenin iadesinin komutları, aynı kuyrukta.
 ///
 /// <b>Sıra: ledger commit → cevabı yayınla → ack.</b> Yayın başarısız olursa mesaj
 /// ack'lenmiyor ve komut yeniden teslim ediliyor; o teslimde handler ledger'a
@@ -174,6 +176,18 @@ internal sealed class WithdrawalCommandConsumer(
             nameof(SettleWithdrawal) => services
                 .GetRequiredService<SettleWithdrawalHandler>()
                 .HandleAsync(Read<SettleWithdrawal>(body), ct),
+
+            nameof(DebitSuspenseForReturn) => services
+                .GetRequiredService<DebitSuspenseForReturnHandler>()
+                .HandleAsync(Read<DebitSuspenseForReturn>(body), ct),
+
+            nameof(SettleDepositReturn) => services
+                .GetRequiredService<SettleDepositReturnHandler>()
+                .HandleAsync(Read<SettleDepositReturn>(body), ct),
+
+            nameof(RestoreSuspendedDeposit) => services
+                .GetRequiredService<RestoreSuspendedDepositHandler>()
+                .HandleAsync(Read<RestoreSuspendedDeposit>(body), ct),
 
             _ => throw new UnknownCommandException(commandName)
         };
