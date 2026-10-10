@@ -39,3 +39,24 @@ public sealed record SuspendedDepositMovedResponse(
     Guid WalletId,
     Guid LedgerTransactionId,
     bool Replayed);
+
+public sealed record StartDepositReturnRequest(Guid SuspendedDepositId);
+
+/// <param name="Replayed">Aynı anahtarla tekrar: yeni iade açılmadı.</param>
+public sealed record DepositReturnAcceptedResponse(Guid DepositReturnId, string State, bool Replayed);
+
+/// <param name="State">
+/// <c>initiated</c>, <c>rejected</c>, <c>bank_transfer_pending</c>, <c>settling</c>,
+/// <c>completed</c>, <c>restoring</c>, <c>failed</c>.
+/// </param>
+public sealed record DepositReturnResponse(
+    Guid DepositReturnId,
+    Guid SuspendedDepositId,
+    string State,
+    decimal? Amount,
+    string? Currency,
+    string RequestedBy,
+    string? FailureReason,
+    string? FailureRule,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
