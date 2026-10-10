@@ -109,7 +109,11 @@ internal sealed class TransferCompleter(
         return true;
     }
 
-    private static (string RoutingKey, string Payload) BuildReply(
+    /// <summary>
+    /// Kapanan transferin saga'ya cevabı. Banka aranmadan kapanan iade de aynı cevabı
+    /// üretiyor (<see cref="ReturnBankDepositHandler"/>): saga iki yolu ayırt etmiyor.
+    /// </summary>
+    internal static (string RoutingKey, string Payload) BuildReply(
         BankTransfer transfer, BankTransferStatus status)
     {
         if (status is BankTransferStatus.Succeeded)

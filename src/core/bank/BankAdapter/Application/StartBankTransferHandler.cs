@@ -99,6 +99,6 @@ internal sealed class StartBankTransferHandler(
     /// IBAN log'a maskeli yazılıyor. Kolonda tam duruyor — ihtilafta lazım — ama
     /// log'lar merkezi bir sisteme akıyor ve oradaki erişim çevresi daha geniş.
     /// </summary>
-    private static string Mask(string iban) =>
+    internal static string Mask(string iban) =>
         iban.Length <= 8 ? new string('*', iban.Length) : $"{iban[..4]}{new string('*', iban.Length - 8)}{iban[^4..]}";
 }

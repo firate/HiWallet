@@ -65,6 +65,7 @@ public static class BankAdapterSetup
 
         // Scoped: komut tüketicisi her mesaj için kendi scope'unu açıyor.
         services.AddScoped<StartBankTransferHandler>();
+        services.AddScoped<ReturnBankDepositHandler>();
 
         services.AddHostedService<BankCommandConsumer>();
         services.AddHostedService<CallbackRelay>();
