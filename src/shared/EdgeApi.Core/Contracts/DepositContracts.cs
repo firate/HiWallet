@@ -13,6 +13,7 @@ public sealed record DepositInstructionsResponse(string Iban, string AccountHold
 /// <c>business_account</c>, <c>no_wallet_in_currency</c>, <c>unknown_sender</c>,
 /// <c>sender_not_holder</c>, <c>limit_exceeded</c>.
 /// </param>
+/// <param name="Status"><c>open</c>: karara açık; <c>returning</c>: iadesi sürüyor.</param>
 public sealed record SuspendedDepositResponse(
     Guid Id,
     string Provider,
@@ -23,7 +24,8 @@ public sealed record SuspendedDepositResponse(
     Guid? AccountId,
     string? AccountNumber,
     DateTimeOffset ReceivedAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Status);
 
 public sealed record SuspendedDepositsResponse(IReadOnlyList<SuspendedDepositResponse> Items, int Size, Guid? NextCursor);
 
