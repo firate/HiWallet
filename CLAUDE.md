@@ -206,9 +206,11 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   başkasının izni sorulamaz. Cevap alınamazsa çalışanın isteği `503`; izni doğrulanamayan
   çalışan işlem YAPAMAZ. Kontrol politikanın handler'ında, uçlarda değil.
 - `staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanır (müşteri token'ı
-  `401`); `GET /v1/me` dışındaki her ucu `staff.manage` ister. Yönetici rolünü ve ilk
-  yöneticiyi açılışta kendisi kurar; kimsede `staff.manage` yoksa ayardaki adrese davet
-  gönderir.
+  `401`). Her çalışana açık iki uç var: `GET /v1/me` ve çalışanların adları
+  (`GET /v1/staff-names`, YALNIZCA ad: kaydı kimin açtığı panelde adıyla görünsün diye).
+  Geri kalan her uç `staff.manage` ister; rol, izin ve durum ad ucundan VERİLMEZ.
+  Yönetici rolünü ve ilk yöneticiyi açılışta kendisi kurar; kimsede `staff.manage` yoksa
+  ayardaki adrese davet gönderir.
 - Çalışan kendine yetki VEREMEZ: kendi rollerini değiştiremez, sahip olduğu rolün
   izinlerini değiştiremez ve silemez, kendini kapatamaz.
 - Yeni çalışan davetle gelir; parolasını ve OTP'sini davetteki bağlantıdan kendisi kurar.

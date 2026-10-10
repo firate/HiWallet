@@ -271,8 +271,9 @@ ya da kapatılan çalışanın aynı token'la gelen bir sonraki isteği reddedil
 ulaşılamazsa çalışanın isteği `503` alıyor; müşterinin istekleri etkilenmiyor. Panel menüyü
 ve düğmeleri aynı uçtan okuyor ve bir istek `403` alınca yeniden soruyor.
 
-`staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanıyor; `GET /v1/me` dışındaki
-her ucu `staff.manage` istiyor. Çalışan kendine yetki veremiyor: kendi rollerini, sahip
+`staff-admin` yalnızca çalışanların Keycloak'ının token'ını tanıyor. `GET /v1/me` ve
+çalışanların adları (`GET /v1/staff-names`, yalnızca ad) her çalışana açık; panel kaydı kimin
+açtığını adıyla gösteriyor. Geri kalan her uç `staff.manage` istiyor. Çalışan kendine yetki veremiyor: kendi rollerini, sahip
 olduğu rolün izinlerini değiştiremiyor ve kendini kapatamıyor. Yeni çalışan davetle
 geliyor; parolasını ve OTP'sini davetteki bağlantıdan kendisi kuruyor, ilk girişiyle davet
 tamamlanmış sayılıyor. Her değişiklik işi yapan çalışanla, değişiklikle aynı transaction'da

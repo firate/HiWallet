@@ -33,6 +33,20 @@ public sealed class BackofficeStaffAdminTests(StaffAdminFixture staffDb) : IAsyn
     private HttpClient SignedIn(Guid staff) =>
         _factory.CreateClient().SignedInAs(staff.ToString()).WithCsrfHeader();
 
+    /// <summary>Rolü olmayan çalışan da kampanyayı açanın adını görüyor; yalnızca ad.</summary>
+    [Fact]
+    public async Task RoluOlmayanCalisan_AdlariGorur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var other = await _staffAdmin.AddStaffAsync(ct);
+        using var client = SignedIn(await _staffAdmin.AddStaffAsync(ct));
+
+        var names = await client.GetFromJsonAsync<JsonElement>($"/v1/staff-names?subject={other}", ct);
+
+        names.GetProperty("items").EnumerateArray().ShouldHaveSingleItem()
+            .GetProperty("subject").GetString().ShouldBe(other.ToString());
+    }
+
     [Fact]
     public async Task Yonetici_RolAcar_CalisaniDavetEder_KayittaGorur()
     {
