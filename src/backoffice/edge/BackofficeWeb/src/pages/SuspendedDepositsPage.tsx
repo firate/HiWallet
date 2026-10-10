@@ -12,12 +12,13 @@ import type { SuspendedDeposit } from '../types'
  * Cüzdana geçirilemeyip askıya alınan havaleler, yeniden eskiye. Para bankamızda ve
  * askı hesabında. Gönderenin adı ve IBAN'ı banka entegrasyonunda; burada banka
  * referansı, sebep ve açıklamadaki numaranın hesabı. İzni olan çalışan havaleyi bir
- * hesabın cüzdanına aktarıyor; aktarılan havale listeden çıkıyor.
+ * hesabın cüzdanına aktarıyor ya da göndericiye iade ediyor; aktarılan ve iadesi tamamlanan
+ * havale listeden çıkıyor, iadesi süren listede kalıyor.
  */
 export function SuspendedDepositsPage() {
-  const canMove = useHasPermission('deposit.resolve')
-  const [moving, setMoving] = useState<string | null>(null)
-  const [moved, setMoved] = useState<string | null>(null)
+  const canResolve = useHasPermission('deposit.resolve')
+  const [open, setOpen] = useState<{ id: string; action: 'move' | 'return' } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const deposits = useInfiniteQuery({
     queryKey: ['suspended-deposits'],
     queryFn: ({ pageParam }) => api.suspendedDeposits(pageParam),
@@ -27,12 +28,22 @@ export function SuspendedDepositsPage() {
 
   const items = deposits.data?.pages.flatMap((page) => page.items) ?? []
 
+  function toggle(id: string, action: 'move' | 'return') {
+    setOpen(open?.id === id && open.action === action ? null : { id, action })
+    setNotice(null)
+  }
+
+  function done(message: string) {
+    setOpen(null)
+    setNotice(message)
+  }
+
   return (
     <section className="card">
       <h1>Askıdaki havaleler</h1>
-      {moved && (
+      {notice && (
         <p className="success" role="status">
-          Havale {accountNumber(moved)} hesabının cüzdanına aktarıldı.
+          {notice}
         </p>
       )}
       {deposits.isPending && <p className="muted">Yükleniyor...</p>}
@@ -47,7 +58,7 @@ export function SuspendedDepositsPage() {
               <th>Sebep</th>
               <th>Hesap</th>
               <th className="amount">Tutar</th>
-              {canMove && <th />}
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -65,31 +76,34 @@ export function SuspendedDepositsPage() {
                     )}
                   </td>
                   <td className="amount">{money(deposit.amount, deposit.currency)}</td>
-                  {canMove && (
-                    <td>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => {
-                          setMoving(moving === deposit.id ? null : deposit.id)
-                          setMoved(null)
-                        }}
-                      >
-                        Cüzdana aktar
-                      </button>
-                    </td>
-                  )}
+                  <td>
+                    {deposit.status === 'returning' ? (
+                      <span className="muted">İade ediliyor</span>
+                    ) : (
+                      canResolve && (
+                        <span className="actions">
+                          <button type="button" className="secondary" onClick={() => toggle(deposit.id, 'move')}>
+                            Cüzdana aktar
+                          </button>
+                          <button type="button" className="secondary" onClick={() => toggle(deposit.id, 'return')}>
+                            İade et
+                          </button>
+                        </span>
+                      )
+                    )}
+                  </td>
                 </tr>
-                {moving === deposit.id && (
+                {open?.id === deposit.id && (
                   <tr>
                     <td colSpan={6}>
-                      <MoveForm
-                        deposit={deposit}
-                        onMoved={(number) => {
-                          setMoving(null)
-                          setMoved(number)
-                        }}
-                      />
+                      {open.action === 'move' ? (
+                        <MoveForm
+                          deposit={deposit}
+                          onMoved={(number) => done(`Havale ${accountNumber(number)} hesabının cüzdanına aktarıldı.`)}
+                        />
+                      ) : (
+                        <ReturnForm deposit={deposit} onStarted={() => done('İade başladı; bankanın sonucu bekleniyor.')} />
+                      )}
                     </td>
                   </tr>
                 )}
@@ -146,6 +160,37 @@ function MoveForm({ deposit, onMoved }: { deposit: SuspendedDeposit; onMoved: (a
         </button>
       </form>
       {move.error && <ErrorMessage error={move.error} />}
+    </>
+  )
+}
+
+/**
+ * Havaleyi göndericiye iade. IBAN panelde yok: banka entegrasyonu havalenin kaydından okuyor.
+ * Para hemen gitmiyor; askıdan düşülüyor ve bankanın sonucu bekleniyor. Banka reddederse
+ * havale askıya döner ve yeniden karara açılır.
+ */
+function ReturnForm({ deposit, onStarted }: { deposit: SuspendedDeposit; onStarted: () => void }) {
+  const queryClient = useQueryClient()
+  const [key, renewKey] = useIdempotencyKey()
+  const start = useMutation({
+    mutationFn: () => api.startDepositReturn(deposit.id, key),
+    onSuccess: async () => {
+      renewKey()
+      onStarted()
+      await queryClient.invalidateQueries({ queryKey: ['suspended-deposits'] })
+    },
+  })
+
+  return (
+    <>
+      <p>
+        {money(deposit.amount, deposit.currency)} gönderenin IBAN'ına iade edilecek. Banka ücretini platform
+        yükleniyor.
+      </p>
+      <button type="button" onClick={() => start.mutate()} disabled={start.isPending}>
+        İadeyi başlat
+      </button>
+      {start.error && <ErrorMessage error={start.error} />}
     </>
   )
 }
