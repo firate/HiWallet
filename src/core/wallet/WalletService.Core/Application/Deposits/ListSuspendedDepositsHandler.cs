@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HiWallet.WalletService.Application.Deposits;
 
 /// <summary>
-/// Askıdaki havaleler, panel için. Gönderenin kişisel verisi (adı, IBAN'ı, kimlik
+/// Askıdaki havaleler, panel için; karar verilmiş olanlar dışarıda. Gönderenin kişisel verisi (adı, IBAN'ı, kimlik
 /// numarası) wallet'ta yok; liste banka referansını, tutarı, sebebi ve açıklamadaki
 /// numaranın hesabını veriyor.
 /// </summary>
@@ -15,11 +15,16 @@ public sealed class ListSuspendedDepositsHandler(IDbContextFactory<WalletDbConte
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         var size = Math.Clamp(query.Size, 1, SuspendedDepositPage.MaxSize);
-        var rows = db.SuspendedDeposits.AsNoTracking();
+        var all = db.SuspendedDeposits.AsNoTracking();
+
+        // Karar verilmiş havale askıda değil: listede yok.
+        var rows = all.Where(d => !db.SuspendedDepositResolutions.Any(r => r.SuspendedDepositId == d.LedgerTransactionId));
 
         if (query.After is { } after)
         {
-            var anchor = await rows
+            // İmleç bütün satırlarda aranıyor: sayfalar arasında karar verilen havale
+            // sonraki sayfayı boşaltmasın.
+            var anchor = await all
                 .Where(d => d.LedgerTransactionId == after)
                 .Select(d => new { d.CreatedAt, d.LedgerTransactionId })
                 .SingleOrDefaultAsync(ct);

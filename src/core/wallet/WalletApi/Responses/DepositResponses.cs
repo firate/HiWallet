@@ -43,3 +43,18 @@ public sealed record SuspendedDepositsResponse(IReadOnlyList<SuspendedDepositRes
     public static SuspendedDepositsResponse From(SuspendedDepositPage page) =>
         new([.. page.Items.Select(SuspendedDepositResponse.From)], page.Size, page.NextCursor);
 }
+
+/// <param name="SuspendedDepositId">Aktarılan havalenin askı kaydı.</param>
+/// <param name="WalletId">Paranın düştüğü varsayılan cüzdan.</param>
+/// <param name="LedgerTransactionId">Aktarımın ledger işlemi: cüzdan +, askı −.</param>
+/// <param name="Replayed">Aynı anahtarla tekrar: ikinci kez yazılmadı.</param>
+public sealed record SuspendedDepositMovedResponse(
+    Guid SuspendedDepositId,
+    Guid AccountId,
+    Guid WalletId,
+    Guid LedgerTransactionId,
+    bool Replayed)
+{
+    public static SuspendedDepositMovedResponse From(MoveSuspendedDepositResult result) => new(
+        result.SuspendedDepositId, result.AccountId, result.WalletId, result.LedgerTransactionId, result.Replayed);
+}
