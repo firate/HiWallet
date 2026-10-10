@@ -41,6 +41,35 @@ public sealed class StuckSagaScannerTests(OrchestratorFixture fixture)
     }
 
     /// <summary>
+    /// Askıdaki havalenin iadesi de aynı taramada: askıdan düşülmüş ama bankanın sonucu
+    /// gelmemiş iadede para clearing'de asılı ve hiçbir hata log'u yok. Bitmiş iade
+    /// raporlanmıyor.
+    /// </summary>
+    [Fact]
+    public async Task TakilmisIade_Raporlanir_BitmisIadeRaporlanmaz()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var old = Now - Threshold - TimeSpan.FromMinutes(1);
+        var stuck = DepositReturnSaga.Start(Guid.NewGuid(), Guid.NewGuid(), "calisan-1", Guid.NewGuid().ToString("N"), old);
+        stuck.Debited(Guid.NewGuid(), 50m, "TRY", "bank-fake", "GLN1", Guid.NewGuid(), old);
+        var done = DepositReturnSaga.Start(Guid.NewGuid(), Guid.NewGuid(), "calisan-1", Guid.NewGuid().ToString("N"), old);
+        done.Rejected("aktarılmış", "deposit_already_resolved", old);
+
+        await using (var db = fixture.CreateContext())
+        {
+            db.DepositReturns.AddRange(stuck, done);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var report = await CreateScanner(sampleSize: 100).ScanAsync(ct);
+
+        var found = report.Oldest.Single(s => s.SagaId == stuck.Id);
+        found.Kind.ShouldBe("deposit_return");
+        found.State.ShouldBe("bank_transfer_pending");
+        report.Oldest.Select(s => s.SagaId).ShouldNotContain(done.Id);
+    }
+
+    /// <summary>
     /// Eşiğin altındaki saga raporlanmamalı. Normal bir çekim saniyeler sürüyor;
     /// mutlu yolu alarma çevirmek alarmı değersizleştirirdi.
     /// </summary>
