@@ -68,3 +68,9 @@ public sealed record AuditEventsResponse(IReadOnlyList<AuditEventResponse> Items
 /// <param name="Roles">Rollerin adları. Kapatılmış ya da panelden açılmamış çalışanda boş.</param>
 /// <param name="Permissions">Rollerden gelen izinler, kodun sırasıyla.</param>
 public sealed record MeResponse(string Subject, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);
+
+/// <param name="Subject">Token'daki kimlik.</param>
+/// <param name="Name">Ad ve soyad; girilmemişse e-posta.</param>
+public sealed record StaffNameResponse(string Subject, string Name);
+
+public sealed record StaffNamesResponse(IReadOnlyList<StaffNameResponse> Items);
