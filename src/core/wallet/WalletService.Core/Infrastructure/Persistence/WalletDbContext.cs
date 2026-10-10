@@ -47,6 +47,9 @@ public sealed class WalletDbContext : DbContext
     /// <summary>Cüzdana geçirilemeyen havaleler ve sebepleri. Parası askı hesabında.</summary>
     public DbSet<SuspendedDeposit> SuspendedDeposits => Set<SuspendedDeposit>();
 
+    /// <summary>Askıdaki havaleler için verilen kararlar; havale başına bir satır, değişmiyor.</summary>
+    public DbSet<SuspendedDepositResolution> SuspendedDepositResolutions => Set<SuspendedDepositResolution>();
+
     /// <summary>Kartla yüklemelerin limitten ayırdığı paylar. Satır değişmiyor.</summary>
     public DbSet<CardTopupHold> CardTopupHolds => Set<CardTopupHold>();
 
