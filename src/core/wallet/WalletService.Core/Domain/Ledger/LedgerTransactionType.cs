@@ -49,7 +49,14 @@ public enum LedgerTransactionType
     /// Cüzdana geçirilemeyen havale. Askı +, nostro −: para bankamızda, sahibine
     /// borcumuz askıda. Cüzdana geçen havale <see cref="Topup"/>.
     /// </summary>
-    SuspendedDeposit = 13
+    SuspendedDeposit = 13,
+
+    /// <summary>
+    /// Askıdaki havalenin göndericiye iadesi. Askı −, clearing +: para bankaya gidiyor.
+    /// Banka gönderince <see cref="Settlement"/> kapatıyor, reddedince <see cref="Refund"/>
+    /// askıya geri koyuyor.
+    /// </summary>
+    DepositReturn = 14
 }
 
 /// <summary>
@@ -76,6 +83,7 @@ public static class LedgerTransactionTypes
             LedgerTransactionType.PromoGrant => "promo_grant",
             LedgerTransactionType.PromoExpiry => "promo_expiry",
             LedgerTransactionType.SuspendedDeposit => "suspended_deposit",
+            LedgerTransactionType.DepositReturn => "deposit_return",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Eşlemesi yazılmamış işlem tipi.")
         };
     }
@@ -97,6 +105,7 @@ public static class LedgerTransactionTypes
             "promo_grant" => LedgerTransactionType.PromoGrant,
             "promo_expiry" => LedgerTransactionType.PromoExpiry,
             "suspended_deposit" => LedgerTransactionType.SuspendedDeposit,
+            "deposit_return" => LedgerTransactionType.DepositReturn,
             _ => throw new ArgumentOutOfRangeException(nameof(text), text, "Bilinmeyen işlem tipi.")
         };
     }
