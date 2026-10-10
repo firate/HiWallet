@@ -134,7 +134,7 @@ yok, para zaten bankamızda: o havale askıya düşüyor.
 
 Cüzdana geçirilemeyip askıya alınan havaleler. Ledger DEĞİL: parası `suspense` hesabında,
 bu tablo neden askıda olduğunu ve hangi banka hareketi olduğunu söylüyor. Askı hesabının
-bakiyesi bu satırların toplamı.
+bakiyesi kararı verilmemiş satırların toplamı (`suspended_deposit_resolutions`).
 
 ```sql
 CREATE TABLE suspended_deposits (
@@ -160,6 +160,33 @@ CREATE INDEX ix_suspended_deposits_account ON suspended_deposits (account_id) WH
 Gönderenin adı, IBAN'ı ve kimlik numarası burada YOK: kişisel veri ledger'la aynı yerde
 durmuyor, banka entegrasyonunun `bank_deposits` tablosunda kalıyor. Kaynağa iade oradaki
 IBAN'a yapılacak.
+
+## suspended_deposit_resolutions
+
+Askıdaki havale için verilen karar: bugün yalnızca bir hesabın varsayılan cüzdanına
+aktarım. Havale başına TEK satır; insert-only, uygulama rolünde UPDATE ve DELETE REVOKE.
+
+```sql
+CREATE TABLE suspended_deposit_resolutions (
+    suspended_deposit_id   uuid PRIMARY KEY REFERENCES suspended_deposits(ledger_transaction_id),
+    kind                   text NOT NULL CHECK (kind IN ('moved')),
+    ledger_transaction_id  uuid NOT NULL,                   -- kararın ledger işlemi
+    account_id             uuid NOT NULL REFERENCES accounts(id),  -- paranın aktarıldığı hesap
+    resolved_by            text NOT NULL,                   -- kararı veren çalışanın sub'ı
+    created_at             timestamptz NOT NULL
+);
+
+CREATE INDEX ix_suspended_deposit_resolutions_account ON suspended_deposit_resolutions (account_id);
+```
+
+**Satır kapı.** Ledger işleminden ÖNCE, aynı transaction'da `ON CONFLICT DO NOTHING` ile
+yazılıyor: ikinci karar, eşzamanlı olanı da, anahtara takılıyor. Bu yüzden
+`ledger_transactions`'a FK yok; anlık bir FK henüz yazılmamış işlemi reddederdi
+(`processed_events` ile aynı). Kural reddinde transaction geri alınıyor, satır da onunla.
+
+Aktarımın ledger kaydı yükleme: cüzdan +, askı −, aktör çalışan. Anahtarı isteğin
+`Idempotency-Key`'i, kapsamı hedef cüzdan; tip yükleme olduğu için ayın girişine
+kendiliğinden sayılıyor.
 
 ## card_topup_holds ve card_topup_hold_closures
 
@@ -728,14 +755,15 @@ Banka havaleyi bildirdiğinde para zaten hesabımızda: clearing'e uğramıyor, 
 hareket ediyor.
 
 ```
-cüzdana geçen havale           askıya alınan havale
-user_wallet  +100              suspense  +100
-nostro       -100              nostro    -100
-toplam          0              toplam       0
+cüzdana geçen havale           askıya alınan havale         askıdan cüzdana aktarım
+user_wallet  +100              suspense  +100               user_wallet  +100
+nostro       -100              nostro    -100               suspense     -100
+toplam          0              toplam       0               toplam          0
 ```
 
 İki durumda da nostro aynı tutarla hareket ediyor: banka bakiyesiyle ledger her durumda
-tutuyor.
+tutuyor. Askıdan aktarımda nostro hareket etmiyor: para zaten bankada, yalnızca kime ait
+olduğu değişiyor.
 
 ### Kartla yükleme (net settlement, sağlayıcı 2.9 kesip 97.1 gönderiyor)
 

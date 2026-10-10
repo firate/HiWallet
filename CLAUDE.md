@@ -422,6 +422,10 @@ Dosya yerleşimi ve adlandırma: `docs/structure.md`.
   gelmezse havale kuyruğa döner; tahminle ne cüzdana ne askıya yazılır.
 - Gönderenin adı, IBAN'ı ve kimlik numarası banka entegrasyonunun veritabanında
   (`bank_deposits`). Wallet'a giden mesajda ad ve IBAN YOK.
+- Askıdaki havaleyi çalışan (`deposit.resolve`) bir hesabın varsayılan cüzdanına aktarır;
+  açıklama ve kimlik numarası dışında havalenin kuralı AYNEN geçerli (bireysel hesap,
+  varsayılan cüzdan, seviye limiti). Limite sığmayan yalnızca kaynağına iade edilir. Havale
+  başına TEK karar (`suspended_deposit_resolutions`, değişmez), ledger'a yazmadan önce kapı.
 - Ledger: cüzdana geçen havale `topup`, cüzdan +, nostro − (clearing'e UĞRAMAZ: havalenin
   settlement'ı yok). Askıya alınan `suspended_deposit`, askı +, nostro −. Aktör cüzdana
   geçende hesap (`customer`: havaleyi müşteri başlattı, kimlik numarası doğruladı), askıda

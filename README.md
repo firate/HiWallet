@@ -151,7 +151,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale, kartla yükleme |
 | Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
 | Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |
-| Eşleşmeyen havale askıya, panelde liste | evet — testte |
+| Eşleşmeyen havale askıya, panelde liste ve hesabın cüzdanına aktarım | evet — testte; aktarım compose'da denenmedi |
+| Askıdaki havaleyi kaynağına iade | hayır |
 | Askıdaki havalenin kaynağa iadesi ya da bir cüzdana aktarılması | hayır |
 | `Verified`: uzaktan kimlik tespiti (kimlik kartının çipi, canlılık, yüz) | hayır |
 | `Contracted`: backoffice'ten | hayır |

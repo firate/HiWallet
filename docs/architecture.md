@@ -249,8 +249,8 @@ işleri kendi uçlarında, kendi iznine bağlı ve ledger'a çalışanın aktör
 ### Personel yönetimi
 
 İzinler kodda ve sabit (`StaffPermissions`): müşteri kaydını görüntüleme, çekim incelemesi,
-personel promo'su, kampanyaları görüntüleme ve yönetme, işyerinin promo kabulü, personel
-yönetimi. Roller panelde tanımlanıyor; rol bir izin seti, çalışan bir ya da birden fazla
+personel promo'su, kampanyaları görüntüleme ve yönetme, işyerinin promo kabulü, askıdaki
+havaleleri görüntüleme ve cüzdana aktarma, personel yönetimi. Roller panelde tanımlanıyor; rol bir izin seti, çalışan bir ya da birden fazla
 rol alıyor. Roller, çalışanlar ve atamalar `staff-admin`'in veritabanında. Keycloak'ta
 yalnızca kullanıcı, parola, OTP ve oturum var; çalışanın token'ı kim olduğunu söylüyor,
 izin taşımıyor.
@@ -465,7 +465,14 @@ bank-fake ──bildirim──▶ bank-webhook ──▶ bank_callbacks ──�
   bireysel hesabın, gönderenin kimlik numarası hesap sahibininkiyle aynı ve seviye limitine
   sığan havale geçiyor; para varsayılan cüzdana düşüyor. Geri kalanı askıya alınıyor ve
   sebebi `suspended_deposits`'te. Askıdaki havaleleri panel listeliyor
-  (`deposit.view` izni); kaynağa iade ve elle aktarma sonraki adım.
+  (`deposit.view` izni).
+- **Askıdan cüzdana.** Çalışan paranın sahibini başka yoldan biliyorsa havaleyi bir hesabın
+  varsayılan cüzdanına aktarıyor (`deposit.resolve` izni,
+  `POST /v1/suspended-deposits/{id}/move`). Kimlik numarası ve açıklama kuralı dışında
+  havalenin kuralı aynen geçerli: hesap bireysel, bu para biriminde varsayılan cüzdanı var
+  ve seviye limitine sığıyor. Ledger'da yükleme, cüzdan +, askı −, aktör çalışan. Havale
+  başına tek karar (`suspended_deposit_resolutions`); aktarılan havale listeden çıkıyor.
+  Limite sığmayan para yalnızca kaynağına iade edilebilir; iade henüz yok.
 - **Sıra.** Havale kuyruğunda tek aktif tüketici var: aynı hesaba gelen iki havale
   seviyenin aylık limitini ayrı ayrı yeterli görmesin. Onboarding cevap vermezse havale
   kuyruğa dönüyor.
