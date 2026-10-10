@@ -427,8 +427,9 @@ StaffAdmin/                    -- BİZİM; iç ağ, personel yönetimi
 ├── Infrastructure/
 │   ├── Persistence/           -- StaffAdminDbContext, migration'lar; kendi Postgres sunucusu
 │   └── Keycloak/              -- çalışanların Keycloak'ının yönetim API'si: kullanıcı, davet
-├── Api/                       -- Me (her çalışan, kendi izni); Permissions, Roles, Staff,
-│                                 AuditEvents (staff.manage)
+├── Api/                       -- Me (her çalışan, kendi izni), StaffNames (her çalışan,
+│                                 yalnızca ad); Permissions, Roles, Staff, AuditEvents
+│                                 (staff.manage)
 └── Setup/
 
 fakes/Sms.Fake/                -- SMS SAĞLAYICISI; canlıda YOK, mesajlar bellekte
