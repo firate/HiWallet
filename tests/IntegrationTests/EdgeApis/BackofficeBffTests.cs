@@ -5,9 +5,14 @@ using System.Web;
 using HiWallet.IntegrationTests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
+using HiWallet.Shared.Contracts.Deposits;
 using HiWallet.Shared.Contracts.Withdrawals;
+using HiWallet.WalletService.Application.Abstractions;
+using HiWallet.WalletService.Application.Deposits;
+using Microsoft.Extensions.Logging.Abstractions;
 using HiWallet.Shared.Infrastructure.Authentication;
 using HiWallet.WalletService.Domain.Accounts;
+using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -118,6 +123,47 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
         response.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
         (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
         (await support.GetAsync("/v1/suspended-deposits", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Askıdaki havaleyi izni olan müşterinin cüzdanına aktarıyor; anahtarın zorunluluğu ve
+    /// kararın kendisi wallet-api'de, BFF anahtarı aynen iletiyor.
+    /// </summary>
+    [Fact]
+    public async Task Finans_AskidakiHavaleyiCuzdanaAktarir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), TestStaff.Finance);
+        var number = (await _client.GetFromJsonAsync<JsonElement>($"/v1/accounts/{_customer}", ct))
+            .GetProperty("accountNumber").GetString()!;
+        var deposit = await new ProcessDepositHandler(
+                postgres.ContextFactory, new FakeHolderIdentity(), TestKycLimits.Policy,
+                new SystemClock(), NullLogger<ProcessDepositHandler>.Instance)
+            .HandleAsync(new BankDepositReceived
+            {
+                Provider = SystemAccounts.BankFake,
+                BankReference = $"GLN{Guid.NewGuid():N}"[..19].ToUpperInvariant(),
+                Amount = 15m,
+                Currency = "TRY",
+                Description = "kira",
+                SenderNationalId = "10000000078",
+                ReceivedAt = DateTimeOffset.UtcNow
+            }, ct);
+
+        var keyless = await _client.PostAsJsonAsync(
+            $"/v1/suspended-deposits/{deposit.LedgerTransactionId}/move", new { accountNumber = number }, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/v1/suspended-deposits/{deposit.LedgerTransactionId}/move")
+        {
+            Content = JsonContent.Create(new { accountNumber = number })
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var moved = await _client.SendAsync(request, ct);
+
+        keyless.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        moved.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        (await moved.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("walletId").GetGuid().ShouldBe(_wallet);
+        (await _client.GetFromJsonAsync<JsonElement>($"/v1/wallets/{_wallet}", ct))
+            .GetProperty("balance").GetDecimal().ShouldBe(265m);
     }
 
     [Fact]
