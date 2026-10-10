@@ -203,12 +203,21 @@ export interface SuspendedDeposit {
   accountNumber: string | null
   receivedAt: string
   createdAt: string
+  /** `open`: karara açık; `returning`: iadesi sürüyor. */
+  status: 'open' | 'returning'
 }
 
 export interface SuspendedDepositsPage {
   items: SuspendedDeposit[]
   size: number
   nextCursor: string | null
+}
+
+/** İadenin başlatılması; para henüz hareket etmedi. */
+export interface DepositReturnAccepted {
+  depositReturnId: string
+  state: string
+  replayed: boolean
 }
 
 /** Aktarımın sonucu; `replayed` aynı anahtarla tekrar. */

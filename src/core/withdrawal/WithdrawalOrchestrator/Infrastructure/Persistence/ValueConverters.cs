@@ -23,4 +23,7 @@ internal static class ValueConverters
 
     public static readonly ValueConverter<WithdrawalState, string> WithdrawalState =
         new(state => state.ToText(), text => WithdrawalStates.FromText(text));
+
+    public static readonly ValueConverter<DepositReturnState, string> DepositReturnState =
+        new(state => state.ToText(), text => DepositReturnStates.FromText(text));
 }

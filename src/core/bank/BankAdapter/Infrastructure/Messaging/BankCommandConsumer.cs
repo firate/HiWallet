@@ -1,5 +1,6 @@
 using System.Text.Json;
 using HiWallet.BankAdapter.Application;
+using HiWallet.Shared.Contracts.DepositReturns;
 using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.Shared.Infrastructure.Messaging;
 using RabbitMQ.Client;
@@ -8,7 +9,8 @@ using RabbitMQ.Client.Events;
 namespace HiWallet.BankAdapter.Infrastructure.Messaging;
 
 /// <summary>
-/// Orchestrator'ın transfer komutlarını dinler ve bankaya iletir.
+/// Orchestrator'ın transfer komutlarını dinler ve bankaya iletir: çekimin transferi ve
+/// askıdaki havalenin göndericiye iadesi.
 ///
 /// <b>CEVAP YAYINLAMIYOR.</b> Eski sahte servis burada cevabı da yayınlıyordu;
 /// artık yayın <see cref="ReplyRelay"/>'in işi ve ancak sonuç öğrenildiğinde
@@ -90,20 +92,25 @@ internal sealed class BankCommandConsumer(
 
         try
         {
-            if (commandName != nameof(StartBankTransfer))
-            {
-                // Bu kuyruğa başka bir tip düşmemeli; düştüyse topoloji ya da
-                // sözleşme bozuk. Sessizce ack'lemek onu görünmez kılardı.
-                throw new UnknownCommandException(commandName);
-            }
-
-            var command = JsonSerializer.Deserialize<StartBankTransfer>(delivery.Body.Span, JsonOptions)
-                          ?? throw new JsonException("StartBankTransfer gövdesi boş.");
-
             using var scope = scopeFactory.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<StartBankTransferHandler>();
 
-            await handler.HandleAsync(command, ct);
+            switch (commandName)
+            {
+                case nameof(StartBankTransfer):
+                    await scope.ServiceProvider.GetRequiredService<StartBankTransferHandler>()
+                        .HandleAsync(Read<StartBankTransfer>(delivery.Body.Span), ct);
+                    break;
+
+                case nameof(ReturnBankDeposit):
+                    await scope.ServiceProvider.GetRequiredService<ReturnBankDepositHandler>()
+                        .HandleAsync(Read<ReturnBankDeposit>(delivery.Body.Span), ct);
+                    break;
+
+                default:
+                    // Bu kuyruğa başka bir tip düşmemeli; düştüyse topoloji ya da
+                    // sözleşme bozuk. Sessizce ack'lemek onu görünmez kılardı.
+                    throw new UnknownCommandException(commandName);
+            }
 
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, ct);
         }
@@ -143,6 +150,10 @@ internal sealed class BankCommandConsumer(
             await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, ct);
         }
     }
+
+    private static T Read<T>(ReadOnlySpan<byte> body) =>
+        JsonSerializer.Deserialize<T>(body, JsonOptions)
+        ?? throw new JsonException($"{typeof(T).Name} gövdesi boş.");
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {

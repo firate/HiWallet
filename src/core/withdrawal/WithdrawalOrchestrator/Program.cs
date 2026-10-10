@@ -6,14 +6,16 @@ using HiWallet.Shared.Infrastructure.Messaging;
 using HiWallet.Shared.Infrastructure.Observability;
 using HiWallet.Shared.Infrastructure.OpenApi;
 using HiWallet.WithdrawalOrchestrator.Api.Validators;
+using HiWallet.WithdrawalOrchestrator.Application.DepositReturns;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
 using HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 using HiWallet.WithdrawalOrchestrator.Setup;
 using HiWallet.Shared.Infrastructure.Errors;
 
-// Withdrawal saga'sının state machine'i. Komutları wallet-consumer ve bank-adapter
-// tüketiyor; bu servis saga'yı onların cevaplarıyla ilerletiyor.
+// Bankaya para gönderen saga'ların state machine'i: müşterinin çekimi ve askıdaki
+// havalenin göndericiye iadesi. Komutları wallet-consumer ve bank-adapter tüketiyor; bu
+// servis saga'yı onların cevaplarıyla ilerletiyor.
 const string ServiceName = "hiwallet-withdrawal-orchestrator";
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +34,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<StartWithdrawalHandler>();
 builder.Services.AddScoped<AdvanceSagaHandler>();
 builder.Services.AddScoped<ReviewWithdrawalHandler>();
+builder.Services.AddScoped<StartDepositReturnHandler>();
+builder.Services.AddScoped<AdvanceDepositReturnHandler>();
+builder.Services.AddScoped<BankTransferResults>();
 
 // İnceleme eşiği. Bölüm eksikse uygulama açılmıyor: sessizce incelemesiz çalışmamalı.
 builder.Services.AddOptions<WithdrawalReviewOptions>()

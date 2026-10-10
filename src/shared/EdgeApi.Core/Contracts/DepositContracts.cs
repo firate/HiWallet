@@ -13,6 +13,7 @@ public sealed record DepositInstructionsResponse(string Iban, string AccountHold
 /// <c>business_account</c>, <c>no_wallet_in_currency</c>, <c>unknown_sender</c>,
 /// <c>sender_not_holder</c>, <c>limit_exceeded</c>.
 /// </param>
+/// <param name="Status"><c>open</c>: karara açık; <c>returning</c>: iadesi sürüyor.</param>
 public sealed record SuspendedDepositResponse(
     Guid Id,
     string Provider,
@@ -23,7 +24,8 @@ public sealed record SuspendedDepositResponse(
     Guid? AccountId,
     string? AccountNumber,
     DateTimeOffset ReceivedAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Status);
 
 public sealed record SuspendedDepositsResponse(IReadOnlyList<SuspendedDepositResponse> Items, int Size, Guid? NextCursor);
 
@@ -37,3 +39,24 @@ public sealed record SuspendedDepositMovedResponse(
     Guid WalletId,
     Guid LedgerTransactionId,
     bool Replayed);
+
+public sealed record StartDepositReturnRequest(Guid SuspendedDepositId);
+
+/// <param name="Replayed">Aynı anahtarla tekrar: yeni iade açılmadı.</param>
+public sealed record DepositReturnAcceptedResponse(Guid DepositReturnId, string State, bool Replayed);
+
+/// <param name="State">
+/// <c>initiated</c>, <c>rejected</c>, <c>bank_transfer_pending</c>, <c>settling</c>,
+/// <c>completed</c>, <c>restoring</c>, <c>failed</c>.
+/// </param>
+public sealed record DepositReturnResponse(
+    Guid DepositReturnId,
+    Guid SuspendedDepositId,
+    string State,
+    decimal? Amount,
+    string? Currency,
+    string RequestedBy,
+    string? FailureReason,
+    string? FailureRule,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);

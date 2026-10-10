@@ -49,6 +49,17 @@ internal sealed class BankTransferConfiguration : IEntityTypeConfiguration<BankT
         builder.Property(t => t.Currency).HasColumnName("currency").HasColumnType("char(3)");
 
         builder.Property(t => t.DestinationIban).HasColumnName("destination_iban").HasColumnType("text");
+        builder.Property(t => t.ReturnsDepositId).HasColumnName("returns_deposit_id");
+
+        builder.HasOne<BankDeposit>()
+            .WithMany()
+            .HasForeignKey(t => t.ReturnsDepositId)
+            .HasConstraintName("fk_bank_transfers_returns_deposit")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(t => t.ReturnsDepositId)
+            .HasDatabaseName("ix_bank_transfers_returns_deposit")
+            .HasFilter("returns_deposit_id IS NOT NULL");
         builder.Property(t => t.Status).HasColumnName("status").HasColumnType("text");
         builder.Property(t => t.BankReference).HasColumnName("bank_reference").HasColumnType("text");
         builder.Property(t => t.FailureReason).HasColumnName("failure_reason").HasColumnType("text");

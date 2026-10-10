@@ -5,7 +5,8 @@ using Microsoft.Extensions.Options;
 namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Jobs;
 
 /// <summary>
-/// Terminal olmayan bir durumda asılı kalmış çekimleri periyodik olarak raporlar.
+/// Terminal olmayan bir durumda asılı kalmış çekimleri ve havale iadelerini periyodik olarak
+/// raporlar.
 ///
 /// <b>Bu tarama opsiyonel bir iyileştirme değil.</b> Saga'nın kendi veritabanında,
 /// wallet'ın ledger'ından ayrı durmasının (madde 7 ve 33) faturası iki veritabanı
@@ -44,10 +45,10 @@ internal sealed class StuckSagaScan(
         // Alarm. Warning DEĞİL Error: burada duran her satır bir müşterinin
         // görünmeyen parası ve kendiliğinden çözülmüyor.
         logger.LogError(
-            "{Count} çekim {Threshold} süredir ilerlemiyor. En eskiler: {Sagas}",
+            "{Count} saga {Threshold} süredir ilerlemiyor. En eskiler: {Sagas}",
             report.Total,
             scanner.Threshold,
             string.Join(", ", report.Oldest.Select(
-                saga => $"{saga.SagaId} [{saga.State.ToText()}] {saga.UpdatedAt:O}")));
+                saga => $"{saga.SagaId} [{saga.Kind} {saga.State}] {saga.UpdatedAt:O}")));
     }
 }

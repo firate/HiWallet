@@ -1,3 +1,4 @@
+using HiWallet.Shared.Contracts.DepositReturns;
 using HiWallet.Shared.Contracts.Withdrawals;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
@@ -5,8 +6,9 @@ using RabbitMQ.Client;
 namespace HiWallet.Shared.Infrastructure.Messaging;
 
 /// <summary>
-/// Withdrawal saga'sının topolojisi. Üç servis de bunu çağırıyor; declare
-/// idempotent, hangisi önce kalkarsa o kuruyor.
+/// Orchestrator'ın saga'larının topolojisi: çekim ve askıdaki havalenin iadesi. Üç servis
+/// de bunu çağırıyor; declare idempotent, hangisi önce kalkarsa o kuruyor. İki saga aynı
+/// kuyrukları paylaşıyor: alıcılar aynı, mesaj tipi routing key'de.
 ///
 /// <b>Sıra saga'nın kendisinden geliyor.</b> Her mesajın belli bir alıcısı var ve refund
 /// komutu ancak debit tamamlandıktan sonra gönderiliyor, yani mesajlar nedensel olarak
@@ -15,11 +17,15 @@ namespace HiWallet.Shared.Infrastructure.Messaging;
 /// Şekil — tek direct exchange, alıcı başına bir kuyruk, routing key = mesaj tipi:
 /// <code>
 ///   hiwallet.withdrawals  (direct)
-///        ├── .wallet        ← DebitForWithdrawal, RefundWithdrawal, SettleWithdrawal
-///        ├── .bank          ← StartBankTransfer
+///        ├── .wallet        ← DebitForWithdrawal, RefundWithdrawal, SettleWithdrawal,
+///        │                    DebitSuspenseForReturn, SettleDepositReturn,
+///        │                    RestoreSuspendedDeposit
+///        ├── .bank          ← StartBankTransfer, ReturnBankDeposit
 ///        └── .orchestrator  ← WithdrawalDebited, WithdrawalDebitRejected,
 ///                             BankTransferSucceeded, BankTransferFailed,
-///                             WithdrawalRefunded, WithdrawalSettled
+///                             WithdrawalRefunded, WithdrawalSettled,
+///                             SuspenseDebitedForReturn, SuspenseDebitForReturnRejected,
+///                             DepositReturnSettled, SuspendedDepositRestored
 ///
 ///   hiwallet.withdrawals.dlx (fanout) ── .dead
 /// </code>
@@ -54,12 +60,16 @@ public sealed class WithdrawalTopology(IOptions<RabbitMqOptions> options)
     [
         nameof(DebitForWithdrawal),
         nameof(RefundWithdrawal),
-        nameof(SettleWithdrawal)
+        nameof(SettleWithdrawal),
+        nameof(DebitSuspenseForReturn),
+        nameof(SettleDepositReturn),
+        nameof(RestoreSuspendedDeposit)
     ];
 
     private static readonly string[] BankKeys =
     [
-        nameof(StartBankTransfer)
+        nameof(StartBankTransfer),
+        nameof(ReturnBankDeposit)
     ];
 
     private static readonly string[] OrchestratorKeys =
@@ -69,7 +79,11 @@ public sealed class WithdrawalTopology(IOptions<RabbitMqOptions> options)
         nameof(BankTransferSucceeded),
         nameof(BankTransferFailed),
         nameof(WithdrawalRefunded),
-        nameof(WithdrawalSettled)
+        nameof(WithdrawalSettled),
+        nameof(SuspenseDebitedForReturn),
+        nameof(SuspenseDebitForReturnRejected),
+        nameof(DepositReturnSettled),
+        nameof(SuspendedDepositRestored)
     ];
 
     public async Task DeclareAsync(IChannel channel, CancellationToken ct)

@@ -471,9 +471,31 @@ bank-fake ──bildirim──▶ bank-webhook ──▶ bank_callbacks ──�
   varsayılan cüzdanına aktarıyor (`deposit.resolve` izni,
   `POST /v1/suspended-deposits/{id}/move`). Kimlik numarası ve açıklama kuralı dışında
   havalenin kuralı aynen geçerli: hesap bireysel, bu para biriminde varsayılan cüzdanı var
-  ve seviye limitine sığıyor. Ledger'da yükleme, cüzdan +, askı −, aktör çalışan. Havale
-  başına tek karar (`suspended_deposit_resolutions`); aktarılan havale listeden çıkıyor.
-  Limite sığmayan para yalnızca kaynağına iade edilebilir; iade henüz yok.
+  ve seviye limitine sığıyor. Ledger'da yükleme, cüzdan +, askı −, aktör çalışan.
+  Aktarılan havale listeden çıkıyor. Limite sığmayan para yalnızca göndericiye iade edilebilir.
+- **Göndericiye iade.** Çalışan iadeyi başlatıyor (`deposit.resolve` izni,
+  `POST /v1/deposit-returns`, orchestrator'da). Akış çekim saga'sının kalıbında, ayrı bir
+  saga ile:
+
+  ```
+  panel ──▶ orchestrator ──DebitSuspenseForReturn──▶ wallet: askı −, clearing + (aktör çalışan)
+                │ ◀──SuspenseDebitedForReturn: tutar, banka, havalenin referansı
+                ├──ReturnBankDeposit──▶ bank-adapter: IBAN bank_deposits'ten ──▶ banka
+                │ ◀──BankTransferSucceeded / BankTransferFailed (çekimle aynı event'ler)
+                ├──SettleDepositReturn──▶ wallet: clearing −, nostro +   ──▶ iade tamamlandı
+                └──RestoreSuspendedDeposit──▶ wallet: clearing −, askı + ──▶ havale yeniden karara açık
+  ```
+
+  Gönderenin IBAN'ı banka entegrasyonundan çıkmıyor: komut havaleyi bankanın referansıyla
+  taşıyor, adaptör IBAN'ı kendi kaydından okuyor. Bildiriminde IBAN olmayan havale bankaya
+  hiç gitmeden kalıcı hatayla kapanıyor ve para askıya dönüyor. Banka ücretini platform
+  yükleniyor; göndericiye tutarın tamamı gidiyor. Bankanın sonucu iki saga'ya da aynı
+  event'le geliyor; orchestrator saga kimliğinden hangisi olduğunu buluyor.
+- **Karar kapısı.** Aktarım ve iade aynı kayıttan geçiyor: `suspended_deposit_resolutions`,
+  havale başına sıralı adımlar (aktarım, iadenin başlaması, tamamlanması, geri konması).
+  Son adım havalenin halini söylüyor: adım yoksa ya da iade geri konduysa karara açık,
+  iadesi sürüyorsa listede "İade ediliyor" ve karara kapalı, aktarıldı ya da iade edildiyse
+  listede yok. Aynı anda verilen iki karar adımın anahtarına takılıyor.
 - **Sıra.** Havale kuyruğunda tek aktif tüketici var: aynı hesaba gelen iki havale
   seviyenin aylık limitini ayrı ayrı yeterli görmesin. Onboarding cevap vermezse havale
   kuyruğa dönüyor.

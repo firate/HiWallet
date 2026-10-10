@@ -1,12 +1,13 @@
+using HiWallet.WalletService.Domain.Deposits;
 using HiWallet.WalletService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiWallet.WalletService.Application.Deposits;
 
 /// <summary>
-/// Askıdaki havaleler, panel için; karar verilmiş olanlar dışarıda. Gönderenin kişisel verisi (adı, IBAN'ı, kimlik
-/// numarası) wallet'ta yok; liste banka referansını, tutarı, sebebi ve açıklamadaki
-/// numaranın hesabını veriyor.
+/// Askıdaki havaleler, panel için; aktarılan ve iade edilen dışarıda, iadesi süren içeride.
+/// Gönderenin kişisel verisi (adı, IBAN'ı, kimlik numarası) wallet'ta yok; liste banka
+/// referansını, tutarı, sebebi ve açıklamadaki numaranın hesabını veriyor.
 /// </summary>
 public sealed class ListSuspendedDepositsHandler(IDbContextFactory<WalletDbContext> contextFactory)
 {
@@ -17,8 +18,11 @@ public sealed class ListSuspendedDepositsHandler(IDbContextFactory<WalletDbConte
         var size = Math.Clamp(query.Size, 1, SuspendedDepositPage.MaxSize);
         var all = db.SuspendedDeposits.AsNoTracking();
 
-        // Karar verilmiş havale askıda değil: listede yok.
-        var rows = all.Where(d => !db.SuspendedDepositResolutions.Any(r => r.SuspendedDepositId == d.LedgerTransactionId));
+        // Aktarılan ya da iadesi tamamlanan havale askıda değil: listede yok. İkisi de son
+        // adım. İadesi süren havale listede, karara kapalı.
+        var rows = all.Where(d => !db.SuspendedDepositResolutions.Any(
+            r => r.SuspendedDepositId == d.LedgerTransactionId
+                 && (r.Kind == DepositResolutionKind.Moved || r.Kind == DepositResolutionKind.Returned)));
 
         if (query.After is { } after)
         {
@@ -55,11 +59,22 @@ public sealed class ListSuspendedDepositsHandler(IDbContextFactory<WalletDbConte
             .Where(a => accountIds.Contains(a.Id))
             .ToDictionaryAsync(a => a.Id, a => a.Number, ct);
 
+        var depositIds = rowsOnPage.Select(d => d.LedgerTransactionId).ToList();
+        var lastSteps = (await db.SuspendedDepositResolutions
+                .AsNoTracking()
+                .Where(r => depositIds.Contains(r.SuspendedDepositId))
+                .ToListAsync(ct))
+            .GroupBy(r => r.SuspendedDepositId)
+            .ToDictionary(g => g.Key, g => g.MaxBy(r => r.Seq)!.Kind);
+
         var items = rowsOnPage
             .Select(d => new SuspendedDepositView(
                 d.LedgerTransactionId, d.Provider, d.BankReference, d.Money, d.Reason, d.AccountId,
                 d.AccountId is { } id && numbers.TryGetValue(id, out var number) ? number : null,
-                d.ReceivedAt, d.CreatedAt))
+                d.ReceivedAt, d.CreatedAt,
+                lastSteps.GetValueOrDefault(d.LedgerTransactionId) is DepositResolutionKind.ReturnStarted
+                    ? SuspendedDepositStatuses.Returning
+                    : SuspendedDepositStatuses.Open))
             .ToList();
 
         return new SuspendedDepositPage(items, size, hasMore ? items[^1].Id : null);

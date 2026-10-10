@@ -9,6 +9,7 @@ using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Application.CardTopups;
 using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Application.Settlements;
+using HiWallet.WalletService.Application.DepositReturns;
 using HiWallet.WalletService.Application.Withdrawals;
 using HiWallet.WalletService.Setup;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -37,6 +38,9 @@ public static class WalletConsumerSetup
         services.AddScoped<DebitForWithdrawalHandler>();
         services.AddScoped<RefundWithdrawalHandler>();
         services.AddScoped<SettleWithdrawalHandler>();
+        services.AddScoped<DebitSuspenseForReturnHandler>();
+        services.AddScoped<SettleDepositReturnHandler>();
+        services.AddScoped<RestoreSuspendedDepositHandler>();
         services.AddHostedService<WithdrawalCommandConsumer>();
 
         // Havale: banka hesabımıza gelen para. Cüzdana mı askıya mı yazılacağına burada

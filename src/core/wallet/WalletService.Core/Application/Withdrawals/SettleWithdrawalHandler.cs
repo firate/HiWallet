@@ -56,86 +56,13 @@ public sealed class SettleWithdrawalHandler(
             ?? throw new InvalidOperationException(
                 $"Saga {command.SagaId} için çekim işlemi bulunamadı; settlement yazılamaz.");
 
-        var clearingEntry = original.Entries
-            .Select(entry => new { entry.LedgerAccountId, entry.Money })
-            .ToArray();
-
-        var currency = original.Entries[0].Money.Currency;
-
-        // Debit'te clearing'e YAZILAN tutar. Pozitifti (ödenecek para, yolda);
-        // settlement onu kapatıyor.
-        var clearing = await LoadSystemAccountAsync(db, LedgerAccountType.Clearing, currency, ct);
-
-        var owed = clearingEntry
-            .Where(e => e.LedgerAccountId == clearing.Id)
-            .Sum(e => e.Money.Amount);
-
-        if (owed <= 0m)
-        {
-            throw new InvalidOperationException(
-                $"Saga {command.SagaId} çekiminde clearing bacağı beklenen yönde değil: {owed}.");
-        }
-
-        var terms = providers.For(BankProvider);
-        var fee = command.FeeAmount;
-
         // --- Ledger -------------------------------------------------------------------
         var transactionId = Guid.NewGuid();
 
-        var tx = LedgerTransaction.Create(
-            transactionId,
-            LedgerTransactionType.Settlement,
-            clearing.Id,
-            SystemActors.WithdrawalSaga,
-            now,
-            $"{BankProvider}:withdrawal-settlement:{command.SagaId}",
-            command.SagaId);
-
-        // Çekimin kendisi cash kovasından çıktı (decisions.md madde 36); onu kapatan
-        // settlement de aynı kovada duruyor, yoksa clearing'in cash kovası kalıcı
-        // olarak açık kalırdı.
-        tx.AddEntry(clearing.Id, new Money(-owed, currency), FundType.Cash);
-
-        var leavingBank = owed;
-
-        if (terms.FeeSettlement is FeeSettlement.Net && fee > 0m)
-        {
-            var expense = await LoadSystemAccountAsync(
-                db, LedgerAccountType.ProviderExpense, currency, ct);
-
-            tx.AddEntry(expense.Id, new Money(-fee, currency), FundType.Cash);
-            leavingBank += fee;
-        }
-
-        var nostro = await LoadSystemAccountAsync(db, LedgerAccountType.Nostro, currency, ct);
-
-        // nostro POZİTİF: varlık hesabı ve bankadan para çıkıyor, sıfıra doğru.
-        tx.AddEntry(nostro.Id, new Money(leavingBank, currency), FundType.Cash);
-
-        tx.AssertBalanced();
-        db.LedgerTransactions.Add(tx);
-
-        // --- Ücret tahakkuku (ledger DEĞİL) ------------------------------------------
-        // Invoiced modelde bu satır faturayla kapanacak; Net modelde gider zaten
-        // yukarıda yazıldı ve satır gerçekleşen tutarla birlikte açılıyor.
-        if (fee > 0m)
-        {
-            db.ProviderFees.Add(new ProviderFee
-            {
-                Id = Guid.NewGuid(),
-                TransactionId = transactionId,
-                Provider = BankProvider,
-                SettlementModel = terms.FeeSettlement,
-                ExpectedAmount = fee,
-                ActualAmount = terms.FeeSettlement is FeeSettlement.Net ? fee : null,
-                Currency = currency.Code,
-                ProviderRef = command.BankReference,
-                LedgerTransactionId = terms.FeeSettlement is FeeSettlement.Net ? transactionId : null,
-                OccurredAt = now
-            });
-        }
-
-        await ApplyBalancesAsync(db, tx, now, ct);
+        var settled = await BankTransferSettlement.RecordAsync(
+            db, providers, BankProvider, original, command.FeeAmount, command.BankReference, transactionId,
+            command.SagaId, $"{BankProvider}:withdrawal-settlement:{command.SagaId}", SystemActors.WithdrawalSaga,
+            now, ct);
 
         var reply = WithdrawalReply.For(new WithdrawalSettled
         {
@@ -161,7 +88,7 @@ public sealed class SettleWithdrawalHandler(
         logger.LogInformation(
             "Çekim muhasebesi kapandı. Saga {SagaId} → {TransactionId}: clearing -{Owed}, " +
             "nostro +{Leaving}, ücret {Fee} ({Model})",
-            command.SagaId, transactionId, owed, leavingBank, fee, terms.FeeSettlement);
+            command.SagaId, transactionId, settled.Owed, settled.LeavingBank, command.FeeAmount, settled.Model);
 
         return reply;
     }
@@ -204,39 +131,5 @@ public sealed class SettleWithdrawalHandler(
             "Settle komutu zaten işlenmiş, saklanan cevap dönülüyor. Saga {SagaId}", command.SagaId);
 
         return new WithdrawalReply(stored.ReplyRoutingKey, stored.ReplyPayload, Replayed: true);
-    }
-
-    private static async Task ApplyBalancesAsync(
-        WalletDbContext db, LedgerTransaction tx, DateTimeOffset now, CancellationToken ct)
-    {
-        var deltas = tx.Entries
-            .Select(e => (e.LedgerAccountId, e.Money, e.FundType))
-            .OrderBy(x => x.LedgerAccountId)
-            .ToArray();
-
-        foreach (var (ledgerAccountId, delta, fundType) in deltas)
-        {
-            // Bacak hangi kovaya yazıldıysa bakiye de o kovada güncelleniyor
-            // (decisions.md madde 36). Kova seçilmeseydi rastgele bir satır
-            // güncellenir ve projeksiyon ledger'dan sessizce ayrışırdı.
-            var balance = await db.LedgerBalances
-                              .FirstOrDefaultAsync(
-                                  b => b.LedgerAccountId == ledgerAccountId
-                                       && b.FundType == fundType, ct)
-                          ?? throw new InvalidOperationException($"Bakiye satırı yok: {ledgerAccountId}");
-
-            // Hepsi sistem hesabı (decisions.md madde 6).
-            balance.Apply(delta, canGoNegative: true, now);
-        }
-    }
-
-    private static async Task<LedgerAccount> LoadSystemAccountAsync(
-        WalletDbContext db, LedgerAccountType type, Currency currency, CancellationToken ct)
-    {
-        return await db.LedgerAccounts
-                   .FirstOrDefaultAsync(
-                       a => a.Type == type && a.Provider == BankProvider && a.Currency == currency, ct)
-               ?? throw new InvalidOperationException(
-                   $"'{BankProvider}' sağlayıcısının {currency} {type} hesabı yok.");
     }
 }

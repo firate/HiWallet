@@ -573,7 +573,11 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("suspended_deposit_id");
 
-                    b.Property<Guid>("AccountId")
+                    b.Property<int>("Seq")
+                        .HasColumnType("integer")
+                        .HasColumnName("seq");
+
+                    b.Property<Guid?>("AccountId")
                         .HasColumnType("uuid")
                         .HasColumnName("account_id");
 
@@ -595,7 +599,7 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("resolved_by");
 
-                    b.HasKey("SuspendedDepositId")
+                    b.HasKey("SuspendedDepositId", "Seq")
                         .HasName("pk_suspended_deposit_resolutions");
 
                     b.HasIndex("AccountId")
@@ -603,7 +607,11 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("suspended_deposit_resolutions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_suspended_deposit_resolutions_kind", "kind IN ('moved')");
+                            t.HasCheckConstraint("ck_suspended_deposit_resolutions_account", "(kind = 'moved') = (account_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_suspended_deposit_resolutions_kind", "kind IN ('moved','return_started','returned','return_failed')");
+
+                            t.HasCheckConstraint("ck_suspended_deposit_resolutions_seq", "seq > 0");
                         });
                 });
 
@@ -1512,12 +1520,11 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_suspended_deposit_resolutions_account");
 
                     b.HasOne("HiWallet.WalletService.Domain.Deposits.SuspendedDeposit", null)
-                        .WithOne()
-                        .HasForeignKey("HiWallet.WalletService.Domain.Deposits.SuspendedDepositResolution", "SuspendedDepositId")
+                        .WithMany()
+                        .HasForeignKey("SuspendedDepositId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_suspended_deposit_resolutions_deposit");

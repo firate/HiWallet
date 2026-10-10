@@ -25,6 +25,7 @@ import type {
   StaffDetail,
   StaffPage,
   StaffPromoRequest,
+  DepositReturnAccepted,
   SuspendedDepositMoved,
   SuspendedDepositsPage,
   Wallet,
@@ -141,6 +142,11 @@ export const api = {
     send<CardTopupsPage>('GET', page(`/v1/wallets/${walletId}/card-topups`, after)),
   suspendedDeposits: (after?: string | null) =>
     send<SuspendedDepositsPage>('GET', page('/v1/suspended-deposits', after)),
+  startDepositReturn: (depositId: string, idempotencyKey: string) =>
+    send<DepositReturnAccepted>('POST', '/v1/deposit-returns', {
+      body: { suspendedDepositId: depositId },
+      idempotencyKey,
+    }),
   moveSuspendedDeposit: (depositId: string, accountNumber: string, idempotencyKey: string) =>
     send<SuspendedDepositMoved>('POST', `/v1/suspended-deposits/${depositId}/move`, {
       body: { accountNumber },

@@ -20,6 +20,9 @@ public sealed class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext
 {
     public DbSet<WithdrawalSaga> Sagas => Set<WithdrawalSaga>();
 
+    /// <summary>Askıdaki havalelerin göndericiye iadesi; outbox'u çekimle paylaşıyor.</summary>
+    public DbSet<DepositReturnSaga> DepositReturns => Set<DepositReturnSaga>();
+
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -27,6 +30,7 @@ public sealed class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext
         // Eşlemeler tek tek uygulanıyor, assembly taraması yapılmıyor: hangi tablonun
         // bu şemada olduğu tek bakışta görünsün (structure.md "Adlandırma").
         modelBuilder.ApplyConfiguration(new Configurations.WithdrawalSagaConfiguration());
+        modelBuilder.ApplyConfiguration(new Configurations.DepositReturnSagaConfiguration());
         modelBuilder.ApplyConfiguration(new Configurations.OutboxMessageConfiguration());
     }
 }

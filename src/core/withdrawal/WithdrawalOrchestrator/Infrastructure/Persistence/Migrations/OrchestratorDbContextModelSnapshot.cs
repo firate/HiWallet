@@ -22,6 +22,109 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("HiWallet.WithdrawalOrchestrator.Domain.DepositReturnSaga", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("Amount")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid?>("BankCommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bank_command_id");
+
+                    b.Property<decimal?>("BankFee")
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("bank_fee");
+
+                    b.Property<string>("BankReference")
+                        .HasColumnType("text")
+                        .HasColumnName("bank_reference");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid?>("DebitTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("debit_transaction_id");
+
+                    b.Property<string>("DepositBankReference")
+                        .HasColumnType("text")
+                        .HasColumnName("deposit_bank_reference");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<string>("FailureRule")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_rule");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Provider")
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("requested_by");
+
+                    b.Property<Guid?>("RestoreTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restore_transaction_id");
+
+                    b.Property<Guid?>("SettlementTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("settlement_transaction_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("SuspendedDepositId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("suspended_deposit_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_deposit_return_sagas");
+
+                    b.HasIndex("UpdatedAt")
+                        .HasDatabaseName("ix_deposit_return_sagas_active")
+                        .HasFilter("state IN ('initiated', 'bank_transfer_pending', 'settling', 'restoring')");
+
+                    b.HasIndex("SuspendedDepositId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_deposit_return_sagas_idempotency");
+
+                    b.ToTable("deposit_return_sagas", (string)null);
+                });
+
             modelBuilder.Entity("HiWallet.WithdrawalOrchestrator.Domain.WithdrawalSaga", b =>
                 {
                     b.Property<Guid>("Id")

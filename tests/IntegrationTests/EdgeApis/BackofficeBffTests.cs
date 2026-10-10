@@ -166,6 +166,30 @@ public sealed class BackofficeBffTests(PostgresFixture postgres, OrchestratorFix
             .GetProperty("balance").GetDecimal().ShouldBe(265m);
     }
 
+    /// <summary>
+    /// İadeyi izni olan başlatıyor; orchestrator'ın 202'si ve durumu aynen geliyor, iç
+    /// servisin adresi dışarı çıkmıyor.
+    /// </summary>
+    [Fact]
+    public async Task Finans_AskidakiHavaleyiIadeEder_DurumunuGorur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _client.SignedInAs(NewStaff(), TestStaff.Finance);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/deposit-returns")
+        {
+            Content = JsonContent.Create(new { suspendedDepositId = Guid.NewGuid() })
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var started = await _client.SendAsync(request, ct);
+
+        started.StatusCode.ShouldBe(HttpStatusCode.Accepted, await started.Content.ReadAsStringAsync(ct));
+        started.Headers.Location.ShouldBeNull();
+        var id = (await started.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("depositReturnId").GetGuid();
+        (await _client.GetFromJsonAsync<JsonElement>($"/v1/deposit-returns/{id}", ct))
+            .GetProperty("state").GetString().ShouldBe("initiated");
+    }
+
     [Fact]
     public async Task Destek_MusterininCekiminiGorur()
     {

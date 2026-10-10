@@ -142,7 +142,10 @@ WalletService.Core/
 │   ├── Deposits/              -- ProcessDepositHandler (havale: cüzdan ya da askı),
 │   │                             askıdaki havalelerin listesi, MoveSuspendedDepositHandler
 │   │                             (askıdan cüzdana aktarım)
-│   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
+│   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt, bankaya giden
+│   │                             transferin kapanış kaydı (BankTransferSettlement)
+│   ├── DepositReturns/        -- askıdaki havalenin iadesi: askıdan düşme, kapanış,
+│   │                             askıya geri koyma
 │   ├── Settlements/           -- ProcessSettlementHandler, ProcessInvoiceHandler
 │   ├── Promos/                -- işyerinin promo vermesi, cüzdanın parti listesi
 │   └── Abstractions/          -- IClock, IHolderIdentity
@@ -297,7 +300,8 @@ WalletConsumer/
 ├── Deposits/                   -- DepositConsumer: havale kuyruğunu dinler
 ├── Settlements/                -- settlement ve fatura kuyruğu
 ├── Identity/                   -- servisin kendi token'ı, onboarding'e kimlik numarası sorusu
-├── Withdrawals/                -- WithdrawalCommandConsumer: çekim komutlarını dinler
+├── Withdrawals/                -- WithdrawalCommandConsumer: çekimin ve havale iadesinin
+│                                  komutlarını dinler
 ├── WalletConsumerSetup.cs      -- DI + health check'ler
 └── WalletConsumerApp.cs        -- test giriş noktası işaretçisi
 ```
@@ -328,12 +332,16 @@ Aynı iskelet, daha az katman. Ölçüsü: bir klasör tek dosya içeriyorsa aç
 
 ```
 WithdrawalOrchestrator/
-├── Api/Controllers/           -- WithdrawalsController
-├── Application/Withdrawals/   -- saga handler'ları
-├── Domain/                    -- WithdrawalSaga, WithdrawalState, Iban
+├── Api/Controllers/           -- WithdrawalsController, DepositReturnsController
+├── Application/Withdrawals/   -- çekim saga'sının handler'ları
+├── Application/DepositReturns/ -- havale iadesinin handler'ları, bankanın sonucunun
+│                                 yönlendirilmesi (BankTransferResults)
+├── Domain/                    -- WithdrawalSaga, WithdrawalState, DepositReturnSaga,
+│                                 DepositReturnState, Iban
 ├── Infrastructure/
 │   ├── Persistence/           -- OrchestratorDbContext, withdrawal_sagas,
-│   │                             withdrawal_outbox, kendi migration'ları
+│   │                             deposit_return_sagas, withdrawal_outbox,
+│   │                             kendi migration'ları
 │   ├── Messaging/             -- outbox relay, event tüketicisi
 │   └── Jobs/                  -- StuckSagaScanJob
 └── Setup/
@@ -368,6 +376,7 @@ BankIntegration.Core/          -- şema ve migration'lar; İKİ host paylaşıyo
 
 BankAdapter/                   -- BİZİM; ingress YOK, bankayı kendisi arıyor
 ├── Application/               -- BankClient, StartBankTransferHandler,
+│                                 ReturnBankDepositHandler (havale iadesi),
 │                                 TransferCompleter, DepositRecorder,
 │                                 BankNotificationHandler, banka HTTP sözleşmesi
 ├── Infrastructure/
@@ -494,6 +503,7 @@ shared/
 │   ├── CardPayments/          -- CardPaymentUpdated (topup-webhook → card-topup)
 │   ├── CardTopups/            -- CardTopupClosed (card-topup → wallet)
 │   ├── Deposits/              -- BankDepositReceived
+│   ├── DepositReturns/        -- askıdaki havalenin iadesinin komutları ve event'leri
 │   ├── Settlements/           -- SettlementReceived, ProviderInvoiceReceived
 │   ├── Withdrawals/           -- çekim komutları ve event'leri
 │   └── Actors/                -- CommandActor: ledger'a yazdıran komutun aktörü

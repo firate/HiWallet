@@ -1,6 +1,8 @@
 using System.Text.Json;
+using HiWallet.Shared.Contracts.DepositReturns;
 using HiWallet.Shared.Contracts.Withdrawals;
 using HiWallet.Shared.Infrastructure.Messaging;
+using HiWallet.WithdrawalOrchestrator.Application.DepositReturns;
 using HiWallet.WithdrawalOrchestrator.Application.Withdrawals;
 using HiWallet.WithdrawalOrchestrator.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +12,9 @@ using RabbitMQ.Client.Events;
 namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Messaging;
 
 /// <summary>
-/// Wallet ve bank-service'in event'lerini dinler, <see cref="AdvanceSagaHandler"/>'a
-/// verir.
+/// Wallet ve bank-service'in event'lerini dinler, saga'nın handler'ına verir: çekimde
+/// <see cref="AdvanceSagaHandler"/>, askıdaki havalenin iadesinde
+/// <see cref="AdvanceDepositReturnHandler"/>.
 ///
 /// <b>Bu sınıf yalnızca TAŞIMA.</b> Kanal açmak, mesajı tipine göre çözmek, ack/nack
 /// kararı. Geçiş kuralları state machine'de, kalıcılık handler'da.
@@ -95,9 +98,8 @@ internal sealed class WithdrawalEventConsumer(
         try
         {
             using var scope = scopeFactory.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<AdvanceSagaHandler>();
 
-            var result = await DispatchAsync(handler, eventName, delivery.Body.Span, ct);
+            var result = await DispatchAsync(scope.ServiceProvider, eventName, delivery.Body.Span, ct);
 
             if (result is TransitionResult.Conflict)
             {
@@ -149,16 +151,26 @@ internal sealed class WithdrawalEventConsumer(
     /// servis eski sürümde olabilir. Dead-letter mesajı saklıyor.
     /// </summary>
     private static Task<TransitionResult> DispatchAsync(
-        AdvanceSagaHandler handler, string eventName, ReadOnlySpan<byte> body, CancellationToken ct)
+        IServiceProvider services, string eventName, ReadOnlySpan<byte> body, CancellationToken ct)
     {
+        var withdrawals = services.GetRequiredService<AdvanceSagaHandler>();
+        var returns = services.GetRequiredService<AdvanceDepositReturnHandler>();
+
+        // Bankanın sonucu iki saga'ya da aynı event'le geliyor; saga kimliği hangisi olduğunu söylüyor.
+        var bank = services.GetRequiredService<BankTransferResults>();
+
         return eventName switch
         {
-            nameof(WithdrawalDebited) => handler.HandleAsync(Read<WithdrawalDebited>(body), ct),
-            nameof(WithdrawalDebitRejected) => handler.HandleAsync(Read<WithdrawalDebitRejected>(body), ct),
-            nameof(BankTransferSucceeded) => handler.HandleAsync(Read<BankTransferSucceeded>(body), ct),
-            nameof(BankTransferFailed) => handler.HandleAsync(Read<BankTransferFailed>(body), ct),
-            nameof(WithdrawalSettled) => handler.HandleAsync(Read<WithdrawalSettled>(body), ct),
-            nameof(WithdrawalRefunded) => handler.HandleAsync(Read<WithdrawalRefunded>(body), ct),
+            nameof(WithdrawalDebited) => withdrawals.HandleAsync(Read<WithdrawalDebited>(body), ct),
+            nameof(WithdrawalDebitRejected) => withdrawals.HandleAsync(Read<WithdrawalDebitRejected>(body), ct),
+            nameof(BankTransferSucceeded) => bank.HandleAsync(Read<BankTransferSucceeded>(body), ct),
+            nameof(BankTransferFailed) => bank.HandleAsync(Read<BankTransferFailed>(body), ct),
+            nameof(WithdrawalSettled) => withdrawals.HandleAsync(Read<WithdrawalSettled>(body), ct),
+            nameof(WithdrawalRefunded) => withdrawals.HandleAsync(Read<WithdrawalRefunded>(body), ct),
+            nameof(SuspenseDebitedForReturn) => returns.HandleAsync(Read<SuspenseDebitedForReturn>(body), ct),
+            nameof(SuspenseDebitForReturnRejected) => returns.HandleAsync(Read<SuspenseDebitForReturnRejected>(body), ct),
+            nameof(DepositReturnSettled) => returns.HandleAsync(Read<DepositReturnSettled>(body), ct),
+            nameof(SuspendedDepositRestored) => returns.HandleAsync(Read<SuspendedDepositRestored>(body), ct),
             _ => throw new UnknownEventException(eventName)
         };
     }

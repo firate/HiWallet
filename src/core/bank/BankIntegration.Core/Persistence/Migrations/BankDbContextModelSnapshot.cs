@@ -188,7 +188,6 @@ namespace HiWallet.BankIntegration.Persistence.Migrations
                         .HasColumnName("currency");
 
                     b.Property<string>("DestinationIban")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("destination_iban");
 
@@ -230,6 +229,10 @@ namespace HiWallet.BankIntegration.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("resolved_via");
 
+                    b.Property<Guid?>("ReturnsDepositId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("returns_deposit_id");
+
                     b.Property<Guid>("SagaId")
                         .HasColumnType("uuid")
                         .HasColumnName("saga_id");
@@ -254,11 +257,24 @@ namespace HiWallet.BankIntegration.Persistence.Migrations
                         .HasDatabaseName("ix_bank_transfers_unpublished")
                         .HasFilter("resolved_at IS NOT NULL AND reply_published_at IS NULL");
 
+                    b.HasIndex("ReturnsDepositId")
+                        .HasDatabaseName("ix_bank_transfers_returns_deposit")
+                        .HasFilter("returns_deposit_id IS NOT NULL");
+
                     b.HasIndex("StartedAt")
                         .HasDatabaseName("ix_bank_transfers_pending")
                         .HasFilter("resolved_at IS NULL");
 
                     b.ToTable("bank_transfers", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.BankIntegration.Persistence.BankTransfer", b =>
+                {
+                    b.HasOne("HiWallet.BankIntegration.Persistence.BankDeposit", null)
+                        .WithMany()
+                        .HasForeignKey("ReturnsDepositId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_bank_transfers_returns_deposit");
                 });
 #pragma warning restore 612, 618
         }

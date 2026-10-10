@@ -18,6 +18,7 @@ function suspended(id: string, reason: string, accountId: string | null, account
     accountNumber,
     receivedAt: '2026-10-04T09:00:00Z',
     createdAt: '2026-10-04T09:00:02Z',
+    status: 'open',
   }
 }
 
@@ -102,6 +103,44 @@ describe('SuspendedDepositsPage', () => {
     expect(screen.getByText('Seviye limiti')).toBeTruthy()
   })
 
+  /**
+   * İade göndericinin IBAN'ına gidiyor; IBAN panelde yok. Onaydan sonra başlıyor ve havale
+   * listede "İade ediliyor" olarak kalıyor, karar düğmeleri kapanıyor.
+   */
+  it('izinli çalışan havaleyi göndericiye iade ediyor', async () => {
+    const user = userEvent.setup()
+    const calls = fakeBff({
+      ...staffSession(['customer.view', 'deposit.view', 'deposit.resolve']),
+      'GET /v1/suspended-deposits': [
+        { status: 200, body: { items: [suspended('1', 'sender_not_holder', 'a1', '1234567897')], size: 20, nextCursor: null } },
+        {
+          status: 200,
+          body: {
+            items: [{ ...suspended('1', 'sender_not_holder', 'a1', '1234567897'), status: 'returning' }],
+            size: 20,
+            nextCursor: null,
+          },
+        },
+      ],
+      'POST /v1/deposit-returns': {
+        status: 202,
+        body: { depositReturnId: 'r1', state: 'initiated', replayed: false },
+      },
+    })
+
+    renderAt('/havaleler', <App />)
+    await user.click(await screen.findByRole('button', { name: 'İade et' }))
+    await user.click(screen.getByRole('button', { name: 'İadeyi başlat' }))
+
+    expect(await screen.findByText('İade başladı; bankanın sonucu bekleniyor.')).toBeTruthy()
+    expect(await screen.findByText('İade ediliyor')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'İade et' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cüzdana aktar' })).toBeNull()
+    const started = calls.find((call) => call.path === '/v1/deposit-returns')!
+    expect(started.body).toEqual({ suspendedDepositId: '1' })
+    expect(started.headers['Idempotency-Key']).toBeTruthy()
+  })
+
   it('aktarma izni olmayan yalnızca listeyi görüyor', async () => {
     fakeBff({
       ...staffSession(['customer.view', 'deposit.view']),
@@ -115,6 +154,7 @@ describe('SuspendedDepositsPage', () => {
 
     expect(await screen.findByText('Gönderen hesabın sahibi değil')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Cüzdana aktar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'İade et' })).toBeNull()
   })
 
   /** İzni olmayan çalışanın menüsünde yok. */

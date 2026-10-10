@@ -35,9 +35,16 @@ public sealed class BankTransfer
 
     /// <summary>
     /// Hedef IBAN. Log'a MASKELİ yazılıyor ama kolonda tam duruyor: ihtilafta
-    /// "nereye gönderdik" sorusunun cevabı bu.
+    /// "nereye gönderdik" sorusunun cevabı bu. Yalnızca iadesi gidemeyen havalede boş:
+    /// bildiriminde gönderenin IBAN'ı yoktu ve banka hiç aranmadı.
     /// </summary>
-    public required string DestinationIban { get; init; }
+    public required string? DestinationIban { get; init; }
+
+    /// <summary>
+    /// Askıdaki havalenin iadesinde iade edilen havale (<c>bank_deposits</c>); çekimde boş.
+    /// IBAN o kayıttan okundu.
+    /// </summary>
+    public Guid? ReturnsDepositId { get; init; }
 
     public required string Status { get; set; }
 
