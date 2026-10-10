@@ -481,6 +481,53 @@ public sealed class StaffAdminApiTests(StaffAdminFixture staffDb) : IAsyncLifeti
     /// Yalnızca çalışanların kimlik sağlayıcısının token'ı ve personel yönetimi izniyle.
     /// Müşterinin token'ını bu servis tanımıyor.
     /// </summary>
+    // --- Adlar ---
+
+    /// <summary>
+    /// Kaydı kimin açtığı panelde adıyla görünsün: her çalışan başka çalışanların adını
+    /// görüyor, izin istenmiyor. Yalnızca ad: rolleri, izinleri ve durumu personel yönetiminin.
+    /// Adı girilmemiş çalışanın adı e-postası; bilinmeyen kimlik listede yok.
+    /// </summary>
+    [Fact]
+    public async Task Adlar_HerCalisanaAcik_YalnizcaAd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var invited = await _admin.PostAsJsonAsync("/v1/staff", new
+        {
+            email = $"adli-{Guid.NewGuid():N}@ornek.com",
+            firstName = "Ayşe",
+            lastName = "Yılmaz",
+            roleIds = Array.Empty<Guid>()
+        }, ct);
+        invited.StatusCode.ShouldBe(HttpStatusCode.Created, await invited.Content.ReadAsStringAsync(ct));
+        var named = (await invited.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("staffId").GetGuid();
+        var unnamed = await _factory.AddStaffAsync(ct);
+        var unnamedEmail = (await _admin.GetFromJsonAsync<JsonElement>($"/v1/staff/{unnamed}", ct)).GetProperty("email").GetString();
+        using var withoutRole = StaffClient(await _factory.AddStaffAsync(ct));
+
+        var response = await withoutRole.GetAsync(
+            $"/v1/staff-names?subject={named}&subject={unnamed}&subject={Guid.NewGuid()}", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(ct));
+        var items = (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("subject").GetString()!, i => i.GetProperty("name").GetString());
+        items.Count.ShouldBe(2);
+        items[named.ToString()].ShouldBe("Ayşe Yılmaz");
+        items[unnamed.ToString()].ShouldBe(unnamedEmail);
+        (await response.Content.ReadAsStringAsync(ct)).ShouldNotContain("roles");
+    }
+
+    [Fact]
+    public async Task Adlar_MusteriyeKapali_CokFazlaKimlik400()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var customer = _factory.CreateClient().As($"musteri-{Guid.NewGuid():N}");
+        var tooMany = string.Join("&", Enumerable.Range(0, 101).Select(_ => $"subject={Guid.NewGuid()}"));
+
+        (await customer.GetAsync($"/v1/staff-names?subject={_adminId}", ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await _admin.GetAsync($"/v1/staff-names?{tooMany}", ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Yetki_MusteriTanimiyor_IzinsizCalisan403()
     {
