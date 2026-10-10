@@ -26,3 +26,14 @@ public sealed record SuspendedDepositResponse(
     DateTimeOffset CreatedAt);
 
 public sealed record SuspendedDepositsResponse(IReadOnlyList<SuspendedDepositResponse> Items, int Size, Guid? NextCursor);
+
+/// <param name="AccountNumber">Paranın aktarılacağı hesap; para varsayılan cüzdanına düşüyor.</param>
+public sealed record MoveSuspendedDepositRequest(string AccountNumber);
+
+/// <param name="Replayed">Aynı anahtarla tekrar: ikinci kez yazılmadı.</param>
+public sealed record SuspendedDepositMovedResponse(
+    Guid SuspendedDepositId,
+    Guid AccountId,
+    Guid WalletId,
+    Guid LedgerTransactionId,
+    bool Replayed);
