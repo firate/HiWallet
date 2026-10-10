@@ -1,6 +1,7 @@
 using HiWallet.WalletService.Application.Abstractions;
 using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Domain.Accounts;
+using HiWallet.WalletService.Domain.Deposits;
 using HiWallet.WalletService.Domain.Errors;
 using HiWallet.WalletService.Domain.Ledger;
 using HiWallet.WalletService.Domain.Policies;
@@ -37,8 +38,9 @@ public sealed record MoveSuspendedDepositResult(
 /// Ledger: yükleme (<see cref="LedgerTransactionType.Topup"/>), cüzdan +, askı −; aktör
 /// çalışan. Tip yükleme olduğu için ayın girişine kendiliğinden sayılıyor.
 ///
-/// Tek ACID transaction: karar kaydı, limit ve ledger birlikte. Karar kaydı kapı: havale
-/// başına bir satır, <c>INSERT ... ON CONFLICT DO NOTHING</c>; ikinci karar oraya takılıyor.
+/// Tek ACID transaction: karar adımı, limit ve ledger birlikte. Adım kapı
+/// (<see cref="SuspendedDepositSteps"/>): aynı anda verilen ikinci karar ona takılıyor.
+/// İadesi süren havale aktarılamıyor; iadesi geri konan aktarılabiliyor.
 /// </summary>
 public sealed class MoveSuspendedDepositHandler(
     IDbContextFactory<WalletDbContext> contextFactory,
@@ -92,35 +94,21 @@ public sealed class MoveSuspendedDepositHandler(
 
         // --- Karar kapısı -------------------------------------------------------------
         // Kurallardan ÖNCE: tekrar eden istek limit değişmiş olsa da aynı cevabı almalı.
-        // Kural reddinde transaction geri alınıyor, satır da onunla gidiyor.
-        var inserted = await db.Database.ExecuteSqlAsync(
-            $"""
-             INSERT INTO suspended_deposit_resolutions
-                 (suspended_deposit_id, kind, ledger_transaction_id, account_id, resolved_by, created_at)
-             VALUES ({deposit.LedgerTransactionId}, 'moved', {transactionId}, {account.Id}, {command.EmployeeSubject}, {now})
-             ON CONFLICT (suspended_deposit_id) DO NOTHING
-             """,
-            ct);
+        // Kural reddinde transaction geri alınıyor, adım da onunla gidiyor.
+        var last = await SuspendedDepositSteps.LastAsync(db, deposit.LedgerTransactionId, ct);
 
-        if (inserted == 0)
+        if (!SuspendedDepositResolution.IsOpenAfter(last?.Kind))
         {
-            var existing = await (
-                    from r in db.SuspendedDepositResolutions
-                    join t in db.LedgerTransactions on r.LedgerTransactionId equals t.Id
-                    where r.SuspendedDepositId == deposit.LedgerTransactionId
-                    select new { r.AccountId, t.LedgerAccountId, t.Id, t.IdempotencyKey })
-                .SingleAsync(ct);
-
             await transaction.RollbackAsync(ct);
 
-            if (existing.IdempotencyKey != command.IdempotencyKey)
-            {
-                throw new DepositResolutionRejectedException(
-                    DepositResolutionRejectedException.AlreadyResolved, "Bu havale için karar verilmiş.");
-            }
+            return await ReplayOrRejectAsync(db, deposit.LedgerTransactionId, last!, command, ct);
+        }
 
-            return new MoveSuspendedDepositResult(
-                deposit.LedgerTransactionId, existing.AccountId, existing.LedgerAccountId, existing.Id, Replayed: true);
+        if (!await SuspendedDepositSteps.AppendAsync(
+                db, deposit.LedgerTransactionId, last, DepositResolutionKind.Moved, transactionId, account.Id,
+                command.EmployeeSubject, now, ct))
+        {
+            throw SuspendedDepositSteps.Raced(deposit.LedgerTransactionId);
         }
 
         // --- Hedef --------------------------------------------------------------------
@@ -205,6 +193,39 @@ public sealed class MoveSuspendedDepositHandler(
             deposit.LedgerTransactionId, transactionId, account.Id, amount.Amount, amount.Currency.Code);
 
         return new MoveSuspendedDepositResult(deposit.LedgerTransactionId, account.Id, walletId, transactionId, Replayed: false);
+    }
+
+    /// <summary>
+    /// Havale için karar verilmiş. Aynı anahtarla gelen aktarım tekrarı aynı cevabı alıyor;
+    /// başka her şey reddediliyor: başka bir aktarım, tamamlanan ya da süren bir iade.
+    /// </summary>
+    private static async Task<MoveSuspendedDepositResult> ReplayOrRejectAsync(
+        WalletDbContext db, Guid depositId, SuspendedDepositResolution last, MoveSuspendedDepositCommand command,
+        CancellationToken ct)
+    {
+        if (last.Kind is DepositResolutionKind.ReturnStarted)
+        {
+            throw new DepositResolutionRejectedException(
+                DepositResolutionRejectedException.ReturnInProgress, "Bu havalenin iadesi sürüyor.");
+        }
+
+        if (last.Kind is DepositResolutionKind.Moved)
+        {
+            var moved = await db.LedgerTransactions
+                .AsNoTracking()
+                .Where(t => t.Id == last.LedgerTransactionId)
+                .Select(t => new { t.LedgerAccountId, t.IdempotencyKey })
+                .SingleAsync(ct);
+
+            if (moved.IdempotencyKey == command.IdempotencyKey)
+            {
+                return new MoveSuspendedDepositResult(
+                    depositId, last.AccountId!.Value, moved.LedgerAccountId, last.LedgerTransactionId, Replayed: true);
+            }
+        }
+
+        throw new DepositResolutionRejectedException(
+            DepositResolutionRejectedException.AlreadyResolved, "Bu havale için karar verilmiş.");
     }
 
     private static bool IsKeyConflict(DbUpdateException exception) =>
