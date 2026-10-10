@@ -43,3 +43,10 @@ public sealed class PromoCampaignNotFoundException(Guid campaignId)
 {
     public Guid CampaignId { get; } = campaignId;
 }
+
+/// <summary>Askıdaki havale bulunamadı.</summary>
+public sealed class SuspendedDepositNotFoundException(Guid suspendedDepositId)
+    : NotFoundException($"Askıdaki havale bulunamadı: {suspendedDepositId}")
+{
+    public Guid SuspendedDepositId { get; } = suspendedDepositId;
+}

@@ -278,6 +278,9 @@ public static class StaffPermissions
     /// <summary>Cüzdana geçirilemeyip askıya alınan havaleleri görüntüler.</summary>
     public const string DepositView = "deposit.view";
 
+    /// <summary>Askıdaki havaleyi bir hesabın cüzdanına aktarır.</summary>
+    public const string DepositResolve = "deposit.resolve";
+
     /// <summary>Personeli, rolleri ve rollerin izinlerini yönetir.</summary>
     public const string StaffManage = "staff.manage";
 
@@ -291,6 +294,7 @@ public static class StaffPermissions
         [CampaignManage] = "Promo kampanyası açar ve bitirir",
         [MerchantPromoAcceptance] = "İşyerinin platform fonlu promo kabulünü değiştirir",
         [DepositView] = "Cüzdana geçirilemeyip askıya alınan havaleleri görüntüler",
+        [DepositResolve] = "Askıdaki havaleyi bir hesabın cüzdanına aktarır",
         [StaffManage] = "Personeli, rolleri ve rollerin izinlerini yönetir"
     };
 
@@ -322,6 +326,8 @@ public static class HiWalletPolicies
     public const string MerchantPromoAcceptance = Prefix + StaffPermissions.MerchantPromoAcceptance;
 
     public const string DepositView = Prefix + StaffPermissions.DepositView;
+
+    public const string DepositResolve = Prefix + StaffPermissions.DepositResolve;
 
     public const string StaffManage = Prefix + StaffPermissions.StaffManage;
 

@@ -27,6 +27,7 @@ export type StaffPermission =
   | 'campaign.manage'
   | 'merchant.promo_acceptance'
   | 'deposit.view'
+  | 'deposit.resolve'
   | 'staff.manage'
 
 export type KycLevel = 'Unknown' | 'Unverified' | 'Verified' | 'Contracted'
@@ -208,6 +209,15 @@ export interface SuspendedDepositsPage {
   items: SuspendedDeposit[]
   size: number
   nextCursor: string | null
+}
+
+/** Aktarımın sonucu; `replayed` aynı anahtarla tekrar. */
+export interface SuspendedDepositMoved {
+  suspendedDepositId: string
+  accountId: string
+  walletId: string
+  ledgerTransactionId: string
+  replayed: boolean
 }
 
 export type CampaignRule = 'payment_to_merchant' | 'daily_payment_total'

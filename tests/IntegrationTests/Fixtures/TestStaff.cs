@@ -12,7 +12,8 @@ public static class TestStaff
 
     public static readonly string[] Operations = [StaffPermissions.CustomerView, StaffPermissions.WithdrawalReview];
 
-    public static readonly string[] Finance = [StaffPermissions.CustomerView, StaffPermissions.DepositView];
+    public static readonly string[] Finance =
+        [StaffPermissions.CustomerView, StaffPermissions.DepositView, StaffPermissions.DepositResolve];
 
     public static readonly string[] Marketing =
     [

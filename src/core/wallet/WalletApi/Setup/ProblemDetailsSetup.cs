@@ -121,6 +121,7 @@ internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDet
                 {
                     AccountNotFoundException or AccountNumberNotFoundException => "Hesap bulunamadı",
                     PromoCampaignNotFoundException => "Kampanya bulunamadı",
+                    SuspendedDepositNotFoundException => "Havale bulunamadı",
                     _ => "Cüzdan bulunamadı"
                 },
                 Detail = notFound.Message,
@@ -128,6 +129,7 @@ internal sealed class NotFoundExceptionHandler(IProblemDetailsService problemDet
                 {
                     AccountNotFoundException or AccountNumberNotFoundException => "https://hiwallet.dev/problems/account-not-found",
                     PromoCampaignNotFoundException => "https://hiwallet.dev/problems/campaign-not-found",
+                    SuspendedDepositNotFoundException => "https://hiwallet.dev/problems/deposit-not-found",
                     _ => "https://hiwallet.dev/problems/wallet-not-found"
                 }
             },

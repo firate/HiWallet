@@ -140,14 +140,16 @@ WalletService.Core/
 │   ├── Balances/              -- cüzdan sorgulama (bakiye projeksiyondan okunur)
 │   ├── Topups/                -- ProcessTopupHandler (ledger'a yazan taraf)
 │   ├── Deposits/              -- ProcessDepositHandler (havale: cüzdan ya da askı),
-│   │                             askıdaki havalelerin listesi
+│   │                             askıdaki havalelerin listesi, MoveSuspendedDepositHandler
+│   │                             (askıdan cüzdana aktarım)
 │   ├── Withdrawals/           -- çekim komut handler'ları + ters kayıt
 │   ├── Settlements/           -- ProcessSettlementHandler, ProcessInvoiceHandler
 │   ├── Promos/                -- işyerinin promo vermesi, cüzdanın parti listesi
 │   └── Abstractions/          -- IClock, IHolderIdentity
 ├── Domain/
 │   ├── Accounts/              -- Account (müşteri hesabı), AccountType (person/business)
-│   ├── Deposits/              -- SuspendedDeposit, DepositHoldReason
+│   ├── Deposits/              -- SuspendedDeposit, DepositHoldReason,
+│   │                             SuspendedDepositResolution
 │   ├── Ledger/                -- Money, Currency, LedgerAccount, LedgerAccountType,
 │   │                             LedgerTransaction, LedgerEntry, LedgerTransactionType
 │   ├── Balances/              -- LedgerBalance

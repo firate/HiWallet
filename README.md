@@ -151,7 +151,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale, kartla yükleme |
 | Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
 | Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |
-| Eşleşmeyen havale askıya, panelde liste | evet — testte |
+| Eşleşmeyen havale askıya, panelde liste ve hesabın cüzdanına aktarım | evet — testte; aktarım compose'da denenmedi |
+| Askıdaki havaleyi kaynağına iade | hayır |
 | Askıdaki havalenin kaynağa iadesi ya da bir cüzdana aktarılması | hayır |
 | `Verified`: uzaktan kimlik tespiti (kimlik kartının çipi, canlılık, yüz) | hayır |
 | `Contracted`: backoffice'ten | hayır |
@@ -169,8 +170,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-837 test: 256 unit (DB'siz), 581 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 57, panelin 45.
+845 test: 256 unit (DB'siz), 589 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 57, panelin 48.
 
 Withdrawal zinciri broker'la uçtan uca koşuyor: `POST /v1/withdrawals` → orchestrator →
 wallet-consumer → bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →

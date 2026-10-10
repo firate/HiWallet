@@ -408,11 +408,37 @@ curl -s "localhost:8091/v1/suspended-deposits?size=20" -H "Authorization: Bearer
 }
 ```
 
-Cüzdana geçirilemeyen havaleler, yeniden eskiye; `deposit.view` izni. `reason`:
+Cüzdana geçirilemeyen havaleler, yeniden eskiye; `deposit.view` izni. Kararı verilmiş
+havale listede yok. `reason`:
 `no_account_number`, `ambiguous_account_number`, `unknown_account`, `business_account`,
 `no_wallet_in_currency`, `unknown_sender`, `sender_not_holder`, `limit_exceeded`.
 `accountId` açıklamadaki numaranın hesabı, bulunduysa. Gönderenin adı, IBAN'ı ve kimlik
 numarası wallet'ta olmadığı için burada da yok.
+
+### Askıdaki havaleyi cüzdana aktar (çalışan)
+
+```bash
+curl -s localhost:8091/v1/suspended-deposits/$DEPOSIT/move \
+  -H "Authorization: Bearer $STAFF_TOKEN" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"accountNumber":"4817305925"}'
+```
+```json
+{
+  "suspendedDepositId": "…",
+  "accountId": "…",
+  "walletId": "…",
+  "ledgerTransactionId": "…",
+  "replayed": false
+}
+```
+
+`deposit.resolve` izni. Para hesabın bu para birimindeki varsayılan cüzdanına düşüyor;
+ledger'da yükleme, aktör çalışan. Hesap bireysel değilse (`deposit_target_not_person`),
+cüzdanı yoksa (`no_wallet_in_currency`) ya da seviyenin limiti yetmiyorsa `422` ve para
+askıda kalıyor. Kontrol hanesi tutmayan numara `400`, olmayan numara ya da havale `404`.
+Aynı anahtarla tekrar aynı cevap (`replayed: true`); başka bir karar `422`
+(`deposit_already_resolved`). Aktarılan havale listeden çıkıyor.
 
 ### Transfer
 
