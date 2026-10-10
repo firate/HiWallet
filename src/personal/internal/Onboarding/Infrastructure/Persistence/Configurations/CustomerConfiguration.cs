@@ -36,5 +36,11 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .HasDatabaseName("ux_customers_national_id")
             .IsUnique()
             .HasFilter("national_id IS NOT NULL");
+
+        // Tekil DEĞİL: numara kuralı uygulamada (Application/PhoneOwnership.cs). Index
+        // numarayı soran iki yol için: kuralın kontrolü ve çalışanın araması.
+        builder.HasIndex(c => c.Phone)
+            .HasDatabaseName("ix_customers_phone")
+            .HasFilter("phone IS NOT NULL");
     }
 }

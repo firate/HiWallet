@@ -71,6 +71,10 @@ namespace HiWallet.WithdrawalOrchestrator.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("failure_reason");
 
+                    b.Property<string>("FailureRule")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_rule");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasColumnType("text")

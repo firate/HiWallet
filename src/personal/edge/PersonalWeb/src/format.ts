@@ -56,6 +56,19 @@ export function kycLevel(value: string): string {
   return kycLevels[value] ?? value
 }
 
+const kycMovements: Record<string, string> = {
+  OutgoingTransfer: 'Başka birine gönderim',
+  Payment: 'İşyerine ödeme',
+  Withdrawal: 'Banka hesabına çekim',
+  IncomingTransfer: 'Gelen transfer',
+  Deposit: 'Para yükleme',
+  IncomingTotal: 'Toplam giriş (yükleme ve gelen transfer)',
+}
+
+export function kycMovement(value: string): string {
+  return kycMovements[value] ?? value
+}
+
 const withdrawalStates: Record<string, string> = {
   initiated: 'Alındı',
   rejected: 'Reddedildi',
@@ -72,6 +85,24 @@ const withdrawalStates: Record<string, string> = {
 
 export function withdrawalState(value: string): string {
   return withdrawalStates[value] ?? value
+}
+
+/**
+ * Çekim neden yapılmadı ya da geri döndü. Anahtar sunucunun kural adı; sunucunun sebep metni
+ * destek için yazıldı ve hesap kimliği taşıyabiliyor, müşteriye gösterilmiyor.
+ */
+const withdrawalFailures: Record<string, string> = {
+  insufficient_funds: 'Çekilebilir bakiyen bu tutara ve komisyonuna yetmedi.',
+  'Withdrawal.PerTransaction': 'Tutar tek seferde çekilebilecek tutarı aşıyor.',
+  'Withdrawal.Daily': 'Bugünkü çekim limitin bu tutara yetmedi.',
+  'Kyc.Withdrawal.Monthly': 'Doğrulama seviyenin aylık çekim limiti bu tutara izin vermedi.',
+  withdrawal_hold: 'Telefon numaran yakın zamanda değiştiği için banka hesabına çekim bir süre kapalı.',
+  bank_rejected: 'Banka transferi kabul etmedi; para komisyonuyla birlikte cüzdanına geri döndü.',
+  review_cancelled: 'Çekim incelemede iptal edildi; para komisyonuyla birlikte cüzdanına geri döndü.',
+}
+
+export function withdrawalFailure(rule: string | null | undefined): string {
+  return (rule && withdrawalFailures[rule]) || 'Çekim yapılamadı.'
 }
 
 /** Sonucu artık değişmeyen durumlar; izleme burada duruyor. */

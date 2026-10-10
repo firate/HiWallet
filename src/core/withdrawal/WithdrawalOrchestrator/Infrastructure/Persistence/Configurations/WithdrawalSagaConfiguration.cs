@@ -90,6 +90,10 @@ internal sealed class WithdrawalSagaConfiguration : IEntityTypeConfiguration<Wit
             .HasColumnName("failure_reason")
             .HasColumnType("text");
 
+        builder.Property(s => s.FailureRule)
+            .HasColumnName("failure_rule")
+            .HasColumnType("text");
+
         builder.Property(s => s.CreatedAt).HasColumnName("created_at");
         builder.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 

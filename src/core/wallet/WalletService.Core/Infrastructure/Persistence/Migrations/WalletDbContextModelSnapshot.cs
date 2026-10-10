@@ -59,6 +59,10 @@ namespace HiWallet.WalletService.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("type");
 
+                    b.Property<DateTimeOffset?>("WithdrawalHoldUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("withdrawal_hold_until");
+
                     b.HasKey("Id")
                         .HasName("pk_accounts");
 

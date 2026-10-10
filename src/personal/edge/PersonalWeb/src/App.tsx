@@ -4,6 +4,8 @@ import { AccountsPage } from './pages/AccountsPage'
 import { CardTopupPage } from './pages/CardTopupPage'
 import { CardTopupStatusPage } from './pages/CardTopupStatusPage'
 import { DepositPage } from './pages/DepositPage'
+import { LimitsPage } from './pages/LimitsPage'
+import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { TransferPage } from './pages/TransferPage'
 import { VerificationPage } from './pages/VerificationPage'
@@ -35,7 +37,9 @@ function SignedInRoutes() {
       <Route element={<Layout />}>
         <Route index element={<AccountsPage />} />
         <Route path="dogrulama" element={<VerificationPage />} />
+        <Route path="profil" element={<ProfilePage />} />
         <Route path="hesaplar/:accountId/yukle" element={<DepositPage />} />
+        <Route path="hesaplar/:accountId/limitler" element={<LimitsPage />} />
         <Route path="cuzdanlar" element={<Navigate to="/" replace />} />
         <Route path="cuzdanlar/:walletId" element={<WalletPage />} />
         <Route path="cuzdanlar/:walletId/transfer" element={<TransferPage />} />

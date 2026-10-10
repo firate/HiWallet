@@ -31,6 +31,23 @@ public abstract class OnboardingControllerBase(OnboardingClient onboarding) : Co
         onboarding.PostAsync<PhoneVerifiedResponse>(
             $"v1/me/phone-verifications/{verificationId}/confirmation", request, null, ct);
 
+    /// <summary>
+    /// Temel doğrulamadan sonra numara değişikliği: yeni numaraya kod. Parolayla yakın zamanda
+    /// giriş istiyor; yoksa onboarding'in <c>403</c>'ü (<c>reauthentication_required</c>) aynen.
+    /// </summary>
+    [HttpPost("phone-changes")]
+    [ProducesResponseType<PhoneVerificationStartedResponse>(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> StartPhoneChange([FromBody] StartPhoneVerificationRequest request, CancellationToken ct) =>
+        Accepted(await onboarding.PostAsync<PhoneVerificationStartedResponse>(
+            "v1/me/phone-changes", request, null, ct));
+
+    /// <summary>Yeni numaranın kodunu doğrular, numarayı değiştirir; bankaya çekim bir süre kapanıyor.</summary>
+    [HttpPost("phone-changes/{verificationId:guid}/confirmation")]
+    public Task<PhoneChangedResponse> ConfirmPhoneChange(
+        Guid verificationId, [FromBody] ConfirmPhoneRequest request, CancellationToken ct) =>
+        onboarding.PostAsync<PhoneChangedResponse>(
+            $"v1/me/phone-changes/{verificationId}/confirmation", request, null, ct);
+
     /// <summary>Kimlik bilgilerini nüfus kaydıyla karşılaştırır.</summary>
     [HttpPut("identity")]
     public Task<IdentityVerifiedResponse> Identity([FromBody] IdentityRequest request, CancellationToken ct) =>

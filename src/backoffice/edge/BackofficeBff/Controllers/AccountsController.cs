@@ -24,6 +24,22 @@ public sealed class AccountsController(WalletApiClient walletApi) : ControllerBa
     }
 
     /// <summary>
+    /// Müşterinin seviye limitleri ve bu ay kullandığı: "neden gönderemiyorum" sorusunun
+    /// cevabı. `customer.view` izni; wallet-api kontrol ediyor. İşyeri hesabında <c>422</c>.
+    /// </summary>
+    /// <param name="currency">Limitin sayıldığı para birimi (<c>TRY</c>).</param>
+    [HttpGet("{accountId:guid}/limits")]
+    [ProducesResponseType<AccountLimitsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<AccountLimitsResponse> GetLimits(Guid accountId, [FromQuery] string? currency, CancellationToken ct)
+    {
+        return await walletApi.GetAsync<AccountLimitsResponse>(
+            $"v1/accounts/{accountId}/limits?currency={Uri.EscapeDataString(currency ?? string.Empty)}", ct);
+    }
+
+    /// <summary>
     /// Hesap numarasıyla kayıt: çalışan müşteriyi numarasıyla buluyor. Kontrol hanesi
     /// tutmayan numara <c>400</c>, olmayan <c>404</c>; ikisini de wallet-api veriyor.
     /// </summary>

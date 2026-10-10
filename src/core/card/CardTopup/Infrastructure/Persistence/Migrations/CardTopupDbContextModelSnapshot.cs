@@ -112,6 +112,9 @@ namespace HiWallet.CardTopup.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_card_topups_idempotency");
 
+                    b.HasIndex("WalletId", "CreatedAt")
+                        .HasDatabaseName("ix_card_topups_wallet");
+
                     b.ToTable("card_topups", null, t =>
                         {
                             t.HasCheckConstraint("ck_card_topups_amount", "amount > 0");

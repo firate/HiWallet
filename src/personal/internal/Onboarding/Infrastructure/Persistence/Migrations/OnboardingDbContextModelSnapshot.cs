@@ -115,7 +115,45 @@ namespace HiWallet.Onboarding.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_customers_national_id")
                         .HasFilter("national_id IS NOT NULL");
 
+                    b.HasIndex("Phone")
+                        .HasDatabaseName("ix_customers_phone")
+                        .HasFilter("phone IS NOT NULL");
+
                     b.ToTable("customers", (string)null);
+                });
+
+            modelBuilder.Entity("HiWallet.Onboarding.Domain.PhoneChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at");
+
+                    b.Property<string>("NewPhone")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("new_phone");
+
+                    b.Property<string>("OldPhone")
+                        .HasColumnType("text")
+                        .HasColumnName("old_phone");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("subject");
+
+                    b.HasKey("Id")
+                        .HasName("pk_phone_changes");
+
+                    b.HasIndex("Subject")
+                        .HasDatabaseName("ix_phone_changes_subject");
+
+                    b.ToTable("phone_changes", (string)null);
                 });
 
             modelBuilder.Entity("HiWallet.Onboarding.Domain.PhoneVerification", b =>
@@ -146,6 +184,13 @@ namespace HiWallet.Onboarding.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("phone");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("basic")
+                        .HasColumnName("purpose");
 
                     b.Property<string>("Subject")
                         .IsRequired()
@@ -212,6 +257,10 @@ namespace HiWallet.Onboarding.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_registrations");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_registrations_account_id")
+                        .HasFilter("account_id IS NOT NULL");
 
                     b.HasIndex("Email")
                         .HasDatabaseName("ix_registrations_email");

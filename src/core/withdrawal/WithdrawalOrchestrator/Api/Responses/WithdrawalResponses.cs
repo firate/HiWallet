@@ -24,6 +24,12 @@ public sealed record WithdrawalAcceptedResponse(Guid WithdrawalId, string State,
 /// Cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi yapana kadar
 /// <c>null</c>; 0 yazılmıyor, "komisyonsuz çekildi" ile karışırdı.
 /// </param>
+/// <param name="FailureReason">Sebebin metni: destek için, iç ayrıntı taşıyabilir.</param>
+/// <param name="FailureRule">
+/// Sebebin makinenin okuyacağı adı; müşterinin ekranı bundan kuruluyor. Reddetmede wallet'ın
+/// kuralı (<c>insufficient_funds</c>, <c>Kyc.Withdrawal.Monthly</c>, ...), banka reddinde
+/// <c>bank_rejected</c>, incelemede iptalde <c>review_cancelled</c>.
+/// </param>
 public sealed record WithdrawalResponse(
     Guid WithdrawalId,
     Guid AccountId,
@@ -34,6 +40,7 @@ public sealed record WithdrawalResponse(
     string DestinationIban,
     decimal? TotalDebited,
     string? FailureReason,
+    string? FailureRule,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
@@ -50,6 +57,7 @@ public sealed record WithdrawalResponse(
             saga.Destination.Masked,
             saga.TotalDebited,
             saga.FailureReason,
+            saga.FailureRule,
             saga.CreatedAt,
             saga.UpdatedAt);
 }

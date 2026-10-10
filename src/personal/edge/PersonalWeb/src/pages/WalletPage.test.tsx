@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { fakeBff } from '../test/fakeBff'
+import { limitsOf } from '../test/limits'
 import { renderAt } from '../test/render'
 import type { KycLevel, Promo } from '../types'
 import { WalletPage } from './WalletPage'
@@ -84,6 +85,151 @@ describe('WalletPage', () => {
 
     await screen.findByText('Henüz hareket yok.')
     expect(screen.queryByRole('link', { name: 'Havaleyle para yükle' })).toBeNull()
+  })
+
+  /** Temel doğrulamada başka birine gönderim ve çekim kapalı; düğme yok, sebebi yazıyor. */
+  it('seviyenin kapattığı çekimi göstermiyor, sebebini söylüyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Unverified', true) },
+      'GET /v1/accounts/a1/limits?currency=TRY': {
+        status: 200,
+        body: limitsOf('Unverified', { OutgoingTransfer: { limit: 0 }, Withdrawal: { limit: 0 } }, 5_500),
+      },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    expect(await screen.findByText(/Banka hesabına çekemiyorsun/)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Banka hesabına çek' })).toBeNull()
+    // İşyerine ödeme açık: gönderim sayfası duruyor.
+    expect(screen.getByRole('link', { name: 'Para gönder' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Limitlerim' }).getAttribute('href')).toBe('/hesaplar/a1/limitler')
+  })
+
+  /** Telefon değişince bankaya çekim bir süre kapalı; gönderim açık. */
+  it('telefon değişikliğinden sonra çekimi göstermiyor, bitişini söylüyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': {
+        status: 200,
+        body: { ...account('Verified', true), withdrawalHoldUntil: '2099-01-01T10:00:00Z' },
+      },
+      'GET /v1/accounts/a1/limits?currency=TRY': { status: 200, body: limitsOf('Verified') },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    expect(await screen.findByText(/Telefon numaran değiştiği için .* tarihine kadar kapalı/)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Banka hesabına çek' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Para gönder' })).toBeTruthy()
+  })
+
+  it('süresi geçmiş çekim kısıtında düğmeyi gösteriyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': {
+        status: 200,
+        body: { ...account('Verified', true), withdrawalHoldUntil: '2026-01-01T10:00:00Z' },
+      },
+      'GET /v1/accounts/a1/limits?currency=TRY': { status: 200, body: limitsOf('Verified') },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    expect(await screen.findByRole('link', { name: 'Banka hesabına çek' })).toBeTruthy()
+  })
+
+  /** Müşteri başlattığı çekimi sayfasını kaybetse de cüzdanından buluyor. */
+  it('cüzdanın çekimlerini durum sayfalarına bağlıyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Verified', true) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+      'GET /v1/wallets/w1/withdrawals': {
+        status: 200,
+        body: {
+          items: [
+            {
+              withdrawalId: 'c1',
+              accountId: 'a1',
+              walletId: 'w1',
+              state: 'bank_transfer_pending',
+              amount: 100,
+              currency: 'TRY',
+              destinationIban: 'TR33******************1326',
+              totalDebited: 102,
+              failureReason: null,
+              createdAt: '2026-10-08T10:00:00Z',
+              updatedAt: '2026-10-08T10:00:05Z',
+            },
+          ],
+          size: 20,
+          nextCursor: null,
+        },
+      },
+    })
+
+    renderWallet()
+
+    const link = await screen.findByRole('link', { name: 'Bankada' })
+    expect(link.getAttribute('href')).toBe('/cekimler/c1')
+  })
+
+  it('kartla yüklemeleri sonuç sayfalarına bağlıyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Verified', true) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+      'GET /v1/wallets/w1/card-topups': {
+        status: 200,
+        body: {
+          items: [
+            {
+              cardTopupId: 'k1',
+              walletId: 'w1',
+              state: 'paid',
+              amount: 250,
+              currency: 'TRY',
+              paymentUrl: null,
+              expiresAt: '2026-10-08T10:15:00Z',
+              failureReason: null,
+              createdAt: '2026-10-08T10:00:00Z',
+              updatedAt: '2026-10-08T10:01:00Z',
+            },
+          ],
+          size: 20,
+          nextCursor: null,
+        },
+      },
+    })
+
+    renderWallet()
+
+    const link = await screen.findByRole('link', { name: 'Ödendi' })
+    expect(link.getAttribute('href')).toBe('/kart-yukleme?cardTopupId=k1')
+  })
+
+  it('limit okunamazsa düğmeleri açık bırakıyor', async () => {
+    fakeBff({
+      'GET /v1/wallets/w1': { status: 200, body: wallet },
+      'GET /v1/accounts/a1': { status: 200, body: account('Unverified', true) },
+      'GET /v1/wallets/w1/movements': noMovements,
+      'GET /v1/wallets/w1/promos': noPromos,
+    })
+
+    renderWallet()
+
+    expect(await screen.findByRole('link', { name: 'Banka hesabına çek' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Para gönder' })).toBeTruthy()
   })
 
   /** Kart yüklemesi cüzdanı kendisi seçiyor; varsayılan olması gerekmiyor. */

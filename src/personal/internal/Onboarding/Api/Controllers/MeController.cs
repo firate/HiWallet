@@ -11,8 +11,46 @@ namespace HiWallet.Onboarding.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("v1/me")]
-public sealed class MeController(VerificationService verification) : ControllerBase
+public sealed class MeController(VerificationService verification, PhoneChangeService phoneChange) : ControllerBase
 {
+    /// <summary>
+    /// Temel doğrulamadan sonra numara değişikliği: yeni numaraya kod gönderir. Parolayla
+    /// yakın zamanda giriş istiyor; yoksa <c>403</c> ve <c>reauthentication_required</c>.
+    /// Numaranın başka bir müşteride olup olmadığı burada söylenmiyor.
+    /// </summary>
+    [HttpPost("phone-changes")]
+    [ProducesResponseType<PhoneVerificationStartedResponse>(StatusCodes.Status202Accepted)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> StartPhoneChange(
+        [FromBody] StartPhoneVerificationRequest request, CancellationToken ct)
+    {
+        var started = await phoneChange.StartAsync(
+            User.Subject(), User.AuthenticatedAt(), PhoneNumber.Parse(request.Phone), ct);
+
+        return Accepted(new PhoneVerificationStartedResponse(started.VerificationId, started.Phone.Masked, started.ExpiresAt));
+    }
+
+    /// <summary>
+    /// Yeni numaranın kodunu doğrular ve numarayı değiştirir: eski numaraya ve e-postaya haber
+    /// gidiyor, bankaya çekim bir süre kapanıyor. Numara başka bir müşterideyse <c>409</c>.
+    /// </summary>
+    [HttpPost("phone-changes/{verificationId:guid}/confirmation")]
+    [ProducesResponseType<PhoneChangedResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<PhoneChangedResponse> ConfirmPhoneChange(
+        Guid verificationId, [FromBody] ConfirmPhoneRequest request, CancellationToken ct)
+    {
+        var changed = await phoneChange.ConfirmAsync(
+            User.Subject(), User.AuthenticatedAt(), verificationId, request.Code, ct);
+
+        return new PhoneChangedResponse(changed.Phone.Masked, changed.WithdrawalHoldUntil);
+    }
+
     /// <summary>Doğrulamanın hangi adımda olduğu ve onaylanacak metinlerin güncel sürümleri.</summary>
     [HttpGet("onboarding")]
     [ProducesResponseType<OnboardingStatusResponse>(StatusCodes.Status200OK)]

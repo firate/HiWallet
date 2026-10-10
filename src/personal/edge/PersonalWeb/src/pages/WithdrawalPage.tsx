@@ -5,6 +5,7 @@ import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { money } from '../format'
 import { useIdempotencyKey } from '../idempotency'
+import { useLimits, withdrawalBlockedReason } from '../limits'
 
 /**
  * IBAN'a para çekme. Cevap "istek alındı" demek, para henüz çıkmadı; sonuç çekimin
@@ -14,6 +15,13 @@ export function WithdrawalPage() {
   const { walletId = '' } = useParams()
   const navigate = useNavigate()
   const wallet = useQuery({ queryKey: ['wallets', walletId], queryFn: () => api.wallet(walletId) })
+  const accountId = wallet.data?.accountId
+  const account = useQuery({
+    queryKey: ['accounts', accountId],
+    queryFn: () => api.account(accountId ?? ''),
+    enabled: accountId !== undefined,
+  })
+  const limits = useLimits(accountId, account.data?.kycLevel, wallet.data?.currency)
 
   const [amount, setAmount] = useState('')
   const [iban, setIban] = useState('')
@@ -34,17 +42,37 @@ export function WithdrawalPage() {
   }
 
   const { name, currency, withdrawable } = wallet.data
+  const blocked = withdrawalBlockedReason(account.data, limits.data)
 
   function submit(event: FormEvent) {
     event.preventDefault()
     withdraw.mutate(currency)
   }
 
+  const back = (
+    <p>
+      <Link to={`/cuzdanlar/${walletId}`}>{name}</Link>
+    </p>
+  )
+
+  if (blocked) {
+    return (
+      <>
+        {back}
+        <section className="card">
+          <h1>Banka hesabına çek</h1>
+          <div className="notice">
+            <p>Şu an banka hesabına çekemiyorsun: {blocked}</p>
+            <Link to={`/hesaplar/${wallet.data.accountId}/limitler`}>Limitlerim</Link>
+          </div>
+        </section>
+      </>
+    )
+  }
+
   return (
     <>
-      <p>
-        <Link to={`/cuzdanlar/${walletId}`}>{name}</Link>
-      </p>
+      {back}
       <section className="card">
         <h1>Banka hesabına çek</h1>
         <p className="muted">

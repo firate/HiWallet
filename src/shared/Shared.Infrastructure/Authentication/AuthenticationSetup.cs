@@ -236,6 +236,15 @@ public static class AuthenticationSetup
         user.FindFirst(SubjectClaim)?.Value
         ?? throw new InvalidOperationException("Token'da 'sub' yok.");
 
+    /// <summary>
+    /// Kullanıcının parolasıyla en son giriş yaptığı an (<c>auth_time</c>); token'da yoksa
+    /// <c>null</c>. Yenilenen token aynı anı taşıyor: açık kalan oturum taze giriş sayılmıyor.
+    /// </summary>
+    public static DateTimeOffset? AuthenticatedAt(this ClaimsPrincipal user) =>
+        long.TryParse(user.FindFirst("auth_time")?.Value, out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
+
     /// <summary>Token çalışanların realm'inden geldi ve orada doğrulandı.</summary>
     public static bool IsEmployee(this ClaimsPrincipal user) =>
         user.Identities.Any(identity => identity is { IsAuthenticated: true, AuthenticationType: StaffIdentityType });
@@ -248,7 +257,7 @@ public static class AuthenticationSetup
 /// </summary>
 public static class StaffPermissions
 {
-    /// <summary>Müşteri kaydını görüntüler: hesap, cüzdan, hareket, promo partisi, çekim.</summary>
+    /// <summary>Müşteri kaydını görüntüler: kişisel bilgiler (maskeli), hesap, cüzdan, hareket, promo partisi, çekim.</summary>
     public const string CustomerView = "customer.view";
 
     /// <summary>İncelemedeki çekimi serbest bırakır ya da iptal eder.</summary>
@@ -275,7 +284,7 @@ public static class StaffPermissions
     /// <summary>Panelde izin seçilirken gösterilen açıklamalar; her iznin bir açıklaması var.</summary>
     public static readonly IReadOnlyDictionary<string, string> Descriptions = new Dictionary<string, string>
     {
-        [CustomerView] = "Müşteri kaydını görüntüler: hesap, cüzdan, hareket, promo partisi, çekim",
+        [CustomerView] = "Müşteri kaydını görüntüler: kişisel bilgiler (maskeli), hesap, cüzdan, hareket, promo partisi, çekim",
         [WithdrawalReview] = "İncelemedeki çekimi serbest bırakır ya da iptal eder",
         [PromoGrant] = "Müşteriye personel promo'su verir",
         [CampaignView] = "Promo kampanyalarını görüntüler",

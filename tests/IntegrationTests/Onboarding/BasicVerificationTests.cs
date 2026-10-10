@@ -51,16 +51,21 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
 
     private HttpClient Customer(string subject) => _factory.CreateClient().As(subject);
 
-    private async Task VerifyPhoneAsync(HttpClient customer, CancellationToken ct)
+    /// <summary>Müşterinin numarasını doğrular; numara verilmezse yenisi. Doğrulanan numarayı döner.</summary>
+    private async Task<string> VerifyPhoneAsync(HttpClient customer, CancellationToken ct, string? phone = null)
     {
-        var started = await customer.PostAsJsonAsync("/v1/me/phone-verifications", new { phone = Phone }, ct);
+        phone ??= PhoneNumbers.New();
+
+        var started = await customer.PostAsJsonAsync("/v1/me/phone-verifications", new { phone }, ct);
         started.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var verificationId = (await started.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("verificationId").GetGuid();
 
         var confirmed = await customer.PostAsJsonAsync(
             $"/v1/me/phone-verifications/{verificationId}/confirmation",
-            new { code = _factory.Sms.LastCodeFor("+905321234567") }, ct);
+            new { code = _factory.Sms.LastCodeFor(PhoneNumbers.E164(phone)) }, ct);
         confirmed.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        return phone;
     }
 
     private static Task<HttpResponseMessage> PutIdentityAsync(HttpClient customer, string nationalId, CancellationToken ct) =>
@@ -91,7 +96,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
         var (subject, accountId) = await RegisteredAsync(ct);
         using var customer = Customer(subject);
 
-        await VerifyPhoneAsync(customer, ct);
+        var phone = await VerifyPhoneAsync(customer, ct);
         var identity = await PutIdentityAsync(customer, NationalIds.New(), ct);
         var accepted = await AcceptAsync(customer, ct);
 
@@ -106,7 +111,7 @@ public sealed class BasicVerificationTests(PostgresFixture postgres, OnboardingF
 
         var status = await customer.GetFromJsonAsync<JsonElement>("/v1/me/onboarding", ct);
         status.GetProperty("phoneVerified").GetBoolean().ShouldBeTrue();
-        status.GetProperty("phone").GetString().ShouldBe("+90 532 *** ** 67");
+        status.GetProperty("phone").GetString().ShouldBe($"+90 {phone[1..4]} *** ** {phone[^2..]}");
         status.GetProperty("identityVerified").GetBoolean().ShouldBeTrue();
         status.GetProperty("basicVerificationCompleted").GetBoolean().ShouldBeTrue();
     }

@@ -38,3 +38,6 @@ public sealed record CardTopupResponse(
     string? FailureReason,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
+
+/// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
+public sealed record CardTopupsResponse(IReadOnlyList<CardTopupResponse> Items, int Size, Guid? NextCursor);

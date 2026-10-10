@@ -14,6 +14,10 @@ const ruleMessages: Record<string, string> = {
   'Kyc.Payment.Monthly': 'Doğrulama seviyenin aylık ödeme limiti bu tutara izin vermiyor.',
   // Kartla yükleme: parayı alan da isteyen de müşterinin kendisi, limit onun.
   card_topup_limit: 'Bu yükleme doğrulama seviyenin limitine sığmıyor.',
+  phone_in_use: 'Bu numara başka bir hesapta kayıtlı.',
+  same_phone: 'Bu zaten senin numaran.',
+  phone_change_required: 'Doğrulanmış numaran Profil sayfasından değişiyor.',
+  reauthentication_required: 'Numaranı değiştirmek için parolanla yeniden giriş yapman gerekiyor.',
   // Alıcının limiti. Hangi limitin dolduğu alıcının hesabı hakkında bilgi; söylenmiyor.
   'Kyc.IncomingTransfer.Monthly': 'Alıcı bu tutarı alamıyor.',
   'Kyc.IncomingTotal.Monthly': 'Alıcı bu tutarı alamıyor.',

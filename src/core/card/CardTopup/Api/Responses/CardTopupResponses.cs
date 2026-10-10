@@ -36,6 +36,13 @@ public sealed record CardTopupResponse(
             topup.UpdatedAt);
 }
 
+/// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
+public sealed record CardTopupsResponse(IReadOnlyList<CardTopupResponse> Items, int Size, Guid? NextCursor)
+{
+    public static CardTopupsResponse From(CardTopupPage page) =>
+        new([.. page.Items.Select(CardTopupResponse.From)], page.Size, page.NextCursor);
+}
+
 /// <summary>
 /// <c>POST /v1/card-topups</c> response'u. <c>202</c>: dönüldüğünde hiçbir para hareket
 /// etmedi, müşteri ödeme sayfasına gidecek.

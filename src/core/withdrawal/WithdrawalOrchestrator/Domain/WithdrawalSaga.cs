@@ -85,8 +85,18 @@ public sealed class WithdrawalSaga
     /// <summary>Settlement kaydının ledger işlemi. Muhasebe kapanana kadar NULL.</summary>
     public Guid? SettlementTransactionId { get; private set; }
 
-    /// <summary>Reddetme, banka hatası ya da iptalin sebebi. Müşteriye gösterilebilir.</summary>
+    /// <summary>
+    /// Reddetme, banka hatası ya da iptalin sebebinin metni: log ve destek için, iç ayrıntı
+    /// taşıyabilir. Müşteriye <see cref="FailureRule"/> gösteriliyor.
+    /// </summary>
     public string? FailureReason { get; private set; }
+
+    /// <summary>
+    /// Sebebin makinenin okuyacağı adı. Reddetmede wallet'ın kuralı (<c>insufficient_funds</c>,
+    /// <c>Kyc.Withdrawal.Monthly</c>, ...), banka hatasında ve iptalde
+    /// <see cref="WithdrawalFailureRules"/>. Alan sonradan eklenmeden önce kapanan saga'da yok.
+    /// </summary>
+    public string? FailureRule { get; private set; }
 
     /// <summary>
     /// İncelemede karar veren çalışanın <c>sub</c>'ı (serbest bıraktı ya da iptal etti).
@@ -162,7 +172,8 @@ public sealed class WithdrawalSaga
     }
 
     /// <summary>Kural/limit reddi. Yalnızca hiç para hareketi olmamışken geçerli.</summary>
-    public TransitionResult Rejected(string reason, DateTimeOffset now)
+    /// <param name="rule">Wallet'ın kural adı; kuralsız eski mesajda <c>null</c>.</param>
+    public TransitionResult Rejected(string reason, string? rule, DateTimeOffset now)
     {
         if (State is WithdrawalState.Rejected) return TransitionResult.Ignored;
 
@@ -171,6 +182,7 @@ public sealed class WithdrawalSaga
         if (State is not WithdrawalState.Initiated) return TransitionResult.Conflict;
 
         FailureReason = reason;
+        FailureRule = rule;
 
         return Advance(WithdrawalState.Rejected, now);
     }
@@ -244,6 +256,7 @@ public sealed class WithdrawalSaga
         ReviewedBy = reviewer;
         ReviewedAt = now;
         FailureReason = reason;
+        FailureRule = WithdrawalFailureRules.ReviewCancelled;
 
         return Advance(WithdrawalState.Cancelling, now);
     }
@@ -319,6 +332,7 @@ public sealed class WithdrawalSaga
         if (State is not WithdrawalState.BankTransferPending) return TransitionResult.Conflict;
 
         FailureReason = reason;
+        FailureRule = WithdrawalFailureRules.BankRejected;
 
         return Advance(WithdrawalState.Compensating, now);
     }

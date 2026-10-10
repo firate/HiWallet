@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { useStaffAccess } from '../session'
-import type { StaffPermission } from '../types'
+import type { CustomerSearch, StaffPermission } from '../types'
 
 /** Açılabilen kayıtlar ve görüntülemek için gereken izin. */
 const targets = {
@@ -42,6 +42,7 @@ export function HomePage() {
   return (
     <>
       {allowedTargets.length > 0 && <Search targets={allowedTargets} />}
+      {permissions.includes('customer.view') && <CustomerSearchForm />}
       {allowedQueues.length > 0 && (
         <section className="card">
           <h2>İş kuyrukları</h2>
@@ -58,10 +59,7 @@ export function HomePage() {
   )
 }
 
-/**
- * Hesaba hesap numarasıyla, diğer kayıtlara kimliğiyle gidiliyor. E-posta, telefon ya da
- * TCKN ile arama yok: o veri onboarding'de ve panelin oraya bağlantısı yok.
- */
+/** Hesaba hesap numarasıyla, diğer kayıtlara kimliğiyle gidiliyor. */
 function Search({ targets: allowed }: { targets: Target[] }) {
   const navigate = useNavigate()
   const [target, setTarget] = useState<Target>(allowed[0])
@@ -130,7 +128,85 @@ function Search({ targets: allowed }: { targets: Target[] }) {
         </div>
       )}
       {lookup.error && <ErrorMessage error={lookup.error} />}
-      <p className="muted small">Müşteriyi e-posta ya da telefonla aramak henüz yok; kişisel veri onboarding'de duruyor.</p>
+    </section>
+  )
+}
+
+const criteria = {
+  email: { label: 'E-posta', placeholder: 'ad@ornek.com' },
+  phone: { label: 'Telefon', placeholder: '0532 123 45 67' },
+  nationalId: { label: 'T.C. kimlik no', placeholder: '11 hane' },
+} as const
+
+type Criterion = keyof typeof criteria
+
+/**
+ * Müşteriyi e-posta, telefon ya da kimlik numarasıyla bulmak; kişisel veri onboarding'de.
+ * Biçimi onboarding doğruluyor, panel yalnızca boşlukları atıyor. Sonuçta telefon maskeli.
+ */
+function CustomerSearchForm() {
+  const [criterion, setCriterion] = useState<Criterion>('email')
+  const [value, setValue] = useState('')
+  const search = useMutation({ mutationFn: (request: CustomerSearch) => api.searchCustomers(request) })
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = value.trim()
+
+    search.mutate(
+      criterion === 'email' ? { email: trimmed } : criterion === 'phone' ? { phone: trimmed } : { nationalId: trimmed },
+    )
+  }
+
+  return (
+    <section className="card">
+      <h2>Müşteri ara</h2>
+      <form className="inline" onSubmit={submit}>
+        <select
+          aria-label="Arama ölçütü"
+          value={criterion}
+          onChange={(event) => {
+            setCriterion(event.target.value as Criterion)
+            search.reset()
+          }}
+        >
+          {(Object.keys(criteria) as Criterion[]).map((key) => (
+            <option key={key} value={key}>
+              {criteria[key].label}
+            </option>
+          ))}
+        </select>
+        <input
+          aria-label="Aranan"
+          className="grow"
+          placeholder={criteria[criterion].placeholder}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+        <button type="submit" disabled={search.isPending}>
+          Ara
+        </button>
+      </form>
+      {search.error && <ErrorMessage error={search.error} />}
+      {search.data &&
+        (search.data.items.length === 0 ? (
+          <p className="muted">Eşleşen müşteri yok.</p>
+        ) : (
+          <ul className="links">
+            {search.data.items.map((match) => (
+              <li key={match.accountId}>
+                <Link to={`/hesaplar/${match.accountId}`}>
+                  {[match.firstName, match.lastName].filter(Boolean).join(' ') || match.email}
+                  <span className="muted small">
+                    {' '}
+                    {match.email}
+                    {match.phone && ` · ${match.phone}`}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ))}
     </section>
   )
 }

@@ -100,6 +100,19 @@ public sealed class PersonalWebBffTests(PostgresFixture postgres, OrchestratorFi
         (await LedgerSeeder.BalanceAsync(check, friend, ct)).ShouldBe(30m);
     }
 
+    [Fact]
+    public async Task Limitler_WalletApidenGelir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.GetAsync($"/v1/accounts/{_customer}/limits?currency=TRY", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, string.Join("\n", _walletApi.Errors));
+        var limits = await ReadAsync(response, ct);
+        limits.GetProperty("kycLevel").GetString().ShouldBe("Contracted");
+        limits.GetProperty("movements").GetArrayLength().ShouldBe(6);
+    }
+
     /// <summary>"Para yükle": toplama hesabının IBAN'ı ve açıklamaya yazılacak hesap numarası.</summary>
     [Fact]
     public async Task YuklemeBilgisi_HesapNumarasiylaGelir()
@@ -183,6 +196,10 @@ public sealed class PersonalWebBffTests(PostgresFixture postgres, OrchestratorFi
         location.AbsolutePath.ShouldBe($"/v1/withdrawals/{withdrawalId}");
 
         (await _client.GetAsync(location, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Cüzdanın çekim listesinde görünüyor: müşteri onu sonradan da buluyor.
+        var list = await ReadAsync(await _client.GetAsync($"/v1/wallets/{emptyWallet}/withdrawals", ct), ct);
+        list.GetProperty("items")[0].GetProperty("withdrawalId").GetGuid().ShouldBe(withdrawalId);
     }
 
     [Fact]
@@ -263,6 +280,42 @@ public sealed class PersonalWebBffSessionTests
         response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
         var query = HttpUtility.ParseQueryString(response.Headers.Location.ShouldNotBeNull().Query);
         query["login_hint"].ShouldBe("musteri@ornek.com");
+    }
+
+    /// <summary>
+    /// Telefon değiştirme gibi işlemler yakın zamanda yapılmış bir giriş istiyor: açık oturum
+    /// olsa da Keycloak parolayı yeniden soruyor (<c>prompt=login</c>).
+    /// </summary>
+    [Fact]
+    public async Task YenidenGiris_KeycloakParolayiTekrarSorar()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var factory = new PersonalWebBffFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync("/bff/login?returnUrl=/profil&reauthenticate=true", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        var query = HttpUtility.ParseQueryString(response.Headers.Location.ShouldNotBeNull().Query);
+        query["prompt"].ShouldBe("login");
+    }
+
+    /// <summary>Numara değişikliği onboarding'e aynen gidiyor; reddi de aynen dönüyor.</summary>
+    [Fact]
+    public async Task TelefonDegisikligi_OnboardingeIletilir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var onboarding = new RecordingHandler(HttpStatusCode.Forbidden,
+            """{"title":"Numaranı değiştirmek için parolanla yeniden giriş yap.","status":403,"rule":"reauthentication_required"}""");
+        await using var factory = new PersonalWebBffFactory(onboarding: onboarding);
+        using var client = factory.CreateClient().SignedInAsOwnerOf(Guid.NewGuid()).WithCsrfHeader();
+
+        var response = await client.PostAsJsonAsync("/v1/me/phone-changes", new { phone = "05321234567" }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("rule").GetString()
+            .ShouldBe("reauthentication_required");
+        onboarding.LastPath.ShouldBe("/v1/me/phone-changes");
     }
 
     /// <summary>

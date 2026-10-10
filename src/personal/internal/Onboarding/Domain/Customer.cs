@@ -52,6 +52,25 @@ public sealed class Customer
     }
 
     /// <summary>
+    /// Temel doğrulamadan sonra numara değişikliği; yeni numaranın kodu doğrulandı. Eski
+    /// numara değişiklik kaydında kalıyor.
+    /// </summary>
+    /// <returns>Değişiklikten önceki numara.</returns>
+    public PhoneNumber? ChangePhone(PhoneNumber phone, DateTimeOffset now)
+    {
+        if (BasicVerifiedAt is null)
+        {
+            throw new InvalidOperationException("Temel doğrulamayı bitirmemiş müşterinin numarası ilk doğrulamayla değişiyor.");
+        }
+
+        var old = Phone;
+        Phone = phone;
+        PhoneVerifiedAt = now;
+        UpdatedAt = now;
+        return old;
+    }
+
+    /// <summary>
     /// Nüfus kaydıyla eşleşen kimlik bilgileri. Temel doğrulama tamamlandıktan sonra
     /// değişmiyor: seviye bu bilgilere dayanarak verildi.
     /// </summary>

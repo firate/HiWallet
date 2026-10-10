@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace HiWallet.EdgeApi.Sessions;
 
@@ -26,15 +27,25 @@ public abstract class SessionControllerBase : ControllerBase
     /// Formda dolu gelecek e-posta: kaydı yeni biten müşteri adresini ikinci kez yazmıyor.
     /// Yalnızca ipucu; kimlik sağlayıcı yine parolayı soruyor.
     /// </param>
+    /// <param name="reauthenticate">
+    /// Oturum açık olsa da parolayı yeniden sor (<c>prompt=login</c>). Telefon değiştirme gibi
+    /// işlemler yakın zamanda yapılmış bir giriş istiyor; yeni token'ın <c>auth_time</c>'ı şimdi.
+    /// </param>
     [HttpGet("login")]
     [AllowAnonymous]
-    public IActionResult Login([FromQuery] string? returnUrl, [FromQuery] string? loginHint)
+    public IActionResult Login(
+        [FromQuery] string? returnUrl, [FromQuery] string? loginHint, [FromQuery] bool reauthenticate = false)
     {
         var properties = new AuthenticationProperties { RedirectUri = Url.IsLocalUrl(returnUrl) ? returnUrl : "/" };
 
         if (loginHint is { Length: > 0 and <= 254 })
         {
             properties.Items[BffSessionSetup.LoginHintItem] = loginHint;
+        }
+
+        if (reauthenticate)
+        {
+            properties.SetParameter(OpenIdConnectParameterNames.Prompt, "login");
         }
 
         return Challenge(properties, OpenIdConnectDefaults.AuthenticationScheme);

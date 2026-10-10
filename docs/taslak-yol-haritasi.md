@@ -31,15 +31,6 @@ için (madde 20) hesabın tamamının dökümü tek çağrıyla alınamıyor.
 Eklenecek: `GET /v1/accounts/{id}/movements`. Günlük limitin hesap bazında uygulanması
 ile aynı gerekçe — müşterinin gördüğü birim hesap.
 
-### B3. Müşterinin çekim listesi
-
-Bugün: müşteri yalnızca tek bir çekimi görüyor (`GET /v1/withdrawals/{id}`). Liste
-(`GET /v1/withdrawals?state=...`) çalışanın ucu ve duruma göre süzülüyor. Müşteri geçmiş
-çekimlerini göremiyor.
-
-Eklenecek: müşterinin kendi başlattığı çekimlerin cursor ile sayfalanan listesi. Kaynak
-`withdrawal_sagas`; orchestrator'ın kendi veritabanında, wallet'a sormadan.
-
 ---
 
 ## C. Operasyon
@@ -72,6 +63,6 @@ ve ilk isteğe kadar sessiz kalıyor. `decisions.md` madde 5'teki "fail fast" il
 | 1 | C1 — CI | Diğer her maddenin altyapısı; en ucuzu |
 | 2 | C2 — bekleyen migration'da açılmama | Yaşanmış bir arıza, tek kurulum satırı |
 | 3 | B1 — hareket filtreleri | Var olan endpoint'in üstüne, yeni şema istemiyor |
-| 4 | B2, B3 — ekstre ve çekim listesi | Aynı cursor kalıbının tekrarı |
+| 4 | B2 — ekstre | Hareket listesinin cursor kalıbının tekrarı |
 
 Sıra tartışmaya açık.

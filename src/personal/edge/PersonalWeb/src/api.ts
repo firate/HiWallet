@@ -1,13 +1,16 @@
 import type {
   AccountDetail,
+  AccountLimits,
   AccountsPage,
   CardTopup,
   CardTopupAccepted,
   CardTopupRequest,
+  CardTopupsPage,
   DepositInstructions,
   IdentityRequest,
   MovementsPage,
   OnboardingStatus,
+  PhoneChanged,
   PhoneVerificationStarted,
   ProblemDetails,
   PromosPage,
@@ -20,6 +23,7 @@ import type {
   Withdrawal,
   WithdrawalAccepted,
   WithdrawalRequest,
+  WithdrawalsPage,
 } from './types'
 
 /** BFF'in reddi. Mesaj ProblemDetails'ten; iç servisin cevabı olduğu gibi geliyor. */
@@ -97,6 +101,8 @@ export const api = {
   // Bir müşterinin birkaç hesabı olur; tavan sayfa yeterli.
   accounts: () => send<AccountsPage>('GET', '/v1/accounts?size=100'),
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
+  limits: (accountId: string, currency: string) =>
+    send<AccountLimits>('GET', `/v1/accounts/${accountId}/limits?currency=${encodeURIComponent(currency)}`),
   openWallet: (accountId: string, name: string, currency: string) =>
     send<Wallet>('POST', `/v1/accounts/${accountId}/wallets`, { body: { name, currency } }),
   setDefaultWallet: (accountId: string, currency: string, walletId: string) =>
@@ -115,9 +121,13 @@ export const api = {
   withdraw: (request: WithdrawalRequest, idempotencyKey: string) =>
     send<WithdrawalAccepted>('POST', '/v1/withdrawals', { body: request, idempotencyKey }),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+  walletWithdrawals: (walletId: string, after?: string | null) =>
+    send<WithdrawalsPage>('GET', page(`/v1/wallets/${walletId}/withdrawals`, after)),
   startCardTopup: (request: CardTopupRequest, idempotencyKey: string) =>
     send<CardTopupAccepted>('POST', '/v1/card-topups', { body: request, idempotencyKey }),
   cardTopup: (cardTopupId: string) => send<CardTopup>('GET', `/v1/card-topups/${cardTopupId}`),
+  walletCardTopups: (walletId: string, after?: string | null) =>
+    send<CardTopupsPage>('GET', page(`/v1/wallets/${walletId}/card-topups`, after)),
 
   // Kayıt, oturumsuz. Hesabı kayıt açıyor; uygulamada hesap açma yok.
   startRegistration: (email: string) =>
@@ -135,6 +145,11 @@ export const api = {
     send<PhoneVerificationStarted>('POST', '/v1/me/phone-verifications', { body: { phone } }),
   confirmPhone: (verificationId: string, code: string) =>
     send<{ phone: string }>('POST', `/v1/me/phone-verifications/${verificationId}/confirmation`, { body: { code } }),
+  // Temel doğrulamadan sonra numara değişikliği; parolayla yakın zamanda giriş istiyor.
+  startPhoneChange: (phone: string) =>
+    send<PhoneVerificationStarted>('POST', '/v1/me/phone-changes', { body: { phone } }),
+  confirmPhoneChange: (verificationId: string, code: string) =>
+    send<PhoneChanged>('POST', `/v1/me/phone-changes/${verificationId}/confirmation`, { body: { code } }),
   verifyIdentity: (identity: IdentityRequest) =>
     send<{ nationalId: string }>('PUT', '/v1/me/identity', { body: identity }),
   completeBasicVerification: (termsVersion: string, privacyNoticeVersion: string) =>
@@ -150,4 +165,12 @@ export const api = {
 export function loginUrl(returnUrl: string, loginHint?: string): string {
   const url = `/bff/login?returnUrl=${encodeURIComponent(returnUrl)}`
   return loginHint ? `${url}&loginHint=${encodeURIComponent(loginHint)}` : url
+}
+
+/**
+ * Açık oturumda da parolayı yeniden soran giriş: telefon değiştirme yakın zamanda yapılmış
+ * bir giriş istiyor. Dönüşte aynı sayfa.
+ */
+export function reauthenticationUrl(returnUrl: string): string {
+  return `${loginUrl(returnUrl)}&reauthenticate=true`
 }

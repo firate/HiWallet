@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { date, isFinalWithdrawalState, money, withdrawalState } from '../format'
+import { date, isFinalWithdrawalState, money, withdrawalFailure, withdrawalState } from '../format'
 
 const pollInterval = 2000
 
@@ -34,7 +34,7 @@ export function WithdrawalStatusPage() {
     return <ErrorMessage error={withdrawal.error} />
   }
 
-  const { state, amount, currency, destinationIban, totalDebited, failureReason, createdAt, updatedAt } =
+  const { state, amount, currency, destinationIban, totalDebited, failureReason, failureRule, createdAt, updatedAt } =
     withdrawal.data
 
   return (
@@ -61,7 +61,7 @@ export function WithdrawalStatusPage() {
           {failureReason && (
             <>
               <dt>Sebep</dt>
-              <dd>{failureReason}</dd>
+              <dd>{withdrawalFailure(failureRule)}</dd>
             </>
           )}
           <dt>Başlatıldı</dt>

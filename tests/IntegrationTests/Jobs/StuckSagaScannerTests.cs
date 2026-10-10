@@ -113,7 +113,7 @@ public sealed class StuckSagaScannerTests(OrchestratorFixture fixture)
     {
         if (terminal is WithdrawalState.Rejected)
         {
-            saga.Rejected("yetersiz bakiye", at);
+            saga.Rejected("yetersiz bakiye", "insufficient_funds", at);
             return;
         }
 

@@ -104,6 +104,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
         var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m, accountId: accountId), ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
+        RuleOf(reply).ShouldBe("insufficient_funds");
 
         await using var db = postgres.CreateContext();
 
@@ -124,7 +125,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
             .HandleAsync(DebitCommand(walletId, 1_000m, accountId: accountId), ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
-        reply.Payload.ShouldContain("Withdrawal.PerTransaction");
+        RuleOf(reply).ShouldBe("Withdrawal.PerTransaction");
     }
 
     /// <summary>
@@ -140,7 +141,7 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
         var reply = await Debit().HandleAsync(DebitCommand(walletId, 100m, accountId: accountId), ct);
 
         reply.RoutingKey.ShouldBe(nameof(WithdrawalDebitRejected));
-        reply.Payload.ShouldContain("Kyc.Withdrawal.Monthly");
+        RuleOf(reply).ShouldBe("Kyc.Withdrawal.Monthly");
     }
 
     /// <summary>
@@ -471,6 +472,13 @@ public sealed class WithdrawalCommandTests(PostgresFixture postgres)
     /// sahibiyle karşılaştırdığı için gerçek hesap verilmeli; uydurulmuş bir değer
     /// reddedilir — testi de bu var (<c>Dusme_BaskasininAktoruyle_Reddedilir</c>).
     /// </param>
+    /// <summary>
+    /// Reddin makinenin okuyacağı kuralı: müşterinin ekranı sebebi bundan kuruyor. Mesajdaki
+    /// metin hesap kimliği ve iç kural adı taşıyor, müşteriye gösterilmiyor.
+    /// </summary>
+    private static string? RuleOf(WithdrawalReply reply) =>
+        JsonNode.Parse(reply.Payload)?["rule"]?.GetValue<string>();
+
     private static DebitForWithdrawal DebitCommand(
         Guid walletId, decimal amount, Guid? sagaId = null, Guid? accountId = null) =>
         new()

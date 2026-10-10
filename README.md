@@ -146,6 +146,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çalışanın izni her istekte: rolü alınan çalışanın bir sonraki isteği reddediliyor | evet — testte |
 | Kayıt: e-posta kodu, parola, Keycloak'ta kullanıcı, wallet'ta hesap | evet |
 | Temel doğrulama: telefon (SMS), kimlik (nüfus kaydı), sözleşme ve aydınlatma metni | evet |
+| Telefon değiştirme: parolayla yeniden giriş, yeni numaraya kod, bankaya çekim 24 saat kapalı | evet — testte; compose'da denenmedi |
+| Panelde müşterinin kişisel bilgisi (maskeli) ve e-posta, telefon ya da kimlik numarasıyla arama | evet — testte; compose'da denenmedi |
 | Doğrulama seviyesine göre aylık limitler | evet — transfer, ödeme, çekim, havale, kartla yükleme |
 | Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
 | Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |
@@ -167,8 +169,8 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Çekim settlement'ı (banka ücreti saga üzerinden) | evet |
 | Relay tekilliği: sıra broker'a varmadan bozulmuyor | evet — advisory lock |
 
-798 test: 255 unit (DB'siz), 543 integration — gerçek Postgres ve gerçek RabbitMQ.
-Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 41, panelin 37.
+837 test: 256 unit (DB'siz), 581 integration — gerçek Postgres ve gerçek RabbitMQ.
+Web uygulamalarının testleri ayrı (Vitest): bireysel uygulamanın 57, panelin 45.
 
 Withdrawal zinciri broker'la uçtan uca koşuyor: `POST /v1/withdrawals` → orchestrator →
 wallet-consumer → bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →

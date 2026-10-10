@@ -138,7 +138,7 @@ public sealed class OrchestratorPersistenceTests(OrchestratorFixture fixture)
         firstCopy.Debited(Guid.NewGuid(), 252.75m, DateTimeOffset.UtcNow);
         await first.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        secondCopy.Rejected("limit aşıldı", DateTimeOffset.UtcNow);
+        secondCopy.Rejected("limit aşıldı", "Withdrawal.Daily", DateTimeOffset.UtcNow);
 
         await Should.ThrowAsync<DbUpdateConcurrencyException>(
             () => second.SaveChangesAsync(TestContext.Current.CancellationToken));

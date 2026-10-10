@@ -8,6 +8,24 @@ export function date(value: string): string {
   return dateFormat.format(new Date(value))
 }
 
+/**
+ * Doğum tarihi gibi saatsiz gün: `YYYY-MM-DD` → `GG.AA.YYYY`. `Date`'e çevrilmiyor; UTC gece
+ * yarısı batıdaki saat diliminde önceki güne düşerdi.
+ */
+export function day(value: string): string {
+  const [year, month, dayOfMonth] = value.split('-')
+  return `${dayOfMonth}.${month}.${year}`
+}
+
+const consentDocuments: Record<string, string> = {
+  Terms: 'Kullanıcı sözleşmesi',
+  PrivacyNotice: 'KVKK aydınlatma metni',
+}
+
+export function consentDocument(value: string): string {
+  return consentDocuments[value] ?? value
+}
+
 /** Hesap numarası okunsun diye üçlü gruplar halinde: 123 456 7890. */
 export function accountNumber(value: string): string {
   return `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`
@@ -31,6 +49,19 @@ const kycLevels: Record<string, string> = {
 
 export function kycLevel(value: string): string {
   return kycLevels[value] ?? value
+}
+
+const kycMovements: Record<string, string> = {
+  OutgoingTransfer: 'Başka birine gönderim',
+  Payment: 'İşyerine ödeme',
+  Withdrawal: 'Banka hesabına çekim',
+  IncomingTransfer: 'Gelen transfer',
+  Deposit: 'Para yükleme',
+  IncomingTotal: 'Toplam giriş (yükleme ve gelen transfer)',
+}
+
+export function kycMovement(value: string): string {
+  return kycMovements[value] ?? value
 }
 
 const fundTypes: Record<string, string> = {
@@ -136,4 +167,16 @@ const depositHoldReasons: Record<string, string> = {
 
 export function depositHoldReason(value: string): string {
   return depositHoldReasons[value] ?? value
+}
+
+const cardTopupStates: Record<string, string> = {
+  created: 'Başlatıldı',
+  pending: 'Ödeme bekleniyor',
+  paid: 'Ödendi',
+  failed: 'Ödenmedi',
+  rejected: 'Reddedildi',
+}
+
+export function cardTopupState(value: string): string {
+  return cardTopupStates[value] ?? value
 }

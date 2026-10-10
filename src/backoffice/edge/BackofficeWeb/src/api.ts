@@ -1,9 +1,14 @@
 import type {
   AccountDetail,
+  AccountLimits,
+  CardTopupsPage,
   AuditEventsPage,
   Campaign,
   CampaignRequest,
   CampaignsPage,
+  CustomerProfile,
+  CustomerSearch,
+  CustomerSearchResult,
   InviteRequest,
   MovementsPage,
   Permission,
@@ -105,10 +110,17 @@ export const api = {
   access: () => send<StaffAccess>('GET', '/v1/me'),
 
   account: (accountId: string) => send<AccountDetail>('GET', `/v1/accounts/${accountId}`),
+  limits: (accountId: string, currency: string) =>
+    send<AccountLimits>('GET', `/v1/accounts/${accountId}/limits?currency=${encodeURIComponent(currency)}`),
   accountByNumber: (number: string) =>
     send<AccountDetail>('GET', `/v1/accounts/by-number/${encodeURIComponent(number)}`),
   setAcceptsPromo: (accountId: string, acceptsPromo: boolean) =>
     send<void>('PUT', `/v1/accounts/${accountId}/accepts-promo`, { body: { acceptsPromo } }),
+
+  // Kişisel bilgi onboarding'den. Arama ölçütü gövdede: adres erişim log'larına düşüyor.
+  customer: (accountId: string) => send<CustomerProfile>('GET', `/v1/customers/by-account/${accountId}`),
+  searchCustomers: (criterion: CustomerSearch) =>
+    send<CustomerSearchResult>('POST', '/v1/customer-searches', { body: criterion }),
 
   wallet: (walletId: string) => send<Wallet>('GET', `/v1/wallets/${walletId}`),
   movements: (walletId: string, after?: number | null) =>
@@ -121,6 +133,10 @@ export const api = {
   withdrawals: (state: string, after?: string | null) =>
     send<WithdrawalsPage>('GET', page(`/v1/withdrawals?state=${encodeURIComponent(state)}`, after)),
   withdrawal: (withdrawalId: string) => send<Withdrawal>('GET', `/v1/withdrawals/${withdrawalId}`),
+  walletWithdrawals: (walletId: string, after?: string | null) =>
+    send<WithdrawalsPage>('GET', page(`/v1/wallets/${walletId}/withdrawals`, after)),
+  walletCardTopups: (walletId: string, after?: string | null) =>
+    send<CardTopupsPage>('GET', page(`/v1/wallets/${walletId}/card-topups`, after)),
   suspendedDeposits: (after?: string | null) =>
     send<SuspendedDepositsPage>('GET', page('/v1/suspended-deposits', after)),
   releaseWithdrawal: (withdrawalId: string) => send<Withdrawal>('POST', `/v1/withdrawals/${withdrawalId}/release`),

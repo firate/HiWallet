@@ -43,6 +43,11 @@ public sealed class VerificationService(
 
         await using (var db = await contexts.CreateDbContextAsync(ct))
         {
+            if (await BasicCompletedAsync(db, subject, ct))
+            {
+                throw PhoneChangeRequired();
+            }
+
             db.PhoneVerifications.Add(verification);
             await db.SaveChangesAsync(ct);
         }
@@ -60,9 +65,14 @@ public sealed class VerificationService(
         await using var db = await contexts.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        // Başkasının doğrulaması yokmuş gibi: 404, 403 değil.
+        // Başkasının doğrulaması yokmuş gibi: 404, 403 değil. Değişikliğin kodu bu yoldan
+        // onaylanmıyor: yeniden giriş ve çekim bekletmesi atlanırdı.
         var verification = await db.PhoneVerifications
-                               .SingleOrDefaultAsync(v => v.Id == verificationId && v.Subject == subject, ct)
+                               .SingleOrDefaultAsync(
+                                   v => v.Id == verificationId
+                                        && v.Subject == subject
+                                        && v.Purpose == PhoneVerificationPurpose.Basic,
+                                   ct)
                            ?? throw new OnboardingNotFoundException("Telefon doğrulaması bulunamadı.");
 
         var now = time.GetUtcNow();
@@ -71,6 +81,14 @@ public sealed class VerificationService(
         if (result is CodeCheck.Verified)
         {
             var customer = await LockCustomerAsync(db, subject, now, ct);
+
+            // Doğrulama başlatıldıktan sonra temel doğrulama bitmiş olabilir.
+            if (customer.BasicVerifiedAt is not null)
+            {
+                throw PhoneChangeRequired();
+            }
+
+            await PhoneOwnership.EnsureFreeAsync(db, subject, verification.Phone, ct);
             customer.PhoneVerified(verification.Phone, now);
         }
 
@@ -227,6 +245,13 @@ public sealed class VerificationService(
             .FromSql($"SELECT * FROM customers WHERE subject = {subject} FOR UPDATE")
             .SingleAsync(ct);
     }
+
+    private static Task<bool> BasicCompletedAsync(OnboardingDbContext db, string subject, CancellationToken ct) =>
+        db.Customers.AnyAsync(c => c.Subject == subject && c.BasicVerifiedAt != null, ct);
+
+    /// <summary>Doğrulanmış numara yalnızca telefon değiştirme akışıyla değişiyor: yeniden giriş ve çekim bekletmesi.</summary>
+    private static OnboardingConflictException PhoneChangeRequired() =>
+        new(OnboardingRules.PhoneChangeRequired, "Doğrulanmış numaran telefon değiştirme adımıyla değişiyor.");
 
     private static OnboardingConflictException NationalIdRegistered() =>
         new(OnboardingRules.NationalIdRegistered, "Bu kimlik numarası başka bir hesapta kayıtlı.");

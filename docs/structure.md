@@ -217,7 +217,8 @@ BusinessApi/                   -- public; işyerinin sistem entegrasyonu
 
 BackofficeBff/                 -- iç ağ; backoffice panelinin BFF'i, girişi çalışanların Keycloak'ı
 ├── ...                        -- aynı dosyalar
-├── Controllers/               -- Accounts, Wallets, Withdrawals, PromoCampaigns, Session (/bff)
+├── Controllers/               -- Accounts, Customers, Wallets, Withdrawals, PromoCampaigns,
+│                                 Session (/bff)
 └── Dockerfile                 -- yanındaki BackofficeWeb'i derleyip wwwroot'a koyuyor
 
 BusinessWebBff/                -- public; işyeri panelinin BFF'i (Controllers/ henüz yok)
@@ -397,17 +398,22 @@ fakes/Stripe.Fake/             -- KART SAĞLAYICISI; canlıda YOK, veritabanı Y
 └── Webhooks/                  -- sonucun imzalı webhook'u, ayarlar
 
 Onboarding/                    -- BİZİM; iç ağ, kayıt ve kimlik doğrulaması
-├── Domain/                    -- Registration, PhoneVerification, Customer, Consent,
-│                                 NationalId, PhoneNumber, VerificationCode
-├── Application/               -- RegistrationService, VerificationService, dış servislerin
-│                                 arayüzleri (Abstractions/)
+├── Domain/                    -- Registration, PhoneVerification, PhoneChange, Customer,
+│                                 Consent, NationalId, PhoneNumber, VerificationCode
+├── Application/               -- RegistrationService, VerificationService,
+│                                 PhoneChangeService, HolderCheckService,
+│                                 CustomerLookupService, dış servislerin arayüzleri
+│                                 (Abstractions/)
 ├── Infrastructure/
 │   ├── Persistence/           -- OnboardingDbContext, migration'lar; kendi Postgres sunucusu
 │   ├── Keycloak/              -- yönetim API'si ve servisin kendi token'ı
-│   ├── Wallet/                -- WalletAccountsClient: hesabı aç, seviyeyi yükselt
+│   ├── Wallet/                -- WalletAccountsClient: hesabı aç, seviyeyi yükselt,
+│   │                             çekimi beklet
 │   ├── Messaging/             -- SMTP e-posta, SMS sağlayıcısı
 │   └── PopulationRegistry/    -- nüfus kaydı
-├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla)
+├── Api/                       -- Registrations (kimliksiz), Me (müşterinin token'ıyla),
+│                                 HolderChecks (wallet-consumer), Customers ve
+│                                 CustomerSearches (çalışanın token'ıyla)
 └── Setup/
 
 StaffAdmin/                    -- BİZİM; iç ağ, personel yönetimi

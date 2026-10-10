@@ -2,7 +2,8 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { date, fundType, money, movementType } from '../format'
+import { cardTopupState, date, fundType, money, movementType, withdrawalState } from '../format'
+import { blockedReason, useLimits, withdrawalBlockedReason } from '../limits'
 
 /** Cüzdanın bakiyesi, hareketleri ve promo partileri. */
 export function WalletPage() {
@@ -35,18 +36,156 @@ export function WalletPage() {
             </li>
           ))}
         </ul>
-        <div className="actions">
-          <Link className="button" to={`/cuzdanlar/${walletId}/transfer`}>
-            Para gönder
-          </Link>
-          <Link className="button secondary" to={`/cuzdanlar/${walletId}/cekim`}>
-            Banka hesabına çek
-          </Link>
-        </div>
+        <Actions accountId={accountId} walletId={walletId} currency={currency} />
         <TopupLinks accountId={accountId} walletId={walletId} />
       </section>
       <Movements walletId={walletId} />
+      <Withdrawals walletId={walletId} />
+      <CardTopups walletId={walletId} />
       <Promos walletId={walletId} />
+    </>
+  )
+}
+
+/**
+ * Bu cüzdana başlatılan kartla yüklemeler; her biri dönüş sayfasına gidiyor ve sonucu orada.
+ * Yükleme yoksa bölüm yok.
+ */
+function CardTopups({ walletId }: { walletId: string }) {
+  const topups = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'card-topups'],
+    queryFn: ({ pageParam }) => api.walletCardTopups(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
+
+  if (topups.isPending) {
+    return null
+  }
+
+  if (topups.error) {
+    return <ErrorMessage error={topups.error} />
+  }
+
+  const items = topups.data.pages.flatMap((page) => page.items)
+
+  if (items.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="card">
+      <h2>Kartla yüklemeler</h2>
+      <table>
+        <tbody>
+          {items.map((topup) => (
+            <tr key={topup.cardTopupId}>
+              <td>
+                <Link to={`/kart-yukleme?cardTopupId=${topup.cardTopupId}`}>{cardTopupState(topup.state)}</Link>
+                <div className="muted small">{date(topup.createdAt)}</div>
+              </td>
+              <td className="amount">{money(topup.amount, topup.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {topups.hasNextPage && (
+        <button className="secondary" onClick={() => topups.fetchNextPage()} disabled={topups.isFetchingNextPage}>
+          Daha eski yüklemeler
+        </button>
+      )}
+    </section>
+  )
+}
+
+/** Bu cüzdandan başlatılan çekimler; her biri durum sayfasına gidiyor. Çekim yoksa bölüm yok. */
+function Withdrawals({ walletId }: { walletId: string }) {
+  const withdrawals = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'withdrawals'],
+    queryFn: ({ pageParam }) => api.walletWithdrawals(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
+
+  if (withdrawals.isPending) {
+    return null
+  }
+
+  if (withdrawals.error) {
+    return <ErrorMessage error={withdrawals.error} />
+  }
+
+  const items = withdrawals.data.pages.flatMap((page) => page.items)
+
+  if (items.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="card">
+      <h2>Çekimler</h2>
+      <table>
+        <tbody>
+          {items.map((withdrawal) => (
+            <tr key={withdrawal.withdrawalId}>
+              <td>
+                <Link to={`/cekimler/${withdrawal.withdrawalId}`}>{withdrawalState(withdrawal.state)}</Link>
+                <div className="muted small">
+                  {withdrawal.destinationIban}, {date(withdrawal.createdAt)}
+                </div>
+              </td>
+              <td className="amount">{money(withdrawal.amount, withdrawal.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {withdrawals.hasNextPage && (
+        <button
+          className="secondary"
+          onClick={() => withdrawals.fetchNextPage()}
+          disabled={withdrawals.isFetchingNextPage}
+        >
+          Daha eski çekimler
+        </button>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Gönderme ve çekme. Seviyenin kapattığı ya da bu ay dolan hareketin düğmesi yok, sebebi
+ * yazıyor: müşteri işlemi denedikten sonra reddedilmesin. Limit okunamazsa düğmeler açık;
+ * kararı yine sunucu veriyor.
+ */
+function Actions({ accountId, walletId, currency }: { accountId: string; walletId: string; currency: string }) {
+  const account = useQuery({ queryKey: ['accounts', accountId], queryFn: () => api.account(accountId) })
+  const limits = useLimits(accountId, account.data?.kycLevel, currency)
+
+  // Gönderim sayfası kişiye ve işyerine ödemeyi birlikte sunuyor; ikisi de kapalıysa sayfa yok.
+  const sendBlocked = blockedReason(limits.data, 'OutgoingTransfer') && blockedReason(limits.data, 'Payment')
+  const withdrawalBlocked = withdrawalBlockedReason(account.data, limits.data)
+
+  return (
+    <>
+      <div className="actions">
+        {!sendBlocked && (
+          <Link className="button" to={`/cuzdanlar/${walletId}/transfer`}>
+            Para gönder
+          </Link>
+        )}
+        {!withdrawalBlocked && (
+          <Link className="button secondary" to={`/cuzdanlar/${walletId}/cekim`}>
+            Banka hesabına çek
+          </Link>
+        )}
+      </div>
+      {(sendBlocked || withdrawalBlocked) && (
+        <p className="muted small">
+          {sendBlocked && <>Para gönderemiyorsun: {sendBlocked} </>}
+          {withdrawalBlocked && <>Banka hesabına çekemiyorsun: {withdrawalBlocked} </>}
+          <Link to={`/hesaplar/${accountId}/limitler`}>Limitlerim</Link>
+        </p>
+      )}
     </>
   )
 }

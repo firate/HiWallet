@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { date, fundType, money, movementType, promoScope } from '../format'
+import { cardTopupState, date, fundType, money, movementType, promoScope, withdrawalState } from '../format'
 import { useIdempotencyKey } from '../idempotency'
 import { merchantIds } from '../merchants'
 import { useHasPermission } from '../session'
@@ -46,6 +46,8 @@ export function WalletPage() {
       </section>
       <StaffPromoForm wallet={wallet.data} />
       <Movements walletId={walletId} />
+      <Withdrawals walletId={walletId} />
+      <CardTopups walletId={walletId} />
       <Promos walletId={walletId} />
     </>
   )
@@ -141,6 +143,114 @@ function StaffPromoForm({ wallet }: { wallet: Wallet }) {
         <div className="success">
           <p>{granted.replayed ? 'Bu istek daha önce işlenmişti; yeni parti açılmadı.' : 'Promo verildi.'}</p>
         </div>
+      )}
+    </section>
+  )
+}
+
+/** Bu cüzdandan başlatılan bütün çekimler, yeniden eskiye; her biri çekimin sayfasına gidiyor. */
+function Withdrawals({ walletId }: { walletId: string }) {
+  const withdrawals = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'withdrawals'],
+    queryFn: ({ pageParam }) => api.walletWithdrawals(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
+
+  if (withdrawals.isPending) {
+    return null
+  }
+
+  if (withdrawals.error) {
+    return <ErrorMessage error={withdrawals.error} />
+  }
+
+  const items = withdrawals.data.pages.flatMap((page) => page.items)
+
+  return (
+    <section className="card">
+      <h2>Çekimler</h2>
+      {items.length === 0 ? (
+        <p className="muted">Bu cüzdandan çekim yapılmadı.</p>
+      ) : (
+        <table>
+          <tbody>
+            {items.map((withdrawal) => (
+              <tr key={withdrawal.withdrawalId}>
+                <td>
+                  <Link to={`/cekimler/${withdrawal.withdrawalId}`}>{withdrawalState(withdrawal.state)}</Link>
+                  <div className="muted small">
+                    {withdrawal.destinationIban}, {date(withdrawal.createdAt)}
+                  </div>
+                </td>
+                <td className="amount">{money(withdrawal.amount, withdrawal.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {withdrawals.hasNextPage && (
+        <button
+          className="secondary"
+          onClick={() => withdrawals.fetchNextPage()}
+          disabled={withdrawals.isFetchingNextPage}
+        >
+          Daha eski çekimler
+        </button>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Bu cüzdana başlatılan bütün kartla yüklemeler, yeniden eskiye: "kartımdan çekildi ama
+ * yüklenmedi" sorusunun cevabı. Ödenmeyenin sebebi satırda.
+ */
+function CardTopups({ walletId }: { walletId: string }) {
+  const topups = useInfiniteQuery({
+    queryKey: ['wallets', walletId, 'card-topups'],
+    queryFn: ({ pageParam }) => api.walletCardTopups(walletId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  })
+
+  if (topups.isPending) {
+    return null
+  }
+
+  if (topups.error) {
+    return <ErrorMessage error={topups.error} />
+  }
+
+  const items = topups.data.pages.flatMap((page) => page.items)
+
+  return (
+    <section className="card">
+      <h2>Kartla yüklemeler</h2>
+      {items.length === 0 ? (
+        <p className="muted">Bu cüzdana kartla yükleme yapılmadı.</p>
+      ) : (
+        <table>
+          <tbody>
+            {items.map((topup) => (
+              <tr key={topup.cardTopupId}>
+                <td>
+                  {cardTopupState(topup.state)}
+                  {topup.failureReason && <span className="muted"> ({topup.failureReason})</span>}
+                  <div className="muted small">
+                    {date(topup.createdAt)}, <code>{topup.cardTopupId}</code>
+                  </div>
+                </td>
+                <td className="amount">{money(topup.amount, topup.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {topups.hasNextPage && (
+        <button className="secondary" onClick={() => topups.fetchNextPage()} disabled={topups.isFetchingNextPage}>
+          Daha eski yüklemeler
+        </button>
       )}
     </section>
   )

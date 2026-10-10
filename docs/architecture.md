@@ -179,12 +179,14 @@ ikişer ön API'si var: mobil uygulama `personal-mobile-api`'ye, tarayıcıdaki 
 `personal-web-bff`'ye; token taşıyan sistem entegrasyonu `business-api`'ye, tarayıcıdaki
 panel `business-web-bff`'ye bağlanıyor.
 
-`personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: kayıt ve doğrulama, hesap,
-cüzdan, hareketler, promo partileri, transfer ve çekim. Hesap ön API'den açılmıyor, kayıt
+`personal-mobile-api` ve `personal-web-bff`'nin uçları aynı: kayıt ve doğrulama, hesap ve
+seviye limitleri, cüzdan, hareketler, promo partileri, transfer, çekim, kartla yükleme ve
+cüzdanın çekimleriyle kartla yüklemeleri. Hesap ön API'den açılmıyor, kayıt
 açıyor. Web uygulamasının sayfalarını da `personal-web-bff` sunuyor
 (`src/personal/edge/PersonalWeb`). `business-api`'nin uçları: hesap, cüzdan, hareketler,
 transfer (`B2P`, `B2B`), müşteriye promo ve çekim. `backoffice-bff`'in uçları: müşteri
-kaydını görüntüleme, çekim incelemesi, işyerinin promo kabulü, personel promo'su,
+kaydını, seviye limitlerini, cüzdanın çekimlerini ve kartla yüklemelerini görüntüleme,
+çekim incelemesi, işyerinin promo kabulü, personel promo'su,
 kampanyalar ve personel yönetimi; her biri kendi izniyle. Panelin sayfalarını da o
 sunuyor (`src/backoffice/edge/BackofficeWeb`).
 `business-web-bff` sağlık uçlarıyla ayakta.
@@ -233,7 +235,7 @@ HiWallet temasıyla. Çalışan backoffice panelinden giriyor; `backoffice-bff` 
 çalışan token'ını iç servise iletiyor.
 
 ```
-tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator
+tarayıcı ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ wallet-api / orchestrator / onboarding
                      izni yoksa reddeder                 issuer'a göre doğrular, izni kontrol eder
 ```
 
@@ -314,6 +316,57 @@ gelen transfer birlikte) ve bakiye yasal tavanın altında (MASAK Genel Tebliği
 Tutarlar wallet-api'nin (transfer, ödeme) ve wallet-consumer'ın (çekim, yükleme) ayarında.
 Seviye yalnızca yükseliyor. `Verified` ve `Contracted`'a geçiş henüz yok. Kendi hesabından
 gelen havale seviye değiştirmiyor: kimlik tespiti değil.
+
+### Telefon değiştirme
+
+**Akışı müşteri başlatıyor:** uygulamanın profil sayfasında yeni numarayı yazıyor.
+
+```
+yeni numara ──▶ son 10 dakikada parolayla giriş mi? ──hayır──▶ 403, Keycloak'ın sayfasında parola
+                       │ evet
+                       ▼
+               yeni numaraya kod ──▶ kod ──▶ wallet: çekim 24 saat kapalı ──▶ numara değişti
+                                                                              ──▶ eski numaraya SMS, e-posta
+```
+
+Açık bir oturum yetmiyor: telefonu ele geçiren biri oturumu da ele geçirmiş olabilir.
+Onboarding token'daki `auth_time`'a bakıyor; eskiyse `403` (`reauthentication_required`),
+BFF girişi `prompt=login` ile başlatıyor ve Keycloak oturum açık olsa da parolayı soruyor.
+Eski numaraya kod gitmiyor: müşteri numarasını kaybettiği için değiştiriyor olabilir. Onun
+yerine değişiklikten sonra eski numaraya ve e-postaya haber gidiyor.
+
+Değişiklikten sonra bankaya çekim bir süre kapalı (`PhoneChange:WithdrawalHold`, 24 saat);
+transfer ve ödeme açık. Kısıt hesapta (`accounts.withdrawal_hold_until`) ve yalnızca
+uzayabiliyor; wallet çekimi düşmeden önce bakıyor ve `withdrawal_hold` kuralıyla reddediyor.
+Sıra kısıtlayan taraftan başlıyor: önce wallet'ta çekim kapanıyor, sonra numara değişiyor.
+Yarıda kalırsa numara eski, çekim bir süre kapalı; tersi kısıtsız bir numara değişikliği
+bırakırdı.
+
+Bir numara tek müşteride. Kontrol uygulamada, numaraya göre bir advisory lock altında:
+eski kayıtlarda aynı numarayı taşıyan müşteri olabileceği için veritabanında unique index
+yok. Temel doğrulamayı bitiren müşterinin numarası doğrulama akışından değişmiyor
+(`409`, `phone_change_required`), yalnızca bu akıştan.
+
+### Çalışanın gördüğü müşteri bilgisi
+
+**Akışı çalışan başlatıyor:** panelin ana sayfasında müşteriyi e-posta, telefon ya da kimlik
+numarasıyla arıyor ya da hesabın sayfasını açıyor.
+
+```
+panel ──cookie──▶ backoffice-bff ──çalışanın token'ı──▶ onboarding: customer.view
+                                                         kayıt ─▶ müşteri, onaylar, numara değişiklikleri
+```
+
+Kişisel veri onboarding'de; panel onu wallet'tan değil onboarding'in iki okuma ucundan
+alıyor: hesabın sahibi (`GET /v1/customers/by-account/{accountId}`) ve arama
+(`POST /v1/customer-searches`). Hesaptan müşteriye kayıt üzerinden gidiliyor: hesabı kayıt
+açtı ve kaydın `sub`'ı müşterinin anahtarı. Kayıttan açılmamış hesabın (işyeri) sahibi
+onboarding'de yok, `404`.
+
+Kimlik numarası ve telefon maskeli dönüyor; açık hali onboarding'den çıkmıyor. Arama tek
+ölçütle ve ölçüt gövdede: adres erişim log'larına düşüyor. Kurala uymayan numara `400`,
+eşleşme yoksa boş liste; sonuç en çok yirmi hesap. Numara değişiklikleri yeniden eskiye
+listeleniyor: hesabı ele geçirme şüphesinde ilk bakılan yer.
 
 ---
 

@@ -287,6 +287,8 @@ curl -s localhost:8091/v1/accounts/$ACCOUNT -H "Authorization: Bearer $TOKEN"
 
 Kırılım liste görünümünde de var: "neden çekemiyorum" sorusunun cevabı tek cüzdana
 girmeden görünüyor. `isDefault`: hesap numarasına gelen TRY bu cüzdana düşüyor.
+Telefon değişikliğinden sonra gövdede `withdrawalHoldUntil` da var: o ana kadar bankaya
+çekim kapalı.
 
 ### Hesabı numarasıyla bul
 
@@ -297,6 +299,36 @@ curl -s localhost:8091/v1/accounts/by-number/4817305925 -H "Authorization: Beare
 Cevap kimlikle sorgulamanın aynısı. Gruplama boşlukları kabul ediliyor
 (`481%20730%205925`). Kontrol hanesi tutmayan numara `400`, olmayan numara ve
 başkasının hesabı `404`. Çalışan `customer.view` izniyle her hesabı buluyor.
+
+### Seviye limitleri
+
+```bash
+curl -s "localhost:8091/v1/accounts/$ACCOUNT/limits?currency=TRY" -H "Authorization: Bearer $TOKEN"
+```
+```json
+{
+  "accountId": "8f7c...",
+  "kycLevel": "Unverified",
+  "currency": "TRY",
+  "periodStart": "2026-10-01T00:00:00+00:00",
+  "movements": [
+    { "movement": "IncomingTransfer", "limit": 5500, "used": 250, "remaining": 5250 },
+    { "movement": "OutgoingTransfer", "limit": 0, "used": 0, "remaining": 0 },
+    { "movement": "Payment", "limit": 5500, "used": 120, "remaining": 5380 },
+    { "movement": "Withdrawal", "limit": 0, "used": 0, "remaining": 0 },
+    { "movement": "Deposit", "limit": 5500, "used": 500, "remaining": 5000 },
+    { "movement": "IncomingTotal", "limit": 5500, "used": 750, "remaining": 4750 }
+  ],
+  "balanceCap": 5500,
+  "balance": 630
+}
+```
+
+Seviyenin aylık limitleri ve bu ay kullanılanı; kullanım limit kontrolünün saydığıyla aynı.
+`limit: 0` hareketin bu seviyede kapalı olduğu demek. Giden harekette kullanım cüzdandan
+düşen, komisyon dahil; çekimde iade edilenler düşülmüş. `balanceCap` yalnızca kimliği
+tespit edilmemiş seviyede. İşyeri hesabı `422` (`kyc_level_not_applicable`), başkasının
+hesabı `404`; çalışan `customer.view` izniyle görüyor. Ön API'lerde aynı yol.
 
 ### Varsayılan cüzdanı değiştir
 
@@ -312,6 +344,23 @@ HTTP/1.1 204 No Content
 Hesap numarasına gelen TRY bundan sonra bu cüzdana. Her para biriminde tam bir varsayılan
 var; hesabın o para birimindeki ilk cüzdanı kendiliğinden varsayılan. Başka bir hesabın
 cüzdanı `404`, başka para biriminin cüzdanı `422`. Müşterinin tercihi: çalışan `403`.
+
+### Çekimi beklet (onboarding)
+
+```bash
+curl -s -X PUT localhost:8091/v1/accounts/$ACCOUNT/withdrawal-hold \
+  -H "Authorization: Bearer $ONBOARDING_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"until":"2026-10-10T13:00:00+00:00"}'
+```
+```json
+{ "accountId": "8f7c...", "withdrawalHoldUntil": "2026-10-10T13:00:00+00:00" }
+```
+
+Telefon numarası değişince onboarding koyuyor; `$ONBOARDING_TOKEN` onboarding'in
+istemcisinin client credentials ile aldığı token. Bekletme yalnızca uzuyor: mevcut daha
+uzunsa değişmiyor ve cevapta o dönüyor. Süre dolana kadar çekim düşmeden reddediliyor
+(`withdrawal_hold`); transfer ve ödeme açık. Token'ın `azp`'si onboarding'in istemcisi
+değilse `403`.
 
 ### Havaleyle yükleme bilgisi
 
@@ -667,6 +716,7 @@ curl -s localhost:8093/v1/withdrawals/$WD -H "Authorization: Bearer $TOKEN"
   "destinationIban": "TR33******************1326",
   "totalDebited": 102.0000,
   "failureReason": null,
+  "failureRule": null,
   "createdAt": "2026-09-06T12:54:21.993862+00:00",
   "updatedAt": "2026-09-06T12:54:23.2473+00:00"
 }
@@ -685,6 +735,17 @@ bir çalışanın kararını bekliyor. Kuyruk ve karar çalışanın uçları; k
 | `GET /v1/withdrawals?state=under_review` | inceleme kuyruğu, en eski önce |
 | `POST /v1/withdrawals/{id}/release` | serbest bırakır, banka komutu gider; `200`, incelemede değilse `422` |
 | `POST /v1/withdrawals/{id}/cancel` `{"reason": "..."}` | iptal eder, para cüzdana döner; `202`, çekim `cancelling` → `cancelled` |
+
+### Cüzdanın çekimleri
+
+```bash
+curl -s "localhost:8093/v1/wallets/$WALLET/withdrawals?size=20" -H "Authorization: Bearer $TOKEN"
+```
+
+Yeniden eskiye, sayfalama `after` (önceki sayfanın `nextCursor`'ı) ile; her eleman çekimin
+sorgusundaki gövdeyle aynı. Orchestrator hesabın kullanıcılarını bilmiyor: müşteri yalnızca
+kendi başlattığı çekimleri görüyor, başkasının cüzdanında liste boş. Çalışan
+`customer.view` izniyle cüzdanın bütün çekimlerini görüyor. Ön API'lerde aynı yol.
 
 `totalDebited` cüzdandan gerçekte çıkan toplam (tutar + komisyon). Wallet düşmeyi
 yapana kadar `null` — `0` yazılmıyor, "komisyonsuz çekildi" ile karışırdı.
@@ -709,16 +770,83 @@ ortaya çıkıyor:
 {
   "state": "rejected",
   "failureReason": "Cüzdan 2394... 50,00 TRY tutuyor, 102,00 TRY çekilemez.",
+  "failureRule": "insufficient_funds",
   "totalDebited": null
 }
 ```
 
-`failureReason` domain'in mesajı, makine tarafından ayrıştırılacak bir kod değil.
-Kod isteyen bir istemci çıkarsa event'e ayrı bir alan eklenir.
+`failureReason` domain'in mesajı: destek için, hesap kimliği taşıyabiliyor. Müşterinin
+ekranı `failureRule`'dan kuruluyor. Reddetmede wallet'ın kural adı, wallet-api'nin hata
+cevabındaki `rule` ile aynı (`insufficient_funds`, `Withdrawal.PerTransaction`,
+`Withdrawal.Daily`, `Kyc.Withdrawal.Monthly`); banka reddinde `bank_rejected`, incelemede
+iptalde `review_cancelled`.
 
 Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 "işleniyor"da bırakırdı.
 </details>
+
+---
+
+## onboarding — `:8103`
+
+Kayıt ve doğrulama ön API'lerden geliyor (`verify-compose.md`). Burada çalışanın iki okuma
+ucu; ikisi de `customer.view` izni, müşterinin token'ı `403`. Backoffice'te aynı yollar.
+
+### Hesabın sahibi (çalışan)
+
+```bash
+curl -s "localhost:8103/v1/customers/by-account/$ACCOUNT" -H "Authorization: Bearer $STAFF_TOKEN"
+```
+```json
+{
+  "accountId": "…",
+  "email": "ayse@ornek.com",
+  "firstName": "Ayşe",
+  "lastName": "Yılmaz",
+  "nationalId": "10*******46",
+  "birthDate": "1990-05-17",
+  "phone": "+90 532 *** ** 45",
+  "phoneVerifiedAt": "…",
+  "identityVerifiedAt": "…",
+  "basicVerifiedAt": "…",
+  "consents": [
+    { "document": "Terms", "version": "2026-09", "acceptedAt": "…" },
+    { "document": "PrivacyNotice", "version": "2026-09", "acceptedAt": "…" }
+  ],
+  "phoneChanges": [
+    { "oldPhone": "+90 555 *** ** 12", "newPhone": "+90 532 *** ** 45", "changedAt": "…" }
+  ]
+}
+```
+
+Kimlik numarası ve telefon maskeli. Doğrulamaya başlamamış müşteride yalnızca `email` dolu,
+listeler boş. Numara değişiklikleri yeniden eskiye. Kayıttan açılmamış hesap (işyeri) `404`.
+
+### Müşteri ara (çalışan)
+
+```bash
+curl -s localhost:8103/v1/customer-searches \
+  -H "Authorization: Bearer $STAFF_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"nationalId":"10000000146"}'
+```
+```json
+{
+  "items": [
+    {
+      "accountId": "…",
+      "email": "ayse@ornek.com",
+      "firstName": "Ayşe",
+      "lastName": "Yılmaz",
+      "phone": "+90 532 *** ** 45"
+    }
+  ]
+}
+```
+
+Tek ölçüt: `email`, `phone` ya da `nationalId`. Ölçüt gövdede, adreste değil: adres erişim
+log'larına düşüyor. E-posta büyük-küçük harften ve baştaki-sondaki boşluktan bağımsız,
+telefon yazıldığı biçimden bağımsız. Ölçüt yoksa, birden fazlaysa ya da kurala uymuyorsa
+`400`; eşleşme yoksa boş liste. Sonuç yeniden eskiye, en çok yirmi hesap.
 
 ---
 
@@ -795,6 +923,18 @@ curl -s localhost:8109/v1/card-topups/$CARD_TOPUP -H "Authorization: Bearer $TOK
 | `rejected` | wallet payı vermedi; sebep wallet'ın kural adı |
 
 Başkasının yüklemesi `404`. Çalışan `customer.view` izniyle her yüklemeyi görüyor.
+
+### Cüzdanın kartla yüklemeleri
+
+```bash
+curl -s "localhost:8109/v1/wallets/$WALLET/card-topups?size=20" -H "Authorization: Bearer $TOKEN"
+```
+
+Yeniden eskiye, sayfalama `after` (önceki sayfanın `nextCursor`'ı) ile; her eleman
+yüklemenin sorgusundaki gövdeyle aynı. Servis hesabın kullanıcılarını bilmiyor: müşteri
+yalnızca kendi başlattığı yüklemeleri görüyor, başkasının cüzdanında liste boş. Çalışan
+`customer.view` izniyle cüzdanın bütün yüklemelerini görüyor. Ön API'lerde ve backoffice'te
+aynı yol.
 
 ---
 

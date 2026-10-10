@@ -11,7 +11,7 @@ export function Layout() {
           HiWallet
         </Link>
         <div className="user">
-          <span>{user.name ?? user.email ?? user.subject}</span>
+          <Link to="/profil">{user.name ?? user.email ?? user.subject}</Link>
           {/* Çıkış sayfa geçişi: BFF cookie'yi siliyor ve Keycloak'taki oturumu da kapatıyor. */}
           <form method="post" action="/bff/logout">
             <button type="submit" className="link">

@@ -51,21 +51,7 @@ internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetai
             Type = "https://hiwallet.dev/problems/business-rule"
         };
 
-        problem.Extensions["rule"] = domain switch
-        {
-            InsufficientFundsException => "insufficient_funds",
-            TransferTypeMismatchException => "transfer_type_mismatch",
-            LimitExceededException limit => limit.LimitName,
-            IncomingLimitExceededException incoming => incoming.LimitName,
-            // Müşterinin kendi yüklemesi: hangi limitin dolduğu ayrıntısı mesajda.
-            CardTopupLimitExceededException => "card_topup_limit",
-            KycLevelNotApplicableException => "kyc_level_not_applicable",
-            UnsupportedCurrencyException => "unsupported_currency",
-            PromoGrantRejectedException => "promo_grant_rejected",
-            AccountRuleException => "account_rule",
-            NoWalletInCurrencyException => "no_wallet_in_currency",
-            _ => "business_rule"
-        };
+        problem.Extensions["rule"] = DomainRules.Of(domain);
 
         context.Response.StatusCode = problem.Status.Value;
 

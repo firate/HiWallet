@@ -7,6 +7,7 @@ using HiWallet.WalletService.Application.Accounts;
 using HiWallet.WalletService.Application.Deposits;
 using HiWallet.WalletService.Domain.Accounts;
 using HiWallet.WalletService.Domain.Errors;
+using HiWallet.WalletService.Domain.Ledger;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -67,6 +68,37 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
         var view = await bus.InvokeAsync<AccountView>(new GetAccountQuery(accountId), ct);
 
         return Ok(AccountDetailResponse.From(view));
+    }
+
+    /// <summary>
+    /// Bireysel hesabın seviyesi, aylık limitleri ve bu ay kullanılanı. Kullanım limit
+    /// kontrolünün saydığıyla aynı: müşteri hangi hareketin kapalı olduğunu ve ne kadar
+    /// yeri kaldığını işlemi denemeden görüyor. İşyeri hesabının seviyesi yok, <c>422</c>.
+    /// </summary>
+    /// <param name="currency">Limitin sayıldığı para birimi, ISO 4217 (<c>TRY</c>).</param>
+    [HttpGet("{accountId:guid}/limits")]
+    [Authorize(Policy = HiWalletPolicies.CustomerOrStaff)]
+    [ProducesResponseType<AccountLimitsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<AccountLimitsResponse>> GetLimits(
+        Guid accountId, [FromQuery] string? currency, CancellationToken ct)
+    {
+        if (currency is not { Length: 3 } || !currency.All(char.IsAsciiLetterUpper))
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                [nameof(currency)] = ["Para birimi ISO 4217 kodu olmalı (TRY)."]
+            }));
+        }
+
+        await access.EnsureViewableAccountAsync(User, accountId, ct);
+
+        var view = await bus.InvokeAsync<AccountLimitsView>(
+            new GetAccountLimitsQuery(accountId, Currency.From(currency)), ct);
+
+        return Ok(AccountLimitsResponse.From(view));
     }
 
     /// <summary>
@@ -203,6 +235,26 @@ public sealed class AccountsController(IMessageBus bus, AccountAccess access) : 
         await bus.InvokeAsync(new SetAcceptsPromoCommand(accountId, request.AcceptsPromo), ct);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Hesabın bankaya çekimini bir süre kapatır; transfer ve ödeme açık kalıyor. Telefon
+    /// numarası değişince onboarding koyuyor. Yalnızca uzuyor: mevcut bekletme daha uzunsa
+    /// değişmiyor. Yalnızca onboarding'in istemcisi.
+    /// </summary>
+    [HttpPut("{accountId:guid}/withdrawal-hold")]
+    [Authorize(Policy = OnboardingAccess.Policy)]
+    [ProducesResponseType<WithdrawalHoldResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WithdrawalHoldResponse>> HoldWithdrawals(
+        Guid accountId,
+        [FromBody] HoldWithdrawalsRequest request,
+        CancellationToken ct)
+    {
+        var result = await bus.InvokeAsync<WithdrawalHoldResult>(request.ToCommand(accountId), ct);
+
+        return Ok(WithdrawalHoldResponse.From(result));
     }
 
     /// <summary>

@@ -444,6 +444,11 @@ services:
       Authentication__Issuer: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8101}/realms/hiwallet
       Authentication__MetadataAddress: http://hiwallet-keycloak:8080/realms/hiwallet/.well-known/openid-configuration
       Authentication__Audience: hiwallet-api
+      # Müşteri bilgisini okuyan uçlarda çalışanın token'ı, backoffice'ten.
+      Authentication__Staff__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff
+      Authentication__Staff__MetadataAddress: http://hiwallet-staff-keycloak:8080/realms/hiwallet-staff/.well-known/openid-configuration
+      # Çalışanın izinleri token'da değil: her istekte personel yönetimine soruluyor.
+      Authentication__Staff__StaffAdminUrl: http://staff-admin:8080
       Authentication__RequireHttpsMetadata: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
@@ -821,11 +826,17 @@ services:
         condition: service_started
       staff-admin:
         condition: service_started
+      card-topup:
+        condition: service_started
+      onboarding:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       InternalServices__WalletApi__BaseUrl: http://wallet-api:8080
       InternalServices__WithdrawalOrchestrator__BaseUrl: http://withdrawal-orchestrator:8080
       InternalServices__StaffAdmin__BaseUrl: http://staff-admin:8080
+      InternalServices__CardTopup__BaseUrl: http://card-topup:8080
+      InternalServices__Onboarding__BaseUrl: http://onboarding:8080
       # Çalışanların Keycloak'ındaki istemci. Giriş sayfası tarayıcının gördüğü adreste,
       # discovery ve token ucu iç ağdan.
       Authentication__Issuer: ${STAFF_KEYCLOAK_PUBLIC_URL:-http://localhost:8107}/realms/hiwallet-staff

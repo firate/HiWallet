@@ -137,13 +137,13 @@ public static class PoliciesSetup
 
     /// <summary>
     /// Doğrulama seviyesine göre aylık limitler ve bakiye tavanı (<see cref="KycLimitPolicy"/>).
-    /// Her uygulama yalnızca kendi uyguladığı hareketleri istiyor: wallet-api transferleri ve
-    /// ödemeyi, wallet-consumer çekimi ve havaleyi. Çekim tarifesiyle aynı gerekçe: bölüm tek
-    /// yerde durmalı, iki kopya ayrıştığında müşteri beklediğinden farklı limitle karşılaşırdı.
-    ///
-    /// İstisna hesaba gelen taraf: ayın toplam girişi (<see cref="KycMovement.IncomingTotal"/>)
-    /// ve bakiye tavanı hem gelen transferde hem havalede sayılıyor, ikisi de iki
-    /// uygulamada yazılı. Gelen bir hareket isteyen uygulamaya ikisi kendiliğinden zorunlu.
+    /// Tarife iki uygulamada da eksiksiz ve AYNI: wallet-api transferi, ödemeyi ve kartla
+    /// yüklemenin payını kontrol ediyor ve bütün limitleri müşteriye gösteriyor, wallet-consumer
+    /// çekimi ve havaleyi kontrol ediyor. Aynılığı <c>KycTariffTests</c> koruyor; iki kopya
+    /// ayrışsaydı müşteri gördüğünden farklı bir limitle reddedilirdi. Her uygulama burada
+    /// kullandığı hareketleri istiyor; ayın toplam girişi
+    /// (<see cref="KycMovement.IncomingTotal"/>) ve bakiye tavanı gelen bir hareket isteyen
+    /// uygulamaya kendiliğinden zorunlu.
     ///
     /// Her seviye ve istenen her hareket yazılmış olmak zorunda; eksikse PATLIYOR.
     /// Politika eksik satırı kapalı sayıyor ama bir yazım hatası bir seviyeyi sessizce

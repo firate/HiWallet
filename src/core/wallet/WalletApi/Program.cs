@@ -38,12 +38,13 @@ builder.Host.UseWolverine(options =>
 builder.Services.AddHiWalletPersistence();
 builder.Services.AddHiWalletPolicies(builder.Configuration);
 
-// Seviyenin transfer ve ödeme limitleri yalnızca burada; çekim limiti wallet-consumer'da.
-// Yükleme limiti iki yerde: kartla yüklemenin payı burada ayrılıyor, havale wallet-consumer'da
-// işleniyor; iki tarife aynı değeri taşımak zorunda.
+// Seviyenin transfer ve ödeme limitleri burada kontrol ediliyor, kartla yüklemenin payı da.
+// Çekimi ve havaleyi wallet-consumer kontrol ediyor; çekim limiti burada müşteriye
+// gösterilmek için zorunlu. Tarife iki uygulamada aynı (KycTariffTests).
 builder.Services.AddKycLimits(
     builder.Configuration,
-    KycMovement.IncomingTransfer, KycMovement.OutgoingTransfer, KycMovement.Payment, KycMovement.Deposit);
+    KycMovement.IncomingTransfer, KycMovement.OutgoingTransfer, KycMovement.Payment, KycMovement.Withdrawal,
+    KycMovement.Deposit);
 builder.Services.AddHiWalletValidation();
 builder.Services.AddWalletProblemDetails();
 builder.Services.AddHiWalletHealthChecks(builder.Configuration);
