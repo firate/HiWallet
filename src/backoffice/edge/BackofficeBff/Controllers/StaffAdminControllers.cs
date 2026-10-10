@@ -25,6 +25,30 @@ public sealed class MeController(StaffAdminClient staffAdmin) : ControllerBase
     public Task<MeResponse> Get(CancellationToken ct) => staffAdmin.GetAsync<MeResponse>("v1/me", ct);
 }
 
+/// <summary>
+/// Çalışanların adları: panel kaydı kimin açtığını adıyla gösteriyor. Her çalışana açık,
+/// yalnızca ad.
+/// </summary>
+[ApiController]
+[Route("v1/staff-names")]
+[EnableRateLimiting(EdgeRateLimiting.ClientPolicy)]
+public sealed class StaffNamesController(StaffAdminClient staffAdmin) : ControllerBase
+{
+    /// <param name="subjects">Token'daki <c>sub</c>'lar; tavanı staff-admin uyguluyor.</param>
+    [HttpGet]
+    public Task<StaffNamesResponse> Get([FromQuery(Name = "subject")] string[] subjects, CancellationToken ct)
+    {
+        var query = new QueryBuilder();
+
+        foreach (var subject in subjects)
+        {
+            query.Add("subject", subject);
+        }
+
+        return staffAdmin.GetAsync<StaffNamesResponse>("v1/staff-names" + query, ct);
+    }
+}
+
 /// <summary>Kodun izinleri; rol tanımlarken bunlardan seçiliyor.</summary>
 [ApiController]
 [Route("v1/permissions")]

@@ -71,3 +71,8 @@ public sealed record AuditEventResponse(
 
 /// <param name="NextCursor">Bir sonraki sayfanın <c>after</c> değeri. Son sayfada <c>null</c>.</param>
 public sealed record AuditEventsResponse(IReadOnlyList<AuditEventResponse> Items, int Size, Guid? NextCursor);
+
+/// <param name="Name">Ad ve soyad; girilmemişse e-posta.</param>
+public sealed record StaffNameResponse(string Subject, string Name);
+
+public sealed record StaffNamesResponse(IReadOnlyList<StaffNameResponse> Items);
