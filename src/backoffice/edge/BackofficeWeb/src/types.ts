@@ -270,6 +270,12 @@ export interface Campaign {
   endedBy: string | null
 }
 
+/** Çalışanın adı; girilmemişse e-postası. */
+export interface StaffName {
+  subject: string
+  name: string
+}
+
 export interface CampaignsPage {
   items: Campaign[]
   size: number

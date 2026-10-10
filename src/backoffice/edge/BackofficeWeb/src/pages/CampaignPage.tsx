@@ -10,6 +10,7 @@ import { hasEnded } from './CampaignsPage'
 export function CampaignPage() {
   const { campaignId = '' } = useParams()
   const campaign = useQuery({ queryKey: ['campaigns', campaignId], queryFn: () => api.campaign(campaignId) })
+  const names = useStaffNames([campaign.data?.createdBy, campaign.data?.endedBy])
 
   if (campaign.isPending) {
     return <p className="muted">Yükleniyor...</p>
@@ -72,14 +73,12 @@ export function CampaignPage() {
             </>
           )}
           <dt>Açan</dt>
-          <dd>
-            <code>{c.createdBy ?? '-'}</code>
-          </dd>
+          <dd>{c.createdBy ? <StaffLabel subject={c.createdBy} names={names} /> : '-'}</dd>
           {c.endedBy && (
             <>
               <dt>Bitiren</dt>
               <dd>
-                <code>{c.endedBy}</code>
+                <StaffLabel subject={c.endedBy} names={names} />
               </dd>
             </>
           )}
@@ -88,6 +87,27 @@ export function CampaignPage() {
       </section>
     </>
   )
+}
+
+/**
+ * Çalışanların adları personel yönetiminden; her çalışana açık, yalnızca ad. Ad
+ * alınamazsa kimlik gösteriliyor: kayıt yine okunur kalıyor.
+ */
+function useStaffNames(subjects: (string | null | undefined)[]): Map<string, string> {
+  const wanted = [...new Set(subjects.filter((subject): subject is string => Boolean(subject)))]
+  const names = useQuery({
+    queryKey: ['staff-names', ...wanted],
+    queryFn: () => api.staffNames(wanted),
+    enabled: wanted.length > 0,
+  })
+
+  return new Map(names.data?.items.map((item) => [item.subject, item.name]) ?? [])
+}
+
+function StaffLabel({ subject, names }: { subject: string; names: Map<string, string> }) {
+  const name = names.get(subject)
+
+  return name ? <span title={subject}>{name}</span> : <code>{subject}</code>
 }
 
 function reward(c: Campaign): string {

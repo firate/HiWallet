@@ -20,6 +20,7 @@ import type {
   RoleRequest,
   RolesPage,
   SessionUser,
+  StaffName,
   StaffAccess,
   StaffDetail,
   StaffPage,
@@ -172,6 +173,11 @@ export const api = {
   enableStaff: (staffId: string) => send<StaffDetail>('POST', `/v1/staff/${staffId}/enable`),
   resendInvitation: (staffId: string) => send<void>('POST', `/v1/staff/${staffId}/invitation`),
   auditEvents: (after?: string | null) => send<AuditEventsPage>('GET', page('/v1/audit-events', after)),
+  staffNames: (subjects: string[]) => {
+    const query = new URLSearchParams()
+    subjects.forEach((subject) => query.append('subject', subject))
+    return send<{ items: StaffName[] }>('GET', `/v1/staff-names?${query}`)
+  },
 
   campaigns: (after?: string | null) => send<CampaignsPage>('GET', page('/v1/promo-campaigns', after)),
   campaign: (campaignId: string) => send<Campaign>('GET', `/v1/promo-campaigns/${campaignId}`),
