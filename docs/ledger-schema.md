@@ -134,7 +134,8 @@ yok, para zaten bankamızda: o havale askıya düşüyor.
 
 Cüzdana geçirilemeyip askıya alınan havaleler. Ledger DEĞİL: parası `suspense` hesabında,
 bu tablo neden askıda olduğunu ve hangi banka hareketi olduğunu söylüyor. Askı hesabının
-bakiyesi kararı verilmemiş satırların toplamı (`suspended_deposit_resolutions`).
+bakiyesi askıdan çıkmamış havalelerin toplamı: hiç adımı olmayan ya da iadesi geri
+konan (`suspended_deposit_resolutions`).
 
 ```sql
 CREATE TABLE suspended_deposits (
@@ -158,35 +159,57 @@ CREATE INDEX ix_suspended_deposits_account ON suspended_deposits (account_id) WH
 ```
 
 Gönderenin adı, IBAN'ı ve kimlik numarası burada YOK: kişisel veri ledger'la aynı yerde
-durmuyor, banka entegrasyonunun `bank_deposits` tablosunda kalıyor. Kaynağa iade oradaki
-IBAN'a yapılacak.
+durmuyor, banka entegrasyonunun `bank_deposits` tablosunda kalıyor. Göndericiye iade oradaki
+IBAN'a gidiyor; IBAN'ı bank-adapter okuyor.
 
 ## suspended_deposit_resolutions
 
-Askıdaki havale için verilen karar: bugün yalnızca bir hesabın varsayılan cüzdanına
-aktarım. Havale başına TEK satır; insert-only, uygulama rolünde UPDATE ve DELETE REVOKE.
+Askıdaki havalenin çözüm adımları: bir hesabın cüzdanına aktarım, iadenin başlaması,
+tamamlanması ya da geri konması. Havale başına sıralı satırlar; son satır havalenin halini
+söylüyor. Insert-only, uygulama rolünde UPDATE ve DELETE REVOKE.
 
 ```sql
 CREATE TABLE suspended_deposit_resolutions (
-    suspended_deposit_id   uuid PRIMARY KEY REFERENCES suspended_deposits(ledger_transaction_id),
-    kind                   text NOT NULL CHECK (kind IN ('moved')),
-    ledger_transaction_id  uuid NOT NULL,                   -- kararın ledger işlemi
-    account_id             uuid NOT NULL REFERENCES accounts(id),  -- paranın aktarıldığı hesap
-    resolved_by            text NOT NULL,                   -- kararı veren çalışanın sub'ı
-    created_at             timestamptz NOT NULL
+    suspended_deposit_id   uuid NOT NULL REFERENCES suspended_deposits(ledger_transaction_id),
+    seq                    int NOT NULL CHECK (seq > 0),    -- havale içinde sıra, 1'den
+    kind                   text NOT NULL CHECK (kind IN
+                             ('moved','return_started','returned','return_failed')),
+    ledger_transaction_id  uuid NOT NULL,                   -- adımın ledger işlemi
+    account_id             uuid NULL REFERENCES accounts(id),  -- yalnızca aktarımda
+    resolved_by            text NOT NULL,                   -- çalışanın sub'ı ya da iade akışı
+    created_at             timestamptz NOT NULL,
+    PRIMARY KEY (suspended_deposit_id, seq),
+    CHECK ((kind = 'moved') = (account_id IS NOT NULL))
 );
 
 CREATE INDEX ix_suspended_deposit_resolutions_account ON suspended_deposit_resolutions (account_id);
 ```
 
-**Satır kapı.** Ledger işleminden ÖNCE, aynı transaction'da `ON CONFLICT DO NOTHING` ile
-yazılıyor: ikinci karar, eşzamanlı olanı da, anahtara takılıyor. Bu yüzden
-`ledger_transactions`'a FK yok; anlık bir FK henüz yazılmamış işlemi reddederdi
-(`processed_events` ile aynı). Kural reddinde transaction geri alınıyor, satır da onunla.
+| Son adım | Havale | Panel |
+|---|---|---|
+| yok, `return_failed` | askıda, karara açık | listede, aktarılabilir ya da iade edilebilir |
+| `return_started` | parası clearing'de, banka bekleniyor | listede, "İade ediliyor" |
+| `moved`, `returned` | askıdan çıktı | listede yok |
 
-Aktarımın ledger kaydı yükleme: cüzdan +, askı −, aktör çalışan. Anahtarı isteğin
-`Idempotency-Key`'i, kapsamı hedef cüzdan; tip yükleme olduğu için ayın girişine
-kendiliğinden sayılıyor.
+**Satır kapı.** Ledger işleminden ÖNCE, aynı transaction'da `ON CONFLICT DO NOTHING` ile
+yazılıyor; sıra son adımın bir fazlası. Aynı anda verilen iki karar aynı sırayı alıyor ve
+ikincisi anahtara takılıyor. Bu yüzden `ledger_transactions`'a FK yok; anlık bir FK henüz
+yazılmamış işlemi reddederdi (`processed_events` ile aynı). Kural reddinde transaction geri
+alınıyor, satır da onunla.
+
+Adımların ledger kayıtları:
+
+```
+aktarım (topup)            iade başladı (deposit_return)   iade gitti (settlement)   iade geri kondu (refund)
+user_wallet  +100          suspense  -100                  clearing  -100            clearing  -100
+suspense     -100          clearing  +100                  nostro    +100            suspense  +100
+```
+
+Aktarımın aktörü çalışan, anahtarı isteğin `Idempotency-Key`'i ve kapsamı hedef cüzdan; tip
+yükleme olduğu için ayın girişine kendiliğinden sayılıyor. İadenin başlangıcının aktörü
+iadeyi isteyen çalışan, sonraki iki kaydınki iade akışı (`system`, `deposit-return`); üçünün
+korelasyonu iade saga'sı. Bankanın ücretini platform yükleniyor: kapanış çekiminkiyle aynı
+kayıt (Net modelde gider bacağı, Invoiced modelde fatura).
 
 ## card_topup_holds ve card_topup_hold_closures
 

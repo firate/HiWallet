@@ -400,7 +400,8 @@ curl -s "localhost:8091/v1/suspended-deposits?size=20" -H "Authorization: Bearer
       "accountId": "…",
       "accountNumber": "4817305925",
       "receivedAt": "…",
-      "createdAt": "…"
+      "createdAt": "…",
+      "status": "open"
     }
   ],
   "size": 20,
@@ -408,8 +409,9 @@ curl -s "localhost:8091/v1/suspended-deposits?size=20" -H "Authorization: Bearer
 }
 ```
 
-Cüzdana geçirilemeyen havaleler, yeniden eskiye; `deposit.view` izni. Kararı verilmiş
-havale listede yok. `reason`:
+Cüzdana geçirilemeyen havaleler, yeniden eskiye; `deposit.view` izni. Aktarılan ve iadesi
+tamamlanan havale listede yok; `status` karara açıksa `open`, iadesi sürüyorsa `returning`.
+`reason`:
 `no_account_number`, `ambiguous_account_number`, `unknown_account`, `business_account`,
 `no_wallet_in_currency`, `unknown_sender`, `sender_not_holder`, `limit_exceeded`.
 `accountId` açıklamadaki numaranın hesabı, bulunduysa. Gönderenin adı, IBAN'ı ve kimlik
@@ -438,7 +440,8 @@ ledger'da yükleme, aktör çalışan. Hesap bireysel değilse (`deposit_target_
 cüzdanı yoksa (`no_wallet_in_currency`) ya da seviyenin limiti yetmiyorsa `422` ve para
 askıda kalıyor. Kontrol hanesi tutmayan numara `400`, olmayan numara ya da havale `404`.
 Aynı anahtarla tekrar aynı cevap (`replayed: true`); başka bir karar `422`
-(`deposit_already_resolved`). Aktarılan havale listeden çıkıyor.
+(`deposit_already_resolved`), iadesi süren havale `422` (`deposit_return_in_progress`).
+Aktarılan havale listeden çıkıyor.
 
 ### Transfer
 
@@ -810,6 +813,26 @@ iptalde `review_cancelled`.
 Bu durum dead-letter'a GİTMEZ: cevapsız kalan saga müşteriyi sonsuza kadar
 "işleniyor"da bırakırdı.
 </details>
+
+### Askıdaki havaleyi göndericiye iade (çalışan)
+
+```bash
+curl -s localhost:8093/v1/deposit-returns \
+  -H "Authorization: Bearer $STAFF_TOKEN" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"suspendedDepositId":"'$DEPOSIT'"}'
+```
+```json
+{ "depositReturnId": "…", "state": "initiated", "replayed": false }
+```
+
+`deposit.resolve` izni, `202`: para henüz hareket etmedi. Havale askıdan düşülüyor, sonra
+banka göndericinin IBAN'ına gönderiyor; IBAN istekte yok, banka entegrasyonu havalenin
+kaydından okuyor. Durum `GET /v1/deposit-returns/{id}` (`deposit.view`): `initiated`,
+`bank_transfer_pending`, `settling`, `completed`; havale aktarılmışsa ya da iadesi sürüyorsa
+`rejected` (`failureRule`: `deposit_already_resolved`, `deposit_return_in_progress`,
+`deposit_not_found`); banka reddederse `restoring`, sonra `failed` (`bank_rejected`) ve havale
+yeniden karara açık. Backoffice'te aynı yollar.
 
 ---
 

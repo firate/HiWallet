@@ -152,7 +152,7 @@ sadece dışarıyla konuşan kenarı dağıt.**
 | Kimliği tespit edilmemiş seviyede ayın toplam girişi ve bakiye tavanı (5.500 TL) | evet — testte |
 | Havale ile yükleme: toplama hesabı, açıklamadaki hesap numarası, yalnızca kendi hesabından | evet — testte; compose'da denenmedi |
 | Eşleşmeyen havale askıya, panelde liste ve hesabın cüzdanına aktarım | evet — testte; aktarım compose'da denenmedi |
-| Askıdaki havaleyi kaynağına iade | hayır |
+| Askıdaki havaleyi göndericiye iade (orchestrator'da saga, IBAN banka entegrasyonunda) | evet — testte; compose'da denenmedi |
 | Askıdaki havalenin kaynağa iadesi ya da bir cüzdana aktarılması | hayır |
 | `Verified`: uzaktan kimlik tespiti (kimlik kartının çipi, canlılık, yüz) | hayır |
 | `Contracted`: backoffice'ten | hayır |
@@ -177,7 +177,9 @@ Withdrawal zinciri broker'la uçtan uca koşuyor: `POST /v1/withdrawals` → orc
 wallet-consumer → bank-adapter → (HTTP) banka → callback → bank-webhook → inbox → relay →
 orchestrator. Beş host ayrı ayrı ayakta; aralarında hem broker hem gerçek HTTP var.
 Kartla yüklemenin testi ön API → card-topup → wallet-api ve sahte sağlayıcı arasında
-gerçek HTTP ile koşuyor; kuyruk halkaları handler'lara doğrudan veriliyor.
+gerçek HTTP ile koşuyor; kuyruk halkaları handler'lara doğrudan veriliyor. Askıdaki
+havalenin iadesinde de öyle: orchestrator, wallet ve bank-adapter'ın handler'ları ayrı ayrı
+sınanıyor, broker'la uçtan uca testi yok.
 
 ## Çalıştırma
 
