@@ -60,6 +60,9 @@ public static class SystemFlows
 
     public const string WithdrawalSaga = "withdrawal-saga";
 
+    /// <summary>Askıdaki havalenin iadesi; bankanın sonucuna verilen tepkiler.</summary>
+    public const string DepositReturn = "deposit-return";
+
     public const string PromoExpiry = "promo-expiry";
 
     public const string PromoCampaign = "promo-campaign";
